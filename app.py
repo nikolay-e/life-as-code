@@ -687,7 +687,7 @@ def get_settings_layout():
                     html.Div(
                         [
                             html.Button(
-                                "🏃 Sync Garmin Data (Last 7 Days)",
+                                "🏃 Sync Garmin Data (Last 30 Days)",
                                 id="sync-garmin-btn",
                                 n_clicks=0,
                                 style={
@@ -824,6 +824,18 @@ def update_dashboard_charts(start_date, end_date):
     # Weight Chart
     weight_fig = make_subplots(specs=[[{"secondary_y": True}]])
     if not data["weight"].empty:
+        # Calculate proper ranges for weight
+        weight_values = data["weight"]["weight_kg"].dropna()
+        if not weight_values.empty:
+            weight_min = weight_values.min()
+            weight_max = weight_values.max()
+            weight_padding = (
+                (weight_max - weight_min) * 0.1 if weight_max > weight_min else 2
+            )
+            weight_range = [weight_min - weight_padding, weight_max + weight_padding]
+        else:
+            weight_range = None
+
         weight_fig.add_trace(
             go.Scatter(
                 x=data["weight"]["date"],
@@ -833,7 +845,18 @@ def update_dashboard_charts(start_date, end_date):
             ),
             secondary_y=False,
         )
+
+        # Calculate proper ranges for body fat
         if "body_fat_pct" in data["weight"].columns:
+            bf_values = data["weight"]["body_fat_pct"].dropna()
+            if not bf_values.empty:
+                bf_min = bf_values.min()
+                bf_max = bf_values.max()
+                bf_padding = (bf_max - bf_min) * 0.1 if bf_max > bf_min else 2
+                bf_range = [bf_min - bf_padding, bf_max + bf_padding]
+            else:
+                bf_range = None
+
             weight_fig.add_trace(
                 go.Scatter(
                     x=data["weight"]["date"],
@@ -846,8 +869,16 @@ def update_dashboard_charts(start_date, end_date):
 
     weight_fig.update_layout(title="💪 Weight & Body Composition", height=400)
     weight_fig.update_xaxes(title_text="Date")
-    weight_fig.update_yaxes(title_text="Weight (kg)", secondary_y=False)
-    weight_fig.update_yaxes(title_text="Body Fat %", secondary_y=True)
+    weight_fig.update_yaxes(
+        title_text="Weight (kg)",
+        secondary_y=False,
+        range=weight_range if "weight_range" in locals() else None,
+    )
+    weight_fig.update_yaxes(
+        title_text="Body Fat %",
+        secondary_y=True,
+        range=bf_range if "bf_range" in locals() else None,
+    )
 
     # HR & HRV Chart
     hr_hrv_fig = make_subplots(specs=[[{"secondary_y": True}]])
@@ -1136,7 +1167,7 @@ def save_personal_settings(
 
 
 # Background sync functions
-def background_garmin_sync(user_id: int, days: int = 60):
+def background_garmin_sync(user_id: int, days: int = 30):
     """Background function for Garmin data sync."""
     with get_user_sync_lock(user_id):
         try:
@@ -1173,6 +1204,49 @@ def background_hevy_sync(user_id: int):
             print(f"✅ Background Hevy sync completed for user {user_id}: {results}")
         except Exception as e:
             print(f"❌ Background Hevy sync failed for user {user_id}: {e}")
+
+
+def initial_data_sync(user_id: int):
+    """Perform initial data sync on login - 30 days first, then all historical."""
+    with server.app_context():
+        try:
+            logger.info(f"Starting initial data sync for user {user_id}")
+
+            # Check if user has credentials
+            db = SessionLocal()
+            try:
+                creds = db.scalars(
+                    select(UserCredentials).filter_by(user_id=user_id)
+                ).first()
+
+                if creds and creds.garmin_email:
+                    logger.info(
+                        f"Syncing last 30 days of Garmin data for user {user_id}"
+                    )
+                    background_garmin_sync(user_id, days=30)
+
+                    # Then sync all historical data in background
+                    logger.info(
+                        f"Syncing all historical Garmin data for user {user_id}"
+                    )
+                    from threading import Thread
+
+                    historical_thread = Thread(
+                        target=background_garmin_sync,
+                        args=(user_id, 3650),  # 10 years
+                        daemon=True,
+                    )
+                    historical_thread.start()
+
+                if creds and creds.encrypted_hevy_api_key:
+                    logger.info(f"Syncing all Hevy data for user {user_id}")
+                    background_hevy_sync(user_id)
+
+            finally:
+                db.close()
+
+        except Exception as e:
+            logger.error(f"Initial data sync failed for user {user_id}: {e}")
 
 
 # Callback to populate credential fields when settings tab is opened
