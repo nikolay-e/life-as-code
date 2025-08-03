@@ -51,7 +51,6 @@ class User(Base):
     sleep_data = relationship(
         "Sleep", back_populates="user", cascade="all, delete-orphan"
     )
-    hrv_data = relationship("HRV", back_populates="user", cascade="all, delete-orphan")
     weight_data = relationship(
         "Weight", back_populates="user", cascade="all, delete-orphan"
     )
@@ -60,6 +59,10 @@ class User(Base):
     )
     stress_data = relationship(
         "Stress", back_populates="user", cascade="all, delete-orphan"
+    )
+    hrv_data = relationship("HRV", back_populates="user", cascade="all, delete-orphan")
+    energy_data = relationship(
+        "Energy", back_populates="user", cascade="all, delete-orphan"
     )
     steps = relationship("Steps", back_populates="user", cascade="all, delete-orphan")
     workout_sets = relationship(
@@ -157,7 +160,7 @@ class Sleep(Base):
 
 
 class HRV(Base):
-    """Heart Rate Variability data from Garmin Connect."""
+    """Heart Rate Variability data from Garmin Connect and Apple Watch."""
 
     __tablename__ = "hrv"
 
@@ -253,6 +256,29 @@ class Stress(Base):
         return (
             f"<Stress(user_id={self.user_id}, date={self.date}, avg={self.avg_stress})>"
         )
+
+
+class Energy(Base):
+    """Daily energy expenditure data from Apple Watch and Garmin."""
+
+    __tablename__ = "energy"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    date = Column(Date, nullable=False, index=True)
+    active_energy = Column(Float)  # Active calories burned (kcal)
+    basal_energy = Column(Float)  # Basal/resting calories burned (kcal)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", back_populates="energy_data")
+
+    # Ensure uniqueness per user and date
+    __table_args__ = (UniqueConstraint("user_id", "date", name="_user_date_energy_uc"),)
+
+    def __repr__(self):
+        total = (self.active_energy or 0) + (self.basal_energy or 0)
+        return f"<Energy(user_id={self.user_id}, date={self.date}, active={self.active_energy}kcal, basal={self.basal_energy}kcal, total={total}kcal)>"
 
 
 class Steps(Base):

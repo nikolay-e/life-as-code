@@ -16,6 +16,15 @@ secrets.json
 response.json
 directory_tree.yaml
 
+# HealthKit import/extraction utilities (temporary scripts)
+extract_*_xml.py
+import_healthkit_*_csv.py
+import_*_csv.py
+import_healthkit_xml.py
+analyze_xml_schema.py
+analyze_correlations.py
+batch_import_*.sh
+
 # Generated reports and dashboards
 index.html
 *.html
