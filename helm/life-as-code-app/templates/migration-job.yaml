@@ -9,8 +9,8 @@ metadata:
     app.kubernetes.io/component: migrations
   annotations:
     # This is important - it ensures the job is re-run on Helm upgrades
-    "helm.sh/hook": post-install,post-upgrade
-    "helm.sh/hook-weight": "10"
+    "helm.sh/hook": pre-upgrade,post-install
+    "helm.sh/hook-weight": "-10"
     "helm.sh/hook-delete-policy": before-hook-creation
 spec:
   ttlSecondsAfterFinished: {{ .Values.migrations.ttlSecondsAfterFinished }}

@@ -7,7 +7,6 @@ This script creates scatter plots and correlation visualizations to answer key q
 """
 
 import datetime
-from typing import List, Tuple, Type
 
 import pandas as pd
 import plotly.express as px
@@ -29,7 +28,7 @@ def load_data_from_database(user_id: int, days=90):
         datasets = {}
 
         # Load each data type
-        data_types: List[Tuple[Type[Base], str]] = [
+        data_types: list[tuple[type[Base], str]] = [
             (Sleep, "sleep"),
             (HRV, "hrv"),
             (Weight, "weight"),

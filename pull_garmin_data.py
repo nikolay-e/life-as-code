@@ -6,7 +6,6 @@ Extracts health data from Garmin Connect and stores it in PostgreSQL database.
 import datetime
 import logging
 import os
-from typing import Optional
 
 from dotenv import load_dotenv
 from garminconnect import Garmin, GarminConnectAuthenticationError
@@ -141,7 +140,7 @@ def init_api(email: str, password: str, user_id: int):
 
 def extract_sleep_data(
     api: Garmin, date_str: str, target_date: datetime.date, user_id: int
-) -> Optional[Sleep]:
+) -> Sleep | None:
     """Extract sleep data for a specific date and user."""
     try:
         sleep_data = api.get_sleep_data(date_str)
@@ -170,7 +169,7 @@ def extract_sleep_data(
 
 def extract_hrv_data(
     api: Garmin, date_str: str, target_date: datetime.date, user_id: int
-) -> Optional[HRV]:
+) -> HRV | None:
     """Extract HRV data for a specific date and user, trying multiple formats."""
     try:
         hrv_data = api.get_hrv_data(date_str)
@@ -217,7 +216,7 @@ def extract_hrv_data(
 
 def extract_weight_data(
     api: Garmin, date_str: str, target_date: datetime.date, user_id: int
-) -> Optional[Weight]:
+) -> Weight | None:
     """Extract weight and body composition data for a specific date and user."""
     try:
         # Use get_daily_weigh_ins which is more reliable for single days
@@ -259,7 +258,7 @@ def extract_weight_data(
 
 def extract_heart_rate_data(
     api: Garmin, date_str: str, target_date: datetime.date, user_id: int
-) -> Optional[HeartRate]:
+) -> HeartRate | None:
     """Extract heart rate data for a specific date and user."""
     try:
         # The get_heart_rates method might need the username
@@ -283,7 +282,7 @@ def extract_heart_rate_data(
 
 def extract_stress_data(
     api: Garmin, date_str: str, target_date: datetime.date, user_id: int
-) -> Optional[Stress]:
+) -> Stress | None:
     """Extract stress data for a specific date and user."""
     try:
         stress_data = api.get_stress_data(date_str)
@@ -407,6 +406,11 @@ def sync_garmin_data(user_id: int, days: int = 60) -> dict:
             return api_result
 
         api = api_result
+
+        # Double-check that api is not an error dict after assignment
+        if isinstance(api, dict) and "error" in api:
+            return api
+
     except GarminConnectAuthenticationError as e:
         # Handle MFA error specifically
         error_msg = str(e)
@@ -518,9 +522,21 @@ def sync_garmin_data(user_id: int, days: int = 60) -> dict:
                         )
                     ).first()
                     if existing:
-                        existing.hrv_avg = hrv_data.hrv_avg
-                        existing.hrv_status = hrv_data.hrv_status
-                        sync_results["hrv"]["updated"] += 1
+                        # Check if data has changed before updating
+                        has_changes = False
+                        if existing.hrv_avg != hrv_data.hrv_avg:
+                            existing.hrv_avg = hrv_data.hrv_avg
+                            has_changes = True
+                        if existing.hrv_status != hrv_data.hrv_status:
+                            existing.hrv_status = hrv_data.hrv_status
+                            has_changes = True
+
+                        if has_changes:
+                            sync_results["hrv"]["updated"] += 1
+                        else:
+                            sync_results["hrv"]["unchanged"] = (
+                                sync_results["hrv"].get("unchanged", 0) + 1
+                            )
                     else:
                         db.add(hrv_data)
                         sync_results["hrv"]["new"] += 1
@@ -542,14 +558,31 @@ def sync_garmin_data(user_id: int, days: int = 60) -> dict:
                     ).first()
 
                     if existing:
-                        # Update existing entry with latest data
-                        existing.weight_kg = weight_data.weight_kg
-                        existing.bmi = weight_data.bmi
-                        existing.body_fat_pct = weight_data.body_fat_pct
-                        existing.muscle_mass_kg = weight_data.muscle_mass_kg
-                        existing.bone_mass_kg = weight_data.bone_mass_kg
-                        existing.water_pct = weight_data.water_pct
-                        sync_results["weight"]["updated"] += 1
+                        # Check if data has changed before updating
+                        has_changes = False
+                        for attr in [
+                            "weight_kg",
+                            "bmi",
+                            "body_fat_pct",
+                            "muscle_mass_kg",
+                            "bone_mass_kg",
+                            "water_pct",
+                        ]:
+                            if (
+                                hasattr(weight_data, attr)
+                                and getattr(weight_data, attr) is not None
+                                and getattr(existing, attr)
+                                != getattr(weight_data, attr)
+                            ):
+                                setattr(existing, attr, getattr(weight_data, attr))
+                                has_changes = True
+
+                        if has_changes:
+                            sync_results["weight"]["updated"] += 1
+                        else:
+                            sync_results["weight"]["unchanged"] = (
+                                sync_results["weight"].get("unchanged", 0) + 1
+                            )
                     else:
                         db.add(weight_data)
                         sync_results["weight"]["new"] += 1
@@ -568,10 +601,23 @@ def sync_garmin_data(user_id: int, days: int = 60) -> dict:
                         )
                     ).first()
                     if existing:
-                        existing.resting_hr = hr_data.resting_hr
-                        existing.max_hr = hr_data.max_hr
-                        existing.avg_hr = hr_data.avg_hr
-                        sync_results["heart_rate"]["updated"] += 1
+                        # Check if data has changed before updating
+                        has_changes = False
+                        for attr in ["resting_hr", "max_hr", "avg_hr"]:
+                            if (
+                                hasattr(hr_data, attr)
+                                and getattr(hr_data, attr) is not None
+                                and getattr(existing, attr) != getattr(hr_data, attr)
+                            ):
+                                setattr(existing, attr, getattr(hr_data, attr))
+                                has_changes = True
+
+                        if has_changes:
+                            sync_results["heart_rate"]["updated"] += 1
+                        else:
+                            sync_results["heart_rate"]["unchanged"] = (
+                                sync_results["heart_rate"].get("unchanged", 0) + 1
+                            )
                     else:
                         db.add(hr_data)
                         sync_results["heart_rate"]["new"] += 1
@@ -591,6 +637,7 @@ def sync_garmin_data(user_id: int, days: int = 60) -> dict:
                     ).first()
                     if existing:
                         # Update existing record
+                        has_changes = False
                         for attr in [
                             "avg_stress",
                             "max_stress",
@@ -601,9 +648,18 @@ def sync_garmin_data(user_id: int, days: int = 60) -> dict:
                             if (
                                 hasattr(stress_data, attr)
                                 and getattr(stress_data, attr) is not None
+                                and getattr(existing, attr)
+                                != getattr(stress_data, attr)
                             ):
                                 setattr(existing, attr, getattr(stress_data, attr))
-                        sync_results["stress"]["updated"] += 1
+                                has_changes = True
+
+                        if has_changes:
+                            sync_results["stress"]["updated"] += 1
+                        else:
+                            sync_results["stress"]["unchanged"] = (
+                                sync_results["stress"].get("unchanged", 0) + 1
+                            )
                     else:
                         db.add(stress_data)
                         sync_results["stress"]["new"] += 1

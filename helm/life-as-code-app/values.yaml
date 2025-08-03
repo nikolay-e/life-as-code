@@ -29,20 +29,20 @@ app:
   # Liveness, Readiness, Startup probes configuration
   probes:
     liveness:
-      path: /
+      path: /healthz
       initialDelaySeconds: 30
       periodSeconds: 10
       timeoutSeconds: 5
       failureThreshold: 3
     readiness:
-      path: /
+      path: /healthz
       initialDelaySeconds: 5
       periodSeconds: 5
       timeoutSeconds: 3
       successThreshold: 1
       failureThreshold: 3
     startup:
-      path: /
+      path: /healthz
       failureThreshold: 30
       periodSeconds: 10
       timeoutSeconds: 5

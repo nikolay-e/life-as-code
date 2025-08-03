@@ -5,7 +5,6 @@ Handles password hashing and credential encryption.
 
 import logging
 import os
-from typing import Tuple
 
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
@@ -37,16 +36,23 @@ def get_password_hash(password: str) -> str:
 
 # --- Credential Encryption ---
 FERNET_KEY = os.getenv("FERNET_KEY")
-if not FERNET_KEY:
-    raise ValueError(
-        "FERNET_KEY not found in environment variables. "
-        'Generate one with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"'
-    )
+fernet = None  # Initialize lazily
 
-try:
-    fernet = Fernet(FERNET_KEY.encode())
-except Exception as e:
-    raise ValueError(f"Invalid FERNET_KEY format: {e}") from e
+
+def _get_fernet():
+    """Get or initialize Fernet cipher."""
+    global fernet
+    if fernet is None:
+        if not FERNET_KEY:
+            raise ValueError(
+                "FERNET_KEY not found in environment variables. "
+                'Generate one with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"'
+            )
+        try:
+            fernet = Fernet(FERNET_KEY.encode())
+        except Exception as e:
+            raise ValueError(f"Invalid FERNET_KEY format: {e}") from e
+    return fernet
 
 
 def encrypt_data(data: str) -> str:
@@ -54,7 +60,8 @@ def encrypt_data(data: str) -> str:
     if not data:
         return ""
     try:
-        return str(fernet.encrypt(data.encode()).decode())
+        cipher = _get_fernet()
+        return str(cipher.encrypt(data.encode()).decode())
     except Exception as e:
         logger.error(f"Encryption error: {e}")
         raise
@@ -65,7 +72,8 @@ def decrypt_data(encrypted_data: str) -> str:
     if not encrypted_data:
         return ""
     try:
-        return str(fernet.decrypt(encrypted_data.encode()).decode())
+        cipher = _get_fernet()
+        return str(cipher.decrypt(encrypted_data.encode()).decode())
     except Exception as e:
         logger.error(f"Decryption error: {e}")
         raise
@@ -82,7 +90,7 @@ def validate_username(username: str) -> bool:
     return all(c in allowed_chars for c in username)
 
 
-def validate_password(password: str) -> Tuple[bool, str]:
+def validate_password(password: str) -> tuple[bool, str]:
     """Validate password strength."""
     if not password:
         return False, "Password is required"

@@ -1,0 +1,14 @@
+{{/*
+Validate required secret values during deployment
+*/}}
+{{- if not .Values.secrets.secretKey }}
+{{- fail "secrets.secretKey is required! Generate with: python -c 'import secrets; print(secrets.token_hex(32))'" }}
+{{- end }}
+
+{{- if not .Values.secrets.fernetKey }}
+{{- fail "secrets.fernetKey is required! Generate with: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'" }}
+{{- end }}
+
+{{- if not .Values.secrets.postgresPassword }}
+{{- fail "secrets.postgresPassword is required! Generate with: python -c 'import secrets; print(secrets.token_urlsafe(32))'" }}
+{{- end }}

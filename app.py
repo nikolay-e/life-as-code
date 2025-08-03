@@ -12,7 +12,9 @@ import dash
 import pandas as pd
 import plotly.graph_objects as go
 from dash import Input, Output, State, callback, dcc, html
-from flask import Flask, flash, redirect, render_template_string, request, url_for
+from flask import Flask, flash, redirect, render_template_string, url_for
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from flask_login import (
     LoginManager,
     UserMixin,
@@ -21,8 +23,12 @@ from flask_login import (
     login_user,
     logout_user,
 )
+from flask_wtf import FlaskForm
+from flask_wtf.csrf import CSRFProtect
 from plotly.subplots import make_subplots
 from sqlalchemy import desc, select
+from wtforms import PasswordField, StringField, SubmitField
+from wtforms.validators import DataRequired
 
 from database import SessionLocal, check_db_connection, init_db
 from models import (
@@ -42,8 +48,18 @@ from security import encrypt_data, verify_password
 # Configure logging
 logger = logging.getLogger(__name__)
 
-# Global lock for database operations in background threads
-DB_SYNC_LOCK = threading.Lock()
+# User-specific locks for database operations in background threads
+USER_SYNC_LOCKS = {}
+USER_SYNC_LOCKS_LOCK = threading.Lock()
+
+
+def get_user_sync_lock(user_id: int) -> threading.Lock:
+    """Get or create a user-specific sync lock."""
+    with USER_SYNC_LOCKS_LOCK:
+        if user_id not in USER_SYNC_LOCKS:
+            USER_SYNC_LOCKS[user_id] = threading.Lock()
+        return USER_SYNC_LOCKS[user_id]
+
 
 # --- Flask Server & Authentication Setup ---
 server = Flask(__name__)
@@ -68,11 +84,30 @@ login_manager.init_app(server)
 login_manager.login_view = "login"
 login_manager.login_message = "Please log in to access the dashboard."
 
+# Initialize Flask-Limiter for rate limiting
+limiter = Limiter(
+    key_func=get_remote_address,
+    app=server,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://",
+    strategy="fixed-window",
+)
+
+# Initialize CSRF protection
+csrf = CSRFProtect(server)
+
 
 class UserModel(UserMixin):
     def __init__(self, user_id, username):
         self.id = user_id
         self.username = username
+
+
+# Create WTForms for CSRF protection
+class LoginForm(FlaskForm):
+    username = StringField("Username", validators=[DataRequired()])
+    password = PasswordField("Password", validators=[DataRequired()])
+    submit = SubmitField("Login")
 
 
 @login_manager.user_loader
@@ -89,14 +124,16 @@ def load_user(user_id):
 
 # --- Authentication Routes (Flask) ---
 @server.route("/login", methods=["GET", "POST"])
+@limiter.limit("10 per minute")
 def login():
-    if request.method == "POST":
+    form = LoginForm()
+    if form.validate_on_submit():
         db = SessionLocal()
         try:
             user = db.scalars(
-                select(User).filter_by(username=request.form["username"])
+                select(User).filter_by(username=form.username.data)
             ).first()
-            if user and verify_password(request.form["password"], user.password_hash):
+            if user and verify_password(form.password.data, user.password_hash):
                 user_model = UserModel(user.id, user.username)
                 login_user(user_model)
                 return redirect("/dashboard/")
@@ -145,13 +182,14 @@ def login():
             {% endwith %}
 
             <form method="post">
+                {{ form.hidden_tag() }}
                 <div class="form-group">
-                    <label for="username">Username</label>
-                    <input type="text" id="username" name="username" required>
+                    {{ form.username.label(class="") }}
+                    {{ form.username(class="", required=True) }}
                 </div>
                 <div class="form-group">
-                    <label for="password">Password</label>
-                    <input type="password" id="password" name="password" required>
+                    {{ form.password.label(class="") }}
+                    {{ form.password(class="", required=True) }}
                 </div>
                 <button type="submit" class="btn">Login</button>
             </form>
@@ -162,15 +200,30 @@ def login():
         </div>
     </body>
     </html>
-    """
+    """,
+        form=form,
     )
 
 
 @server.route("/logout")
 @login_required
+@limiter.limit("5 per minute")
 def logout():
     logout_user()
     return redirect(url_for("login"))
+
+
+@server.route("/healthz")
+def health_check():
+    """Unauthenticated health endpoint for K8s probes."""
+    try:
+        # Basic DB connectivity check
+        db = SessionLocal()
+        db.execute(select(1)).scalar()
+        db.close()
+        return {"status": "ok", "database": "connected"}, 200
+    except Exception as e:
+        return {"status": "error", "database": "disconnected", "error": str(e)}, 503
 
 
 @server.route("/")
@@ -780,7 +833,7 @@ def update_dashboard_charts(start_date, end_date):
         stage_names = ["Deep Sleep", "Light Sleep", "REM Sleep", "Awake"]
         colors = ["#1f77b4", "#87ceeb", "#9467bd", "#ff6b6b"]
 
-        for stage, name, color in zip(stages, stage_names, colors):
+        for stage, name, color in zip(stages, stage_names, colors, strict=False):
             if stage in data["sleep"].columns:
                 sleep_fig.add_trace(
                     go.Bar(
@@ -1028,7 +1081,7 @@ def save_personal_settings(
 # Background sync functions
 def background_garmin_sync(user_id: int, days: int = 60):
     """Background function for Garmin data sync."""
-    with DB_SYNC_LOCK:
+    with get_user_sync_lock(user_id):
         try:
             from pull_garmin_data import sync_garmin_data
 
@@ -1055,7 +1108,7 @@ def background_garmin_sync(user_id: int, days: int = 60):
 
 def background_hevy_sync(user_id: int):
     """Background function for Hevy data sync."""
-    with DB_SYNC_LOCK:
+    with get_user_sync_lock(user_id):
         try:
             from pull_hevy_data import sync_hevy_data
 
@@ -1212,7 +1265,7 @@ def check_sync_status(n_intervals, sync_running):
                     }
                 elif latest_sync.status == "error":
                     if latest_sync.error_message and "MFA" in latest_sync.error_message:
-                        message = f"❌ {latest_sync.source.title()} sync failed: MFA authentication required. Please disable MFA in your Garmin account settings."
+                        message = f"❌ {latest_sync.source.title()} sync failed: MFA authentication required. To fix this:\n1. Go to Garmin Connect account security settings\n2. Temporarily disable two-factor authentication\n3. Try syncing again\n4. You can re-enable MFA after successful sync"
                     else:
                         message = f"❌ {latest_sync.source.title()} sync failed: {latest_sync.error_message or 'Unknown error'}"
                     style = {
@@ -1377,7 +1430,7 @@ def update_data_status(tab):
                             "MFA" in sync.error_message
                             or "multi-factor" in sync.error_message.lower()
                         ):
-                            error_msg = " - MFA authentication required. Please disable MFA in your Garmin account settings."
+                            error_msg = " - MFA required: Temporarily disable 2FA in Garmin account settings, sync, then re-enable."
                         else:
                             error_msg = f" - Error: {sync.error_message}"
                         sync_text += error_msg

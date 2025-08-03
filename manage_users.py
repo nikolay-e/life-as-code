@@ -6,6 +6,7 @@ Use this to add users to your private portal.
 """
 
 import getpass
+import os
 import sys
 
 from sqlalchemy import select
@@ -182,9 +183,24 @@ def delete_user():
             print(f"❌ User '{username}' not found.")
             return
 
+        # Store user ID for token cleanup
+        user_id = user.id
+
         # Delete user (cascade will handle credentials and data)
         db.delete(user)
         db.commit()
+
+        # Clean up Garmin tokens directory
+        import shutil
+
+        token_dir = os.path.expanduser(f"~/.garminconnect/user_{user_id}")
+        if os.path.exists(token_dir):
+            try:
+                shutil.rmtree(token_dir)
+                print(f"🧹 Cleaned up Garmin tokens for user {user_id}")
+            except Exception as e:
+                print(f"⚠️ Warning: Could not clean up token directory: {e}")
+
         print(f"✅ User '{username}' deleted successfully!")
 
     except Exception as e:

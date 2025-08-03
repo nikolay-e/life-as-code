@@ -5,8 +5,8 @@ Handles PostgreSQL connections using SQLAlchemy.
 
 import logging
 import os
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Generator
 
 from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.exc import SQLAlchemyError
@@ -26,9 +26,10 @@ if not DATABASE_URL:
 # Create engine with connection pooling
 engine = create_engine(
     DATABASE_URL,
-    pool_size=10,
-    max_overflow=20,
+    pool_size=20,  # Increased from 10 to handle more concurrent connections
+    max_overflow=30,  # Increased from 20 for burst capacity
     pool_pre_ping=True,  # Validate connections before use
+    pool_recycle=3600,  # Recycle connections every hour to prevent staleness
     echo=False,  # Set to True for SQL query logging in development
 )
 

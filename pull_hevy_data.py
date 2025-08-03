@@ -4,6 +4,7 @@ Extracts workout data from Hevy API and stores it in PostgreSQL database.
 """
 
 import logging
+import time
 
 import pandas as pd
 import requests
@@ -36,36 +37,59 @@ def get_all_workouts(api_key):
         headers = {"api-key": api_key}
         params = {"page": page, "pageSize": 10}  # Max 10 per page
 
-        try:
-            response = requests.get(
-                "https://api.hevy.com/v1/workouts",
-                headers=headers,
-                params=params,
-                timeout=30,
-            )
+        # Retry logic for transient errors
+        max_retries = 3
+        page_success = False
 
-            if response.status_code == 404:
-                # End of data - this is normal when we've fetched all pages
-                logger.info(f"Reached end of data at page {page}")
-                break
-
-            if response.status_code != 200:
-                raise Exception(
-                    f"Error fetching data: {response.status_code} {response.text}"
+        for retry in range(max_retries):
+            try:
+                response = requests.get(
+                    "https://api.hevy.com/v1/workouts",
+                    headers=headers,
+                    params=params,
+                    timeout=30,
                 )
 
-            data = response.json()
-            workouts_on_page = data.get("workouts", [])
+                if response.status_code == 404:
+                    # End of data - this is normal when we've fetched all pages
+                    logger.info(f"Reached end of data at page {page}")
+                    return all_workouts
 
-            if not workouts_on_page:
-                # No more workouts, break the loop
-                break
+                if response.status_code != 200:
+                    raise Exception(
+                        f"Error fetching data: {response.status_code} {response.text}"
+                    )
 
-            all_workouts.extend(workouts_on_page)
-            page += 1
+                data = response.json()
+                workouts_on_page = data.get("workouts", [])
 
-        except Exception as e:
-            logger.error(f"Error fetching page {page}: {e}")
+                if not workouts_on_page:
+                    # No more workouts, return all collected data
+                    return all_workouts
+
+                all_workouts.extend(workouts_on_page)
+                logger.info(
+                    f"Fetched {len(workouts_on_page)} workouts from page {page}"
+                )
+                page += 1
+                page_success = True
+                break  # Success, move to next page
+
+            except Exception as e:
+                if retry < max_retries - 1:
+                    wait_time = 2**retry
+                    logger.warning(
+                        f"Error fetching page {page}, retrying in {wait_time}s (attempt {retry + 1}/{max_retries}): {e}"
+                    )
+                    time.sleep(wait_time)
+                else:
+                    logger.error(
+                        f"Failed to fetch page {page} after {max_retries} retries: {e}"
+                    )
+                    raise
+
+        if not page_success:
+            logger.error(f"Failed to fetch page {page}")
             break
 
     logger.info(f"\n📊 Total workouts fetched: {len(all_workouts)}")
