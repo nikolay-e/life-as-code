@@ -46,7 +46,7 @@ Follow the interactive prompts to create a user.
 
 ### 4. Log In and Configure
 
-- Navigate to **`http://localhost:8050`** in your browser.
+- Navigate to **`http://localhost:443`** in your browser.
 - Log in with the credentials you just created.
 - Go to the **Settings** tab.
 - Enter your Garmin email/password and your Hevy API key, then click "Save Credentials".

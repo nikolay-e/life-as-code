@@ -15,10 +15,10 @@ app:
     # Overridden by CI with specific tag
     tag: "latest"
   # Port the app container listens on
-  port: 8050 # Default port for Flask/Dash app
+  port: 443 # Standard HTTPS port
   service:
     type: ClusterIP
-    port: 8050 # Default service port
+    port: 443 # Standard HTTPS port
   resources:
     limits:
       cpu: "500m"

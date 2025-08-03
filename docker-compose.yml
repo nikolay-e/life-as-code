@@ -4,7 +4,7 @@ services:
   web:
     build: .
     ports:
-      - "8050:8050"
+      - "443:443"
     environment:
       # Database connection
       - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}

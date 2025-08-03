@@ -31,7 +31,7 @@ ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
 # Expose port for dashboard
-EXPOSE 8050
+EXPOSE 443
 
 # Create a startup script that runs data pulls and starts dashboard
 RUN chmod +x docker-entrypoint.sh
