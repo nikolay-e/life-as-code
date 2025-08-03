@@ -13,17 +13,24 @@ from garth.exc import GarthHTTPError
 from sqlalchemy import select
 
 from database import SessionLocal, get_db_session_context
+from garmin_schemas import (
+    GarminHRVData,
+    GarminSleepData,
+    GarminStepsData,
+    GarminStressData,
+)
 from models import (
     HRV,
     DataSync,
     HeartRate,
     Sleep,
+    Steps,
     Stress,
     User,
     UserCredentials,
     Weight,
 )
-from security import decrypt_data
+from security import decrypt_data_for_user
 
 # Load environment variables
 load_dotenv()
@@ -36,7 +43,8 @@ logger = logging.getLogger(__name__)
 def init_api(email: str, password: str, user_id: int):
     """Initialize Garmin API with proper authentication using provided credentials."""
     # User-specific token storage to prevent cross-user data bleed
-    tokenstore_dir = os.path.expanduser(f"~/.garminconnect/user_{user_id}")
+    # Use the mounted volume path instead of home directory
+    tokenstore_dir = f"/app/.garminconnect/user_{user_id}"
     tokenstore = os.path.join(tokenstore_dir, "tokens")
     os.makedirs(tokenstore_dir, exist_ok=True)
 
@@ -141,25 +149,30 @@ def init_api(email: str, password: str, user_id: int):
 def extract_sleep_data(
     api: Garmin, date_str: str, target_date: datetime.date, user_id: int
 ) -> Sleep | None:
-    """Extract sleep data for a specific date and user."""
+    """Extract sleep data for a specific date and user using Pydantic validation."""
     try:
-        sleep_data = api.get_sleep_data(date_str)
-        if not sleep_data or not sleep_data.get("dailySleepDTO"):
+        raw_sleep_data = api.get_sleep_data(date_str)
+        if not raw_sleep_data:
             return None
 
-        sleep_dto = sleep_data["dailySleepDTO"]
+        # Extract the actual sleep data from the response
+        sleep_dto = raw_sleep_data.get("dailySleepDTO", raw_sleep_data)
 
+        # Use Pydantic for robust parsing
+        parsed_sleep = GarminSleepData.from_garmin_response(sleep_dto)
+        if not parsed_sleep:
+            return None
+
+        # Convert to database model
         return Sleep(
             user_id=user_id,
             date=target_date,
-            deep_minutes=sleep_dto.get("deepSleepSeconds", 0) / 60,
-            light_minutes=sleep_dto.get("lightSleepSeconds", 0) / 60,
-            rem_minutes=sleep_dto.get("remSleepSeconds", 0) / 60,
-            awake_minutes=sleep_dto.get("awakeSleepSeconds", 0) / 60,
-            total_sleep_minutes=sleep_dto.get("sleepTimeSeconds", 0) / 60,
-            sleep_score=sleep_dto.get("sleepScores", {})
-            .get("overall", {})
-            .get("value"),
+            deep_minutes=(parsed_sleep.deep_sleep_duration or 0) / 60,
+            light_minutes=(parsed_sleep.light_sleep_duration or 0) / 60,
+            rem_minutes=(parsed_sleep.rem_sleep_duration or 0) / 60,
+            awake_minutes=(parsed_sleep.awake_duration or 0) / 60,
+            total_sleep_minutes=(parsed_sleep.total_sleep_time or 0) / 60,
+            sleep_score=parsed_sleep.sleep_score,
         )
 
     except Exception as e:
@@ -170,44 +183,36 @@ def extract_sleep_data(
 def extract_hrv_data(
     api: Garmin, date_str: str, target_date: datetime.date, user_id: int
 ) -> HRV | None:
-    """Extract HRV data for a specific date and user, trying multiple formats."""
+    """Extract HRV data for a specific date and user using Pydantic validation."""
     try:
-        hrv_data = api.get_hrv_data(date_str)
-        # Log raw data to understand the format
-        logger.debug(f"HRV data received for {date_str}")
-
-        if not hrv_data:
+        raw_hrv_data = api.get_hrv_data(date_str)
+        if not raw_hrv_data:
             return None
 
-        hrv_avg = None
-        hrv_status = "unknown"
+        # Handle different response formats
+        hrv_source = raw_hrv_data
+        if "hrvStatusSummary" in raw_hrv_data:
+            hrv_source = raw_hrv_data["hrvStatusSummary"]
+        elif isinstance(raw_hrv_data, list) and raw_hrv_data:
+            hrv_source = raw_hrv_data[0]
 
-        # Try format 1: Nested under 'hrvStatusSummary' (common)
-        if "hrvStatusSummary" in hrv_data and hrv_data["hrvStatusSummary"]:
-            summary = hrv_data["hrvStatusSummary"]
-            if summary.get("status") != "NO_DATA":
-                hrv_avg = summary.get("lastNightAvg")
-                hrv_status = summary.get("status", "unknown").lower()
+        # Use Pydantic for robust parsing
+        parsed_hrv = GarminHRVData.from_garmin_response(hrv_source)
+        if not parsed_hrv:
+            logger.warning(f"Could not extract HRV from response for {date_str}")
+            return None
 
-        # Try format 2: A simple list of values (less common)
-        elif isinstance(hrv_data, list) and hrv_data:
-            hrv_avg = hrv_data[0].get("lastNightAvg")
+        # Convert to database model (use RMSSD as primary HRV metric)
+        hrv_value = parsed_hrv.hrv_rmssd or parsed_hrv.hrv_sdrr
+        if hrv_value is None:
+            return None
 
-        # Try format 3: Top-level keys (older format)
-        elif isinstance(hrv_data, dict) and hrv_avg is None:
-            hrv_avg = hrv_data.get("lastNightAvg") or hrv_data.get("hrvValue")
-
-        if hrv_avg is not None:
-            logger.info(f"Successfully extracted HRV value for {date_str}: {hrv_avg}")
-            return HRV(
-                user_id=user_id,
-                date=target_date,
-                hrv_avg=float(hrv_avg),
-                hrv_status=hrv_status,
-            )
-
-        logger.warning(f"Could not extract HRV from response for {date_str}")
-        return None
+        return HRV(
+            user_id=user_id,
+            date=target_date,
+            hrv_avg=hrv_value,
+            hrv_status="normal",  # Default status, could be enhanced later
+        )
 
     except Exception as e:
         logger.error(f"Failed to process HRV data for {date_str}: {e}")
@@ -283,68 +288,81 @@ def extract_heart_rate_data(
 def extract_stress_data(
     api: Garmin, date_str: str, target_date: datetime.date, user_id: int
 ) -> Stress | None:
-    """Extract stress data for a specific date and user."""
+    """Extract stress data for a specific date and user using Pydantic validation."""
     try:
-        stress_data = api.get_stress_data(date_str)
-        logger.debug(f"Stress data received for {date_str}")
-        if not stress_data:
+        raw_stress_data = api.get_stress_data(date_str)
+        if not raw_stress_data:
             return None
 
-        # Try to extract stress values from various possible formats
-        avg_stress = None
-        max_stress = None
-        stress_level = "unknown"
-        rest_stress = None
-        activity_stress = None
+        # Use Pydantic for robust parsing
+        parsed_stress = GarminStressData.from_garmin_response(raw_stress_data)
+        if not parsed_stress:
+            logger.warning(f"Could not extract stress from response for {date_str}")
+            return None
 
-        # Format 1: Check if it's a dict with stress values
-        if isinstance(stress_data, dict):
-            avg_stress = stress_data.get("averageStressLevel")
-            max_stress = stress_data.get("maxStressLevel")
-            rest_stress = stress_data.get("restStressAverage")
-            activity_stress = stress_data.get("activityStressAverage")
-
-            # Determine stress level based on average
-            if avg_stress:
-                if avg_stress < 25:
-                    stress_level = "low"
-                elif avg_stress < 50:
-                    stress_level = "medium"
-                else:
-                    stress_level = "high"
-
-        # Format 2: Check if it has stress chart data
-        elif isinstance(stress_data, list) and stress_data:
-            # Take average of available stress readings
-            stress_values = [
-                item.get("stressLevel")
-                for item in stress_data
-                if item.get("stressLevel")
-            ]
-            if stress_values:
-                avg_stress = sum(stress_values) / len(stress_values)
-                max_stress = max(stress_values)
-
-        if avg_stress is not None:
-            logger.info(
-                f"Successfully extracted stress data for {date_str}: avg={avg_stress}"
-            )
-            return Stress(
-                user_id=user_id,
-                date=target_date,
-                avg_stress=avg_stress,
-                max_stress=max_stress,
-                stress_level=stress_level,
-                rest_stress=rest_stress,
-                activity_stress=activity_stress,
-            )
-
-        logger.warning(f"Could not extract stress from response for {date_str}")
-        return None
+        # Convert to database model
+        return Stress(
+            user_id=user_id,
+            date=target_date,
+            avg_stress=parsed_stress.avg_stress,
+            max_stress=parsed_stress.max_stress,
+            stress_level="normal",  # Default level, could be enhanced later
+            rest_stress=None,  # Not available in current API response
+            activity_stress=None,  # Not available in current API response
+        )
 
     except Exception as e:
         logger.error(f"Failed to process stress data for {date_str}: {e}")
         return None
+
+
+def extract_steps_data_for_range(
+    api: Garmin, start_date: datetime.date, end_date: datetime.date, user_id: int
+) -> list[Steps]:
+    """Extract steps data for a date range using Pydantic validation."""
+    try:
+        # Format dates for API
+        start_str = start_date.strftime("%Y-%m-%d")
+        end_str = end_date.strftime("%Y-%m-%d")
+
+        raw_steps_data = api.get_daily_steps(start_str, end_str)
+        if not raw_steps_data:
+            return []
+
+        steps_records = []
+        for daily_data in raw_steps_data:
+            # Parse date from response
+            date_str = daily_data.get("calendarDate")
+            if not date_str:
+                continue
+
+            try:
+                record_date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+            except ValueError:
+                continue
+
+            # Use Pydantic for robust parsing
+            parsed_steps = GarminStepsData.from_garmin_response(daily_data)
+            if not parsed_steps:
+                continue
+
+            # Convert to database model
+            steps_record = Steps(
+                user_id=user_id,
+                date=record_date,
+                total_steps=parsed_steps.total_steps,
+                total_distance=parsed_steps.total_distance,
+                step_goal=parsed_steps.step_goal,
+            )
+            steps_records.append(steps_record)
+
+        return steps_records
+
+    except Exception as e:
+        logger.error(
+            f"Failed to process steps data for range {start_date} to {end_date}: {e}"
+        )
+        return []
 
 
 def sync_garmin_data(user_id: int, days: int = 60) -> dict:
@@ -370,7 +388,7 @@ def sync_garmin_data(user_id: int, days: int = 60) -> dict:
         # Decrypt credentials
         email = creds.garmin_email or user.username
         try:
-            password = decrypt_data(creds.encrypted_garmin_password)
+            password = decrypt_data_for_user(creds.encrypted_garmin_password, user_id)
         except Exception as e:
             logger.error(f"Failed to decrypt Garmin password for user {user_id}: {e}")
             return {
@@ -461,9 +479,50 @@ def sync_garmin_data(user_id: int, days: int = 60) -> dict:
         "weight": {"total": 0, "new": 0, "updated": 0, "errors": 0},
         "heart_rate": {"total": 0, "new": 0, "updated": 0, "errors": 0},
         "stress": {"total": 0, "new": 0, "updated": 0, "errors": 0},
+        "steps": {"total": 0, "new": 0, "updated": 0, "errors": 0},
     }
 
     with get_db_session_context() as db:
+        # Process steps data first (uses range API)
+        try:
+            steps_records = extract_steps_data_for_range(
+                api, start_date, end_date, user_id
+            )
+            for steps_data in steps_records:
+                # Check if record already exists
+                existing = db.scalars(
+                    select(Steps).filter(
+                        Steps.user_id == user_id, Steps.date == steps_data.date
+                    )
+                ).first()
+
+                if existing:
+                    # Check if data has changed before updating
+                    has_changes = False
+                    for attr in ["total_steps", "total_distance", "step_goal"]:
+                        if (
+                            hasattr(steps_data, attr)
+                            and getattr(steps_data, attr) is not None
+                            and getattr(existing, attr) != getattr(steps_data, attr)
+                        ):
+                            setattr(existing, attr, getattr(steps_data, attr))
+                            has_changes = True
+
+                    if has_changes:
+                        sync_results["steps"]["updated"] += 1
+                    else:
+                        sync_results["steps"]["unchanged"] = (
+                            sync_results["steps"].get("unchanged", 0) + 1
+                        )
+                else:
+                    db.add(steps_data)
+                    sync_results["steps"]["new"] += 1
+                sync_results["steps"]["total"] += 1
+
+        except Exception as e:
+            logger.error(f"Error processing steps data: {e}")
+            sync_results["steps"]["errors"] += 1
+
         current_date = start_date
 
         while current_date <= end_date:

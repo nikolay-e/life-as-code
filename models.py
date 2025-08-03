@@ -29,6 +29,9 @@ class User(Base):
     id = Column(Integer, primary_key=True)
     username = Column(String(80), unique=True, nullable=False, index=True)
     password_hash = Column(String(200), nullable=False)
+    encryption_key_sealed = Column(
+        Text, nullable=True
+    )  # Per-user encryption key sealed with master key
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     # Relationships
@@ -57,6 +60,7 @@ class User(Base):
     stress_data = relationship(
         "Stress", back_populates="user", cascade="all, delete-orphan"
     )
+    steps = relationship("Steps", back_populates="user", cascade="all, delete-orphan")
     workout_sets = relationship(
         "WorkoutSet", back_populates="user", cascade="all, delete-orphan"
     )
@@ -248,6 +252,29 @@ class Stress(Base):
         return (
             f"<Stress(user_id={self.user_id}, date={self.date}, avg={self.avg_stress})>"
         )
+
+
+class Steps(Base):
+    """Daily steps and distance data from Garmin Connect."""
+
+    __tablename__ = "steps"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    date = Column(Date, nullable=False, index=True)
+    total_steps = Column(Integer)  # Total steps for the day
+    total_distance = Column(Float)  # Total distance in meters
+    step_goal = Column(Integer)  # Daily step goal
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", back_populates="steps")
+
+    # Ensure uniqueness per user and date
+    __table_args__ = (UniqueConstraint("user_id", "date", name="_user_date_steps_uc"),)
+
+    def __repr__(self):
+        return f"<Steps(user_id={self.user_id}, date={self.date}, steps={self.total_steps})>"
 
 
 class WorkoutSet(Base):

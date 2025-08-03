@@ -14,7 +14,7 @@ from scipy import stats
 from sqlalchemy import select
 
 from database import SessionLocal
-from models import HRV, Base, HeartRate, Sleep, Weight, WorkoutSet
+from models import HRV, Base, HeartRate, Sleep, Steps, Stress, Weight, WorkoutSet
 
 
 def load_data_from_database(user_id: int, days=90):
@@ -33,6 +33,8 @@ def load_data_from_database(user_id: int, days=90):
             (HRV, "hrv"),
             (Weight, "weight"),
             (HeartRate, "heart_rate"),
+            (Stress, "stress"),
+            (Steps, "steps"),
             (WorkoutSet, "workouts"),
         ]
 

@@ -13,7 +13,7 @@ from sqlalchemy import func, select
 
 from database import SessionLocal, get_db_session_context
 from models import DataSync, User, UserCredentials, WorkoutSet
-from security import decrypt_data
+from security import decrypt_data_for_user
 
 # Load environment variables
 load_dotenv()
@@ -116,7 +116,7 @@ def sync_hevy_data(user_id: int):
 
         # Decrypt API key
         try:
-            api_key = decrypt_data(creds.encrypted_hevy_api_key)
+            api_key = decrypt_data_for_user(creds.encrypted_hevy_api_key, user_id)
         except Exception as e:
             logger.error(f"Failed to decrypt Hevy API key for user {user_id}: {e}")
             return {

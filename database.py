@@ -10,7 +10,7 @@ from contextlib import contextmanager
 
 from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import Session, scoped_session, sessionmaker
 
 from models import Base
 
@@ -33,8 +33,9 @@ engine = create_engine(
     echo=False,  # Set to True for SQL query logging in development
 )
 
-# Create session factory
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# Create thread-safe session factory
+session_factory = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+SessionLocal = scoped_session(session_factory)
 
 
 def init_db() -> None:
@@ -49,7 +50,7 @@ def init_db() -> None:
 
 
 def get_db_session() -> Session:
-    """Get a new database session."""
+    """Get a new database session. Remember to call SessionLocal.remove() after use in background threads."""
     return SessionLocal()
 
 
@@ -58,6 +59,7 @@ def get_db_session_context() -> Generator[Session, None, None]:
     """
     Context manager for database sessions.
     Automatically handles commit/rollback and session cleanup.
+    Uses scoped session for thread safety.
 
     Usage:
         with get_db_session_context() as db:
@@ -75,6 +77,8 @@ def get_db_session_context() -> Generator[Session, None, None]:
         raise
     finally:
         db.close()
+        # Clean up the scoped session for this thread
+        SessionLocal.remove()
 
 
 def check_db_connection() -> bool:

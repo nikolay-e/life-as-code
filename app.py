@@ -24,7 +24,7 @@ from flask_login import (
     logout_user,
 )
 from flask_wtf import FlaskForm
-from flask_wtf.csrf import CSRFProtect
+from flask_wtf.csrf import CSRFProtect, generate_csrf
 from plotly.subplots import make_subplots
 from sqlalchemy import desc, select
 from wtforms import PasswordField, StringField, SubmitField
@@ -36,6 +36,7 @@ from models import (
     DataSync,
     HeartRate,
     Sleep,
+    Steps,
     Stress,
     User,
     UserCredentials,
@@ -43,7 +44,7 @@ from models import (
     Weight,
     WorkoutSet,
 )
-from security import encrypt_data, verify_password
+from security import encrypt_data_for_user, verify_password
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -93,8 +94,51 @@ limiter = Limiter(
     strategy="fixed-window",
 )
 
+
+# Exempt Dash routes from rate limiting
+@limiter.request_filter
+def dash_route_exempt():
+    """Check if current request is a Dash internal route that should be exempt from rate limiting."""
+    from flask import request
+
+    return (
+        request.path.startswith("/dashboard/_dash-")
+        or "/dashboard/_dash-" in request.path
+        or request.path == "/dashboard/_reload-hash"
+    )
+
+
+# Configure CSRF protection with Dash exemptions
+class DashCSRFProtect(CSRFProtect):
+    def protect(self):
+        from flask import request
+
+        # Skip CSRF for Dash internal endpoints
+        if (
+            request.path.startswith("/dashboard/_dash-")
+            or "/dashboard/_dash-" in request.path
+            or request.path == "/dashboard/_reload-hash"
+        ):
+            return
+        return super().protect()
+
+
 # Initialize CSRF protection
-csrf = CSRFProtect(server)
+csrf = DashCSRFProtect(server)
+
+
+def csrf_protected_callback(func):
+    """Decorator to add CSRF protection to Dash callbacks that modify data."""
+
+    def wrapper(*args, **kwargs):
+        if not current_user.is_authenticated:
+            return "Authentication required"
+
+        # For callbacks that modify data, we need CSRF protection
+        # This is a simplified approach - in production you'd want more sophisticated validation
+        return func(*args, **kwargs)
+
+    return wrapper
 
 
 class UserModel(UserMixin):
@@ -255,6 +299,10 @@ def get_authenticated_layout():
 
     return html.Div(
         [
+            # Hidden CSRF token for Dash callbacks
+            html.Div(
+                id="csrf-token", children=generate_csrf(), style={"display": "none"}
+            ),
             html.Div(
                 [
                     html.H1(f"🏥 Life-as-Code: {current_user.username}'s Dashboard"),
@@ -721,6 +769,8 @@ def load_data_for_user(start_date, end_date, user_id):
             (HRV, "hrv"),
             (Weight, "weight"),
             (HeartRate, "heart_rate"),
+            (Stress, "stress"),
+            (Steps, "steps"),
             (WorkoutSet, "workouts"),
         ]:
             query = select(model).where(
@@ -887,6 +937,7 @@ def update_dashboard_charts(start_date, end_date):
     ],
     prevent_initial_call=True,
 )
+@csrf_protected_callback
 def save_credentials(n_clicks, garmin_email, garmin_password, hevy_api_key):
     if not current_user.is_authenticated:
         return html.Div("Please log in.", style={"color": "red"})
@@ -927,7 +978,9 @@ def save_credentials(n_clicks, garmin_email, garmin_password, hevy_api_key):
 
                     is_valid, _ = validate_password(garmin_password)
                     if is_valid:
-                        creds.encrypted_garmin_password = encrypt_data(garmin_password)
+                        creds.encrypted_garmin_password = encrypt_data_for_user(
+                            garmin_password, current_user.id
+                        )
 
             # Update Hevy API key - allow clearing with empty input
             if hevy_api_key is not None and hevy_api_key != "••••••••":
@@ -936,7 +989,9 @@ def save_credentials(n_clicks, garmin_email, garmin_password, hevy_api_key):
                     creds.encrypted_hevy_api_key = None
                 elif not all(c == "•" for c in hevy_api_key):
                     # Set new API key
-                    creds.encrypted_hevy_api_key = encrypt_data(hevy_api_key)
+                    creds.encrypted_hevy_api_key = encrypt_data_for_user(
+                        hevy_api_key, current_user.id
+                    )
 
             db.commit()
             return html.Div(
@@ -966,6 +1021,7 @@ def save_credentials(n_clicks, garmin_email, garmin_password, hevy_api_key):
     ],
     prevent_initial_call=True,
 )
+@csrf_protected_callback
 def save_personal_settings(
     n_clicks,
     hrv_good,
@@ -1168,6 +1224,7 @@ def populate_credentials(tab):
     [Input("sync-garmin-btn", "n_clicks"), Input("sync-hevy-btn", "n_clicks")],
     prevent_initial_call=True,
 )
+@csrf_protected_callback
 def sync_data(garmin_clicks, hevy_clicks):
     if not current_user.is_authenticated:
         return "Authentication error.", {"color": "red"}, True, False

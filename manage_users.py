@@ -21,7 +21,7 @@ from config import (
 from database import SessionLocal, init_db
 from models import User, UserCredentials, UserSettings
 from security import (
-    encrypt_data,
+    encrypt_data_for_user,
     get_password_hash,
     validate_password,
     validate_username,
@@ -86,9 +86,13 @@ def create_user():
             user_id=user.id,
             garmin_email=garmin_email if garmin_email else None,
             encrypted_garmin_password=(
-                encrypt_data(garmin_password) if garmin_password else None
+                encrypt_data_for_user(garmin_password, user.id)
+                if garmin_password
+                else None
             ),
-            encrypted_hevy_api_key=encrypt_data(hevy_api_key) if hevy_api_key else None,
+            encrypted_hevy_api_key=(
+                encrypt_data_for_user(hevy_api_key, user.id) if hevy_api_key else None
+            ),
         )
         db.add(credentials)
 
@@ -193,7 +197,7 @@ def delete_user():
         # Clean up Garmin tokens directory
         import shutil
 
-        token_dir = os.path.expanduser(f"~/.garminconnect/user_{user_id}")
+        token_dir = f"/app/.garminconnect/user_{user_id}"
         if os.path.exists(token_dir):
             try:
                 shutil.rmtree(token_dir)
@@ -244,12 +248,14 @@ def update_credentials():
 
         garmin_password = getpass.getpass("Garmin password [hidden]: ")
         if garmin_password:
-            creds.encrypted_garmin_password = encrypt_data(garmin_password)
+            creds.encrypted_garmin_password = encrypt_data_for_user(
+                garmin_password, user.id
+            )
 
         # Update Hevy API key
         hevy_api_key = input("Hevy API key [hidden]: ").strip()
         if hevy_api_key:
-            creds.encrypted_hevy_api_key = encrypt_data(hevy_api_key)
+            creds.encrypted_hevy_api_key = encrypt_data_for_user(hevy_api_key, user.id)
 
         db.commit()
         print(f"✅ Credentials updated for '{username}'!")

@@ -22,3 +22,6 @@ cryptography>=45.0.5
 passlib>=1.7.4
 flask-wtf>=1.2.1
 flask-limiter>=3.8.0
+
+# Data Validation
+pydantic>=2.10.4
