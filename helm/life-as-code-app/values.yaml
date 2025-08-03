@@ -15,10 +15,10 @@ app:
     # Overridden by CI with specific tag
     tag: "latest"
   # Port the app container listens on
-  port: 443 # Standard HTTPS port
+  port: 8080 # Standard alternative HTTP port
   service:
     type: ClusterIP
-    port: 443 # Standard HTTPS port
+    port: 80 # Standard HTTP port
   resources:
     limits:
       cpu: "500m"

@@ -11,6 +11,6 @@ spec:
     - port: {{ .Values.app.service.port }}
       targetPort: http
       protocol: TCP
-      name: https
+      name: http
   selector:
     {{- include "life-as-code-app.selectorLabels" . | nindent 4 }}

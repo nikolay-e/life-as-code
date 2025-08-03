@@ -30,8 +30,8 @@ except:
 "
 
 echo
-echo "🚀 Starting unified web portal on http://0.0.0.0:443"
-echo "💡 Access the dashboard in your browser at http://localhost:443"
+echo "🚀 Starting unified web portal on http://0.0.0.0:8080"
+echo "💡 Access the dashboard in your browser at http://localhost:8080"
 echo "🔄 Use the sync buttons in the app to update your health data"
 echo
 

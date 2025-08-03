@@ -1751,10 +1751,10 @@ def export_user_data(n_clicks):
 
 if __name__ == "__main__":
     print("🚀 Starting Life-as-Code Multi-User Portal...")
-    print("🔐 Login will be available at: http://0.0.0.0:443/login")
-    print("📊 Dashboard will be available at: http://0.0.0.0:443/dashboard/")
+    print("🔐 Login will be available at: http://0.0.0.0:8080/login")
+    print("📊 Dashboard will be available at: http://0.0.0.0:8080/dashboard/")
     print("💡 Use manage_users.py to create user accounts!")
     print()
 
     debug_mode = os.getenv("FLASK_DEBUG", "False") == "True"
-    server.run(debug=debug_mode, host="0.0.0.0", port=443)
+    server.run(debug=debug_mode, host="0.0.0.0", port=8080)

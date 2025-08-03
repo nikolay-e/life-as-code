@@ -77,7 +77,7 @@ def create_test_user():
         print("Garmin password: [encrypted with per-user key]")
         print("Hevy API key: [encrypted with per-user key]")
         print("-" * 30)
-        print("🚀 You can now login at http://localhost:443/login")
+        print("🚀 You can now login at http://localhost:8080/login")
 
         return True
 
