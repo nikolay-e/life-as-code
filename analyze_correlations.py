@@ -14,7 +14,7 @@ from scipy import stats
 from sqlalchemy import select
 
 from database import SessionLocal
-from models import HRV, Base, HeartRate, Sleep, Steps, Stress, Weight, WorkoutSet
+from models import HRV, HeartRate, Sleep, Steps, Stress, Weight, WorkoutSet
 
 
 def load_data_from_database(user_id: int, days=90):
@@ -28,7 +28,9 @@ def load_data_from_database(user_id: int, days=90):
         datasets = {}
 
         # Load each data type
-        data_types: list[tuple[type[Base], str]] = [
+        from typing import Any
+
+        data_types: list[tuple[Any, str]] = [
             (Sleep, "sleep"),
             (HRV, "hrv"),
             (Weight, "weight"),

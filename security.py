@@ -86,7 +86,8 @@ def get_or_create_user_key(user_id: int) -> str:
 
         if user.encryption_key_sealed:
             # User already has a key, unseal it
-            return _unseal_user_key(user.encryption_key_sealed)
+            sealed_key: str = user.encryption_key_sealed
+            return _unseal_user_key(sealed_key)
         else:
             # Generate new key for user
             user_key = _generate_user_key()

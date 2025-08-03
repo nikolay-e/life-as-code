@@ -87,11 +87,11 @@ def load_latest_data(user_id: int):
 
         if recent_workouts:
             total_volume = sum(
-                (w.weight_kg or 0) * (w.reps or 0) for w in recent_workouts
+                float(w.weight_kg or 0) * float(w.reps or 0) for w in recent_workouts
             )
             data["workout_volume"] = total_volume
         else:
-            data["workout_volume"] = 0
+            data["workout_volume"] = 0.0
 
         return data, datetime.date.today()
 

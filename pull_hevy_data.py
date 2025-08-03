@@ -116,7 +116,8 @@ def sync_hevy_data(user_id: int):
 
         # Decrypt API key
         try:
-            api_key = decrypt_data_for_user(creds.encrypted_hevy_api_key, user_id)
+            encrypted_key: str = creds.encrypted_hevy_api_key
+            api_key = decrypt_data_for_user(encrypted_key, user_id)
         except Exception as e:
             logger.error(f"Failed to decrypt Hevy API key for user {user_id}: {e}")
             return {
@@ -235,7 +236,7 @@ def sync_hevy_data(user_id: int):
         logger.info("\n🏋️ Workout Database Summary:")
         logger.info(f"  - Total sets: {total_sets}")
         logger.info(f"  - Unique exercises: {unique_exercises}")
-        if date_range[0] and date_range[1]:
+        if date_range and date_range[0] and date_range[1]:
             logger.info(f"  - Date range: {date_range[0]} to {date_range[1]}")
 
     return sync_results

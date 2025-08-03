@@ -4,6 +4,7 @@ These define the database schema and provide ORM functionality.
 """
 
 import datetime
+from typing import Any
 
 from sqlalchemy import (
     Column,
@@ -16,9 +17,9 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.orm import DeclarativeMeta, declarative_base, relationship
+from sqlalchemy.orm import declarative_base, relationship
 
-Base: DeclarativeMeta = declarative_base()
+Base: Any = declarative_base()
 
 
 class User(Base):

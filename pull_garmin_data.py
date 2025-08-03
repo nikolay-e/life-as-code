@@ -386,9 +386,10 @@ def sync_garmin_data(user_id: int, days: int = 60) -> dict:
             )
 
         # Decrypt credentials
-        email = creds.garmin_email or user.username
+        email: str = creds.garmin_email or user.username
         try:
-            password = decrypt_data_for_user(creds.encrypted_garmin_password, user_id)
+            encrypted_password: str = creds.encrypted_garmin_password
+            password = decrypt_data_for_user(encrypted_password, user_id)
         except Exception as e:
             logger.error(f"Failed to decrypt Garmin password for user {user_id}: {e}")
             return {
