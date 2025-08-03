@@ -689,7 +689,7 @@ def get_settings_layout():
                     html.Div(
                         [
                             html.Button(
-                                "🏃 Sync Garmin Data (Last 30 Days)",
+                                "🏃 Sync Garmin Data (Last 28 Days)",
                                 id="sync-garmin-btn",
                                 n_clicks=0,
                                 style={
@@ -1226,7 +1226,7 @@ def save_personal_settings(
 
 
 # Background sync functions
-def background_garmin_sync(user_id: int, days: int = 30):
+def background_garmin_sync(user_id: int, days: int = 28):
     """Background function for Garmin data sync."""
     with get_user_sync_lock(user_id):
         try:
@@ -1280,9 +1280,9 @@ def initial_data_sync(user_id: int):
 
                 if creds and creds.garmin_email:
                     logger.info(
-                        f"Syncing last 30 days of Garmin data for user {user_id}"
+                        f"Syncing last 28 days of Garmin data for user {user_id}"
                     )
-                    background_garmin_sync(user_id, days=30)
+                    background_garmin_sync(user_id, days=28)
 
                     # Then sync all historical data in background
                     logger.info(
@@ -1383,7 +1383,7 @@ def sync_data(garmin_clicks, hevy_clicks):
             # Run the sync function in a background thread
             thread = threading.Thread(
                 target=background_garmin_sync,
-                args=(current_user.id, 30),
+                args=(current_user.id, 28),
                 daemon=True,  # Thread will not prevent app shutdown
             )
             thread.start()  # This returns immediately

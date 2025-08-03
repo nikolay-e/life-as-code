@@ -370,7 +370,7 @@ def extract_steps_data_for_range(
         return []
 
 
-def sync_garmin_data(user_id: int, days: int = 60) -> dict:
+def sync_garmin_data(user_id: int, days: int = 28) -> dict:
     """
     Sync Garmin data for a specific user for the specified number of days.
     Returns a summary of the sync operation.
