@@ -120,16 +120,11 @@ jobs:
             kubectl annotate namespace $NAMESPACE meta.helm.sh/release-namespace=$NAMESPACE
           fi
 
-          # Uninstall existing release if it exists to avoid "operation in progress" errors
-          helm uninstall life-as-code --namespace $NAMESPACE || true
-
-          # Wait a moment for cleanup
-          sleep 10
-
           IMAGE_TAG="${{ github.event.pull_request.head.sha || github.sha }}"
           echo "Deploying with image tag: $IMAGE_TAG"
 
-          helm install life-as-code ./helm/life-as-code-app \
+          # Use upgrade --install to preserve PVCs and handle both new installs and upgrades
+          helm upgrade --install life-as-code ./helm/life-as-code-app \
             --namespace $NAMESPACE \
             --set namespace=$NAMESPACE \
             --set app.image.repository=nikolajer/life-as-code-app \
