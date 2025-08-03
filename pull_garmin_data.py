@@ -152,11 +152,16 @@ def extract_sleep_data(
     """Extract sleep data for a specific date and user using Pydantic validation."""
     try:
         raw_sleep_data = api.get_sleep_data(date_str)
+        logger.info(f"Sleep API response for {date_str}: {raw_sleep_data}")
         if not raw_sleep_data:
+            logger.info(f"No sleep data found for {date_str}")
             return None
 
         # Extract the actual sleep data from the response
         sleep_dto = raw_sleep_data.get("dailySleepDTO", raw_sleep_data)
+        logger.info(
+            f"Sleep DTO keys for {date_str}: {list(sleep_dto.keys()) if isinstance(sleep_dto, dict) else type(sleep_dto)}"
+        )
 
         # Use Pydantic for robust parsing
         parsed_sleep = GarminSleepData.from_garmin_response(sleep_dto)
@@ -186,15 +191,23 @@ def extract_hrv_data(
     """Extract HRV data for a specific date and user using Pydantic validation."""
     try:
         raw_hrv_data = api.get_hrv_data(date_str)
+        logger.info(f"HRV API response for {date_str}: {raw_hrv_data}")
         if not raw_hrv_data:
+            logger.info(f"No HRV data found for {date_str}")
             return None
 
         # Handle different response formats
         hrv_source = raw_hrv_data
         if "hrvStatusSummary" in raw_hrv_data:
             hrv_source = raw_hrv_data["hrvStatusSummary"]
+            logger.info(f"Using hrvStatusSummary for {date_str}")
         elif isinstance(raw_hrv_data, list) and raw_hrv_data:
             hrv_source = raw_hrv_data[0]
+            logger.info(f"Using list[0] for HRV {date_str}")
+
+        logger.info(
+            f"HRV source keys for {date_str}: {list(hrv_source.keys()) if isinstance(hrv_source, dict) else type(hrv_source)}"
+        )
 
         # Use Pydantic for robust parsing
         parsed_hrv = GarminHRVData.from_garmin_response(hrv_source)
@@ -391,8 +404,14 @@ def extract_heart_rate_data(
         # The get_heart_rates method might need the username
         # Try to get the heart rate data
         hr_data = api.get_heart_rates(date_str)
+        logger.info(f"Heart Rate API response for {date_str}: {hr_data}")
         if not hr_data:
+            logger.info(f"No heart rate data found for {date_str}")
             return None
+
+        logger.info(
+            f"Heart Rate data keys for {date_str}: {list(hr_data.keys()) if isinstance(hr_data, dict) else type(hr_data)}"
+        )
 
         return HeartRate(
             user_id=user_id,
@@ -413,8 +432,14 @@ def extract_stress_data(
     """Extract stress data for a specific date and user using Pydantic validation."""
     try:
         raw_stress_data = api.get_stress_data(date_str)
+        logger.info(f"Stress API response for {date_str}: {raw_stress_data}")
         if not raw_stress_data:
+            logger.info(f"No stress data found for {date_str}")
             return None
+
+        logger.info(
+            f"Stress data keys for {date_str}: {list(raw_stress_data.keys()) if isinstance(raw_stress_data, dict) else type(raw_stress_data)}"
+        )
 
         # Use Pydantic for robust parsing
         parsed_stress = GarminStressData.from_garmin_response(raw_stress_data)
