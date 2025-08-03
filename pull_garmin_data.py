@@ -34,7 +34,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def init_api(email: str, password: str, user_id: int) -> Garmin:
+def init_api(email: str, password: str, user_id: int):
     """Initialize Garmin API with proper authentication using provided credentials."""
     # User-specific token storage to prevent cross-user data bleed
     tokenstore_dir = os.path.expanduser(f"~/.garminconnect/user_{user_id}")
@@ -94,9 +94,9 @@ def init_api(email: str, password: str, user_id: int) -> Garmin:
                 logger.error(
                     "MFA authentication required but not supported in multi-user mode"
                 )
-                raise GarminConnectAuthenticationError(
-                    "MFA authentication required. Please disable MFA on your Garmin account for API access."
-                )
+                return {
+                    "error": "MFA authentication required. Please use manual sync or contact support for alternative authentication methods."
+                }
 
             garmin.garth.dump(tokenstore_dir)
 
@@ -370,7 +370,13 @@ def sync_garmin_data(user_id: int, days: int = 60) -> dict:
 
         # Decrypt credentials
         email = creds.garmin_email or user.username
-        password = decrypt_data(creds.encrypted_garmin_password)
+        try:
+            password = decrypt_data(creds.encrypted_garmin_password)
+        except Exception as e:
+            logger.error(f"Failed to decrypt Garmin password for user {user_id}: {e}")
+            return {
+                "error": "Invalid credentials encryption. Please reset your Garmin credentials in settings."
+            }
 
         logger.info(f"Using Garmin account: {email}")
 
@@ -379,7 +385,28 @@ def sync_garmin_data(user_id: int, days: int = 60) -> dict:
 
     # Initialize API
     try:
-        api = init_api(email, password, user_id)
+        api_result = init_api(email, password, user_id)
+        if isinstance(api_result, dict) and "error" in api_result:
+            # Handle MFA or other errors
+            error_msg = api_result["error"]
+            logger.error(f"API initialization error for user {user_id}: {error_msg}")
+
+            # Store error in database
+            with get_db_session_context() as db:
+                sync_record = DataSync(
+                    user_id=user_id,
+                    source="garmin",
+                    data_type="all",
+                    last_sync_date=datetime.date.today(),
+                    records_synced=0,
+                    status="error",
+                    error_message=error_msg,
+                )
+                db.add(sync_record)
+
+            return api_result
+
+        api = api_result
     except GarminConnectAuthenticationError as e:
         # Handle MFA error specifically
         error_msg = str(e)
@@ -449,7 +476,8 @@ def sync_garmin_data(user_id: int, days: int = 60) -> dict:
                         )
                     ).first()
                     if existing:
-                        # Update existing record
+                        # Check if data has changed before updating
+                        has_changes = False
                         for attr in [
                             "deep_minutes",
                             "light_minutes",
@@ -461,9 +489,17 @@ def sync_garmin_data(user_id: int, days: int = 60) -> dict:
                             if (
                                 hasattr(sleep_data, attr)
                                 and getattr(sleep_data, attr) is not None
+                                and getattr(existing, attr) != getattr(sleep_data, attr)
                             ):
                                 setattr(existing, attr, getattr(sleep_data, attr))
-                        sync_results["sleep"]["updated"] += 1
+                                has_changes = True
+
+                        if has_changes:
+                            sync_results["sleep"]["updated"] += 1
+                        else:
+                            sync_results["sleep"]["unchanged"] = (
+                                sync_results["sleep"].get("unchanged", 0) + 1
+                            )
                     else:
                         db.add(sleep_data)
                         sync_results["sleep"]["new"] += 1
@@ -581,7 +617,7 @@ def sync_garmin_data(user_id: int, days: int = 60) -> dict:
             # Small delay to avoid rate limiting
             import time
 
-            time.sleep(0.1)
+            time.sleep(1.0)  # Increase to prevent rate limiting
 
         # Update sync tracking
         for data_type in sync_results.keys():

@@ -91,7 +91,13 @@ def sync_hevy_data(user_id: int):
             )
 
         # Decrypt API key
-        api_key = decrypt_data(creds.encrypted_hevy_api_key)
+        try:
+            api_key = decrypt_data(creds.encrypted_hevy_api_key)
+        except Exception as e:
+            logger.error(f"Failed to decrypt Hevy API key for user {user_id}: {e}")
+            return {
+                "error": "Invalid credentials encryption. Please reset your Hevy API key in settings."
+            }
         logger.info("Using encrypted Hevy API key")
 
     finally:

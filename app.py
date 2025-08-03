@@ -4,6 +4,7 @@ Secure health analytics with user authentication and data isolation.
 """
 
 import datetime
+import logging
 import os
 import threading
 
@@ -37,6 +38,12 @@ from models import (
     WorkoutSet,
 )
 from security import encrypt_data, verify_password
+
+# Configure logging
+logger = logging.getLogger(__name__)
+
+# Global lock for database operations in background threads
+DB_SYNC_LOCK = threading.Lock()
 
 # --- Flask Server & Authentication Setup ---
 server = Flask(__name__)
@@ -691,17 +698,22 @@ def update_dashboard_charts(start_date, end_date):
         empty_fig.update_layout(title="Please log in")
         return empty_fig, empty_fig, empty_fig, empty_fig
 
-    # Convert date strings to datetime.date objects
+    # Convert date strings to datetime.date objects with robust handling
     try:
-        if isinstance(start_date, str):
+        if isinstance(start_date, str) and start_date:
             start_date = datetime.datetime.fromisoformat(start_date).date()
-        if isinstance(end_date, str):
+        elif not isinstance(start_date, datetime.date):
+            start_date = datetime.date.today() - datetime.timedelta(days=30)
+
+        if isinstance(end_date, str) and end_date:
             end_date = datetime.datetime.fromisoformat(end_date).date()
-    except (ValueError, TypeError) as e:
+        elif not isinstance(end_date, datetime.date):
+            end_date = datetime.date.today()
+    except (ValueError, TypeError, AttributeError) as e:
         # If date parsing fails, use default range
         end_date = datetime.date.today()
         start_date = end_date - datetime.timedelta(days=30)
-        print(f"Error parsing dates, using default range: {e}")
+        logger.warning(f"Error parsing dates, using default range: {e}")
 
     data = load_data_for_user(start_date, end_date, current_user.id)
 
@@ -849,12 +861,32 @@ def save_credentials(n_clicks, garmin_email, garmin_password, hevy_api_key):
             # Update credentials
             if garmin_email:
                 creds.garmin_email = garmin_email
-            # Only update Garmin password if it's not the mask string
-            if garmin_password and garmin_password != "••••••••":
-                creds.encrypted_garmin_password = encrypt_data(garmin_password)
-            # Only update Hevy key if it's not the mask string
-            if hevy_api_key and hevy_api_key != "••••••••":
-                creds.encrypted_hevy_api_key = encrypt_data(hevy_api_key)
+            # Only update Garmin password if it's not the mask string and is valid
+            if (
+                garmin_password
+                and garmin_password != "••••••••"
+                and len(garmin_password.strip()) > 0
+            ):
+                # Validate password is not just the mask characters
+                if garmin_password != "••••••••" and not all(
+                    c == "•" for c in garmin_password
+                ):
+                    from security import validate_password
+
+                    is_valid, _ = validate_password(garmin_password)
+                    if is_valid:
+                        creds.encrypted_garmin_password = encrypt_data(garmin_password)
+            # Only update Hevy key if it's not the mask string and is valid
+            if (
+                hevy_api_key
+                and hevy_api_key != "••••••••"
+                and len(hevy_api_key.strip()) > 0
+            ):
+                # Validate API key is not just mask characters
+                if hevy_api_key != "••••••••" and not all(
+                    c == "•" for c in hevy_api_key
+                ):
+                    creds.encrypted_hevy_api_key = encrypt_data(hevy_api_key)
 
             db.commit()
             return html.Div(
@@ -999,37 +1031,41 @@ def save_personal_settings(
 # Background sync functions
 def background_garmin_sync(user_id: int, days: int = 60):
     """Background function for Garmin data sync."""
-    try:
-        from pull_garmin_data import sync_garmin_data
+    with DB_SYNC_LOCK:
+        try:
+            from pull_garmin_data import sync_garmin_data
 
-        results = sync_garmin_data(user_id=user_id, days=days)
+            results = sync_garmin_data(user_id=user_id, days=days)
 
-        # Check if sync failed due to MFA
-        if isinstance(results, dict) and "error" in results:
-            error_msg = results["error"]
-            if "MFA" in error_msg or "multi-factor" in error_msg.lower():
-                print(
-                    f"⚠️ Garmin sync failed for user {user_id}: MFA authentication required. Please disable MFA in your Garmin account."
-                )
+            # Check if sync failed due to MFA
+            if isinstance(results, dict) and "error" in results:
+                error_msg = results["error"]
+                if "MFA" in error_msg or "multi-factor" in error_msg.lower():
+                    print(
+                        f"⚠️ Garmin sync failed for user {user_id}: MFA authentication required. Please disable MFA in your Garmin account."
+                    )
+                else:
+                    print(
+                        f"❌ Background Garmin sync failed for user {user_id}: {error_msg}"
+                    )
             else:
                 print(
-                    f"❌ Background Garmin sync failed for user {user_id}: {error_msg}"
+                    f"✅ Background Garmin sync completed for user {user_id}: {results}"
                 )
-        else:
-            print(f"✅ Background Garmin sync completed for user {user_id}: {results}")
-    except Exception as e:
-        print(f"❌ Background Garmin sync failed for user {user_id}: {e}")
+        except Exception as e:
+            print(f"❌ Background Garmin sync failed for user {user_id}: {e}")
 
 
 def background_hevy_sync(user_id: int):
     """Background function for Hevy data sync."""
-    try:
-        from pull_hevy_data import sync_hevy_data
+    with DB_SYNC_LOCK:
+        try:
+            from pull_hevy_data import sync_hevy_data
 
-        results = sync_hevy_data(user_id=user_id)
-        print(f"✅ Background Hevy sync completed for user {user_id}: {results}")
-    except Exception as e:
-        print(f"❌ Background Hevy sync failed for user {user_id}: {e}")
+            results = sync_hevy_data(user_id=user_id)
+            print(f"✅ Background Hevy sync completed for user {user_id}: {results}")
+        except Exception as e:
+            print(f"❌ Background Hevy sync failed for user {user_id}: {e}")
 
 
 # Callback to populate credential fields when settings tab is opened
