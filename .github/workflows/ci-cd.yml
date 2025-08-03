@@ -129,7 +129,7 @@ jobs:
           IMAGE_TAG="${{ github.event.pull_request.head.sha || github.sha }}"
           echo "Deploying with image tag: $IMAGE_TAG"
 
-          helm upgrade --install life-as-code ./helm/life-as-code-app \
+          helm install life-as-code ./helm/life-as-code-app \
             --namespace $NAMESPACE \
             --set namespace=$NAMESPACE \
             --set app.image.repository=nikolajer/life-as-code-app \
