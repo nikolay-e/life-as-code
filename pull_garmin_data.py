@@ -268,8 +268,37 @@ def extract_weight_data(
             f"Final weight data keys for {date_str}: {list(weight_data.keys()) if isinstance(weight_data, dict) else type(weight_data)}"
         )
 
-        # The structure is simpler with this endpoint
-        weight_value = weight_data.get("weight")
+        # Extract weight value from the correct location
+        weight_value = None
+
+        # Method A: Check dateWeightList first (most accurate)
+        if "dateWeightList" in weight_data and weight_data["dateWeightList"]:
+            weight_list = weight_data["dateWeightList"]
+            if weight_list and len(weight_list) > 0:
+                # Get the first (and usually only) weight entry for this date
+                weight_entry = weight_list[0]
+                weight_value = weight_entry.get("weight")
+                logger.info(
+                    f"Found weight in dateWeightList for {date_str}: {weight_value}"
+                )
+
+        # Method B: Fall back to totalAverage.weight
+        if not weight_value and "totalAverage" in weight_data:
+            total_avg = weight_data["totalAverage"]
+            if total_avg and isinstance(total_avg, dict):
+                weight_value = total_avg.get("weight")
+                logger.info(
+                    f"Found weight in totalAverage for {date_str}: {weight_value}"
+                )
+
+        # Method C: Direct weight key (legacy support)
+        if not weight_value:
+            weight_value = weight_data.get("weight")
+            if weight_value:
+                logger.info(
+                    f"Found weight at root level for {date_str}: {weight_value}"
+                )
+
         if not weight_value:
             logger.warning(
                 f"No weight value found in data for {date_str}. Available keys: {list(weight_data.keys()) if isinstance(weight_data, dict) else 'Not a dict'}"
@@ -280,23 +309,72 @@ def extract_weight_data(
         if weight_value > 500:  # Likely in grams
             weight_value = weight_value / 1000.0
 
+        # Extract other body composition data from the same source as weight
+        bmi = None
+        body_fat_pct = None
+        muscle_mass_kg = None
+        bone_mass_kg = None
+        water_pct = None
+
+        # Extract from dateWeightList if weight came from there
+        if "dateWeightList" in weight_data and weight_data["dateWeightList"]:
+            weight_entry = weight_data["dateWeightList"][0]
+            bmi = weight_entry.get("bmi")
+            body_fat_pct = weight_entry.get("bodyFat")
+            muscle_mass_kg = (
+                weight_entry.get("muscleMass", 0) / 1000
+                if weight_entry.get("muscleMass")
+                else None
+            )
+            bone_mass_kg = (
+                weight_entry.get("boneMass", 0) / 1000
+                if weight_entry.get("boneMass")
+                else None
+            )
+            water_pct = weight_entry.get("bodyWater")
+
+        # Fall back to totalAverage if dateWeightList was empty
+        elif "totalAverage" in weight_data and weight_data["totalAverage"]:
+            total_avg = weight_data["totalAverage"]
+            bmi = total_avg.get("bmi")
+            body_fat_pct = total_avg.get("bodyFat")
+            muscle_mass_kg = (
+                total_avg.get("muscleMass", 0) / 1000
+                if total_avg.get("muscleMass")
+                else None
+            )
+            bone_mass_kg = (
+                total_avg.get("boneMass", 0) / 1000
+                if total_avg.get("boneMass")
+                else None
+            )
+            water_pct = total_avg.get("bodyWater")
+
+        # Legacy fallback
+        else:
+            bmi = weight_data.get("bmi")
+            body_fat_pct = weight_data.get("bodyFat")
+            muscle_mass_kg = (
+                weight_data.get("muscleMass", 0) / 1000
+                if weight_data.get("muscleMass")
+                else None
+            )
+            bone_mass_kg = (
+                weight_data.get("boneMass", 0) / 1000
+                if weight_data.get("boneMass")
+                else None
+            )
+            water_pct = weight_data.get("bodyWater")
+
         return Weight(
             user_id=user_id,
             date=target_date,
             weight_kg=weight_value,
-            bmi=weight_data.get("bmi"),
-            body_fat_pct=weight_data.get("bodyFat"),
-            muscle_mass_kg=(
-                weight_data.get("muscleMass", 0) / 1000
-                if weight_data.get("muscleMass")
-                else None
-            ),
-            bone_mass_kg=(
-                weight_data.get("boneMass", 0) / 1000
-                if weight_data.get("boneMass")
-                else None
-            ),
-            water_pct=weight_data.get("bodyWater"),
+            bmi=bmi,
+            body_fat_pct=body_fat_pct,
+            muscle_mass_kg=muscle_mass_kg,
+            bone_mass_kg=bone_mass_kg,
+            water_pct=water_pct,
         )
 
     except Exception as e:
