@@ -879,7 +879,9 @@ def update_dashboard_charts(start_date, end_date):
                 x=data["weight"]["date"],
                 y=data["weight"]["weight_kg"],
                 name="Weight (kg)",
-                line={"color": "crimson", "width": 3},
+                mode="markers",
+                marker={"color": "crimson", "size": 8},
+                connectgaps=False,
             ),
             secondary_y=False,
         )
@@ -900,7 +902,9 @@ def update_dashboard_charts(start_date, end_date):
                     x=data["weight"]["date"],
                     y=data["weight"]["body_fat_pct"],
                     name="Body Fat %",
-                    line={"color": "dodgerblue", "width": 2},
+                    mode="markers",
+                    marker={"color": "dodgerblue", "size": 6},
+                    connectgaps=False,
                 ),
                 secondary_y=True,
             )
