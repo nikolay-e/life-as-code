@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   web:
     build: .
@@ -7,11 +5,11 @@ services:
       - "8080:8080"
     environment:
       # Database connection
-      - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-life_as_code_user}:${POSTGRES_PASSWORD:-life_as_code_password}@db:5432/${POSTGRES_DB:-life_as_code_db}
 
       # Multi-user authentication
-      - SECRET_KEY=${SECRET_KEY}
-      - FERNET_KEY=${FERNET_KEY}
+      - SECRET_KEY=${SECRET_KEY:-fc7e5f9dd7eb0c2a4550c4f849d425e56389f3b8f76a0d5620a221b60f748c0d}
+      - FERNET_KEY=${FERNET_KEY:-KHqPbJAiPxlbgaxv8tZrBC10Ahn3iaviSZIXtLXAoX4=}
 
       # App configuration
       - PYTHONUNBUFFERED=1

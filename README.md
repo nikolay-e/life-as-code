@@ -1,6 +1,25 @@
 # Life-as-Code: Personal Health Analytics Portal
 
-A private, multi-user, data-driven portal to track and analyze your health, fitness, and performance metrics from services like Garmin and Hevy.
+A comprehensive, private, multi-user health analytics platform that aggregates and analyzes your health, fitness, and performance data from multiple sources including Garmin Connect, Hevy, and Apple HealthKit. Transform your health data into actionable insights with advanced analytics, AI-powered daily briefings, and beautiful visualizations.
+
+## 🎯 What Life-as-Code Does
+
+**🔗 Data Integration**
+- **Garmin Connect**: Sleep, HRV, heart rate, weight, body composition, stress, and activity data
+- **Hevy**: Workout sets, exercises, weights, RPE, and training progression
+- **Apple HealthKit**: Energy expenditure, steps, HRV, and comprehensive health metrics
+- **Manual Import**: Support for CSV/XML data from wearables and health apps
+
+**📊 Advanced Analytics**
+- **Personal Dashboard**: Interactive charts and trends for all health metrics
+- **AI Daily Briefings**: LLM-generated insights and recommendations based on your data
+- **Correlation Analysis**: Discover relationships between sleep, training, recovery, and performance
+- **Health Scoring**: Personalized thresholds and status indicators for key metrics
+
+**🔒 Privacy-First Architecture**
+- **Self-Hosted**: Complete control over your sensitive health data
+- **Multi-User**: Secure isolation between users with encrypted credential storage
+- **No Cloud Dependencies**: Your data never leaves your infrastructure
 
 ## 🚀 Quick Start with Docker
 
@@ -141,6 +160,258 @@ docker-compose --profile production up -d
 ## 📝 License
 
 This project is for personal use. Please respect the terms of service for Garmin Connect and Hevy when using their APIs.
+
+---
+
+# Database Schema
+
+Life-as-Code uses a PostgreSQL database with the following tables:
+
+## User
+**Table:** `users`
+
+**Description:** User accounts for multi-user support.
+
+**Columns:**
+- `id`: INTEGER (required) 🔑
+- `username`: VARCHAR(80) (required) 📇 ⭐
+- `password_hash`: VARCHAR(200) (required)
+- `encryption_key_sealed`: TEXT
+- `created_at`: DATETIME
+
+**Relationships:**
+- `credentials` → UserCredentials
+- `settings` → UserSettings
+- `sleep_data` → Sleep
+- `weight_data` → Weight
+- `heart_rate_data` → HeartRate
+- `stress_data` → Stress
+- `hrv_data` → HRV
+- `energy_data` → Energy
+- `steps` → Steps
+- `workout_sets` → WorkoutSet
+- `data_syncs` → DataSync
+
+## UserCredentials
+**Table:** `user_credentials`
+
+**Description:** Encrypted user credentials for external APIs.
+
+**Columns:**
+- `id`: INTEGER (required) 🔑
+- `user_id`: INTEGER (required) 🔗 ⭐
+- `garmin_email`: VARCHAR(200)
+- `encrypted_garmin_password`: VARCHAR(500)
+- `encrypted_hevy_api_key`: VARCHAR(500)
+- `created_at`: DATETIME
+- `updated_at`: DATETIME
+
+**Relationships:**
+- `user` → User
+
+## UserSettings
+**Table:** `user_settings`
+
+**Description:** User-specific settings and thresholds for personalized analysis.
+
+**Columns:**
+- `id`: INTEGER (required) 🔑
+- `user_id`: INTEGER (required) 🔗 ⭐
+- `hrv_good_threshold`: INTEGER
+- `hrv_moderate_threshold`: INTEGER
+- `deep_sleep_good_threshold`: INTEGER
+- `deep_sleep_moderate_threshold`: INTEGER
+- `total_sleep_good_threshold`: FLOAT
+- `total_sleep_moderate_threshold`: FLOAT
+- `training_high_volume_threshold`: INTEGER
+- `created_at`: DATETIME
+- `updated_at`: DATETIME
+
+**Relationships:**
+- `user` → User
+
+## Sleep
+**Table:** `sleep`
+
+**Description:** Sleep data from Garmin Connect.
+
+**Columns:**
+- `id`: INTEGER (required) 🔑
+- `user_id`: INTEGER (required) 🔗 📇
+- `date`: DATE (required) 📇
+- `deep_minutes`: FLOAT
+- `light_minutes`: FLOAT
+- `rem_minutes`: FLOAT
+- `awake_minutes`: FLOAT
+- `total_sleep_minutes`: FLOAT
+- `sleep_score`: INTEGER
+- `created_at`: DATETIME
+
+**Relationships:**
+- `user` → User
+
+**Constraints:**
+- UniqueConstraint: `_user_sleep_date_uc`
+
+## HRV
+**Table:** `hrv`
+
+**Description:** Heart Rate Variability data from Garmin Connect and Apple Watch.
+
+**Columns:**
+- `id`: INTEGER (required) 🔑
+- `user_id`: INTEGER (required) 🔗 📇
+- `date`: DATE (required) 📇
+- `hrv_avg`: FLOAT
+- `hrv_status`: VARCHAR(50)
+- `created_at`: DATETIME
+
+**Relationships:**
+- `user` → User
+
+**Constraints:**
+- UniqueConstraint: `_user_hrv_date_uc`
+
+## Weight
+**Table:** `weight`
+
+**Description:** Weight and body composition data from Garmin Connect.
+
+**Columns:**
+- `id`: INTEGER (required) 🔑
+- `user_id`: INTEGER (required) 🔗 📇
+- `date`: DATE (required) 📇
+- `weight_kg`: FLOAT
+- `bmi`: FLOAT
+- `body_fat_pct`: FLOAT
+- `muscle_mass_kg`: FLOAT
+- `bone_mass_kg`: FLOAT
+- `water_pct`: FLOAT
+- `created_at`: DATETIME
+
+**Relationships:**
+- `user` → User
+
+## HeartRate
+**Table:** `heart_rate`
+
+**Description:** Heart rate data from Garmin Connect.
+
+**Columns:**
+- `id`: INTEGER (required) 🔑
+- `user_id`: INTEGER (required) 🔗 📇
+- `date`: DATE (required) 📇
+- `resting_hr`: INTEGER
+- `max_hr`: INTEGER
+- `avg_hr`: INTEGER
+- `created_at`: DATETIME
+
+**Relationships:**
+- `user` → User
+
+**Constraints:**
+- UniqueConstraint: `_user_heart_rate_date_uc`
+
+## Stress
+**Table:** `stress`
+
+**Description:** Daily stress data from Garmin.
+
+**Columns:**
+- `id`: INTEGER (required) 🔑
+- `user_id`: INTEGER (required) 🔗 📇
+- `date`: DATE (required) 📇
+- `avg_stress`: FLOAT
+- `max_stress`: FLOAT
+- `stress_level`: VARCHAR(20)
+- `rest_stress`: FLOAT
+- `activity_stress`: FLOAT
+- `created_at`: DATETIME
+
+**Relationships:**
+- `user` → User
+
+**Constraints:**
+- UniqueConstraint: `unique_user_stress_date`
+
+## Energy
+**Table:** `energy`
+
+**Description:** Daily energy expenditure data from Apple Watch and Garmin.
+
+**Columns:**
+- `id`: INTEGER (required) 🔑
+- `user_id`: INTEGER (required) 🔗 📇
+- `date`: DATE (required) 📇
+- `active_energy`: FLOAT
+- `basal_energy`: FLOAT
+- `created_at`: DATETIME
+
+**Relationships:**
+- `user` → User
+
+**Constraints:**
+- UniqueConstraint: `_user_date_energy_uc`
+
+## Steps
+**Table:** `steps`
+
+**Description:** Daily steps and distance data from Garmin Connect.
+
+**Columns:**
+- `id`: INTEGER (required) 🔑
+- `user_id`: INTEGER (required) 🔗 📇
+- `date`: DATE (required) 📇
+- `total_steps`: INTEGER
+- `total_distance`: FLOAT
+- `step_goal`: INTEGER
+- `created_at`: DATETIME
+
+**Relationships:**
+- `user` → User
+
+**Constraints:**
+- UniqueConstraint: `_user_date_steps_uc`
+
+## WorkoutSet
+**Table:** `workout_sets`
+
+**Description:** Individual workout sets from Hevy.
+
+**Columns:**
+- `id`: INTEGER (required) 🔑
+- `user_id`: INTEGER (required) 🔗 📇
+- `date`: DATE (required) 📇
+- `exercise`: VARCHAR(200) (required)
+- `weight_kg`: FLOAT
+- `reps`: INTEGER
+- `rpe`: FLOAT
+- `set_type`: VARCHAR(50)
+- `duration_seconds`: INTEGER
+- `distance_meters`: FLOAT
+- `created_at`: DATETIME
+
+**Relationships:**
+- `user` → User
+
+## DataSync
+**Table:** `data_sync`
+
+**Description:** Track when data was last synced from external sources.
+
+**Columns:**
+- `id`: INTEGER (required) 🔑
+- `user_id`: INTEGER (required) 🔗 📇
+- `source`: VARCHAR(50) (required)
+- `data_type`: VARCHAR(50) (required)
+- `last_sync_date`: DATE
+- `last_sync_timestamp`: DATETIME
+- `records_synced`: INTEGER
+- `status`: VARCHAR(20)
+- `error_message`: TEXT
+
+**Relationships:**
+- `user` → User
 
 ---
 

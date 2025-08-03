@@ -14,7 +14,7 @@ from scipy import stats
 from sqlalchemy import select
 
 from database import SessionLocal
-from models import HRV, HeartRate, Sleep, Steps, Stress, Weight, WorkoutSet
+from models import HRV, Energy, HeartRate, Sleep, Steps, Stress, Weight, WorkoutSet
 
 
 def load_data_from_database(user_id: int, days=90):
@@ -36,6 +36,7 @@ def load_data_from_database(user_id: int, days=90):
             (Weight, "weight"),
             (HeartRate, "heart_rate"),
             (Stress, "stress"),
+            (Energy, "energy"),
             (Steps, "steps"),
             (WorkoutSet, "workouts"),
         ]
@@ -96,6 +97,9 @@ def merge_datasets_by_date(datasets):
         ("hrv", ["hrv_avg"]),
         ("weight", ["weight_kg", "bmi", "body_fat_pct"]),
         ("heart_rate", ["resting_hr", "max_hr", "avg_hr"]),
+        ("stress", ["avg_stress", "max_stress"]),
+        ("energy", ["active_energy", "basal_energy"]),
+        ("steps", ["total_steps", "total_distance"]),
     ]
 
     for key, columns in dataset_configs:
@@ -182,6 +186,38 @@ def analyze_key_correlations_from_db(user_id: int):
             "y_label": "HRV Average (ms)",
             "question": "How does resting heart rate relate to HRV?",
         },
+        {
+            "x": "avg_stress",
+            "y": "sleep_score",
+            "title": "😰 Stress vs Sleep Quality",
+            "x_label": "Average Stress Level",
+            "y_label": "Sleep Score",
+            "question": "Does stress affect sleep quality?",
+        },
+        {
+            "x": "avg_stress",
+            "y": "hrv_avg",
+            "title": "😰 Stress vs HRV Recovery",
+            "x_label": "Average Stress Level",
+            "y_label": "HRV Average (ms)",
+            "question": "How does stress impact recovery (HRV)?",
+        },
+        {
+            "x": "active_energy",
+            "y": "total_sleep_minutes",
+            "title": "🔥 Active Energy vs Sleep Duration",
+            "x_label": "Active Energy (kcal)",
+            "y_label": "Total Sleep (minutes)",
+            "question": "Does higher activity lead to more sleep?",
+        },
+        {
+            "x": "total_steps",
+            "y": "active_energy",
+            "title": "🚶 Steps vs Active Energy",
+            "x_label": "Daily Steps",
+            "y_label": "Active Energy (kcal)",
+            "question": "How do steps correlate with energy expenditure?",
+        },
     ]
 
     # Generate correlation plots
@@ -260,6 +296,9 @@ def generate_correlation_report(user_id: int):
         "total_sleep_minutes",
         "resting_hr",
         "volume",
+        "avg_stress",
+        "active_energy",
+        "total_steps",
     ]
     available_metrics = [
         m for m in key_metrics if m in merged_df.columns and merged_df[m].sum() > 0

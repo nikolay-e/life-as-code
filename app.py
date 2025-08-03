@@ -9,8 +9,10 @@ import os
 import threading
 
 import dash
+import dash_bootstrap_components as dbc
 import pandas as pd
 import plotly.graph_objects as go
+import plotly.io as pio
 from dash import Input, Output, State, callback, dcc, html
 from flask import Flask, flash, redirect, render_template_string, url_for
 from flask_limiter import Limiter
@@ -34,6 +36,7 @@ from database import SessionLocal, check_db_connection, init_db
 from models import (
     HRV,
     DataSync,
+    Energy,
     HeartRate,
     Sleep,
     Steps,
@@ -279,11 +282,15 @@ def index():
 
 
 # --- Dash App Setup ---
+# Set global Plotly theme for consistency
+pio.templates.default = "plotly_dark"
+
 app = dash.Dash(
     __name__,
     server=server,
     url_base_pathname="/dashboard/",
     suppress_callback_exceptions=True,
+    external_stylesheets=[dbc.themes.CYBORG],
 )
 app.title = "Life-as-Code: Health Portal"
 
@@ -399,6 +406,7 @@ def render_tab_content(tab):
                 dcc.Graph(id="sleep-chart"),
                 dcc.Graph(id="workout-volume-chart"),
                 dcc.Graph(id="stress-chart"),
+                dcc.Graph(id="energy-chart"),
                 dcc.Graph(id="steps-chart"),
             ]
         )
@@ -773,6 +781,7 @@ def load_data_for_user(start_date, end_date, user_id):
             (Weight, "weight"),
             (HeartRate, "heart_rate"),
             (Stress, "stress"),
+            (Energy, "energy"),
             (Steps, "steps"),
             (WorkoutSet, "workouts"),
         ]:
@@ -796,6 +805,7 @@ def load_data_for_user(start_date, end_date, user_id):
         Output("sleep-chart", "figure"),
         Output("workout-volume-chart", "figure"),
         Output("stress-chart", "figure"),
+        Output("energy-chart", "figure"),
         Output("steps-chart", "figure"),
     ],
     [Input("date-picker-range", "start_date"), Input("date-picker-range", "end_date")],
@@ -804,7 +814,15 @@ def update_dashboard_charts(start_date, end_date):
     if not current_user.is_authenticated:
         empty_fig = go.Figure()
         empty_fig.update_layout(title="Please log in")
-        return empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
+        return (
+            empty_fig,
+            empty_fig,
+            empty_fig,
+            empty_fig,
+            empty_fig,
+            empty_fig,
+            empty_fig,
+        )
 
     # Convert date strings to datetime.date objects with robust handling
     try:
@@ -824,6 +842,17 @@ def update_dashboard_charts(start_date, end_date):
         logger.warning(f"Error parsing dates, using default range: {e}")
 
     data = load_data_for_user(start_date, end_date, current_user.id)
+
+    # Set consistent date range and sizing for all charts
+    def update_chart_date_range(fig, start_date, end_date):
+        """Ensure all charts show the same date range and consistent sizing regardless of data availability."""
+        fig.update_xaxes(range=[start_date, end_date], type="date")
+        # Ensure consistent sizing and margins for perfect alignment
+        fig.update_layout(
+            autosize=True,
+            margin={"l": 80, "r": 80, "t": 60, "b": 60},
+        )
+        return fig
 
     # Weight Chart
     weight_fig = make_subplots(specs=[[{"secondary_y": True}]])
@@ -888,34 +917,100 @@ def update_dashboard_charts(start_date, end_date):
         secondary_y=True,
         range=bf_range if "bf_range" in locals() else None,
     )
+    # Ensure consistent date range
+    update_chart_date_range(weight_fig, start_date, end_date)
 
     # HR & HRV Chart
     hr_hrv_fig = make_subplots(specs=[[{"secondary_y": True}]])
     if not data["heart_rate"].empty:
+        # Resting HR
         hr_hrv_fig.add_trace(
             go.Scatter(
                 x=data["heart_rate"]["date"],
                 y=data["heart_rate"]["resting_hr"],
-                name="Resting HR (bpm)",
+                name="Resting HR",
                 line={"color": "red", "width": 2},
+                mode="lines+markers",
             ),
             secondary_y=False,
         )
+
+        # Max HR (if available)
+        if (
+            "max_hr" in data["heart_rate"].columns
+            and data["heart_rate"]["max_hr"].notna().any()
+        ):
+            hr_hrv_fig.add_trace(
+                go.Scatter(
+                    x=data["heart_rate"]["date"],
+                    y=data["heart_rate"]["max_hr"],
+                    name="Max HR",
+                    line={"color": "orange", "width": 2, "dash": "dot"},
+                    mode="lines+markers",
+                ),
+                secondary_y=False,
+            )
+
+        # Average HR (if available)
+        if (
+            "avg_hr" in data["heart_rate"].columns
+            and data["heart_rate"]["avg_hr"].notna().any()
+        ):
+            hr_hrv_fig.add_trace(
+                go.Scatter(
+                    x=data["heart_rate"]["date"],
+                    y=data["heart_rate"]["avg_hr"],
+                    name="Average HR",
+                    line={"color": "pink", "width": 2, "dash": "dash"},
+                    mode="lines+markers",
+                ),
+                secondary_y=False,
+            )
     if not data["hrv"].empty:
-        hr_hrv_fig.add_trace(
-            go.Scatter(
-                x=data["hrv"]["date"],
-                y=data["hrv"]["hrv_avg"],
-                name="HRV (ms)",
-                line={"color": "green", "width": 2},
-            ),
-            secondary_y=True,
-        )
+        # Enhanced HRV with status color coding
+        if "hrv_status" in data["hrv"].columns:
+            # Create color mapping based on HRV status
+            colors = []
+            for status in data["hrv"]["hrv_status"]:
+                if pd.isna(status):
+                    colors.append("gray")
+                elif "balanced" in str(status).lower() or "good" in str(status).lower():
+                    colors.append("green")
+                elif "poor" in str(status).lower() or "low" in str(status).lower():
+                    colors.append("red")
+                else:
+                    colors.append("orange")  # for moderate/unbalanced
+
+            hr_hrv_fig.add_trace(
+                go.Scatter(
+                    x=data["hrv"]["date"],
+                    y=data["hrv"]["hrv_avg"],
+                    name="HRV",
+                    mode="lines+markers",
+                    line={"color": "green", "width": 2},
+                    marker={"color": colors, "size": 8},
+                    text=data["hrv"]["hrv_status"],
+                    hovertemplate="<b>HRV:</b> %{y} ms<br><b>Status:</b> %{text}<br><b>Date:</b> %{x}<extra></extra>",
+                ),
+                secondary_y=True,
+            )
+        else:
+            hr_hrv_fig.add_trace(
+                go.Scatter(
+                    x=data["hrv"]["date"],
+                    y=data["hrv"]["hrv_avg"],
+                    name="HRV (ms)",
+                    line={"color": "green", "width": 2},
+                ),
+                secondary_y=True,
+            )
 
     hr_hrv_fig.update_layout(title="❤️ Heart Rate & HRV Analysis", height=400)
     hr_hrv_fig.update_xaxes(title_text="Date")
     hr_hrv_fig.update_yaxes(title_text="Heart Rate (bpm)", secondary_y=False)
     hr_hrv_fig.update_yaxes(title_text="HRV (ms)", secondary_y=True)
+    # Ensure consistent date range
+    update_chart_date_range(hr_hrv_fig, start_date, end_date)
 
     # Sleep Chart
     sleep_fig = go.Figure()
@@ -940,6 +1035,8 @@ def update_dashboard_charts(start_date, end_date):
     )
     sleep_fig.update_xaxes(title_text="Date")
     sleep_fig.update_yaxes(title_text="Minutes")
+    # Ensure consistent date range
+    update_chart_date_range(sleep_fig, start_date, end_date)
 
     # Workout Volume Chart
     workout_fig = go.Figure()
@@ -963,6 +1060,8 @@ def update_dashboard_charts(start_date, end_date):
     workout_fig.update_layout(title="🏋️ Workout Volume Analysis", height=400)
     workout_fig.update_xaxes(title_text="Date")
     workout_fig.update_yaxes(title_text="Volume (kg)")
+    # Ensure consistent date range
+    update_chart_date_range(workout_fig, start_date, end_date)
 
     # Stress Chart
     stress_fig = go.Figure()
@@ -986,6 +1085,8 @@ def update_dashboard_charts(start_date, end_date):
     stress_fig.update_layout(title="😰 Stress Levels", height=400)
     stress_fig.update_xaxes(title_text="Date")
     stress_fig.update_yaxes(title_text="Stress Level")
+    # Ensure consistent date range
+    update_chart_date_range(stress_fig, start_date, end_date)
 
     # Steps Chart
     steps_fig = go.Figure()
@@ -1013,8 +1114,82 @@ def update_dashboard_charts(start_date, end_date):
     steps_fig.update_layout(title="🚶 Daily Steps", height=400)
     steps_fig.update_xaxes(title_text="Date")
     steps_fig.update_yaxes(title_text="Steps")
+    # Ensure consistent date range
+    update_chart_date_range(steps_fig, start_date, end_date)
 
-    return weight_fig, hr_hrv_fig, sleep_fig, workout_fig, stress_fig, steps_fig
+    # Energy Chart (Active vs Basal Calories)
+    energy_fig = go.Figure()
+    if not data["energy"].empty:
+        # Active Energy (calories burned during activity)
+        if "active_energy" in data["energy"].columns:
+            energy_fig.add_trace(
+                go.Scatter(
+                    x=data["energy"]["date"],
+                    y=data["energy"]["active_energy"],
+                    mode="lines+markers",
+                    name="Active Energy",
+                    line={"color": "orange", "width": 2},
+                    marker={"size": 6},
+                )
+            )
+
+        # Basal Energy (calories burned at rest)
+        if "basal_energy" in data["energy"].columns:
+            energy_fig.add_trace(
+                go.Scatter(
+                    x=data["energy"]["date"],
+                    y=data["energy"]["basal_energy"],
+                    mode="lines+markers",
+                    name="Basal Energy",
+                    line={"color": "lightblue", "width": 2},
+                    marker={"size": 6},
+                )
+            )
+
+        # Total Energy (stacked area)
+        if (
+            "active_energy" in data["energy"].columns
+            and "basal_energy" in data["energy"].columns
+        ):
+            total_energy = data["energy"]["active_energy"].fillna(0) + data["energy"][
+                "basal_energy"
+            ].fillna(0)
+            energy_fig.add_trace(
+                go.Scatter(
+                    x=data["energy"]["date"],
+                    y=total_energy,
+                    mode="lines",
+                    name="Total Energy",
+                    line={"color": "red", "width": 3, "dash": "dash"},
+                    opacity=0.7,
+                )
+            )
+
+    energy_fig.update_layout(
+        title="🔥 Daily Energy Expenditure (Calories)",
+        height=400,
+        legend={
+            "orientation": "h",
+            "yanchor": "bottom",
+            "y": 1.02,
+            "xanchor": "right",
+            "x": 1,
+        },
+    )
+    energy_fig.update_xaxes(title_text="Date")
+    energy_fig.update_yaxes(title_text="Calories (kcal)")
+    # Ensure consistent date range
+    update_chart_date_range(energy_fig, start_date, end_date)
+
+    return (
+        weight_fig,
+        hr_hrv_fig,
+        sleep_fig,
+        workout_fig,
+        stress_fig,
+        energy_fig,
+        steps_fig,
+    )
 
 
 # Credentials management
@@ -1812,6 +1987,43 @@ def export_user_data(n_clicks):
                     ]
                 )
                 export_data["stress"] = stress_df
+
+            # Export Energy data
+            energy_data = db.scalars(
+                select(Energy).filter(Energy.user_id == current_user.id)
+            ).all()
+            if energy_data:
+                energy_df = pd.DataFrame(
+                    [
+                        {
+                            "date": e.date,
+                            "active_energy": e.active_energy,
+                            "basal_energy": e.basal_energy,
+                            "total_energy": (e.active_energy or 0)
+                            + (e.basal_energy or 0),
+                        }
+                        for e in energy_data
+                    ]
+                )
+                export_data["energy"] = energy_df
+
+            # Export Steps data
+            steps_data = db.scalars(
+                select(Steps).filter(Steps.user_id == current_user.id)
+            ).all()
+            if steps_data:
+                steps_df = pd.DataFrame(
+                    [
+                        {
+                            "date": s.date,
+                            "total_steps": s.total_steps,
+                            "total_distance": s.total_distance,
+                            "step_goal": s.step_goal,
+                        }
+                        for s in steps_data
+                    ]
+                )
+                export_data["steps"] = steps_df
 
             # Export Sync History data
             sync_data = db.scalars(
