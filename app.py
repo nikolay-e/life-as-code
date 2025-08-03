@@ -258,6 +258,7 @@ def logout():
 
 
 @server.route("/healthz")
+@limiter.exempt
 def health_check():
     """Unauthenticated health endpoint for K8s probes."""
     try:
