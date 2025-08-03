@@ -97,7 +97,7 @@ serviceAccount:
 
 # Database migrations/initialization configuration
 migrations:
-  enabled: true
+  enabled: false  # App handles database initialization internally
   command: ["python", "-c", "from database import init_db; init_db()"]
   # Keep failed migration pods for 1 hour for debugging
   ttlSecondsAfterFinished: 3600

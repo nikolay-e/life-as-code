@@ -8,7 +8,7 @@ env/
 venv/
 .venv/
 ENV/
-
+export_*
 # IDE
 .vscode/
 .idea/
