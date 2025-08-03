@@ -224,17 +224,56 @@ def extract_weight_data(
 ) -> Weight | None:
     """Extract weight and body composition data for a specific date and user."""
     try:
-        # Use get_daily_weigh_ins which is more reliable for single days
-        weight_data = api.get_daily_weigh_ins(date_str)
-        logger.debug(f"Weight data received for {date_str}")
+        # Try primary method first
+        weight_data = None
+
+        # Method 1: get_daily_weigh_ins (current approach)
+        try:
+            weight_data = api.get_daily_weigh_ins(date_str)
+            logger.info(f"Method 1 (get_daily_weigh_ins) for {date_str}: {weight_data}")
+        except Exception as e:
+            logger.warning(f"Method 1 failed for {date_str}: {e}")
+
+        # Method 2: Try get_body_composition if method 1 fails or returns empty
         if not weight_data:
-            logger.info(f"No weight data found for {date_str}")
+            try:
+                weight_data = api.get_body_composition(date_str)
+                logger.info(
+                    f"Method 2 (get_body_composition) for {date_str}: {weight_data}"
+                )
+            except Exception as e:
+                logger.warning(f"Method 2 failed for {date_str}: {e}")
+
+        # Method 3: Try generic get_stats
+        if not weight_data:
+            try:
+                weight_data = api.get_stats(date_str)
+                if weight_data:
+                    logger.info(f"Method 3 (get_stats) for {date_str}: {weight_data}")
+                    # Extract weight from stats if present
+                    weight_data = (
+                        {"weight": weight_data.get("weight")}
+                        if weight_data.get("weight")
+                        else None
+                    )
+            except Exception as e:
+                logger.warning(f"Method 3 failed for {date_str}: {e}")
+
+        if not weight_data:
+            logger.info(f"All weight extraction methods failed for {date_str}")
             return None
+
+        # Log the structure to understand what we're getting
+        logger.info(
+            f"Final weight data keys for {date_str}: {list(weight_data.keys()) if isinstance(weight_data, dict) else type(weight_data)}"
+        )
 
         # The structure is simpler with this endpoint
         weight_value = weight_data.get("weight")
         if not weight_value:
-            logger.warning(f"No weight value found in data for {date_str}")
+            logger.warning(
+                f"No weight value found in data for {date_str}. Available keys: {list(weight_data.keys()) if isinstance(weight_data, dict) else 'Not a dict'}"
+            )
             return None
 
         # Convert from grams to kg if needed

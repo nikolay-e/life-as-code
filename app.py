@@ -13,7 +13,7 @@ import dash_bootstrap_components as dbc
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.io as pio
-from dash import Input, Output, State, callback, dcc, html
+from dash import Input, Output, State, callback, callback_context, dcc, html
 from flask import Flask, flash, redirect, render_template_string, url_for
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -1888,19 +1888,38 @@ def update_data_status(tab):
                         html.P(
                             "Download your health data as CSV files for backup or analysis in other tools."
                         ),
-                        html.Button(
-                            "📥 Export All Data to CSV",
-                            id="export-data-btn",
-                            n_clicks=0,
-                            style={
-                                "margin": "10px 0",
-                                "padding": "10px 20px",
-                                "backgroundColor": "#28a745",
-                                "color": "white",
-                                "border": "none",
-                                "borderRadius": "5px",
-                                "cursor": "pointer",
-                            },
+                        html.Div(
+                            [
+                                html.Button(
+                                    "📥 Export All Data to CSV",
+                                    id="export-data-btn",
+                                    n_clicks=0,
+                                    style={
+                                        "margin": "10px 10px 10px 0",
+                                        "padding": "10px 20px",
+                                        "backgroundColor": "#28a745",
+                                        "color": "white",
+                                        "border": "none",
+                                        "borderRadius": "5px",
+                                        "cursor": "pointer",
+                                    },
+                                ),
+                                html.Button(
+                                    "📊 Export Last 28 Days (All Data)",
+                                    id="export-recent-btn",
+                                    n_clicks=0,
+                                    style={
+                                        "margin": "10px 0",
+                                        "padding": "10px 20px",
+                                        "backgroundColor": "#007bff",
+                                        "color": "white",
+                                        "border": "none",
+                                        "borderRadius": "5px",
+                                        "cursor": "pointer",
+                                    },
+                                ),
+                            ],
+                            style={"display": "flex", "flexWrap": "wrap"},
                         ),
                         html.Div(id="export-status", style={"marginTop": "10px"}),
                     ]
@@ -1919,19 +1938,29 @@ def update_data_status(tab):
 # Data export callback
 @callback(
     Output("export-status", "children"),
-    Input("export-data-btn", "n_clicks"),
+    [
+        Input("export-data-btn", "n_clicks"),
+        Input("export-recent-btn", "n_clicks"),
+    ],
     prevent_initial_call=True,
 )
-def export_user_data(n_clicks):
+def export_user_data(export_all_clicks, export_recent_clicks):
     if not current_user.is_authenticated:
         return html.Div("Please log in.", style={"color": "red"})
 
-    if not n_clicks:
+    # Determine which button was clicked
+    ctx = callback_context
+    if not ctx.triggered:
         return ""
+
+    button_id = ctx.triggered[0]["prop_id"].split(".")[0]
+
+    # Determine if we're exporting recent data (last 28 days) or all data
+    export_recent = button_id == "export-recent-btn"
 
     try:
         import base64
-        from datetime import datetime
+        from datetime import datetime, timedelta
 
         import pandas as pd
 
@@ -1939,10 +1968,17 @@ def export_user_data(n_clicks):
         try:
             export_data = {}
 
+            # Set date filter for recent export
+            date_filter = None
+            if export_recent:
+                cutoff_date = datetime.now().date() - timedelta(days=28)
+                date_filter = cutoff_date
+
             # Export Sleep data
-            sleep_data = db.scalars(
-                select(Sleep).filter(Sleep.user_id == current_user.id)
-            ).all()
+            sleep_query = select(Sleep).filter(Sleep.user_id == current_user.id)
+            if date_filter:
+                sleep_query = sleep_query.filter(Sleep.date >= date_filter)
+            sleep_data = db.scalars(sleep_query).all()
             if sleep_data:
                 sleep_df = pd.DataFrame(
                     [
@@ -1966,9 +2002,10 @@ def export_user_data(n_clicks):
                 export_data["sleep"] = sleep_df
 
             # Export HRV data
-            hrv_data = db.scalars(
-                select(HRV).filter(HRV.user_id == current_user.id)
-            ).all()
+            hrv_query = select(HRV).filter(HRV.user_id == current_user.id)
+            if date_filter:
+                hrv_query = hrv_query.filter(HRV.date >= date_filter)
+            hrv_data = db.scalars(hrv_query).all()
             if hrv_data:
                 hrv_df = pd.DataFrame(
                     [
@@ -1983,9 +2020,10 @@ def export_user_data(n_clicks):
                 export_data["hrv"] = hrv_df
 
             # Export Weight data
-            weight_data = db.scalars(
-                select(Weight).filter(Weight.user_id == current_user.id)
-            ).all()
+            weight_query = select(Weight).filter(Weight.user_id == current_user.id)
+            if date_filter:
+                weight_query = weight_query.filter(Weight.date >= date_filter)
+            weight_data = db.scalars(weight_query).all()
             if weight_data:
                 weight_df = pd.DataFrame(
                     [
@@ -2004,9 +2042,10 @@ def export_user_data(n_clicks):
                 export_data["weight"] = weight_df
 
             # Export Heart Rate data
-            hr_data = db.scalars(
-                select(HeartRate).filter(HeartRate.user_id == current_user.id)
-            ).all()
+            hr_query = select(HeartRate).filter(HeartRate.user_id == current_user.id)
+            if date_filter:
+                hr_query = hr_query.filter(HeartRate.date >= date_filter)
+            hr_data = db.scalars(hr_query).all()
             if hr_data:
                 hr_df = pd.DataFrame(
                     [
@@ -2022,9 +2061,12 @@ def export_user_data(n_clicks):
                 export_data["heart_rate"] = hr_df
 
             # Export Workout data
-            workout_data = db.scalars(
-                select(WorkoutSet).filter(WorkoutSet.user_id == current_user.id)
-            ).all()
+            workout_query = select(WorkoutSet).filter(
+                WorkoutSet.user_id == current_user.id
+            )
+            if date_filter:
+                workout_query = workout_query.filter(WorkoutSet.date >= date_filter)
+            workout_data = db.scalars(workout_query).all()
             if workout_data:
                 workout_df = pd.DataFrame(
                     [
@@ -2044,9 +2086,10 @@ def export_user_data(n_clicks):
                 export_data["workouts"] = workout_df
 
             # Export Stress data
-            stress_data = db.scalars(
-                select(Stress).filter(Stress.user_id == current_user.id)
-            ).all()
+            stress_query = select(Stress).filter(Stress.user_id == current_user.id)
+            if date_filter:
+                stress_query = stress_query.filter(Stress.date >= date_filter)
+            stress_data = db.scalars(stress_query).all()
             if stress_data:
                 stress_df = pd.DataFrame(
                     [
@@ -2064,9 +2107,10 @@ def export_user_data(n_clicks):
                 export_data["stress"] = stress_df
 
             # Export Energy data
-            energy_data = db.scalars(
-                select(Energy).filter(Energy.user_id == current_user.id)
-            ).all()
+            energy_query = select(Energy).filter(Energy.user_id == current_user.id)
+            if date_filter:
+                energy_query = energy_query.filter(Energy.date >= date_filter)
+            energy_data = db.scalars(energy_query).all()
             if energy_data:
                 energy_df = pd.DataFrame(
                     [
@@ -2083,9 +2127,10 @@ def export_user_data(n_clicks):
                 export_data["energy"] = energy_df
 
             # Export Steps data
-            steps_data = db.scalars(
-                select(Steps).filter(Steps.user_id == current_user.id)
-            ).all()
+            steps_query = select(Steps).filter(Steps.user_id == current_user.id)
+            if date_filter:
+                steps_query = steps_query.filter(Steps.date >= date_filter)
+            steps_data = db.scalars(steps_query).all()
             if steps_data:
                 steps_df = pd.DataFrame(
                     [
@@ -2129,11 +2174,12 @@ def export_user_data(n_clicks):
             # Create download links for each data type
             download_links = []
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            export_suffix = "_last28days" if export_recent else "_all"
 
             for data_type, df in export_data.items():
                 csv_string = df.to_csv(index=False)
                 csv_encoded = base64.b64encode(csv_string.encode()).decode()
-                filename = f"health_data_{data_type}_{timestamp}.csv"
+                filename = f"health_data_{data_type}{export_suffix}_{timestamp}.csv"
 
                 download_links.append(
                     html.A(
