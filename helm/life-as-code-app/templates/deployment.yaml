@@ -62,13 +62,17 @@ spec:
           resources:
             {{- toYaml .Values.app.resources | nindent 12 }}
           env:
-            # Database configuration - always use app's own postgres secret
+            # Database configuration - let app construct DATABASE_URL from individual variables
             {{- if .Values.postgres.enabled }}
-            - name: DATABASE_URL
-              value: "postgresql+psycopg2://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@{{ include "life-as-code-app.postgresql.fullname" . }}:5432/$(POSTGRES_DB)"
+            - name: POSTGRES_HOST
+              value: "{{ include "life-as-code-app.postgresql.fullname" . }}"
+            - name: POSTGRES_PORT
+              value: "5432"
             {{- else }}
-            - name: DATABASE_URL
-              value: "postgresql+psycopg2://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@{{ .Values.postgres.external.host }}:{{ .Values.postgres.external.port }}/$(POSTGRES_DB)"
+            - name: POSTGRES_HOST
+              value: "{{ .Values.postgres.external.host }}"
+            - name: POSTGRES_PORT
+              value: "{{ .Values.postgres.external.port }}"
             {{- end }}
             - name: POSTGRES_DB
               valueFrom:

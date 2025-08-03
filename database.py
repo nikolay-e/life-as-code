@@ -20,8 +20,27 @@ logger = logging.getLogger(__name__)
 
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL")
+
+# If DATABASE_URL is not set, construct it from individual components
 if not DATABASE_URL:
-    raise ValueError("DATABASE_URL environment variable not set")
+    POSTGRES_USER = os.getenv("POSTGRES_USER")
+    POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
+    POSTGRES_DB = os.getenv("POSTGRES_DB")
+    POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
+    POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
+
+    if not all([POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB]):
+        raise ValueError(
+            "DATABASE_URL or individual postgres environment variables (POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB) must be set"
+        )
+
+    DATABASE_URL = f"postgresql+psycopg2://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
+    logger.info(
+        f"Constructed DATABASE_URL from environment variables for host: {POSTGRES_HOST}"
+    )
+
+if not DATABASE_URL:
+    raise ValueError("Could not determine database connection parameters")
 
 # Create engine with connection pooling
 engine = create_engine(
