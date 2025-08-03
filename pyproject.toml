@@ -1,0 +1,70 @@
+[tool.black]
+line-length = 88
+target-version = ['py38', 'py39', 'py310', 'py311', 'py312', 'py313']
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.ruff]
+line-length = 88
+target-version = "py38"
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+]
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "life-as-code"
+version = "0.1.0"
+description = "Personal health tracking and analysis system"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "pandas>=1.5.0",
+    "plotly>=5.0.0",
+    "garminconnect>=0.1.55",
+    "requests>=2.28.0",
+    "garth>=0.4.0",
+    "python-dotenv>=0.19.0",
+    "dash>=2.14.0",
+    "scipy>=1.9.0",
+    "numpy>=1.21.0",
+    "statsmodels>=0.14.0",
+    "pyyaml>=6.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pre-commit>=3.5.0",
+    "black>=24.1.0",
+    "ruff>=0.1.15",
+    "mypy>=1.8.0",
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+]
+
+[project.scripts]
+life-as-code = "life_as_code.cli:main"

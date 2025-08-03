@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "8050:8050"
+    environment:
+      # Database connection
+      - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+
+      # Multi-user authentication
+      - SECRET_KEY=${SECRET_KEY}
+      - FERNET_KEY=${FERNET_KEY}
+
+      # App configuration
+      - PYTHONUNBUFFERED=1
+      - TZ=UTC
+      - FLASK_DEBUG=False
+
+    volumes:
+      # Persist Garmin tokens between container restarts
+      - ./.garminconnect:/app/.garminconnect
+      - ./logs:/app/logs
+
+    depends_on:
+      db:
+        condition: service_healthy
+
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-life_as_code_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-life_as_code_password}
+      - POSTGRES_DB=${POSTGRES_DB:-life_as_code_db}
+    volumes:
+      # Persist database data on the host machine
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-life_as_code_user} -d ${POSTGRES_DB:-life_as_code_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Optional: Add a reverse proxy for production deployment
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - web
+    profiles:
+      - production
+
+volumes:
+  postgres_data:

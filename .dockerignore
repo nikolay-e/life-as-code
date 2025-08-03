@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+# Keep README.md for documentation purposes
+
+# Data files (will be mounted as volumes)
+*.csv
+*.html
+*.txt
+!requirements.txt
+correlation_*.html
+daily_briefing_*.txt
+
+# Environment files (will be created by container)
+.env
+.garminconnect/
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+tmp/
+temp/
