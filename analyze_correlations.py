@@ -120,7 +120,7 @@ def merge_datasets_by_date(datasets):
         merged_df = pd.merge(merged_df, daily_exercises, on="date", how="left")
 
     # Fill NaN values
-    merged_df = merged_df.fillna(0)
+    # Remove fillna(0) to allow pandas corr() to handle NaN values correctly
 
     print(
         f"📊 Merged dataset created with {len(merged_df)} records and {len(merged_df.columns)} columns"

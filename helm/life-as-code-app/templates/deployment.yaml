@@ -131,7 +131,12 @@ spec:
               mountPath: /app/logs
       volumes:
         - name: garmin-tokens
+        {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "life-as-code-app.fullname" . }}-garmin-tokens
+        {{- else }}
           emptyDir: {}
+        {{- end }}
         - name: logs
           emptyDir: {}
       {{- with .Values.nodeSelector }}

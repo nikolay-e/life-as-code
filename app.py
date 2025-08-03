@@ -859,33 +859,30 @@ def save_credentials(n_clicks, garmin_email, garmin_password, hevy_api_key):
                 db.add(creds)
 
             # Update credentials
-            if garmin_email:
-                creds.garmin_email = garmin_email
-            # Only update Garmin password if it's not the mask string and is valid
-            if (
-                garmin_password
-                and garmin_password != "••••••••"
-                and len(garmin_password.strip()) > 0
-            ):
-                # Validate password is not just the mask characters
-                if garmin_password != "••••••••" and not all(
-                    c == "•" for c in garmin_password
-                ):
+            # Update Garmin email (allow clearing by setting to empty)
+            if garmin_email is not None:  # Allow empty string to clear
+                creds.garmin_email = garmin_email if garmin_email.strip() else None
+
+            # Update Garmin password - allow clearing with empty input
+            if garmin_password is not None and garmin_password != "••••••••":
+                if garmin_password.strip() == "":
+                    # Clear the password
+                    creds.encrypted_garmin_password = None
+                elif not all(c == "•" for c in garmin_password):
+                    # Set new password with validation
                     from security import validate_password
 
                     is_valid, _ = validate_password(garmin_password)
                     if is_valid:
                         creds.encrypted_garmin_password = encrypt_data(garmin_password)
-            # Only update Hevy key if it's not the mask string and is valid
-            if (
-                hevy_api_key
-                and hevy_api_key != "••••••••"
-                and len(hevy_api_key.strip()) > 0
-            ):
-                # Validate API key is not just mask characters
-                if hevy_api_key != "••••••••" and not all(
-                    c == "•" for c in hevy_api_key
-                ):
+
+            # Update Hevy API key - allow clearing with empty input
+            if hevy_api_key is not None and hevy_api_key != "••••••••":
+                if hevy_api_key.strip() == "":
+                    # Clear the API key
+                    creds.encrypted_hevy_api_key = None
+                elif not all(c == "•" for c in hevy_api_key):
+                    # Set new API key
                     creds.encrypted_hevy_api_key = encrypt_data(hevy_api_key)
 
             db.commit()

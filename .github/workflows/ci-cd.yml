@@ -37,7 +37,7 @@ jobs:
         run: black --check .
 
       - name: Run type checking with mypy
-        run: mypy . || true  # Allow mypy to fail for now
+        run: mypy .
 
   # Unit tests (when available)
   unit-tests:
@@ -106,29 +106,6 @@ jobs:
           echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > $HOME/.kube/config
           chmod 600 $HOME/.kube/config
 
-      - name: Deploy shared PostgreSQL with life-as-code database
-        run: |
-          echo "Deploying shared PostgreSQL database with life-as-code database..."
-
-          # Create shared-database namespace with proper labels if it doesn't exist
-          if ! kubectl get namespace shared-database 2>/dev/null; then
-            echo "Creating shared-database namespace..."
-            kubectl create namespace shared-database
-            kubectl label namespace shared-database app.kubernetes.io/managed-by=Helm
-            kubectl annotate namespace shared-database meta.helm.sh/release-name=shared-postgres
-            kubectl annotate namespace shared-database meta.helm.sh/release-namespace=shared-database
-          fi
-
-          # Deploy/update shared PostgreSQL with life-as-code database
-          echo "Deploying/updating shared PostgreSQL..."
-
-          helm upgrade --install shared-postgres /Users/nikolay/Development/lingua-quiz/helm/shared-postgres \
-            --namespace shared-database \
-            --set secrets.adminPassword="${{ secrets.POSTGRES_ADMIN_PASSWORD }}" \
-            --set secrets.databases.linguaquiz.password="${{ secrets.POSTGRES_PROD_PASSWORD }}" \
-            --set secrets.databases.linguaquiz-staging.password="${{ secrets.POSTGRES_STAGING_PASSWORD }}" \
-            --set secrets.databases.life-as-code.password="${{ secrets.POSTGRES_LIFE_AS_CODE_PASSWORD }}" \
-            --wait --timeout 10m
 
       - name: Deploy Life-as-Code with Helm
         id: helm-deploy

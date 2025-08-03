@@ -20,6 +20,12 @@ COPY . .
 # Create directories for data and logs
 RUN mkdir -p /app/data /app/logs
 
+# Create non-root user for security
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# Change ownership of app directory to appuser
+RUN chown -R appuser:appuser /app
+
 # Set environment variables
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
@@ -29,6 +35,9 @@ EXPOSE 8050
 
 # Create a startup script that runs data pulls and starts dashboard
 RUN chmod +x docker-entrypoint.sh
+
+# Switch to non-root user
+USER appuser
 
 # Default command
 CMD ["./docker-entrypoint.sh"]

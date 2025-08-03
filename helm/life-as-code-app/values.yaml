@@ -115,6 +115,13 @@ migrations:
     - name: PYTHONUNBUFFERED
       value: "1"
 
+# Persistent storage for Garmin tokens (prevents re-authentication on pod restart)
+persistence:
+  enabled: true
+  size: 1Gi
+  storageClassName: "" # Use default storage class
+  accessMode: ReadWriteOnce
+
 # Optional configurations
 # imagePullSecrets: []
 # nameOverride: ""
