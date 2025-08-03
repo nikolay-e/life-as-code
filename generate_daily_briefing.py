@@ -53,9 +53,11 @@ def get_user_thresholds(user_id: int) -> dict:
 
 def load_latest_data(user_id: int):
     """Load the most recent data points from database for a specific user."""
+    from typing import Any
+
     db = SessionLocal()
     try:
-        data = {}
+        data: dict[str, Any] = {}
 
         # Load recent data points (last 7 days)
         lookback_date = datetime.date.today() - datetime.timedelta(days=7)
