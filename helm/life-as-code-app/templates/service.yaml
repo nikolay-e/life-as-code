@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "life-as-code-app.fullname" . }}
+  namespace: {{ include "life-as-code-app.namespace" . }}
+  labels:
+    {{- include "life-as-code-app.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.app.service.type }}
+  ports:
+    - port: {{ .Values.app.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "life-as-code-app.selectorLabels" . | nindent 4 }}

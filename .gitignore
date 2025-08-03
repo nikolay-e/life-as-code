@@ -59,7 +59,7 @@ env.bak/
 venv.bak/
 pip-log.txt
 pip-delete-this-directory.txt
-
+.*_cache
 # Jupyter Notebook
 .ipynb_checkpoints
 *.ipynb

@@ -1,0 +1,131 @@
+{{- if .Values.migrations.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "life-as-code-app.fullname" . }}-migrations
+  namespace: {{ include "life-as-code-app.namespace" . }}
+  labels:
+    {{- include "life-as-code-app.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migrations
+  annotations:
+    # This is important - it ensures the job is re-run on Helm upgrades
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "10"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  ttlSecondsAfterFinished: {{ .Values.migrations.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "life-as-code-app.labels" . | nindent 8 }}
+        app.kubernetes.io/component: migrations
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      # Add init container to wait for PostgreSQL to be ready before running migrations
+      initContainers:
+      - name: wait-for-db
+        {{- if .Values.postgres.enabled }}
+        image: "postgres:13"
+        imagePullPolicy: IfNotPresent
+        {{- else }}
+        image: "postgres:13"
+        imagePullPolicy: IfNotPresent
+        {{- end }}
+        command:
+        - sh
+        - -c
+        - |
+          {{- if .Values.postgres.enabled }}
+          until pg_isready -h {{ include "life-as-code-app.postgresql.fullname" . }} -p 5432; do
+          {{- else }}
+          until pg_isready -h {{ .Values.postgres.external.host }} -p {{ .Values.postgres.external.port }}; do
+          {{- end }}
+            echo "Waiting for PostgreSQL to be ready..."
+            sleep 2
+          done
+          echo "PostgreSQL is ready!"
+        env:
+          - name: PGUSER
+            valueFrom:
+              secretKeyRef:
+                name: {{ include "life-as-code-app.fullname" . }}-postgres
+                key: POSTGRES_USER
+          - name: PGPASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ include "life-as-code-app.fullname" . }}-postgres
+                key: POSTGRES_PASSWORD
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+          limits:
+            cpu: "100m"
+            memory: "128Mi"
+      containers:
+      - name: migration-runner
+        image: "{{ .Values.app.image.repository }}:{{ .Values.app.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.app.image.pullPolicy }}
+        command:
+        {{- range .Values.migrations.command }}
+        - {{ . | quote }}
+        {{- end }}
+        env:
+          # Database configuration - always use app's own postgres secret
+          {{- if .Values.postgres.enabled }}
+          - name: DATABASE_URL
+            value: "postgresql+psycopg2://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@{{ include "life-as-code-app.postgresql.fullname" . }}:5432/$(POSTGRES_DB)"
+          {{- else }}
+          - name: DATABASE_URL
+            value: "postgresql+psycopg2://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@{{ .Values.postgres.external.host }}:{{ .Values.postgres.external.port }}/$(POSTGRES_DB)"
+          {{- end }}
+          - name: POSTGRES_DB
+            valueFrom:
+              secretKeyRef:
+                name: {{ include "life-as-code-app.fullname" . }}-postgres
+                key: POSTGRES_DB
+          - name: POSTGRES_USER
+            valueFrom:
+              secretKeyRef:
+                name: {{ include "life-as-code-app.fullname" . }}-postgres
+                key: POSTGRES_USER
+          - name: POSTGRES_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ include "life-as-code-app.fullname" . }}-postgres
+                key: POSTGRES_PASSWORD
+          - name: SECRET_KEY
+            valueFrom:
+              secretKeyRef:
+                name: {{ include "life-as-code-app.fullname" . }}-app
+                key: SECRET_KEY
+          - name: FERNET_KEY
+            valueFrom:
+              secretKeyRef:
+                name: {{ include "life-as-code-app.fullname" . }}-app
+                key: FERNET_KEY
+          - name: PYTHONUNBUFFERED
+            value: "1"
+          {{- if .Values.migrations.env }}
+          {{- toYaml .Values.migrations.env | nindent 10 }}
+          {{- end }}
+        resources:
+          {{- toYaml .Values.migrations.resources | nindent 10 }}
+      restartPolicy: {{ .Values.migrations.restartPolicy }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  backoffLimit: {{ .Values.migrations.backoffLimit }}
+{{- end }}

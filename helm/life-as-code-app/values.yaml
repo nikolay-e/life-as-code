@@ -1,0 +1,126 @@
+# Default values for life-as-code-app chart.
+# This is a YAML-formatted file.
+
+# Namespace configuration
+# Default is life-as-code-production for production environment
+namespace: life-as-code-production
+
+replicaCount: 1
+
+# Application configuration
+app:
+  image:
+    repository: life-as-code-app # Default, will be overridden by CI
+    pullPolicy: Always
+    # Overridden by CI with specific tag
+    tag: "latest"
+  # Port the app container listens on
+  port: 8050 # Default port for Flask/Dash app
+  service:
+    type: ClusterIP
+    port: 8050 # Default service port
+  resources:
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+    requests:
+      cpu: "250m"
+      memory: "256Mi"
+  # Liveness, Readiness, Startup probes configuration
+  probes:
+    liveness:
+      path: /
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readiness:
+      path: /
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 3
+      successThreshold: 1
+      failureThreshold: 3
+    startup:
+      path: /
+      failureThreshold: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+
+# PostgreSQL configuration
+postgres:
+  # Set to false to use external PostgreSQL database
+  enabled: false # Changed: Use external shared PostgreSQL
+
+  # External PostgreSQL configuration (when enabled: false)
+  external:
+    host: "shared-postgres.shared-database.svc.cluster.local"
+    port: 5432
+    database: "life_as_code"  # Production database name (overridden by CI for staging)
+    # Note: Database credentials are provided by CI/CD and stored in app's own postgres secret
+    # This configuration is only used for host/port information
+
+# Ingress configuration for external access
+ingress:
+  enabled: true
+  className: "traefik" # Using Traefik ingress controller
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
+    traefik.ingress.kubernetes.io/router.tls: "true"
+  host: life-as-code.nikolay-eremeev.com # To be set by CI/env
+  tls:
+    enabled: true
+    secretName: life-as-code-tls # Name of the K8s secret holding the cert/key
+
+# Secrets - These MUST be provided during deployment (e.g., via --set or a secrets file)
+secrets:
+  # Values should be plain text, Helm will Base64 encode them
+  # These are placeholder values only; real values must be provided at deployment time
+  postgresDb: "" # Must be set at deployment time
+  postgresUser: "" # Must be set at deployment time
+  postgresPassword: "" # Must be set at deployment time
+  secretKey: "" # Flask SECRET_KEY - must be set at deployment time
+  fernetKey: "" # Encryption key for credentials - must be set at deployment time
+  garminEmail: "" # Optional - can be set later via app UI
+  garminPassword: "" # Optional - can be set later via app UI
+  hevyApiKey: "" # Optional - can be set later via app UI
+
+# Service Account configuration
+serviceAccount:
+  # Set to true to create a specific service account
+  create: false
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  name: ""
+
+# Database migrations/initialization configuration
+migrations:
+  enabled: true
+  command: ["python", "-c", "from database import init_db; init_db()"]
+  # Keep failed migration pods for 1 hour for debugging
+  ttlSecondsAfterFinished: 3600
+  restartPolicy: OnFailure
+  backoffLimit: 4
+  resources:
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+  # Additional environment variables for migrations if needed
+  env:
+    - name: PYTHONUNBUFFERED
+      value: "1"
+
+# Optional configurations
+# imagePullSecrets: []
+# nameOverride: ""
+# fullnameOverride: ""
+# podSecurityContext: {}
+# securityContext: {}
+# nodeSelector: {}
+# tolerations: []
+# affinity: {}

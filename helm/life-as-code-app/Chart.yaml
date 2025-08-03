@@ -1,0 +1,17 @@
+apiVersion: v2
+name: life-as-code-app
+description: A Helm chart for Life-as-Code Health Analytics Portal
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - health
+  - analytics
+  - garmin
+  - hevy
+  - dashboard
+maintainers:
+  - name: Nikolay Eremeev
+home: https://github.com/nikolay-e/life-as-code
+sources:
+  - https://github.com/nikolay-e/life-as-code

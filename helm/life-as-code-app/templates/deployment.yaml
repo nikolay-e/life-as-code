@@ -1,0 +1,148 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "life-as-code-app.fullname" . }}
+  namespace: {{ include "life-as-code-app.namespace" . }}
+  labels:
+    {{- include "life-as-code-app.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "life-as-code-app.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "life-as-code-app.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "life-as-code-app.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | default "{}" | nindent 8 }}
+      containers:
+        - name: life-as-code-app
+          securityContext:
+            {{- toYaml .Values.securityContext | default "{}" | nindent 12 }}
+          image: "{{ .Values.app.image.repository }}:{{ .Values.app.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.app.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.app.port }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.app.probes.liveness.path }}
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: {{ .Values.app.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.app.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.app.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.app.probes.liveness.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.app.probes.readiness.path }}
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: {{ .Values.app.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.app.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.app.probes.readiness.timeoutSeconds }}
+            successThreshold: {{ .Values.app.probes.readiness.successThreshold }}
+            failureThreshold: {{ .Values.app.probes.readiness.failureThreshold }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.app.probes.startup.path }}
+              port: http
+              scheme: HTTP
+            failureThreshold: {{ .Values.app.probes.startup.failureThreshold }}
+            periodSeconds: {{ .Values.app.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.app.probes.startup.timeoutSeconds }}
+          resources:
+            {{- toYaml .Values.app.resources | nindent 12 }}
+          env:
+            # Database configuration - always use app's own postgres secret
+            {{- if .Values.postgres.enabled }}
+            - name: DATABASE_URL
+              value: "postgresql+psycopg2://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@{{ include "life-as-code-app.postgresql.fullname" . }}:5432/$(POSTGRES_DB)"
+            {{- else }}
+            - name: DATABASE_URL
+              value: "postgresql+psycopg2://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@{{ .Values.postgres.external.host }}:{{ .Values.postgres.external.port }}/$(POSTGRES_DB)"
+            {{- end }}
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "life-as-code-app.fullname" . }}-postgres
+                  key: POSTGRES_DB
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "life-as-code-app.fullname" . }}-postgres
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "life-as-code-app.fullname" . }}-postgres
+                  key: POSTGRES_PASSWORD
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "life-as-code-app.fullname" . }}-app
+                  key: SECRET_KEY
+            - name: FERNET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "life-as-code-app.fullname" . }}-app
+                  key: FERNET_KEY
+            # Optional pre-configured credentials (can be set later via UI)
+            {{- if .Values.secrets.garminEmail }}
+            - name: EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "life-as-code-app.fullname" . }}-credentials
+                  key: GARMIN_EMAIL
+            {{- end }}
+            {{- if .Values.secrets.garminPassword }}
+            - name: PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "life-as-code-app.fullname" . }}-credentials
+                  key: GARMIN_PASSWORD
+            {{- end }}
+            {{- if .Values.secrets.hevyApiKey }}
+            - name: HEVY_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "life-as-code-app.fullname" . }}-credentials
+                  key: HEVY_API_KEY
+            {{- end }}
+            # App configuration
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: TZ
+              value: "UTC"
+            - name: FLASK_DEBUG
+              value: "False"
+          volumeMounts:
+            - name: garmin-tokens
+              mountPath: /.garminconnect
+            - name: logs
+              mountPath: /app/logs
+      volumes:
+        - name: garmin-tokens
+          emptyDir: {}
+        - name: logs
+          emptyDir: {}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
