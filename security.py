@@ -91,7 +91,7 @@ def get_or_create_user_key(user_id: int) -> str:
         else:
             # Generate new key for user
             user_key = _generate_user_key()
-            user.encryption_key_sealed = _seal_user_key(user_key)
+            user.encryption_key_sealed = _seal_user_key(user_key)  # type: ignore[assignment]
             db.commit()
             logger.info(f"Generated new encryption key for user {user_id}")
             return user_key
