@@ -141,7 +141,7 @@ def get_table_counts_for_user(user_id: int) -> dict:
     counts = {}
     try:
         with get_db_session_context() as db:
-            from models import HRV, HeartRate, Sleep, Weight, WorkoutSet
+            from models import HRV, HeartRate, Sleep, Steps, Stress, Weight, WorkoutSet
 
             counts["sleep"] = db.scalar(
                 select(func.count()).select_from(Sleep).filter(Sleep.user_id == user_id)
@@ -158,6 +158,14 @@ def get_table_counts_for_user(user_id: int) -> dict:
                 select(func.count())
                 .select_from(HeartRate)
                 .filter(HeartRate.user_id == user_id)
+            )
+            counts["stress"] = db.scalar(
+                select(func.count())
+                .select_from(Stress)
+                .filter(Stress.user_id == user_id)
+            )
+            counts["steps"] = db.scalar(
+                select(func.count()).select_from(Steps).filter(Steps.user_id == user_id)
             )
             counts["workout_sets"] = db.scalar(
                 select(func.count())

@@ -398,6 +398,8 @@ def render_tab_content(tab):
                 dcc.Graph(id="hr-hrv-chart"),
                 dcc.Graph(id="sleep-chart"),
                 dcc.Graph(id="workout-volume-chart"),
+                dcc.Graph(id="stress-chart"),
+                dcc.Graph(id="steps-chart"),
             ]
         )
 
@@ -793,6 +795,8 @@ def load_data_for_user(start_date, end_date, user_id):
         Output("hr-hrv-chart", "figure"),
         Output("sleep-chart", "figure"),
         Output("workout-volume-chart", "figure"),
+        Output("stress-chart", "figure"),
+        Output("steps-chart", "figure"),
     ],
     [Input("date-picker-range", "start_date"), Input("date-picker-range", "end_date")],
 )
@@ -800,7 +804,7 @@ def update_dashboard_charts(start_date, end_date):
     if not current_user.is_authenticated:
         empty_fig = go.Figure()
         empty_fig.update_layout(title="Please log in")
-        return empty_fig, empty_fig, empty_fig, empty_fig
+        return empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
 
     # Convert date strings to datetime.date objects with robust handling
     try:
@@ -824,8 +828,13 @@ def update_dashboard_charts(start_date, end_date):
     # Weight Chart
     weight_fig = make_subplots(specs=[[{"secondary_y": True}]])
     if not data["weight"].empty:
+        logger.info(f"Weight data shape: {data['weight'].shape}")
+        logger.info(f"Weight columns: {data['weight'].columns.tolist()}")
+        logger.info(f"First few weight records: {data['weight'].head()}")
+
         # Calculate proper ranges for weight
         weight_values = data["weight"]["weight_kg"].dropna()
+        logger.info(f"Weight values after dropna: {weight_values.tolist()}")
         if not weight_values.empty:
             weight_min = weight_values.min()
             weight_max = weight_values.max()
@@ -955,7 +964,57 @@ def update_dashboard_charts(start_date, end_date):
     workout_fig.update_xaxes(title_text="Date")
     workout_fig.update_yaxes(title_text="Volume (kg)")
 
-    return weight_fig, hr_hrv_fig, sleep_fig, workout_fig
+    # Stress Chart
+    stress_fig = go.Figure()
+    if not data["stress"].empty:
+        stress_fig.add_trace(
+            go.Scatter(
+                x=data["stress"]["date"],
+                y=data["stress"]["avg_stress"],
+                name="Average Stress",
+                line={"color": "orange", "width": 2},
+            )
+        )
+        stress_fig.add_trace(
+            go.Scatter(
+                x=data["stress"]["date"],
+                y=data["stress"]["max_stress"],
+                name="Max Stress",
+                line={"color": "red", "width": 1, "dash": "dash"},
+            )
+        )
+    stress_fig.update_layout(title="😰 Stress Levels", height=400)
+    stress_fig.update_xaxes(title_text="Date")
+    stress_fig.update_yaxes(title_text="Stress Level")
+
+    # Steps Chart
+    steps_fig = go.Figure()
+    if not data["steps"].empty:
+        steps_fig.add_trace(
+            go.Bar(
+                x=data["steps"]["date"],
+                y=data["steps"]["total_steps"],
+                name="Daily Steps",
+                marker_color="lightgreen",
+            )
+        )
+        # Add step goal line if available
+        if (
+            "step_goal" in data["steps"].columns
+            and data["steps"]["step_goal"].notna().any()
+        ):
+            avg_goal = data["steps"]["step_goal"].mean()
+            steps_fig.add_hline(
+                y=avg_goal,
+                line_dash="dash",
+                line_color="gray",
+                annotation_text=f"Goal: {int(avg_goal)}",
+            )
+    steps_fig.update_layout(title="🚶 Daily Steps", height=400)
+    steps_fig.update_xaxes(title_text="Date")
+    steps_fig.update_yaxes(title_text="Steps")
+
+    return weight_fig, hr_hrv_fig, sleep_fig, workout_fig, stress_fig, steps_fig
 
 
 # Credentials management
@@ -1324,7 +1383,7 @@ def sync_data(garmin_clicks, hevy_clicks):
             # Run the sync function in a background thread
             thread = threading.Thread(
                 target=background_garmin_sync,
-                args=(current_user.id, 7),
+                args=(current_user.id, 30),
                 daemon=True,  # Thread will not prevent app shutdown
             )
             thread.start()  # This returns immediately

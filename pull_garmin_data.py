@@ -233,8 +233,13 @@ def extract_weight_data(
 
         # The structure is simpler with this endpoint
         weight_value = weight_data.get("weight")
-        if weight_value and weight_value > 500:  # Convert from grams if needed
-            weight_value /= 1000
+        if not weight_value:
+            logger.warning(f"No weight value found in data for {date_str}")
+            return None
+
+        # Convert from grams to kg if needed
+        if weight_value > 500:  # Likely in grams
+            weight_value = weight_value / 1000.0
 
         return Weight(
             user_id=user_id,
