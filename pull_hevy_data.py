@@ -116,8 +116,11 @@ def sync_hevy_data(user_id: int):
 
         # Decrypt API key
         try:
-            encrypted_key: str = creds.encrypted_hevy_api_key
-            api_key = decrypt_data_for_user(encrypted_key, user_id)
+            from typing import cast
+
+            api_key = decrypt_data_for_user(
+                cast(str, creds.encrypted_hevy_api_key), user_id
+            )
         except Exception as e:
             logger.error(f"Failed to decrypt Hevy API key for user {user_id}: {e}")
             return {

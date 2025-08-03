@@ -6,6 +6,7 @@ Handles password hashing and credential encryption.
 import logging
 import os
 from base64 import b64decode, b64encode
+from typing import cast
 
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
@@ -86,8 +87,7 @@ def get_or_create_user_key(user_id: int) -> str:
 
         if user.encryption_key_sealed:
             # User already has a key, unseal it
-            sealed_key: str = user.encryption_key_sealed
-            return _unseal_user_key(sealed_key)
+            return _unseal_user_key(cast(str, user.encryption_key_sealed))
         else:
             # Generate new key for user
             user_key = _generate_user_key()

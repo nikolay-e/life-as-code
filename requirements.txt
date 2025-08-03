@@ -25,3 +25,7 @@ flask-limiter>=3.8.0
 
 # Data Validation
 pydantic>=2.10.4
+
+# Type Checking Stubs
+types-PyYAML>=6.0.12.20250516
+types-requests>=2.32.4.20250611
