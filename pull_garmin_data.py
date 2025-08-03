@@ -370,7 +370,7 @@ def extract_steps_data_for_range(
         return []
 
 
-def sync_garmin_data(user_id: int, days: int = 28) -> dict:
+def sync_garmin_data(user_id: int, days: int = 730) -> dict:
     """
     Sync Garmin data for a specific user for the specified number of days.
     Returns a summary of the sync operation.
@@ -378,6 +378,11 @@ def sync_garmin_data(user_id: int, days: int = 28) -> dict:
     logger.info(
         f"🏥 Starting Garmin data sync for user_id: {user_id}, last {days} days"
     )
+
+    # Calculate and log the date range
+    end_date = datetime.date.today()
+    start_date = end_date - datetime.timedelta(days=days)
+    logger.info(f"📅 Sync date range: {start_date} to {end_date} ({days} days)")
 
     # Get user credentials from database
     db = SessionLocal()
@@ -477,9 +482,9 @@ def sync_garmin_data(user_id: int, days: int = 28) -> dict:
 
         return {"error": error_msg, "type": "general"}
 
-    # Date range
-    end_date = datetime.date.today()
-    start_date = end_date - datetime.timedelta(days=days)
+    # Date range (already calculated and logged above)
+    # end_date = datetime.date.today()
+    # start_date = end_date - datetime.timedelta(days=days)
 
     # Track sync results
     sync_results = {
@@ -533,10 +538,24 @@ def sync_garmin_data(user_id: int, days: int = 28) -> dict:
             sync_results["steps"]["errors"] += 1
 
         current_date = start_date
+        total_days = (end_date - start_date).days + 1
+        processed_days = 0
 
         while current_date <= end_date:
             date_str = current_date.strftime("%Y-%m-%d")
-            logger.info(f"Processing {date_str}...")
+            processed_days += 1
+            if (
+                processed_days % 50 == 0
+                or processed_days == 1
+                or processed_days == total_days
+            ):
+                logger.info(
+                    f"📅 Processing {date_str} ({processed_days}/{total_days})..."
+                )
+            elif processed_days % 10 == 0:
+                logger.debug(
+                    f"📅 Processing {date_str} ({processed_days}/{total_days})..."
+                )
 
             # Extract and save sleep data
             try:

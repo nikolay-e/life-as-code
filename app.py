@@ -1401,8 +1401,10 @@ def save_personal_settings(
 
 
 # Background sync functions
-def background_garmin_sync(user_id: int, days: int = 28):
+def background_garmin_sync(user_id: int, days: int = 730):
     """Background function for Garmin data sync."""
+    logger.info(f"🚀 Starting Garmin sync for user {user_id}, last {days} days")
+
     with get_user_sync_lock(user_id):
         try:
             from pull_garmin_data import sync_garmin_data
@@ -1412,6 +1414,8 @@ def background_garmin_sync(user_id: int, days: int = 28):
             # Check if sync failed due to MFA
             if isinstance(results, dict) and "error" in results:
                 error_msg = results["error"]
+                logger.error(f"❌ Garmin sync failed for user {user_id}: {error_msg}")
+
                 if "MFA" in error_msg or "multi-factor" in error_msg.lower():
                     print(
                         f"⚠️ Garmin sync failed for user {user_id}: MFA authentication required. Please disable MFA in your Garmin account."
@@ -1420,12 +1424,79 @@ def background_garmin_sync(user_id: int, days: int = 28):
                     print(
                         f"❌ Background Garmin sync failed for user {user_id}: {error_msg}"
                     )
+
+                # Store failure in database
+                import datetime
+
+                from database import get_db_session_context
+                from models import DataSync
+
+                with get_db_session_context() as db:
+                    sync_record = DataSync(
+                        user_id=user_id,
+                        source="garmin",
+                        data_type="all",
+                        last_sync_date=datetime.date.today(),
+                        records_synced=0,
+                        status="error",
+                        error_message=error_msg,
+                    )
+                    db.add(sync_record)
+
             else:
-                print(
-                    f"✅ Background Garmin sync completed for user {user_id}: {results}"
+                # Log detailed results
+                total_new = sum(stats.get("new", 0) for stats in results.values())
+                total_updated = sum(
+                    stats.get("updated", 0) for stats in results.values()
                 )
+                total_errors = sum(stats.get("errors", 0) for stats in results.values())
+
+                logger.info(
+                    f"✅ Garmin sync completed for user {user_id}: {total_new} new, {total_updated} updated, {total_errors} errors"
+                )
+
+                # Log per-data-type results
+                for data_type, stats in results.items():
+                    if (
+                        stats.get("new", 0) > 0
+                        or stats.get("updated", 0) > 0
+                        or stats.get("errors", 0) > 0
+                    ):
+                        logger.info(
+                            f"  📊 {data_type}: {stats.get('new', 0)} new, {stats.get('updated', 0)} updated, {stats.get('errors', 0)} errors"
+                        )
+
+                print(
+                    f"✅ Background Garmin sync completed for user {user_id}: {total_new} new, {total_updated} updated, {total_errors} errors"
+                )
+
+                if total_errors > 0:
+                    logger.warning(
+                        f"⚠️ Garmin sync had {total_errors} errors for user {user_id}"
+                    )
+
         except Exception as e:
+            logger.error(f"❌ Background Garmin sync exception for user {user_id}: {e}")
+            logger.exception("Full exception details:")
             print(f"❌ Background Garmin sync failed for user {user_id}: {e}")
+
+            # Store exception in database
+            import datetime
+
+            from database import get_db_session_context
+            from models import DataSync
+
+            with get_db_session_context() as db:
+                sync_record = DataSync(
+                    user_id=user_id,
+                    source="garmin",
+                    data_type="all",
+                    last_sync_date=datetime.date.today(),
+                    records_synced=0,
+                    status="error",
+                    error_message=str(e),
+                )
+                db.add(sync_record)
 
 
 def background_hevy_sync(user_id: int):
@@ -1455,9 +1526,9 @@ def initial_data_sync(user_id: int):
 
                 if creds and creds.garmin_email:
                     logger.info(
-                        f"Syncing last 28 days of Garmin data for user {user_id}"
+                        f"Syncing last 730 days of Garmin data for user {user_id}"
                     )
-                    background_garmin_sync(user_id, days=28)
+                    background_garmin_sync(user_id, days=730)
 
                     # Then sync all historical data in background
                     logger.info(
@@ -1558,7 +1629,7 @@ def sync_data(garmin_clicks, hevy_clicks):
             # Run the sync function in a background thread
             thread = threading.Thread(
                 target=background_garmin_sync,
-                args=(current_user.id, 28),
+                args=(current_user.id, 730),
                 daemon=True,  # Thread will not prevent app shutdown
             )
             thread.start()  # This returns immediately
