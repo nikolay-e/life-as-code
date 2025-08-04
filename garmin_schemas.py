@@ -153,15 +153,21 @@ class GarminHRVData(BaseModel):
             parsed_data = {}
 
             # Primary HRV value - use lastNightAvg as RMSSD equivalent
-            if "lastNightAvg" in hrv_summary:
+            if (
+                "lastNightAvg" in hrv_summary
+                and hrv_summary["lastNightAvg"] is not None
+            ):
                 parsed_data["hrv_rmssd"] = float(hrv_summary["lastNightAvg"])
 
             # Weekly average as backup SDRR value
-            if "weeklyAvg" in hrv_summary:
+            if "weeklyAvg" in hrv_summary and hrv_summary["weeklyAvg"] is not None:
                 parsed_data["hrv_sdrr"] = float(hrv_summary["weeklyAvg"])
 
             # No direct score in Garmin API, use lastNightAvg
-            if "lastNightAvg" in hrv_summary:
+            if (
+                "lastNightAvg" in hrv_summary
+                and hrv_summary["lastNightAvg"] is not None
+            ):
                 parsed_data["hrv_score"] = float(hrv_summary["lastNightAvg"])
 
             if not any(parsed_data.values()):
@@ -190,15 +196,15 @@ class GarminStressData(BaseModel):
         try:
             parsed_data = {}
 
-            # Use the actual Garmin API field names
-            if "avgStressLevel" in data:
+            # Use the actual Garmin API field names - handle None values
+            if "avgStressLevel" in data and data["avgStressLevel"] is not None:
                 parsed_data["avg_stress"] = float(data["avgStressLevel"])
 
-            if "maxStressLevel" in data:
+            if "maxStressLevel" in data and data["maxStressLevel"] is not None:
                 parsed_data["max_stress"] = float(data["maxStressLevel"])
 
             # Use average as score since no direct score available
-            if "avgStressLevel" in data:
+            if "avgStressLevel" in data and data["avgStressLevel"] is not None:
                 parsed_data["stress_score"] = float(data["avgStressLevel"])
 
             if not any(parsed_data.values()):
@@ -245,7 +251,14 @@ class GarminHeartRateData(BaseModel):
             field_mappings = {
                 "resting_hr": ["restingHeartRate", "resting_hr", "restingHR", "rhr"],
                 "max_hr": ["maxHeartRate", "max_hr", "maxHR", "maximumHR"],
-                "avg_hr": ["avgHeartRate", "avg_hr", "averageHR", "avgHR"],
+                "avg_hr": [
+                    "avgHeartRate",
+                    "averageHeartRate",
+                    "avg_hr",
+                    "averageHR",
+                    "avgHR",
+                    "minHeartRate",
+                ],
             }
 
             parsed_data = {}
