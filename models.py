@@ -147,6 +147,15 @@ class Sleep(Base):
     awake_minutes = Column(Float)
     total_sleep_minutes = Column(Float)
     sleep_score = Column(Integer)
+    # New fields for enhanced sleep tracking
+    body_battery_change = Column(Integer)
+    skin_temp_celsius = Column(Float)
+    awake_count = Column(Integer)
+    sleep_quality_score = Column(Float)
+    sleep_recovery_score = Column(Float)
+    spo2_avg = Column(Float)
+    spo2_min = Column(Float)
+    respiratory_rate = Column(Float)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     # Relationships

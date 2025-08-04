@@ -27,6 +27,20 @@ class GarminSleepData(BaseModel):
     )
     sleep_score: float | None = Field(None, description="Sleep quality score")
 
+    # New fields for enhanced sleep tracking
+    body_battery_change: int | None = Field(
+        None, description="Body battery charge change"
+    )
+    skin_temp_celsius: float | None = Field(
+        None, description="Average skin temperature in Celsius"
+    )
+    awake_count: int | None = Field(None, description="Number of times awakened")
+    sleep_quality_score: float | None = Field(None, description="Sleep quality score")
+    sleep_recovery_score: float | None = Field(None, description="Sleep recovery score")
+    spo2_avg: float | None = Field(None, description="Average SpO2 percentage")
+    spo2_min: float | None = Field(None, description="Minimum SpO2 percentage")
+    respiratory_rate: float | None = Field(None, description="Average respiratory rate")
+
     # Validation and conversion
     @field_validator(
         "deep_sleep_duration",
@@ -110,6 +124,35 @@ class GarminSleepData(BaseModel):
                     "totalMinutes",
                 ],
                 "sleep_score": ["sleepScore", "sleep_score", "overallScore", "score"],
+                "body_battery_change": [
+                    "bodyBatteryChange",
+                    "bodyBatteryDrain",
+                    "batteryChange",
+                ],
+                "skin_temp_celsius": [
+                    "skinTempCelsius",
+                    "avgSkinTempCelsius",
+                    "skinTemp",
+                ],
+                "awake_count": ["awakeCount", "awakeDuringSleep", "numberOfAwakenings"],
+                "sleep_quality_score": [
+                    "sleepQualityScore",
+                    "qualityScore",
+                    "sleepScores",
+                ],
+                "sleep_recovery_score": ["sleepRecoveryScore", "recoveryScore"],
+                "spo2_avg": [
+                    "avgSpO2",
+                    "averageSpO2",
+                    "oxygenSaturation",
+                    "avgOxygenSaturation",
+                ],
+                "spo2_min": ["lowestSpO2", "minSpO2", "minimumSpO2"],
+                "respiratory_rate": [
+                    "avgRespiratoryRate",
+                    "averageRespRate",
+                    "respiratoryRate",
+                ],
             }
 
             parsed_data = {}

@@ -178,6 +178,15 @@ def extract_sleep_data(
             awake_minutes=(parsed_sleep.awake_duration or 0) / 60,
             total_sleep_minutes=(parsed_sleep.total_sleep_time or 0) / 60,
             sleep_score=parsed_sleep.sleep_score,
+            # New enhanced fields
+            body_battery_change=parsed_sleep.body_battery_change,
+            skin_temp_celsius=parsed_sleep.skin_temp_celsius,
+            awake_count=parsed_sleep.awake_count,
+            sleep_quality_score=parsed_sleep.sleep_quality_score,
+            sleep_recovery_score=parsed_sleep.sleep_recovery_score,
+            spo2_avg=parsed_sleep.spo2_avg,
+            spo2_min=parsed_sleep.spo2_min,
+            respiratory_rate=parsed_sleep.respiratory_rate,
         )
 
     except Exception as e:
