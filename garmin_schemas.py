@@ -1,14 +1,56 @@
 """
 Pydantic models for robust Garmin Connect API data parsing.
-Handles schema variations and missing fields gracefully.
+Refactored with dynamic field mapping to reduce redundancy.
 """
 
+import logging
 from typing import Any, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+logger = logging.getLogger(__name__)
 
-class GarminSleepData(BaseModel):
+
+class GarminBaseModel(BaseModel):
+    """Base model with dynamic field mapping for Garmin API responses."""
+
+    @classmethod
+    def get_field_mappings(cls) -> dict[str, list[str]]:
+        """Override this method to define field mappings for each model."""
+        return {}
+
+    @classmethod
+    def from_garmin_response(cls, data: dict[str, Any]) -> Optional["GarminBaseModel"]:
+        """Create instance from Garmin API response with flexible field mapping."""
+        if not data:
+            return None
+
+        try:
+            field_mappings = cls.get_field_mappings()
+            parsed_data = {}
+
+            # Map fields using the defined mappings
+            for target_field, possible_source_fields in field_mappings.items():
+                value = None
+                for source_field in possible_source_fields:
+                    if source_field in data and data[source_field] is not None:
+                        value = data[source_field]
+                        break
+                parsed_data[target_field] = value
+
+            # Add any additional direct mappings (fields not in mappings)
+            for field_name, _field_info in cls.model_fields.items():
+                if field_name not in parsed_data and field_name in data:
+                    parsed_data[field_name] = data[field_name]
+
+            return cls(**parsed_data)
+
+        except Exception as e:
+            logger.error(f"Error parsing {cls.__name__} from Garmin response: {e}")
+            return None
+
+
+class GarminSleepData(GarminBaseModel):
     """Pydantic model for Garmin sleep data with robust field handling."""
 
     # Core sleep metrics
@@ -27,7 +69,7 @@ class GarminSleepData(BaseModel):
     )
     sleep_score: float | None = Field(None, description="Sleep quality score")
 
-    # New fields for enhanced sleep tracking
+    # Enhanced sleep tracking fields
     body_battery_change: int | None = Field(
         None, description="Body battery charge change"
     )
@@ -41,7 +83,75 @@ class GarminSleepData(BaseModel):
     spo2_min: float | None = Field(None, description="Minimum SpO2 percentage")
     respiratory_rate: float | None = Field(None, description="Average respiratory rate")
 
-    # Validation and conversion
+    @classmethod
+    def get_field_mappings(cls) -> dict[str, list[str]]:
+        return {
+            "deep_sleep_duration": [
+                "deepSleepDuration",
+                "deep_sleep_duration",
+                "deepSleep",
+                "deepSleepSeconds",
+                "deepMinutes",
+            ],
+            "light_sleep_duration": [
+                "lightSleepDuration",
+                "light_sleep_duration",
+                "lightSleep",
+                "lightSleepSeconds",
+                "lightMinutes",
+            ],
+            "rem_sleep_duration": [
+                "remSleepDuration",
+                "rem_sleep_duration",
+                "remSleep",
+                "remSleepSeconds",
+                "remMinutes",
+            ],
+            "awake_duration": [
+                "awakeDuration",
+                "awake_duration",
+                "awakeTime",
+                "awakeSeconds",
+                "awakeMinutes",
+            ],
+            "total_sleep_time": [
+                "totalSleepTime",
+                "total_sleep_time",
+                "sleepTime",
+                "totalSleepSeconds",
+                "totalSleepMinutes",
+            ],
+            "sleep_score": ["sleepScore", "sleep_score", "overallScore", "score"],
+            "body_battery_change": [
+                "bodyBatteryChange",
+                "body_battery_change",
+                "bbChange",
+            ],
+            "skin_temp_celsius": [
+                "avgSkinTempCelsius",
+                "skin_temp_celsius",
+                "skinTemp",
+            ],
+            "awake_count": ["awakeningsCount", "awake_count", "awakenings"],
+            "sleep_quality_score": [
+                "sleepQualityScore",
+                "sleep_quality_score",
+                "qualityScore",
+            ],
+            "sleep_recovery_score": [
+                "sleepRecoveryScore",
+                "sleep_recovery_score",
+                "recoveryScore",
+            ],
+            "spo2_avg": ["avgSpO2", "spo2_avg", "oxygenSaturationAvg"],
+            "spo2_min": ["lowestSpO2", "spo2_min", "oxygenSaturationMin"],
+            "respiratory_rate": [
+                "avgRespirationRate",
+                "respiratory_rate",
+                "respirationRate",
+            ],
+        }
+
     @field_validator(
         "deep_sleep_duration",
         "light_sleep_duration",
@@ -76,363 +186,147 @@ class GarminSleepData(BaseModel):
             ]
             if any(x > 0 for x in components):
                 self.total_sleep_time = sum(components)
-
         return self
 
-    @classmethod
-    def from_garmin_response(cls, data: dict[str, Any]) -> Optional["GarminSleepData"]:
-        """Create from Garmin API response with flexible field mapping."""
-        if not data:
-            return None
 
-        try:
-            # Map various possible field names from Garmin API
-            field_mappings = {
-                "deep_sleep_duration": [
-                    "deepSleepDuration",
-                    "deep_sleep_duration",
-                    "deepSleep",
-                    "deepSleepSeconds",
-                    "deepMinutes",
-                ],
-                "light_sleep_duration": [
-                    "lightSleepDuration",
-                    "light_sleep_duration",
-                    "lightSleep",
-                    "lightSleepSeconds",
-                    "lightMinutes",
-                ],
-                "rem_sleep_duration": [
-                    "remSleepDuration",
-                    "rem_sleep_duration",
-                    "remSleep",
-                    "remSleepSeconds",
-                    "remMinutes",
-                ],
-                "awake_duration": [
-                    "awakeDuration",
-                    "awake_duration",
-                    "awakeTime",
-                    "awakeSeconds",
-                    "awakeMinutes",
-                ],
-                "total_sleep_time": [
-                    "totalSleepTime",
-                    "total_sleep_time",
-                    "sleepTime",
-                    "totalSleepSeconds",
-                    "totalMinutes",
-                ],
-                "sleep_score": ["sleepScore", "sleep_score", "overallScore", "score"],
-                "body_battery_change": [
-                    "bodyBatteryChange",
-                    "bodyBatteryDrain",
-                    "batteryChange",
-                ],
-                "skin_temp_celsius": [
-                    "skinTempCelsius",
-                    "avgSkinTempCelsius",
-                    "skinTemp",
-                ],
-                "awake_count": ["awakeCount", "awakeDuringSleep", "numberOfAwakenings"],
-                "sleep_quality_score": [
-                    "sleepQualityScore",
-                    "qualityScore",
-                    "sleepScores",
-                ],
-                "sleep_recovery_score": ["sleepRecoveryScore", "recoveryScore"],
-                "spo2_avg": [
-                    "avgSpO2",
-                    "averageSpO2",
-                    "oxygenSaturation",
-                    "avgOxygenSaturation",
-                ],
-                "spo2_min": ["lowestSpO2", "minSpO2", "minimumSpO2"],
-                "respiratory_rate": [
-                    "avgRespiratoryRate",
-                    "averageRespRate",
-                    "respiratoryRate",
-                ],
-            }
-
-            parsed_data = {}
-            for field, possible_keys in field_mappings.items():
-                value = None
-                for key in possible_keys:
-                    if key in data and data[key] is not None:
-                        value = data[key]
-                        # Convert minutes to seconds if needed
-                        if "minutes" in key.lower() or "Minutes" in key:
-                            if isinstance(value, int | float):
-                                value = int(value * 60)
-                        break
-                parsed_data[field] = value
-
-            return cls(**parsed_data)
-
-        except Exception as e:
-            # Log the error but don't fail the entire sync
-            print(f"Warning: Could not parse sleep data: {e}")
-            return None
-
-
-class GarminHRVData(BaseModel):
+class GarminHRVData(GarminBaseModel):
     """Pydantic model for Garmin HRV data."""
 
-    hrv_rmssd: float | None = Field(None, description="HRV RMSSD value")
-    hrv_sdrr: float | None = Field(None, description="HRV SDRR value")
-    hrv_score: float | None = Field(None, description="HRV readiness score")
+    hrv_avg: float | None = Field(None, description="Average HRV in milliseconds")
+    hrv_status: str | None = Field(
+        None, description="HRV status (BALANCED, UNBALANCED, etc.)"
+    )
+    baseline_low_ms: float | None = Field(
+        None, description="Baseline low in milliseconds"
+    )
+    baseline_high_ms: float | None = Field(
+        None, description="Baseline high in milliseconds"
+    )
+    feedback_phrase: str | None = Field(None, description="Feedback message")
 
     @classmethod
-    def from_garmin_response(cls, data: dict[str, Any]) -> Optional["GarminHRVData"]:
-        """Create from Garmin API response."""
-        if not data:
-            return None
-
-        try:
-            # Check for the actual Garmin API structure
-            hrv_summary = data.get("hrvSummary", {})
-
-            parsed_data = {}
-
-            # Primary HRV value - use lastNightAvg as RMSSD equivalent
-            if (
-                "lastNightAvg" in hrv_summary
-                and hrv_summary["lastNightAvg"] is not None
-            ):
-                parsed_data["hrv_rmssd"] = float(hrv_summary["lastNightAvg"])
-
-            # Weekly average as backup SDRR value
-            if "weeklyAvg" in hrv_summary and hrv_summary["weeklyAvg"] is not None:
-                parsed_data["hrv_sdrr"] = float(hrv_summary["weeklyAvg"])
-
-            # No direct score in Garmin API, use lastNightAvg
-            if (
-                "lastNightAvg" in hrv_summary
-                and hrv_summary["lastNightAvg"] is not None
-            ):
-                parsed_data["hrv_score"] = float(hrv_summary["lastNightAvg"])
-
-            if not any(parsed_data.values()):
-                return None
-
-            return cls(**parsed_data)
-
-        except Exception as e:
-            print(f"Warning: Could not parse HRV data: {e}")
-            return None
+    def get_field_mappings(cls) -> dict[str, list[str]]:
+        return {
+            "hrv_avg": ["lastNightAvg", "hrv_avg", "weeklyAvg", "average", "avg"],
+            "hrv_status": ["status", "hrv_status", "lastNightStatus", "balanceStatus"],
+            "baseline_low_ms": ["baselineLowMs", "baseline_low_ms", "baselineLow"],
+            "baseline_high_ms": ["baselineHighMs", "baseline_high_ms", "baselineHigh"],
+            "feedback_phrase": [
+                "feedbackPhrase",
+                "feedback_phrase",
+                "message",
+                "feedback",
+            ],
+        }
 
 
-class GarminStressData(BaseModel):
+class GarminStressData(GarminBaseModel):
     """Pydantic model for Garmin stress data."""
 
     avg_stress: float | None = Field(None, description="Average stress level")
     max_stress: float | None = Field(None, description="Maximum stress level")
-    stress_score: float | None = Field(None, description="Stress score")
+    stress_level: str | None = Field(None, description="Stress level category")
+    rest_stress: float | None = Field(None, description="Rest stress level")
+    activity_stress: float | None = Field(None, description="Activity stress level")
 
     @classmethod
-    def from_garmin_response(cls, data: dict[str, Any]) -> Optional["GarminStressData"]:
-        """Create from Garmin API response."""
-        if not data:
-            return None
+    def get_field_mappings(cls) -> dict[str, list[str]]:
+        return {
+            "avg_stress": [
+                "overallStressLevel",
+                "avg_stress",
+                "averageStressLevel",
+                "avgStress",
+            ],
+            "max_stress": [
+                "maxStressLevel",
+                "max_stress",
+                "maximumStressLevel",
+                "maxStress",
+            ],
+            "stress_level": [
+                "stressLevelValue",
+                "stress_level",
+                "stressLevel",
+                "level",
+            ],
+            "rest_stress": ["restStressLevel", "rest_stress", "restingStress"],
+            "activity_stress": [
+                "activityStressLevel",
+                "activity_stress",
+                "activeStress",
+            ],
+        }
 
-        try:
-            parsed_data = {}
 
-            # Use the actual Garmin API field names - handle None values
-            if "avgStressLevel" in data and data["avgStressLevel"] is not None:
-                parsed_data["avg_stress"] = float(data["avgStressLevel"])
+class GarminStepsData(GarminBaseModel):
+    """Pydantic model for Garmin steps data."""
 
-            if "maxStressLevel" in data and data["maxStressLevel"] is not None:
-                parsed_data["max_stress"] = float(data["maxStressLevel"])
+    total_steps: int | None = Field(None, description="Total steps for the day")
+    total_distance: float | None = Field(None, description="Total distance in meters")
+    step_goal: int | None = Field(None, description="Daily step goal")
+    active_minutes: int | None = Field(None, description="Active minutes")
+    floors_climbed: int | None = Field(None, description="Floors climbed")
 
-            # Use average as score since no direct score available
-            if "avgStressLevel" in data and data["avgStressLevel"] is not None:
-                parsed_data["stress_score"] = float(data["avgStressLevel"])
+    @classmethod
+    def get_field_mappings(cls) -> dict[str, list[str]]:
+        return {
+            "total_steps": ["totalSteps", "total_steps", "steps", "dailySteps"],
+            "total_distance": [
+                "totalDistance",
+                "total_distance",
+                "distance",
+                "distanceMeters",
+            ],
+            "step_goal": ["stepGoal", "step_goal", "goal", "dailyStepGoal"],
+            "active_minutes": ["activeMinutes", "active_minutes", "vigorousMinutes"],
+            "floors_climbed": ["floorsClimbed", "floors_climbed", "floors"],
+        }
 
-            if not any(parsed_data.values()):
-                return None
 
-            return cls(**parsed_data)
+class GarminWeightData(GarminBaseModel):
+    """Pydantic model for Garmin weight and body composition data."""
 
-        except Exception as e:
-            print(f"Warning: Could not parse stress data: {e}")
-            return None
+    weight_kg: float | None = Field(None, description="Weight in kilograms")
+    bmi: float | None = Field(None, description="Body Mass Index")
+    body_fat_pct: float | None = Field(None, description="Body fat percentage")
+    muscle_mass_kg: float | None = Field(None, description="Muscle mass in kilograms")
+    bone_mass_kg: float | None = Field(None, description="Bone mass in kilograms")
+    water_pct: float | None = Field(None, description="Body water percentage")
+
+    @classmethod
+    def get_field_mappings(cls) -> dict[str, list[str]]:
+        return {
+            "weight_kg": ["weight", "weight_kg", "weightKg", "bodyWeight"],
+            "bmi": ["bmi", "bodyMassIndex"],
+            "body_fat_pct": [
+                "bodyFat",
+                "body_fat_pct",
+                "bodyFatPercentage",
+                "fatPercentage",
+            ],
+            "muscle_mass_kg": ["muscleMass", "muscle_mass_kg", "muscleMassKg"],
+            "bone_mass_kg": ["boneMass", "bone_mass_kg", "boneMassKg"],
+            "water_pct": [
+                "bodyWater",
+                "water_pct",
+                "waterPercentage",
+                "bodyWaterPercentage",
+            ],
+        }
 
 
-class GarminHeartRateData(BaseModel):
+class GarminHeartRateData(GarminBaseModel):
     """Pydantic model for Garmin heart rate data."""
 
     resting_hr: int | None = Field(None, description="Resting heart rate")
     max_hr: int | None = Field(None, description="Maximum heart rate")
     avg_hr: int | None = Field(None, description="Average heart rate")
 
-    @field_validator("resting_hr", "max_hr", "avg_hr", mode="before")
     @classmethod
-    def validate_heart_rate(cls, v):
-        """Validate heart rate values are reasonable."""
-        if v is None:
-            return None
-        try:
-            hr = int(float(v))
-            # Reasonable heart rate range
-            if 30 <= hr <= 220:
-                return hr
-            return None
-        except (ValueError, TypeError):
-            return None
-
-    @classmethod
-    def from_garmin_response(
-        cls, data: dict[str, Any]
-    ) -> Optional["GarminHeartRateData"]:
-        """Create from Garmin API response."""
-        if not data:
-            return None
-
-        try:
-            field_mappings = {
-                "resting_hr": ["restingHeartRate", "resting_hr", "restingHR", "rhr"],
-                "max_hr": ["maxHeartRate", "max_hr", "maxHR", "maximumHR"],
-                "avg_hr": [
-                    "avgHeartRate",
-                    "averageHeartRate",
-                    "avg_hr",
-                    "averageHR",
-                    "avgHR",
-                    "minHeartRate",
-                ],
-            }
-
-            parsed_data = {}
-            for field, possible_keys in field_mappings.items():
-                for key in possible_keys:
-                    if key in data and data[key] is not None:
-                        parsed_data[field] = data[key]
-                        break
-
-            if not any(parsed_data.values()):
-                return None
-
-            return cls(**parsed_data)
-
-        except Exception as e:
-            print(f"Warning: Could not parse heart rate data: {e}")
-            return None
-
-
-class GarminWeightData(BaseModel):
-    """Pydantic model for Garmin weight data."""
-
-    weight: float | None = Field(None, description="Weight in kg")
-    bmi: float | None = Field(None, description="Body Mass Index")
-    body_fat: float | None = Field(None, description="Body fat percentage")
-    muscle_mass: float | None = Field(None, description="Muscle mass in kg")
-
-    @field_validator("weight", "bmi", "body_fat", "muscle_mass", mode="before")
-    @classmethod
-    def validate_weight_metrics(cls, v):
-        """Validate weight metrics are reasonable."""
-        if v is None:
-            return None
-        try:
-            value = float(v)
-            if value > 0:
-                return value
-            return None
-        except (ValueError, TypeError):
-            return None
-
-    @classmethod
-    def from_garmin_response(cls, data: dict[str, Any]) -> Optional["GarminWeightData"]:
-        """Create from Garmin API response."""
-        if not data:
-            return None
-
-        try:
-            field_mappings = {
-                "weight": ["weight", "bodyWeight", "weightKg"],
-                "bmi": ["bmi", "bodyMassIndex", "BMI"],
-                "body_fat": ["bodyFat", "body_fat", "fatPercentage"],
-                "muscle_mass": ["muscleMass", "muscle_mass", "muscleKg"],
-            }
-
-            parsed_data = {}
-            for field, possible_keys in field_mappings.items():
-                for key in possible_keys:
-                    if key in data and data[key] is not None:
-                        parsed_data[field] = data[key]
-                        break
-
-            if not any(parsed_data.values()):
-                return None
-
-            return cls(**parsed_data)
-
-        except Exception as e:
-            print(f"Warning: Could not parse weight data: {e}")
-            return None
-
-
-class GarminStepsData(BaseModel):
-    """Pydantic model for Garmin steps data."""
-
-    total_steps: int | None = Field(None, description="Total steps for the day")
-    total_distance: float | None = Field(None, description="Total distance in meters")
-    step_goal: int | None = Field(None, description="Daily step goal")
-
-    @field_validator("total_steps", "step_goal", mode="before")
-    @classmethod
-    def validate_steps(cls, v):
-        """Validate step counts are reasonable."""
-        if v is None:
-            return None
-        try:
-            steps = int(v)
-            if steps >= 0:
-                return steps
-            return None
-        except (ValueError, TypeError):
-            return None
-
-    @field_validator("total_distance", mode="before")
-    @classmethod
-    def validate_distance(cls, v):
-        """Validate distance is reasonable."""
-        if v is None:
-            return None
-        try:
-            distance = float(v)
-            if distance >= 0:
-                return distance
-            return None
-        except (ValueError, TypeError):
-            return None
-
-    @classmethod
-    def from_garmin_response(cls, data: dict[str, Any]) -> Optional["GarminStepsData"]:
-        """Create from Garmin API response."""
-        if not data:
-            return None
-
-        try:
-            parsed_data = {}
-
-            # Use the actual Garmin API field names
-            if "totalSteps" in data:
-                parsed_data["total_steps"] = data["totalSteps"]
-
-            if "totalDistance" in data:
-                parsed_data["total_distance"] = data["totalDistance"]
-
-            if "stepGoal" in data:
-                parsed_data["step_goal"] = data["stepGoal"]
-
-            if not any(parsed_data.values()):
-                return None
-
-            return cls(**parsed_data)
-
-        except Exception as e:
-            print(f"Warning: Could not parse steps data: {e}")
-            return None
+    def get_field_mappings(cls) -> dict[str, list[str]]:
+        return {
+            "resting_hr": ["restingHeartRate", "resting_hr", "restingHR", "restHR"],
+            "max_hr": ["maxHeartRate", "max_hr", "maximumHR", "maxHR"],
+            "avg_hr": ["averageHeartRate", "avg_hr", "avgHR", "meanHR"],
+        }

@@ -125,37 +125,6 @@ def decrypt_data_for_user(encrypted_data: str, user_id: int) -> str:
         raise
 
 
-# Legacy functions for backward compatibility - these should be replaced
-def encrypt_data(data: str) -> str:
-    """DEPRECATED: Use encrypt_data_for_user instead."""
-    logger.warning(
-        "Using deprecated encrypt_data function without user_id - this is insecure!"
-    )
-    if not data:
-        return ""
-    try:
-        cipher = _get_master_fernet()
-        return str(cipher.encrypt(data.encode()).decode())
-    except Exception as e:
-        logger.error(f"Encryption error: {e}")
-        raise
-
-
-def decrypt_data(encrypted_data: str) -> str:
-    """DEPRECATED: Use decrypt_data_for_user instead."""
-    logger.warning(
-        "Using deprecated decrypt_data function without user_id - this is insecure!"
-    )
-    if not encrypted_data:
-        return ""
-    try:
-        cipher = _get_master_fernet()
-        return str(cipher.decrypt(encrypted_data.encode()).decode())
-    except Exception as e:
-        logger.error(f"Decryption error: {e}")
-        raise
-
-
 def validate_username(username: str) -> bool:
     """Validate username format."""
     if not username or len(username) < 3 or len(username) > 80:
@@ -199,10 +168,11 @@ if __name__ == "__main__":
     print(f"Password hash: {hashed[:50]}...")
     print(f"Verification: {verify_password(test_password, hashed)}")
 
-    # Test data encryption
+    # Test per-user data encryption
     test_data = "my-secret-api-key"
-    encrypted = encrypt_data(test_data)
-    decrypted = decrypt_data(encrypted)
+    user_id = 1
+    encrypted = encrypt_data_for_user(test_data, user_id)
+    decrypted = decrypt_data_for_user(encrypted, user_id)
     print(f"Original: {test_data}")
     print(f"Encrypted: {encrypted[:50]}...")
     print(f"Decrypted: {decrypted}")

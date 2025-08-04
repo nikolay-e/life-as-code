@@ -10,9 +10,11 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements file and install all dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy pyproject.toml first for dependency installation
+COPY pyproject.toml .
+
+# Install dependencies from pyproject.toml
+RUN pip install --no-cache-dir .
 
 # Copy application code
 COPY . .

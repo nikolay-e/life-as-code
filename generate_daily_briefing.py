@@ -10,95 +10,61 @@ from contextlib import redirect_stdout
 
 from sqlalchemy import desc, select
 
-from config import (
-    HRV_THRESHOLDS,
-    SLEEP_THRESHOLDS,
-    TOTAL_SLEEP_THRESHOLDS,
-    TRAINING_THRESHOLDS,
-)
-from database import SessionLocal
-from models import HRV, HeartRate, Sleep, UserSettings, WorkoutSet
-
-
-def get_user_thresholds(user_id: int) -> dict:
-    """Get personalized thresholds for a user, falling back to config defaults."""
-    db = SessionLocal()
-    try:
-        settings = db.scalars(select(UserSettings).filter_by(user_id=user_id)).first()
-
-        if settings:
-            return {
-                "hrv_good": settings.hrv_good_threshold,
-                "hrv_moderate": settings.hrv_moderate_threshold,
-                "sleep_good": settings.deep_sleep_good_threshold,
-                "sleep_moderate": settings.deep_sleep_moderate_threshold,
-                "total_sleep_good": settings.total_sleep_good_threshold,
-                "total_sleep_moderate": settings.total_sleep_moderate_threshold,
-                "training_high_volume": settings.training_high_volume_threshold,
-            }
-        else:
-            # Fallback to config defaults
-            return {
-                "hrv_good": HRV_THRESHOLDS.get("good", 45),
-                "hrv_moderate": HRV_THRESHOLDS.get("moderate", 35),
-                "sleep_good": SLEEP_THRESHOLDS.get("good", 90),
-                "sleep_moderate": SLEEP_THRESHOLDS.get("moderate", 60),
-                "total_sleep_good": TOTAL_SLEEP_THRESHOLDS.get("good", 7.5),
-                "total_sleep_moderate": TOTAL_SLEEP_THRESHOLDS.get("moderate", 6.5),
-                "training_high_volume": TRAINING_THRESHOLDS.get("high_volume_kg", 5000),
-            }
-    finally:
-        db.close()
+from config_loader import get_user_thresholds
+from database import get_db_session_context
+from models import HRV, HeartRate, Sleep, WorkoutSet
 
 
 def load_latest_data(user_id: int):
     """Load the most recent data points from database for a specific user."""
     from typing import Any
 
-    db = SessionLocal()
     try:
-        data: dict[str, Any] = {}
+        with get_db_session_context() as db:
+            data: dict[str, Any] = {}
 
-        # Load recent data points (last 7 days)
-        lookback_date = datetime.date.today() - datetime.timedelta(days=7)
+            # Load recent data points (last 7 days)
+            lookback_date = datetime.date.today() - datetime.timedelta(days=7)
 
-        # Get latest data for each type for this user
-        data["sleep"] = db.scalars(
-            select(Sleep)
-            .filter(Sleep.user_id == user_id, Sleep.date >= lookback_date)
-            .order_by(desc(Sleep.date))
-        ).first()
-        data["hrv"] = db.scalars(
-            select(HRV)
-            .filter(HRV.user_id == user_id, HRV.date >= lookback_date)
-            .order_by(desc(HRV.date))
-        ).first()
-        data["heart_rate"] = db.scalars(
-            select(HeartRate)
-            .filter(HeartRate.user_id == user_id, HeartRate.date >= lookback_date)
-            .order_by(desc(HeartRate.date))
-        ).first()
+            # Get latest data for each type for this user
+            data["sleep"] = db.scalars(
+                select(Sleep)
+                .filter(Sleep.user_id == user_id, Sleep.date >= lookback_date)
+                .order_by(desc(Sleep.date))
+            ).first()
+            data["hrv"] = db.scalars(
+                select(HRV)
+                .filter(HRV.user_id == user_id, HRV.date >= lookback_date)
+                .order_by(desc(HRV.date))
+            ).first()
+            data["heart_rate"] = db.scalars(
+                select(HeartRate)
+                .filter(HeartRate.user_id == user_id, HeartRate.date >= lookback_date)
+                .order_by(desc(HeartRate.date))
+            ).first()
 
-        # Get recent workout volume (last 3 days) for this user
-        recent_workouts = db.scalars(
-            select(WorkoutSet).filter(
-                WorkoutSet.user_id == user_id,
-                WorkoutSet.date >= datetime.date.today() - datetime.timedelta(days=3),
-            )
-        ).all()
+            # Get recent workout volume (last 3 days) for this user
+            recent_workouts = db.scalars(
+                select(WorkoutSet).filter(
+                    WorkoutSet.user_id == user_id,
+                    WorkoutSet.date
+                    >= datetime.date.today() - datetime.timedelta(days=3),
+                )
+            ).all()
 
-        if recent_workouts:
-            total_volume = sum(
-                float(w.weight_kg or 0) * float(w.reps or 0) for w in recent_workouts
-            )
-            data["workout_volume"] = total_volume
-        else:
-            data["workout_volume"] = 0.0
+            if recent_workouts:
+                total_volume = sum(
+                    float(w.weight_kg or 0) * float(w.reps or 0)
+                    for w in recent_workouts
+                )
+                data["workout_volume"] = total_volume
+            else:
+                data["workout_volume"] = 0.0
 
-        return data, datetime.date.today()
-
-    finally:
-        db.close()
+            return data, datetime.date.today()
+    except Exception as e:
+        print(f"Error loading data: {e}")
+        return {}, datetime.date.today()
 
 
 def analyze_recovery_status(data, user_thresholds):

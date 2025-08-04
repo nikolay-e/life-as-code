@@ -12,12 +12,7 @@ import sys
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from config import (
-    HRV_THRESHOLDS,
-    SLEEP_THRESHOLDS,
-    TOTAL_SLEEP_THRESHOLDS,
-    TRAINING_THRESHOLDS,
-)
+from config_loader import get_threshold
 from database import SessionLocal, init_db
 from models import User, UserCredentials, UserSettings
 from security import (
@@ -96,18 +91,20 @@ def create_user():
         )
         db.add(credentials)
 
-        # Create UserSettings with defaults from config
+        # Create UserSettings with default values
         settings = UserSettings(
             user_id=user.id,
-            hrv_good_threshold=HRV_THRESHOLDS.get("good", 45),
-            hrv_moderate_threshold=HRV_THRESHOLDS.get("moderate", 35),
-            deep_sleep_good_threshold=SLEEP_THRESHOLDS.get("good", 90),
-            deep_sleep_moderate_threshold=SLEEP_THRESHOLDS.get("moderate", 60),
-            total_sleep_good_threshold=TOTAL_SLEEP_THRESHOLDS.get("good", 7.5),
-            total_sleep_moderate_threshold=TOTAL_SLEEP_THRESHOLDS.get("moderate", 6.5),
-            training_high_volume_threshold=TRAINING_THRESHOLDS.get(
-                "high_volume_kg", 5000
+            hrv_good_threshold=get_threshold("hrv.good", 45),
+            hrv_moderate_threshold=get_threshold("hrv.moderate", 35),
+            deep_sleep_good_threshold=get_threshold("sleep.deep_sleep.good", 90),
+            deep_sleep_moderate_threshold=get_threshold(
+                "sleep.deep_sleep.moderate", 60
             ),
+            total_sleep_good_threshold=get_threshold("sleep.total_sleep.good", 7.5),
+            total_sleep_moderate_threshold=get_threshold(
+                "sleep.total_sleep.moderate", 6.5
+            ),
+            training_high_volume_threshold=get_threshold("training.high_volume", 5000),
         )
         db.add(settings)
 

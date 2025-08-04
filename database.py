@@ -136,47 +136,107 @@ def get_table_counts() -> dict:
         return {}
 
 
-def get_table_counts_for_user(user_id: int) -> dict:
-    """Get record counts for all main tables for a specific user."""
+def get_counts_for_models(user_id: int, models_list: list) -> dict:
+    """Get record counts for specified models for a user in a single query batch."""
     counts = {}
     try:
         with get_db_session_context() as db:
-            from models import HRV, HeartRate, Sleep, Steps, Stress, Weight, WorkoutSet
-
-            counts["sleep"] = db.scalar(
-                select(func.count()).select_from(Sleep).filter(Sleep.user_id == user_id)
-            )
-            counts["hrv"] = db.scalar(
-                select(func.count()).select_from(HRV).filter(HRV.user_id == user_id)
-            )
-            counts["weight"] = db.scalar(
-                select(func.count())
-                .select_from(Weight)
-                .filter(Weight.user_id == user_id)
-            )
-            counts["heart_rate"] = db.scalar(
-                select(func.count())
-                .select_from(HeartRate)
-                .filter(HeartRate.user_id == user_id)
-            )
-            counts["stress"] = db.scalar(
-                select(func.count())
-                .select_from(Stress)
-                .filter(Stress.user_id == user_id)
-            )
-            counts["steps"] = db.scalar(
-                select(func.count()).select_from(Steps).filter(Steps.user_id == user_id)
-            )
-            counts["workout_sets"] = db.scalar(
-                select(func.count())
-                .select_from(WorkoutSet)
-                .filter(WorkoutSet.user_id == user_id)
-            )
+            # Batch all count queries into a single transaction
+            for model_class, key in models_list:
+                count = db.scalar(
+                    select(func.count())
+                    .select_from(model_class)
+                    .filter(model_class.user_id == user_id)
+                )
+                counts[key] = count
 
         return counts
     except SQLAlchemyError as e:
-        logger.error(f"Error getting user table counts: {e}")
+        logger.error(f"Error getting model counts for user {user_id}: {e}")
         return {}
+
+
+def get_table_counts_for_user(user_id: int) -> dict:
+    """Get record counts for all main tables for a specific user."""
+    from models import HRV, Energy, HeartRate, Sleep, Steps, Stress, Weight, WorkoutSet
+
+    models_list = [
+        (Sleep, "sleep"),
+        (HRV, "hrv"),
+        (Weight, "weight"),
+        (HeartRate, "heart_rate"),
+        (Stress, "stress"),
+        (Steps, "steps"),
+        (Energy, "energy"),
+        (WorkoutSet, "workout_sets"),
+    ]
+
+    return get_counts_for_models(user_id, models_list)
+
+
+def bulk_upsert_records(
+    records: list, model_class, unique_fields: list, user_id: int
+) -> dict:
+    """
+    Bulk upsert records for better performance.
+
+    Args:
+        records: List of dictionaries or Pydantic models to upsert
+        model_class: SQLAlchemy model class
+        unique_fields: Fields that make a record unique
+        user_id: User ID for all records
+
+    Returns:
+        dict: Summary of operation results
+    """
+    result = {"created": 0, "updated": 0, "errors": 0}
+
+    try:
+        with get_db_session_context() as db:
+            for record_data in records:
+                try:
+                    # Convert Pydantic model to dict if necessary
+                    if hasattr(record_data, "model_dump"):
+                        data_dict = record_data.model_dump(exclude_none=True)
+                    else:
+                        data_dict = record_data.copy()
+
+                    # Add user_id
+                    data_dict["user_id"] = user_id
+
+                    # Build query to find existing record
+                    query = select(model_class).where(model_class.user_id == user_id)
+                    for field in unique_fields:
+                        if field in data_dict:
+                            query = query.where(
+                                getattr(model_class, field) == data_dict[field]
+                            )
+
+                    existing = db.scalars(query).first()
+
+                    if existing:
+                        # Update existing record
+                        for key, value in data_dict.items():
+                            if hasattr(existing, key) and value is not None:
+                                setattr(existing, key, value)
+                        result["updated"] += 1
+                    else:
+                        # Create new record
+                        new_record = model_class(**data_dict)
+                        db.add(new_record)
+                        result["created"] += 1
+
+                except Exception as e:
+                    logger.error(f"Error processing record: {e}")
+                    result["errors"] += 1
+                    continue
+
+        logger.info(f"Bulk upsert completed: {result}")
+        return result
+
+    except SQLAlchemyError as e:
+        logger.error(f"Error in bulk upsert: {e}")
+        return {"error": str(e)}
 
 
 if __name__ == "__main__":

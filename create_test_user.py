@@ -5,13 +5,8 @@ Quick script to create a test user with credentials from .env
 
 import os
 
-from config import (
-    HRV_THRESHOLDS,
-    SLEEP_THRESHOLDS,
-    TOTAL_SLEEP_THRESHOLDS,
-    TRAINING_THRESHOLDS,
-)
-from database import SessionLocal, init_db
+from config_loader import get_threshold
+from database import get_db_session_context, init_db
 from models import User, UserCredentials, UserSettings
 from security import encrypt_data_for_user, get_password_hash
 
@@ -28,65 +23,68 @@ def create_test_user():
     print("🔐 Creating test user with .env credentials...")
     print("=" * 50)
 
-    db = SessionLocal()
     try:
-        # Check if user already exists
-        existing_user = db.query(User).filter_by(username="testuser").first()
-        if existing_user:
-            print('❌ User "testuser" already exists')
-            return False
+        with get_db_session_context() as db:
+            # Check if user already exists
+            existing_user = db.query(User).filter_by(username="testuser").first()
+            if existing_user:
+                print('❌ User "testuser" already exists')
+                return False
 
-        # Create new user
-        user = User(username="testuser", password_hash=get_password_hash("testpass123"))
-        db.add(user)
-        db.flush()  # Get the user ID
+            # Create new user
+            user = User(
+                username="testuser", password_hash=get_password_hash("testpass123")
+            )
+            db.add(user)
+            db.flush()  # Get the user ID
 
-        print(f"✅ Created user: testuser (ID: {user.id})")
+            print(f"✅ Created user: testuser (ID: {user.id})")
 
-        # Create credentials with env values
-        credentials = UserCredentials(
-            user_id=user.id,
-            garmin_email=garmin_email,
-            encrypted_garmin_password=encrypt_data_for_user(garmin_password, user.id),
-            encrypted_hevy_api_key=encrypt_data_for_user(hevy_api_key, user.id),
-        )
-        db.add(credentials)
+            # Create credentials with env values
+            credentials = UserCredentials(
+                user_id=user.id,
+                garmin_email=garmin_email,
+                encrypted_garmin_password=encrypt_data_for_user(
+                    garmin_password, user.id
+                ),
+                encrypted_hevy_api_key=encrypt_data_for_user(hevy_api_key, user.id),
+            )
+            db.add(credentials)
 
-        # Create default settings
-        settings = UserSettings(
-            user_id=user.id,
-            hrv_good_threshold=HRV_THRESHOLDS.get("good", 45),
-            hrv_moderate_threshold=HRV_THRESHOLDS.get("moderate", 35),
-            deep_sleep_good_threshold=SLEEP_THRESHOLDS.get("good", 90),
-            deep_sleep_moderate_threshold=SLEEP_THRESHOLDS.get("moderate", 60),
-            total_sleep_good_threshold=TOTAL_SLEEP_THRESHOLDS.get("good", 7.5),
-            total_sleep_moderate_threshold=TOTAL_SLEEP_THRESHOLDS.get("moderate", 6.5),
-            training_high_volume_threshold=TRAINING_THRESHOLDS.get(
-                "high_volume_kg", 5000
-            ),
-        )
-        db.add(settings)
+            # Create default settings
+            settings = UserSettings(
+                user_id=user.id,
+                hrv_good_threshold=get_threshold("hrv.good", 45),
+                hrv_moderate_threshold=get_threshold("hrv.moderate", 35),
+                deep_sleep_good_threshold=get_threshold("sleep.deep_sleep.good", 90),
+                deep_sleep_moderate_threshold=get_threshold(
+                    "sleep.deep_sleep.moderate", 60
+                ),
+                total_sleep_good_threshold=get_threshold("sleep.total_sleep.good", 7.5),
+                total_sleep_moderate_threshold=get_threshold(
+                    "sleep.total_sleep.moderate", 6.5
+                ),
+                training_high_volume_threshold=get_threshold(
+                    "training.high_volume", 5000
+                ),
+            )
+            db.add(settings)
 
-        db.commit()
+            print("✅ User created successfully!")
+            print("-" * 30)
+            print("Username: testuser")
+            print("Password: testpass123")
+            print(f"Garmin email: {garmin_email}")
+            print("Garmin password: [encrypted with per-user key]")
+            print("Hevy API key: [encrypted with per-user key]")
+            print("-" * 30)
+            print("🚀 You can now login at http://localhost:8080/login")
 
-        print("✅ User created successfully!")
-        print("-" * 30)
-        print("Username: testuser")
-        print("Password: testpass123")
-        print(f"Garmin email: {garmin_email}")
-        print("Garmin password: [encrypted with per-user key]")
-        print("Hevy API key: [encrypted with per-user key]")
-        print("-" * 30)
-        print("🚀 You can now login at http://localhost:8080/login")
-
-        return True
+            return True
 
     except Exception as e:
-        db.rollback()
         print(f"❌ Error creating user: {e}")
         return False
-    finally:
-        db.close()
 
 
 if __name__ == "__main__":
