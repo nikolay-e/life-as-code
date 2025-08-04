@@ -300,9 +300,10 @@ def extract_weight_data(
             total_avg = weight_data["totalAverage"]
             if total_avg and isinstance(total_avg, dict):
                 weight_value = total_avg.get("weight")
-                logger.info(
-                    f"Found weight in totalAverage for {date_str}: {weight_value}"
-                )
+                if weight_value is not None:
+                    logger.info(
+                        f"Found weight in totalAverage for {date_str}: {weight_value}"
+                    )
 
         # Method C: Direct weight key (legacy support)
         if not weight_value:
@@ -413,12 +414,34 @@ def extract_heart_rate_data(
             f"Heart Rate data keys for {date_str}: {list(hr_data.keys()) if isinstance(hr_data, dict) else type(hr_data)}"
         )
 
+        # Extract values from heart rate API
+        resting_hr = hr_data.get("restingHeartRate")
+        max_hr = hr_data.get("maxHeartRate")
+        avg_hr = hr_data.get("averageHeartRate")
+
+        # If resting HR is not in the heart rate data, try to get it from sleep data
+        if not resting_hr:
+            try:
+                sleep_data = api.get_sleep_data(date_str)
+                if sleep_data:
+                    # Check main response
+                    resting_hr = sleep_data.get("restingHeartRate")
+                    # Also check in dailySleepDTO
+                    if not resting_hr and "dailySleepDTO" in sleep_data:
+                        resting_hr = sleep_data["dailySleepDTO"].get("restingHeartRate")
+                    if resting_hr:
+                        logger.info(
+                            f"Found resting HR in sleep data for {date_str}: {resting_hr}"
+                        )
+            except Exception as e:
+                logger.debug(f"Could not get resting HR from sleep data: {e}")
+
         return HeartRate(
             user_id=user_id,
             date=target_date,
-            resting_hr=hr_data.get("restingHeartRate"),
-            max_hr=hr_data.get("maxHeartRate"),
-            avg_hr=hr_data.get("averageHeartRate"),
+            resting_hr=resting_hr,
+            max_hr=max_hr,
+            avg_hr=avg_hr,
         )
 
     except Exception as e:
