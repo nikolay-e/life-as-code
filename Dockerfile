@@ -10,13 +10,14 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy pyproject.toml first for dependency installation
+# Copy pyproject.toml and src directory for dependency installation
 COPY pyproject.toml .
+COPY src/ src/
 
 # Install dependencies from pyproject.toml
 RUN pip install --no-cache-dir .
 
-# Copy application code
+# Copy remaining application code
 COPY . .
 
 # Create directories for data and logs
