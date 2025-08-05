@@ -85,5 +85,5 @@ dev = [
     "types-requests>=2.32.4.20250611",
 ]
 
-[project.scripts]
-life-as-code = "life_as_code.cli:main"
+[tool.setuptools.packages.find]
+where = ["src"]

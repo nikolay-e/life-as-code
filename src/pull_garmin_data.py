@@ -6,6 +6,7 @@ Extracts health data from Garmin Connect and stores it in PostgreSQL database.
 import datetime
 import logging
 import os
+from typing import Any
 
 from dotenv import load_dotenv
 from garminconnect import Garmin, GarminConnectAuthenticationError
@@ -255,9 +256,9 @@ class GarminAPIWrapper:
         return results
 
 
-def get_garmin_sync_status(user_id: int) -> dict:
+def get_garmin_sync_status(user_id: int) -> dict[str, Any]:
     """Get sync status for Garmin data."""
-    return get_sync_statistics(user_id, source="garmin")
+    return get_sync_statistics(user_id, source="garmin")  # type: ignore[no-any-return]
 
 
 if __name__ == "__main__":

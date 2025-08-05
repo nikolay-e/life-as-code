@@ -5,6 +5,7 @@ Extracts workout data from Hevy API and stores it in PostgreSQL database.
 
 import datetime
 import logging
+from typing import Any
 
 import requests
 from dotenv import load_dotenv
@@ -228,9 +229,9 @@ def sync_hevy_data_for_user(user_id: int) -> dict:
         return {"error": error_msg, "user_id": user_id}
 
 
-def get_hevy_sync_status(user_id: int) -> dict:
+def get_hevy_sync_status(user_id: int) -> dict[str, Any]:
     """Get sync status for Hevy data."""
-    return get_sync_statistics(user_id, source="hevy")
+    return get_sync_statistics(user_id, source="hevy")  # type: ignore[no-any-return]
 
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@ echo
 
 echo "🔗 Checking database connection..."
 python -c "
-from database import check_db_connection, init_db
+from src.database import check_db_connection, init_db
 if check_db_connection():
     print('✅ Database connection successful')
     init_db()
@@ -19,7 +19,7 @@ else:
 
 echo "📊 Getting data status..."
 python -c "
-from database import get_table_counts
+from src.database import get_table_counts
 try:
     counts = get_table_counts()
     for table, count in counts.items():
@@ -36,4 +36,4 @@ echo "🔄 Use the sync buttons in the app to update your health data"
 echo
 
 # Start the web application
-exec python app.py
+exec python src/app.py

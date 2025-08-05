@@ -30,13 +30,13 @@ jobs:
           pip install .[dev]
 
       - name: Run linting with ruff
-        run: ruff check .
+        run: ruff check src/
 
       - name: Run code formatting check with black
-        run: black --check .
+        run: black --check src/
 
       - name: Run type checking with mypy
-        run: mypy .
+        run: mypy src/
 
   # Unit tests (when available)
   unit-tests:
@@ -218,7 +218,7 @@ jobs:
 
           echo ""
           echo "To create admin user manually, run:"
-          echo "kubectl exec -it deployment/life-as-code -n $NAMESPACE -- python manage_users.py"
+          echo "kubectl exec -it deployment/life-as-code -n $NAMESPACE -- python src/manage_users.py"
 
       - name: Check Deployment Status
         if: steps.helm-deploy.outcome == 'failure'
