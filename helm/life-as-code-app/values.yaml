@@ -21,10 +21,10 @@ app:
     port: 80 # Standard HTTP port
   resources:
     limits:
-      cpu: "500m"
+      cpu: "200m"
       memory: "512Mi"
     requests:
-      cpu: "250m"
+      cpu: "25m"
       memory: "256Mi"
   # Liveness, Readiness, Startup probes configuration
   probes:
@@ -105,10 +105,10 @@ migrations:
   backoffLimit: 4
   resources:
     limits:
-      cpu: "200m"
+      cpu: "100m"
       memory: "256Mi"
     requests:
-      cpu: "100m"
+      cpu: "25m"
       memory: "128Mi"
   # Additional environment variables for migrations if needed
   env:
