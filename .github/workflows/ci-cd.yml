@@ -1,0 +1,263 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  # Static analysis jobs run in parallel
+  lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install .[dev]
+
+      - name: Run linting with ruff
+        run: ruff check src/
+
+      - name: Run code formatting check with black
+        run: black --check src/
+
+      - name: Run type checking with mypy
+        run: mypy src/
+
+  # Unit tests (when available)
+  unit-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install .[dev]
+
+      - name: Run unit tests
+        run: |
+          # TODO: Add unit tests
+          echo "Unit tests placeholder - add pytest tests later"
+
+  # Build Docker image
+  build-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: nikolajer
+          password: ${{ secrets.DOCKER_REGISTRY_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: nikolajer/life-as-code-app:${{ github.event.pull_request.head.sha || github.sha }},nikolajer/life-as-code-app:latest
+
+  deploy:
+    needs: [lint, unit-tests, build-image]
+    runs-on: ubuntu-latest
+    environment: production  # Only production - no staging
+    permissions:
+      contents: read
+    env:
+      NAMESPACE: life-as-code-production
+      ENVIRONMENT: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup kubectl and Helm
+        run: |
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+
+      - name: Deploy Life-as-Code with Helm
+        id: helm-deploy
+        continue-on-error: true
+        run: |
+          # Create app namespace with proper labels if it doesn't exist
+          if ! kubectl get namespace $NAMESPACE 2>/dev/null; then
+            echo "Creating $NAMESPACE namespace..."
+            kubectl create namespace $NAMESPACE
+            kubectl label namespace $NAMESPACE app.kubernetes.io/managed-by=Helm
+            kubectl annotate namespace $NAMESPACE meta.helm.sh/release-name=life-as-code
+            kubectl annotate namespace $NAMESPACE meta.helm.sh/release-namespace=$NAMESPACE
+          fi
+
+          IMAGE_TAG="${{ github.event.pull_request.head.sha || github.sha }}"
+          echo "Deploying with image tag: $IMAGE_TAG"
+
+          # Use upgrade --install to preserve PVCs and handle both new installs and upgrades
+          helm upgrade --install life-as-code ./helm/life-as-code-app \
+            --namespace $NAMESPACE \
+            --set namespace=$NAMESPACE \
+            --set app.image.repository=nikolajer/life-as-code-app \
+            --set app.image.tag=$IMAGE_TAG \
+            --set ingress.host=life-as-code.nikolay-eremeev.com \
+            --set secrets.postgresDb="life_as_code" \
+            --set secrets.postgresUser="life_as_code_user" \
+            --set secrets.postgresPassword="${{ secrets.POSTGRES_LIFE_AS_CODE_PASSWORD }}" \
+            --set secrets.secretKey="${{ secrets.LIFE_AS_CODE_SECRET_KEY }}" \
+            --set secrets.fernetKey="${{ secrets.LIFE_AS_CODE_FERNET_KEY }}" \
+            --wait --timeout 5m
+
+      - name: Check Migration Logs
+        if: always()
+        run: |
+          echo "Checking for migration job..."
+          # Give it a moment for the job to be created
+          sleep 5
+
+          # Check if migration job exists
+          if kubectl get job life-as-code-migrations -n $NAMESPACE 2>/dev/null; then
+            echo "Migration job found. Monitoring for completion or failure..."
+
+            # Monitor job status in a loop to catch failure immediately
+            for i in $(seq 1 60); do
+              sleep 5
+
+              # Check job status
+              JOB_STATUS=$(kubectl get job life-as-code-migrations -n $NAMESPACE -o jsonpath='{.status}' 2>/dev/null || echo '{}')
+              COMPLETED=$(echo "$JOB_STATUS" | jq -r '.succeeded // 0')
+              FAILED=$(echo "$JOB_STATUS" | jq -r '.failed // 0')
+
+              echo "Attempt $i/60: Completed: $COMPLETED, Failed: $FAILED"
+
+              # If completed successfully
+              if [ "$COMPLETED" -gt "0" ]; then
+                echo "Migration job completed successfully!"
+                break
+              fi
+
+              # If failed, immediately capture logs before cleanup
+              if [ "$FAILED" -gt "0" ]; then
+                echo "Migration job failed! Capturing logs immediately..."
+
+                echo ""
+                echo "=== Migration Job Status ==="
+                kubectl describe job/life-as-code-migrations -n $NAMESPACE || true
+
+                echo ""
+                echo "=== Migration Pod Logs ==="
+                kubectl logs job/life-as-code-migrations -n $NAMESPACE --all-containers=true || true
+
+                # Also try to get logs from pods directly
+                echo ""
+                echo "=== Migration Pod Status ==="
+                kubectl get pods -l job-name=life-as-code-migrations -n $NAMESPACE || true
+
+                echo ""
+                echo "=== Direct Pod Logs ==="
+                kubectl logs -l job-name=life-as-code-migrations -n $NAMESPACE --all-containers=true || true
+
+                echo "Migration job failed!"
+                exit 1
+              fi
+            done
+
+            # If we exit the loop without completion, something's wrong
+            echo "Migration job monitoring timed out after 5 minutes"
+
+            echo ""
+            echo "=== Final Migration Job Status ==="
+            kubectl describe job/life-as-code-migrations -n $NAMESPACE || true
+
+            echo ""
+            echo "=== Final Migration Logs ==="
+            kubectl logs job/life-as-code-migrations -n $NAMESPACE --all-containers=true || true
+          else
+            echo "Migration job not found. Helm deployment may have failed."
+          fi
+
+      - name: Check Kubernetes Status
+        if: steps.helm-deploy.outcome == 'success'
+        run: |
+          echo "Checking Kubernetes namespaces and deployments..."
+
+          echo "=== Available Namespaces ==="
+          kubectl get namespaces
+
+          echo ""
+          echo "=== Life-as-Code Deployment Status ==="
+          kubectl get all -n $NAMESPACE
+
+          echo ""
+          echo "To create admin user manually, run:"
+          echo "kubectl exec -it deployment/life-as-code -n $NAMESPACE -- python src/manage_users.py"
+
+      - name: Check Deployment Status
+        if: steps.helm-deploy.outcome == 'failure'
+        run: |
+          echo "Helm deployment failed. Checking status..."
+          kubectl get all -n $NAMESPACE
+          exit 1
+
+  test-deployed:
+    needs: deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      APP_URL: https://life-as-code.nikolay-eremeev.com
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test deployed application
+        run: |
+          echo "Testing deployed Life-as-Code application..."
+
+          # Wait for deployment to be fully ready
+          sleep 30
+
+          # Test basic connectivity
+          echo "Testing basic connectivity..."
+          curl -f -s -o /dev/null $APP_URL || {
+            echo "Failed to connect to $APP_URL"
+            exit 1
+          }
+
+          echo "✅ Application is responding"
+
+          # Test login page
+          echo "Testing login page..."
+          curl -s $APP_URL/login | grep -q "Life-as-Code" || {
+            echo "Login page doesn't contain expected content"
+            exit 1
+          }
+
+          echo "✅ Login page is working"
+          echo "🎉 Life-as-Code deployment test completed successfully!"
