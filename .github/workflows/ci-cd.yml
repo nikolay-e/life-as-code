@@ -17,10 +17,10 @@ jobs:
       contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: 'pip'
@@ -45,10 +45,10 @@ jobs:
       contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: 'pip'
@@ -67,7 +67,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -90,7 +90,7 @@ jobs:
       NAMESPACE: life-as-code-production
       ENVIRONMENT: production
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup kubectl and Helm
         run: |
@@ -235,7 +235,7 @@ jobs:
     env:
       APP_URL: https://life-as-code.nikolay-eremeev.com
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Test deployed application
         run: |
           echo "Testing deployed Life-as-Code application..."
