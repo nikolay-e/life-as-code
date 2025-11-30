@@ -1,0 +1,55 @@
+services:
+  web:
+    build:
+      context: .
+      args:
+        - VERSION=${VERSION:-dev}
+        - BUILD_DATE=${BUILD_DATE:-$(date -u +"%Y-%m-%dT%H:%M:%SZ")}
+        - VCS_REF=${VCS_REF:-unknown}
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-life_as_code_user}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-life_as_code_db}
+      - SECRET_KEY=${SECRET_KEY}
+      - FERNET_KEY=${FERNET_KEY}
+      - PYTHONUNBUFFERED=1
+      - TZ=UTC
+      - FLASK_DEBUG=False
+    volumes:
+      - ./.garminconnect:/app/.garminconnect
+      - ./logs:/app/logs
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        - VITE_APP_VERSION=${VERSION:-dev}
+        - VITE_BUILD_DATE=${BUILD_DATE:-$(date -u +"%Y-%m-%dT%H:%M:%SZ")}
+        - VITE_COMMIT_SHA=${VCS_REF:-unknown}
+    ports:
+      - "3000:80"
+    depends_on:
+      - web
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-life_as_code_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB:-life_as_code_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-life_as_code_user} -d ${POSTGRES_DB:-life_as_code_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

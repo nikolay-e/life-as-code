@@ -1,0 +1,77 @@
+# Git
+.git/
+.gitignore
+.gitattributes
+.github/
+.gitleaksignore
+.gitlint
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+export_*
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+.pytype/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/coverage/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+CLAUDE.md
+
+# Data files (will be mounted as volumes)
+data/
+*.csv
+*.html
+*.txt
+correlation_*.html
+daily_briefing_*.txt
+
+# Environment files (will be created by container)
+.env
+.garminconnect/
+.secrets.baseline
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# CI/CD
+.pre-commit-config.yaml
+.markdownlint.yaml
+
+# Docker
+docker-compose.yml
