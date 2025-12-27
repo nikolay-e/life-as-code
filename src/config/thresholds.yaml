@@ -1,0 +1,64 @@
+# Default thresholds for health metrics analysis
+# These values are used in daily briefings and health status calculations
+
+# Heart Rate Variability (HRV) thresholds in milliseconds
+hrv:
+  good: 45        # Values >= 45ms are considered good
+  moderate: 35    # Values >= 35ms are considered moderate (below 35 is poor)
+
+# Sleep thresholds
+sleep:
+  # Deep sleep in minutes
+  deep_sleep:
+    good: 90      # >= 90 minutes is good
+    moderate: 60  # >= 60 minutes is moderate (below 60 is poor)
+
+  # Total sleep duration in hours
+  total_sleep:
+    good: 7.5     # >= 7.5 hours is good
+    moderate: 6.5 # >= 6.5 hours is moderate (below 6.5 is poor)
+
+# Training/workout thresholds
+training:
+  # High volume threshold for weekly training volume in kg*reps
+  high_volume: 5000
+
+# Stress level thresholds (0-100 scale)
+stress:
+  low: 25         # < 25 is low stress
+  moderate: 50    # 25-49 is moderate stress
+  high: 75        # 50-74 is high stress (>=75 is very high)
+
+# Heart rate thresholds (beats per minute)
+heart_rate:
+  resting:
+    excellent: 50  # < 50 is excellent
+    good: 60       # 50-59 is good
+    fair: 70       # 60-69 is fair (>=70 needs attention)
+
+# Activity/steps thresholds
+activity:
+  daily_steps:
+    goal: 10000    # Standard daily step goal
+    active: 8000   # >= 8000 steps is considered active
+    sedentary: 5000 # < 5000 steps is sedentary
+
+# Body composition thresholds (percentages)
+body_composition:
+  body_fat:
+    # These are general guidelines and vary by age/gender
+    male:
+      excellent: 10
+      good: 15
+      fair: 20
+    female:
+      excellent: 16
+      good: 21
+      fair: 26
+
+# Energy expenditure thresholds (calories)
+energy:
+  active_calories:
+    high: 600      # >= 600 active calories is high activity
+    moderate: 300  # 300-599 is moderate activity
+    low: 150       # < 150 is low activity

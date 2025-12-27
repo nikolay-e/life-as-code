@@ -1,0 +1,169 @@
+import { memo } from "react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+  Legend,
+} from "recharts";
+import { format, parseISO } from "date-fns";
+import { EmptyChartMessage } from "./shared";
+import { chartTooltipStyle } from "./chart-config";
+import type { TrendChartData, BaselineData } from "../../hooks/useTrendData";
+
+interface TrendLineChartProps {
+  chartData: TrendChartData[];
+  hasData: boolean;
+  baseline: BaselineData | null;
+  config: {
+    color: string;
+    trendColor: string;
+    longTermTrendColor: string;
+    longerTermTrendColor: string;
+  };
+  emptyMessage: string;
+  valueLabel: string;
+  unit: string;
+  shortTermLabel: string;
+  longTermLabel: string;
+  longerTermLabel: string;
+  showTrends?: boolean;
+  showBaseline?: boolean;
+  height?: number | `${number}%`;
+  yDomain?: [number | string, number | string];
+  valueFormatter?: (value: number) => string;
+  showDots?: boolean;
+}
+
+export const TrendLineChart = memo(function TrendLineChart({
+  chartData,
+  hasData,
+  baseline,
+  config,
+  emptyMessage,
+  valueLabel,
+  unit,
+  shortTermLabel,
+  longTermLabel,
+  longerTermLabel,
+  showTrends = false,
+  showBaseline = false,
+  height = 250,
+  yDomain = ["dataMin - 5", "dataMax + 5"],
+  valueFormatter = (v) => v.toFixed(0),
+  showDots = false,
+}: TrendLineChartProps) {
+  if (!hasData) {
+    return <EmptyChartMessage message={emptyMessage} />;
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <LineChart data={chartData}>
+        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+        <XAxis
+          dataKey="date"
+          tickFormatter={(value) => format(parseISO(value), "MMM d")}
+          className="text-xs"
+        />
+        <YAxis domain={yDomain} className="text-xs" />
+        <Tooltip
+          labelFormatter={(value) => format(parseISO(value as string), "PPP")}
+          formatter={(value, name) => {
+            const v = value as number | undefined;
+            if (v === undefined) return ["-", name];
+            if (name === "value")
+              return [`${valueFormatter(v)} ${unit}`, valueLabel];
+            if (name === "shortTermTrend")
+              return [`${valueFormatter(v)} ${unit}`, shortTermLabel];
+            if (name === "longTermTrend")
+              return [`${valueFormatter(v)} ${unit}`, longTermLabel];
+            if (name === "longerTermTrend")
+              return [`${valueFormatter(v)} ${unit}`, longerTermLabel];
+            return [v, name];
+          }}
+          contentStyle={chartTooltipStyle}
+        />
+
+        <Line
+          type="monotone"
+          dataKey="value"
+          stroke={config.color}
+          strokeWidth={2}
+          dot={showDots ? { r: 3 } : false}
+          activeDot={{ r: showDots ? 5 : 4 }}
+          name="value"
+        />
+
+        {showTrends && (
+          <Line
+            type="monotone"
+            dataKey="shortTermTrend"
+            stroke={config.trendColor}
+            strokeWidth={2}
+            strokeDasharray="5 5"
+            dot={false}
+            name="shortTermTrend"
+          />
+        )}
+
+        {showTrends && (
+          <Line
+            type="monotone"
+            dataKey="longTermTrend"
+            stroke={config.longTermTrendColor}
+            strokeWidth={1.5}
+            strokeDasharray="8 4"
+            dot={false}
+            name="longTermTrend"
+          />
+        )}
+
+        {showTrends && (
+          <Line
+            type="monotone"
+            dataKey="longerTermTrend"
+            stroke={config.longerTermTrendColor}
+            strokeWidth={1}
+            strokeDasharray="2 2"
+            dot={false}
+            name="longerTermTrend"
+          />
+        )}
+
+        {showBaseline && baseline && (
+          <>
+            <ReferenceLine
+              y={baseline.baseline}
+              stroke="hsl(var(--muted-foreground))"
+              strokeDasharray="3 3"
+              label={{
+                value: `Mean: ${valueFormatter(baseline.baseline)}`,
+                position: "insideTopRight",
+                fill: "hsl(var(--muted-foreground))",
+                fontSize: 11,
+              }}
+            />
+            <ReferenceLine
+              y={baseline.median}
+              stroke="hsl(var(--muted-foreground) / 0.6)"
+              strokeDasharray="6 3"
+              label={{
+                value: `Median: ${valueFormatter(baseline.median)}`,
+                position: "insideBottomRight",
+                fill: "hsl(var(--muted-foreground) / 0.8)",
+                fontSize: 11,
+              }}
+            />
+          </>
+        )}
+
+        {showTrends && <Legend />}
+      </LineChart>
+    </ResponsiveContainer>
+  );
+});

@@ -1,0 +1,357 @@
+@import "tailwindcss";
+
+@theme {
+  /* Base colors */
+  --color-background: hsl(0 0% 100%);
+  --color-foreground: hsl(222.2 84% 4.9%);
+  --color-card: hsl(0 0% 100%);
+  --color-card-foreground: hsl(222.2 84% 4.9%);
+  --color-popover: hsl(0 0% 100%);
+  --color-popover-foreground: hsl(222.2 84% 4.9%);
+  --color-primary: hsl(221.2 83.2% 53.3%);
+  --color-primary-foreground: hsl(210 40% 98%);
+  --color-secondary: hsl(210 40% 96.1%);
+  --color-secondary-foreground: hsl(222.2 47.4% 11.2%);
+  --color-muted: hsl(210 40% 96.1%);
+  --color-muted-foreground: hsl(215.4 16.3% 46.9%);
+  --color-accent: hsl(210 40% 96.1%);
+  --color-accent-foreground: hsl(222.2 47.4% 11.2%);
+  --color-destructive: hsl(0 84.2% 60.2%);
+  --color-destructive-foreground: hsl(210 40% 98%);
+  --color-border: hsl(214.3 31.8% 91.4%);
+  --color-input: hsl(214.3 31.8% 91.4%);
+  --color-ring: hsl(221.2 83.2% 53.3%);
+
+  /* Health metric semantic colors */
+  --color-hrv: hsl(199 89% 48%);
+  --color-hrv-foreground: hsl(0 0% 100%);
+  --color-hrv-muted: hsl(199 89% 94%);
+  --color-sleep: hsl(258 90% 66%);
+  --color-sleep-foreground: hsl(0 0% 100%);
+  --color-sleep-muted: hsl(258 90% 96%);
+  --color-heart: hsl(0 84% 60%);
+  --color-heart-foreground: hsl(0 0% 100%);
+  --color-heart-muted: hsl(0 84% 95%);
+  --color-steps: hsl(142 71% 45%);
+  --color-steps-foreground: hsl(0 0% 100%);
+  --color-steps-muted: hsl(142 71% 94%);
+  --color-stress: hsl(38 92% 50%);
+  --color-stress-foreground: hsl(0 0% 100%);
+  --color-stress-muted: hsl(38 92% 95%);
+  --color-weight: hsl(262 83% 58%);
+  --color-weight-foreground: hsl(0 0% 100%);
+  --color-weight-muted: hsl(262 83% 96%);
+  --color-workout: hsl(173 80% 40%);
+  --color-workout-foreground: hsl(0 0% 100%);
+  --color-workout-muted: hsl(173 80% 94%);
+  --color-whoop: hsl(280 70% 50%);
+  --color-whoop-foreground: hsl(0 0% 100%);
+  --color-whoop-muted: hsl(280 70% 94%);
+  --color-whoop-strain: hsl(15 90% 55%);
+  --color-whoop-strain-foreground: hsl(0 0% 100%);
+  --color-whoop-strain-muted: hsl(15 90% 94%);
+
+  /* New Garmin metrics */
+  --color-vo2max: hsl(210 100% 50%);
+  --color-vo2max-foreground: hsl(0 0% 100%);
+  --color-vo2max-muted: hsl(210 100% 94%);
+  --color-training: hsl(45 100% 50%);
+  --color-training-foreground: hsl(0 0% 100%);
+  --color-training-muted: hsl(45 100% 94%);
+  --color-fitness: hsl(320 70% 55%);
+  --color-fitness-foreground: hsl(0 0% 100%);
+  --color-fitness-muted: hsl(320 70% 94%);
+  --color-endurance: hsl(185 80% 45%);
+  --color-endurance-foreground: hsl(0 0% 100%);
+  --color-endurance-muted: hsl(185 80% 94%);
+  --color-calories: hsl(25 95% 53%);
+  --color-calories-foreground: hsl(0 0% 100%);
+  --color-calories-muted: hsl(25 95% 94%);
+
+  /* Status colors */
+  --color-success: hsl(142 76% 36%);
+  --color-success-foreground: hsl(0 0% 100%);
+  --color-warning: hsl(38 92% 50%);
+  --color-warning-foreground: hsl(0 0% 100%);
+
+  /* Border radius */
+  --radius: 0.625rem;
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* Shadows */
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.03);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04);
+  --shadow-md:
+    0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+  --shadow-lg:
+    0 10px 15px -3px rgb(0 0 0 / 0.05), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+  --shadow-card:
+    0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.02);
+  --shadow-card-hover:
+    0 4px 12px -2px rgb(0 0 0 / 0.08), 0 2px 6px -2px rgb(0 0 0 / 0.04);
+}
+
+:root {
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 84% 4.9%;
+  --primary: 221.2 83.2% 53.3%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 221.2 83.2% 53.3%;
+
+  /* Health metrics */
+  --hrv: 199 89% 48%;
+  --hrv-foreground: 0 0% 100%;
+  --hrv-muted: 199 89% 94%;
+  --sleep: 258 90% 66%;
+  --sleep-foreground: 0 0% 100%;
+  --sleep-muted: 258 90% 96%;
+  --heart: 0 84% 60%;
+  --heart-foreground: 0 0% 100%;
+  --heart-muted: 0 84% 95%;
+  --steps: 142 71% 45%;
+  --steps-foreground: 0 0% 100%;
+  --steps-muted: 142 71% 94%;
+  --stress: 38 92% 50%;
+  --stress-foreground: 0 0% 100%;
+  --stress-muted: 38 92% 95%;
+  --weight: 262 83% 58%;
+  --weight-foreground: 0 0% 100%;
+  --weight-muted: 262 83% 96%;
+  --workout: 173 80% 40%;
+  --workout-foreground: 0 0% 100%;
+  --workout-muted: 173 80% 94%;
+  --whoop: 280 70% 50%;
+  --whoop-foreground: 0 0% 100%;
+  --whoop-muted: 280 70% 94%;
+  --whoop-strain: 15 90% 55%;
+  --whoop-strain-foreground: 0 0% 100%;
+  --whoop-strain-muted: 15 90% 94%;
+
+  /* New Garmin metrics */
+  --vo2max: 210 100% 50%;
+  --vo2max-foreground: 0 0% 100%;
+  --vo2max-muted: 210 100% 94%;
+  --training: 45 100% 50%;
+  --training-foreground: 0 0% 100%;
+  --training-muted: 45 100% 94%;
+  --fitness: 320 70% 55%;
+  --fitness-foreground: 0 0% 100%;
+  --fitness-muted: 320 70% 94%;
+  --endurance: 185 80% 45%;
+  --endurance-foreground: 0 0% 100%;
+  --endurance-muted: 185 80% 94%;
+  --calories: 25 95% 53%;
+  --calories-foreground: 0 0% 100%;
+  --calories-muted: 25 95% 94%;
+
+  /* Status */
+  --success: 142 76% 36%;
+  --success-foreground: 0 0% 100%;
+  --warning: 38 92% 50%;
+  --warning-foreground: 0 0% 100%;
+
+  /* Chart colors for gradients */
+  --chart-hrv: 199 89% 48%;
+  --chart-hrv-light: 199 89% 68%;
+  --chart-sleep: 258 90% 66%;
+  --chart-sleep-light: 258 90% 82%;
+  --chart-heart: 0 84% 60%;
+  --chart-heart-light: 0 84% 78%;
+  --chart-steps: 142 71% 45%;
+  --chart-steps-light: 142 71% 70%;
+  --chart-stress: 38 92% 50%;
+  --chart-stress-light: 38 92% 72%;
+  --chart-weight: 262 83% 58%;
+  --chart-weight-light: 262 83% 78%;
+  --chart-workout: 173 80% 40%;
+  --chart-workout-light: 173 80% 65%;
+}
+
+.dark {
+  --background: 224 71% 4%;
+  --foreground: 213 31% 91%;
+  --card: 224 71% 6%;
+  --card-foreground: 213 31% 91%;
+  --popover: 224 71% 6%;
+  --popover-foreground: 213 31% 91%;
+  --primary: 217 91% 60%;
+  --primary-foreground: 222.2 47.4% 11.2%;
+  --secondary: 222 47% 11%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 223 47% 11%;
+  --muted-foreground: 215 20% 65%;
+  --accent: 216 34% 17%;
+  --accent-foreground: 210 40% 98%;
+  --destructive: 0 63% 31%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 216 34% 17%;
+  --input: 216 34% 17%;
+  --ring: 224 76% 48%;
+
+  /* Health metrics - darker shades */
+  --hrv: 199 89% 58%;
+  --hrv-foreground: 224 71% 4%;
+  --hrv-muted: 199 50% 15%;
+  --sleep: 258 90% 72%;
+  --sleep-foreground: 224 71% 4%;
+  --sleep-muted: 258 50% 15%;
+  --heart: 0 84% 65%;
+  --heart-foreground: 224 71% 4%;
+  --heart-muted: 0 50% 15%;
+  --steps: 142 71% 55%;
+  --steps-foreground: 224 71% 4%;
+  --steps-muted: 142 50% 15%;
+  --stress: 38 92% 55%;
+  --stress-foreground: 224 71% 4%;
+  --stress-muted: 38 50% 15%;
+  --weight: 262 83% 68%;
+  --weight-foreground: 224 71% 4%;
+  --weight-muted: 262 50% 15%;
+  --workout: 173 80% 50%;
+  --workout-foreground: 224 71% 4%;
+  --workout-muted: 173 50% 15%;
+  --whoop: 280 70% 60%;
+  --whoop-foreground: 224 71% 4%;
+  --whoop-muted: 280 50% 15%;
+  --whoop-strain: 15 90% 60%;
+  --whoop-strain-foreground: 224 71% 4%;
+  --whoop-strain-muted: 15 50% 15%;
+
+  /* New Garmin metrics - darker shades */
+  --vo2max: 210 100% 60%;
+  --vo2max-foreground: 224 71% 4%;
+  --vo2max-muted: 210 50% 15%;
+  --training: 45 100% 55%;
+  --training-foreground: 224 71% 4%;
+  --training-muted: 45 50% 15%;
+  --fitness: 320 70% 65%;
+  --fitness-foreground: 224 71% 4%;
+  --fitness-muted: 320 50% 15%;
+  --endurance: 185 80% 55%;
+  --endurance-foreground: 224 71% 4%;
+  --endurance-muted: 185 50% 15%;
+  --calories: 25 95% 58%;
+  --calories-foreground: 224 71% 4%;
+  --calories-muted: 25 50% 15%;
+
+  /* Status */
+  --success: 142 76% 46%;
+  --success-foreground: 224 71% 4%;
+  --warning: 38 92% 55%;
+  --warning-foreground: 224 71% 4%;
+
+  /* Chart colors for gradients */
+  --chart-hrv: 199 89% 58%;
+  --chart-hrv-light: 199 60% 35%;
+  --chart-sleep: 258 90% 72%;
+  --chart-sleep-light: 258 60% 45%;
+  --chart-heart: 0 84% 65%;
+  --chart-heart-light: 0 60% 40%;
+  --chart-steps: 142 71% 55%;
+  --chart-steps-light: 142 50% 35%;
+  --chart-stress: 38 92% 55%;
+  --chart-stress-light: 38 60% 35%;
+  --chart-weight: 262 83% 68%;
+  --chart-weight-light: 262 60% 40%;
+  --chart-workout: 173 80% 50%;
+  --chart-workout-light: 173 50% 30%;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-feature-settings:
+    "rlig" 1,
+    "calt" 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Smooth transitions for theme switching and interactions */
+@media (prefers-reduced-motion: no-preference) {
+  :root {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Custom scrollbar for webkit browsers */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* Chart tooltip styling */
+.recharts-tooltip-wrapper {
+  filter: drop-shadow(0 4px 6px rgb(0 0 0 / 0.07));
+}
+
+/* Gradient definitions for charts */
+.chart-gradient-hrv {
+  --gradient-start: hsl(var(--chart-hrv));
+  --gradient-end: hsl(var(--chart-hrv-light));
+}
+
+.chart-gradient-sleep {
+  --gradient-start: hsl(var(--chart-sleep));
+  --gradient-end: hsl(var(--chart-sleep-light));
+}
+
+.chart-gradient-heart {
+  --gradient-start: hsl(var(--chart-heart));
+  --gradient-end: hsl(var(--chart-heart-light));
+}
+
+.chart-gradient-steps {
+  --gradient-start: hsl(var(--chart-steps));
+  --gradient-end: hsl(var(--chart-steps-light));
+}
+
+.chart-gradient-stress {
+  --gradient-start: hsl(var(--chart-stress));
+  --gradient-end: hsl(var(--chart-stress-light));
+}
+
+.chart-gradient-weight {
+  --gradient-start: hsl(var(--chart-weight));
+  --gradient-end: hsl(var(--chart-weight-light));
+}
+
+.chart-gradient-workout {
+  --gradient-start: hsl(var(--chart-workout));
+  --gradient-end: hsl(var(--chart-workout-light));
+}

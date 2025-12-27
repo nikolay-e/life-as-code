@@ -1,0 +1,4 @@
+# Ignore hashed secrets in detect-secrets baseline file
+.secrets.baseline:generic-api-key:130
+.secrets.baseline:generic-api-key:139
+.secrets.baseline:generic-api-key:148

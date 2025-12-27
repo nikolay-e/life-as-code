@@ -1,0 +1,25 @@
+{
+  "rules": {
+    "at-rule-no-unknown": [
+      true,
+      {
+        "ignoreAtRules": [
+          "theme",
+          "tailwind",
+          "apply",
+          "layer",
+          "config",
+          "import"
+        ]
+      }
+    ],
+    "function-no-unknown": [
+      true,
+      {
+        "ignoreFunctions": ["theme", "hsl"]
+      }
+    ],
+    "import-notation": null,
+    "no-descending-specificity": null
+  }
+}

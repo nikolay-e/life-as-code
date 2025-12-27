@@ -1,0 +1,23 @@
+# Markdownlint configuration
+# https://github.com/DavidAnson/markdownlint
+
+default: true
+
+# Line length - disable (handled by prettier)
+MD013: false
+
+# Allow inline HTML
+MD033: false
+
+# Allow bare URLs
+MD034: false
+
+# Allow multiple headers with same content
+MD024:
+  siblings_only: true
+
+# Allow emphasis instead of headers
+MD036: false
+
+# First line doesn't have to be a top-level header
+MD041: false
