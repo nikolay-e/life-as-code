@@ -1,6 +1,7 @@
 import { memo, useMemo } from "react";
 import {
   Bar,
+  BarChart,
   XAxis,
   YAxis,
   CartesianGrid,
