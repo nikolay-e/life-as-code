@@ -8,7 +8,6 @@ import {
   Target,
   Zap,
   Flame,
-  Dumbbell,
 } from "lucide-react";
 import type { MetricDef, MetricData } from "./types";
 
@@ -39,11 +38,6 @@ function formatDefault(
 function formatWithLocale(value: number | null): string {
   if (value === null) return "—";
   return value.toLocaleString();
-}
-
-function formatVolume(value: number | null): string {
-  if (value === null) return "—";
-  return `${(value / 1000).toFixed(1)}t`;
 }
 
 export const METRIC_REGISTRY: MetricDef[] = [
@@ -210,37 +204,6 @@ export const METRIC_REGISTRY: MetricDef[] = [
     gradientId: "dailyStrainGradient",
     selectRaw: (d) => toMetricData(d?.whoop_cycle ?? [], (r) => r.strain),
     format: (v) => formatDefault(v, 1, ""),
-  },
-  {
-    key: "volume",
-    title: "Workout Volume",
-    icon: Dumbbell,
-    colorVar: "--workout",
-    iconColorClass: "text-workout",
-    iconBgClass: "bg-workout-muted",
-    metricName: "volume",
-    aggregation: "sum",
-    invertZScore: false,
-    trendMethod: "sma",
-    gradientId: "volumeGradient",
-    selectRaw: (d) => toMetricData(d?.workouts ?? [], (r) => r.total_volume),
-    format: formatVolume,
-    aliases: ["workout"],
-  },
-  {
-    key: "sets",
-    title: "Workout Sets",
-    icon: Dumbbell,
-    colorVar: "--workout",
-    iconColorClass: "text-workout",
-    iconBgClass: "bg-workout-muted",
-    metricName: "sets",
-    aggregation: "sum",
-    invertZScore: false,
-    trendMethod: "sma",
-    gradientId: "setsGradient",
-    selectRaw: (d) => toMetricData(d?.workouts ?? [], (r) => r.total_sets),
-    format: (v) => formatDefault(v, 0, ""),
   },
 ];
 

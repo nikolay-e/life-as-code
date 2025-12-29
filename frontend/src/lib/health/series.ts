@@ -17,9 +17,7 @@ export type MetricName =
   | "strain"
   | "calories"
   | "weight"
-  | "recovery"
-  | "volume"
-  | "sets";
+  | "recovery";
 
 export const METRIC_AGGREGATION: Record<MetricName, AggregationMethod> = {
   hrv: "mean",
@@ -31,8 +29,6 @@ export const METRIC_AGGREGATION: Record<MetricName, AggregationMethod> = {
   calories: "last",
   weight: "last",
   recovery: "last",
-  volume: "sum",
-  sets: "sum",
 };
 
 export function toDailySeries(

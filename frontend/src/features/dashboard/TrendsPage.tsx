@@ -32,7 +32,7 @@ import {
 } from "../../lib/metrics";
 import {
   Moon,
-  Dumbbell,
+  Activity,
   Calendar,
   TrendingUp,
   TrendingDown,
@@ -269,8 +269,6 @@ function formatTrendsForLLM(
       stepsAvgLong: number | null;
       stepsChange: number | null;
       stepsCV: number;
-      volumePerPeriod: number | null;
-      setsPerPeriod: number | null;
     };
     weightMetrics: {
       emaShort: number | null;
@@ -361,8 +359,6 @@ function formatTrendsForLLM(
     `- Steps (${modeConfig.baseline}d avg): ${activityMetrics.stepsAvgLong !== null ? Math.round(activityMetrics.stepsAvgLong).toLocaleString() : "N/A"}`,
     `- Steps Change: ${activityMetrics.stepsChange !== null ? (activityMetrics.stepsChange > 0 ? "+" : "") + Math.round(activityMetrics.stepsChange).toLocaleString() : "N/A"}`,
     `- Steps CV: ${(activityMetrics.stepsCV * 100).toFixed(1)}%`,
-    `- Training Volume (${modeConfig.shortTerm}d): ${activityMetrics.volumePerPeriod !== null ? (activityMetrics.volumePerPeriod / 1000).toFixed(1) + " tons" : "N/A"}`,
-    `- Training Sets (${modeConfig.shortTerm}d): ${activityMetrics.setsPerPeriod ?? "N/A"}`,
     ``,
     `## Weight Analysis`,
     `- Weight EMA (${modeConfig.shortTerm}d): ${weightMetrics.emaShort !== null ? weightMetrics.emaShort.toFixed(1) + " kg" : "N/A"}`,
@@ -984,7 +980,7 @@ export function TrendsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <Dumbbell className="h-4 w-4" />
+              <Activity className="h-4 w-4" />
               Activity Analysis
             </CardTitle>
           </CardHeader>
@@ -1011,36 +1007,24 @@ export function TrendsPage() {
                 </p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">
-                  Volume/{formatDaysLabel(shortTermDays)}
-                </p>
+                <p className="text-xs text-muted-foreground">Acute Load</p>
                 <p className="font-medium">
-                  {activityMetrics.volumePerPeriod !== null
-                    ? `${(activityMetrics.volumePerPeriod / 1000).toFixed(1)}t`
-                    : "—"}
+                  {activityMetrics.acuteLoad?.toFixed(1) ?? "—"}
                 </p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">
-                  Sets/{formatDaysLabel(shortTermDays)}
-                </p>
+                <p className="text-xs text-muted-foreground">Chronic Load</p>
                 <p className="font-medium">
-                  {activityMetrics.setsPerPeriod ?? "—"}
+                  {activityMetrics.chronicLoad?.toFixed(1) ?? "—"}
                 </p>
               </div>
             </div>
             <div className="pt-2 border-t">
               <div className="flex justify-between text-sm">
                 <span>
-                  Acute:{" "}
+                  ACWR:{" "}
                   <span className="font-medium">
-                    {activityMetrics.acuteLoad?.toFixed(1) ?? "—"}
-                  </span>
-                </span>
-                <span>
-                  Chronic:{" "}
-                  <span className="font-medium">
-                    {activityMetrics.chronicLoad?.toFixed(1) ?? "—"}
+                    {activityMetrics.acwr?.toFixed(2) ?? "—"}
                   </span>
                 </span>
                 <span>

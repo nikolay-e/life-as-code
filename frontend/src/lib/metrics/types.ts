@@ -21,9 +21,7 @@ export type MetricName =
   | "strain"
   | "calories"
   | "weight"
-  | "recovery"
-  | "volume"
-  | "sets";
+  | "recovery";
 
 export interface MetricDef {
   key: string;

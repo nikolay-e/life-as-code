@@ -14,19 +14,14 @@ import { WeightChart } from "../../components/charts/WeightChart";
 import { HeartRateChart } from "../../components/charts/HeartRateChart";
 import { StepsChart } from "../../components/charts/StepsChart";
 import { WhoopRecoveryChart } from "../../components/charts/WhoopRecoveryChart";
-import { WhoopStrainChart } from "../../components/charts/WhoopStrainChart";
-import { WorkoutVolumeChart } from "../../components/charts/WorkoutVolumeChart";
 import { StressChart } from "../../components/charts/StressChart";
 import { CaloriesChart } from "../../components/charts/CaloriesChart";
-import { DailyStrainChart } from "../../components/charts/DailyStrainChart";
 import { ChartCard } from "../../components/charts/ChartCard";
 import { format } from "date-fns";
 import {
   Activity,
   RefreshCw,
   Heart,
-  Zap,
-  Dumbbell,
   Brain,
   Calendar,
   Moon,
@@ -239,68 +234,35 @@ export function DashboardOverview() {
         <StepsChart data={data?.steps ?? []} />
       </ChartCard>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <ChartCard
-          title="Whoop Recovery"
-          icon={Heart}
-          iconColorClass="text-whoop"
-          iconBgClass="bg-whoop-muted"
-        >
-          <WhoopRecoveryChart data={data?.whoop_recovery ?? []} />
-        </ChartCard>
+      <ChartCard
+        title="Whoop Recovery"
+        icon={Heart}
+        iconColorClass="text-whoop"
+        iconBgClass="bg-whoop-muted"
+      >
+        <WhoopRecoveryChart data={data?.whoop_recovery ?? []} />
+      </ChartCard>
 
-        <ChartCard
-          title="Whoop Strain"
-          icon={Zap}
-          iconColorClass="text-whoop-strain"
-          iconBgClass="bg-whoop-strain-muted"
-        >
-          <WhoopStrainChart data={data?.whoop_workout ?? []} />
-        </ChartCard>
-      </div>
+      <ChartCard
+        title="Stress Levels"
+        icon={Brain}
+        iconColorClass="text-stress"
+        iconBgClass="bg-stress-muted"
+      >
+        <StressChart data={data?.stress ?? []} showTrends />
+      </ChartCard>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <ChartCard
-          title="Workout Volume"
-          icon={Dumbbell}
-          iconColorClass="text-workout"
-          iconBgClass="bg-workout-muted"
-        >
-          <WorkoutVolumeChart data={data?.workouts ?? []} />
-        </ChartCard>
-
-        <ChartCard
-          title="Stress Levels"
-          icon={Brain}
-          iconColorClass="text-stress"
-          iconBgClass="bg-stress-muted"
-        >
-          <StressChart data={data?.stress ?? []} showTrends />
-        </ChartCard>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <ChartCard
-          title="Daily Calories (Garmin + Whoop)"
-          icon={Flame}
-          iconColorClass="text-calories"
-          iconBgClass="bg-calories-muted"
-        >
-          <CaloriesChart
-            garminData={data?.garmin_training_status ?? []}
-            whoopData={data?.whoop_cycle ?? []}
-          />
-        </ChartCard>
-
-        <ChartCard
-          title="Daily Strain (Whoop)"
-          icon={Zap}
-          iconColorClass="text-whoop-strain"
-          iconBgClass="bg-whoop-strain-muted"
-        >
-          <DailyStrainChart data={data?.whoop_cycle ?? []} />
-        </ChartCard>
-      </div>
+      <ChartCard
+        title="Daily Calories (Garmin + Whoop)"
+        icon={Flame}
+        iconColorClass="text-calories"
+        iconBgClass="bg-calories-muted"
+      >
+        <CaloriesChart
+          garminData={data?.garmin_training_status ?? []}
+          whoopData={data?.whoop_cycle ?? []}
+        />
+      </ChartCard>
     </div>
   );
 }

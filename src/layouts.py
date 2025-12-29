@@ -95,7 +95,6 @@ def get_dashboard_tab_layout():
             dcc.Graph(id="hr-hrv-chart"),
             dcc.Graph(id="sleep-chart"),
             dcc.Graph(id="whoop-recovery-chart"),
-            dcc.Graph(id="workout-volume-chart"),
             dcc.Graph(id="stress-chart"),
             dcc.Graph(id="steps-chart"),
         ]

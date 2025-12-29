@@ -628,8 +628,6 @@ export interface ActivityMetrics {
   stepsAvgLong: number | null;
   stepsChange: number | null;
   stepsCV: number;
-  volumePerPeriod: number | null;
-  setsPerPeriod: number | null;
   shortTermWindow: number;
   longTermWindow: number;
 }
@@ -637,8 +635,6 @@ export interface ActivityMetrics {
 export function calculateActivityMetrics(
   strainData: DataPoint[],
   stepsData: DataPoint[],
-  workoutVolumeData: DataPoint[],
-  workoutSetsData: DataPoint[],
   shortTermWindow: number = 7,
   longTermWindow: number = 30,
   trendWindow: number = 7,
@@ -695,14 +691,6 @@ export function calculateActivityMetrics(
   const stepsStd = Math.sqrt(stepsVariance);
   const stepsCV = stepsMean !== 0 ? stepsStd / stepsMean : 0;
 
-  const dailyVolume = toDailySeries(workoutVolumeData, "sum");
-  const volumeShortValues = getWindowValues(dailyVolume, shortTermWindow);
-  const volumePerPeriod = sumOrNull(volumeShortValues);
-
-  const dailySets = toDailySeries(workoutSetsData, "sum");
-  const setsShortValues = getWindowValues(dailySets, shortTermWindow);
-  const setsPerPeriod = sumOrNull(setsShortValues);
-
   return {
     acuteLoad,
     chronicLoad,
@@ -711,8 +699,6 @@ export function calculateActivityMetrics(
     stepsAvgLong,
     stepsChange,
     stepsCV,
-    volumePerPeriod,
-    setsPerPeriod,
     shortTermWindow,
     longTermWindow,
   };
@@ -845,99 +831,7 @@ export function calculateCaloriesMetrics(
 }
 
 // ============================================
-// 8) WORKOUT VOLUME METRICS (ACR + Monotony)
-// ============================================
-
-export interface WorkoutVolumeMetrics {
-  volumeWeek: number | null;
-  volume4w: number | null;
-  acr: number | null;
-  acrStatus: "optimal" | "caution" | "high_risk" | "detraining" | null;
-  monotony: number | null;
-  strain: number | null;
-  setsPerWeek: number | null;
-}
-
-export function calculateWorkoutVolumeMetrics(
-  volumeData: DataPoint[],
-  setsData: DataPoint[],
-): WorkoutVolumeMetrics {
-  const volumeWeek7 = filterDataByWindow(volumeData, 7)
-    .filter((d) => d.value !== null)
-    .map((d) => d.value!);
-  const volumeWeek28 = filterDataByWindow(volumeData, 28)
-    .filter((d) => d.value !== null)
-    .map((d) => d.value!);
-
-  const volumeWeek = sumOrNull(volumeWeek7);
-
-  const weeks4Volumes: number[] = [];
-  for (let weekOffset = 0; weekOffset < 4; weekOffset++) {
-    const weekStart = weekOffset * 7;
-    const weekEnd = weekStart + 7;
-    const weekData = filterDataByWindowRange(volumeData, weekEnd, weekStart)
-      .filter((d) => d.value !== null)
-      .map((d) => d.value!);
-    const weekSum = sumOrNull(weekData);
-    if (weekSum !== null) {
-      weeks4Volumes.push(weekSum);
-    }
-  }
-  const volume4w = meanOrNull(weeks4Volumes);
-
-  const sum7 = volumeWeek7.reduce((a, b) => a + b, 0);
-  const sum28 = volumeWeek28.reduce((a, b) => a + b, 0);
-
-  // Divide by ACTUAL data points, not fixed window size
-  // This prevents artificially deflating averages when data is sparse
-  const mean7 = volumeWeek7.length > 0 ? sum7 / volumeWeek7.length : 0;
-  const mean28 = volumeWeek28.length > 0 ? sum28 / volumeWeek28.length : 0;
-
-  const acr = mean28 > 0 ? mean7 / mean28 : null;
-
-  let acrStatus: "optimal" | "caution" | "high_risk" | "detraining" | null =
-    null;
-  if (acr !== null) {
-    if (acr < 0.8) acrStatus = "detraining";
-    else if (acr <= 1.3) acrStatus = "optimal";
-    else if (acr <= 1.5) acrStatus = "caution";
-    else acrStatus = "high_risk";
-  }
-
-  let monotony: number | null = null;
-  let strain: number | null = null;
-  if (volumeWeek7.length >= 3) {
-    const std7 =
-      volumeWeek7.length > 1
-        ? Math.sqrt(
-            volumeWeek7.reduce((sum, v) => sum + Math.pow(v - mean7, 2), 0) /
-              (volumeWeek7.length - 1),
-          )
-        : 0;
-    monotony = std7 > 0 ? mean7 / std7 : null;
-    if (monotony !== null && volumeWeek !== null) {
-      strain = volumeWeek * monotony;
-    }
-  }
-
-  const setsWeek7 = filterDataByWindow(setsData, 7)
-    .filter((d) => d.value !== null)
-    .map((d) => d.value!);
-  const setsPerWeek = sumOrNull(setsWeek7);
-
-  return {
-    volumeWeek,
-    volume4w,
-    acr,
-    acrStatus,
-    monotony,
-    strain,
-    setsPerWeek,
-  };
-}
-
-// ============================================
-// 10) ENERGY BALANCE PROXY
+// 8) ENERGY BALANCE PROXY
 // ============================================
 
 export interface EnergyBalanceMetrics {
@@ -1054,7 +948,6 @@ export function calculateHealthScore(
     rhr?: FusedZScoreInput;
     sleep?: FusedZScoreInput;
     calories?: FusedZScoreInput;
-    volume?: FusedZScoreInput;
   },
   caloriesData?: DataPoint[],
   baselineWindow: number = 30,
@@ -1150,7 +1043,6 @@ export function calculateHealthScore(
     fusedInputs?.calories?.confidence ??
       (caloriesBaseline !== null && caloriesBaseline.zScore !== null ? 0.7 : 0),
   );
-  const volumeConf = capConfidence(fusedInputs?.volume?.confidence ?? 0);
 
   // For Mid/Long modes, use shiftedZScore (period vs baseline) instead of point z-score
   // This makes HealthScore less "jumpy" from day-to-day noise
@@ -1190,7 +1082,6 @@ export function calculateHealthScore(
     },
     fusedInputs?.calories?.zScore,
   );
-  const rawZVolume = fusedInputs?.volume?.zScore ?? null;
 
   const zHRV = rawZHRV;
   const zRHR = rawZRHR !== null ? -rawZRHR : null;
@@ -1199,10 +1090,9 @@ export function calculateHealthScore(
   const zSteps = rawZSteps;
   const zLoad = rawZLoad !== null ? -Math.abs(rawZLoad) : null;
   const zCalories = rawZCalories !== null ? -Math.abs(rawZCalories) : null;
-  const zVolume = rawZVolume !== null ? -Math.abs(rawZVolume) : null;
 
   const coreWeights = { hrv: 0.35, rhr: 0.25, sleep: 0.25, stress: 0.15 };
-  const supportWeights = { steps: 0.35, volume: 0.35, calories: 0.3 };
+  const supportWeights = { steps: 0.5, calories: 0.5 };
 
   const hrvGated = hrvConf < CONFIDENCE_THRESHOLD;
   const rhrGated = rhrConf < CONFIDENCE_THRESHOLD;
@@ -1211,7 +1101,6 @@ export function calculateHealthScore(
   const stepsGated = stepsConf < CONFIDENCE_THRESHOLD;
   const strainGated = strainConf < CONFIDENCE_THRESHOLD;
   const caloriesGated = caloriesConf < CONFIDENCE_THRESHOLD;
-  const volumeGated = volumeConf < CONFIDENCE_THRESHOLD;
 
   let recoveryCore: number | null = null;
   let coreSum = 0;
@@ -1249,11 +1138,6 @@ export function calculateHealthScore(
   if (zSteps !== null && !stepsGated) {
     const effectiveWeight = supportWeights.steps * stepsConf;
     supportSum += zSteps * effectiveWeight;
-    supportWeightSum += effectiveWeight;
-  }
-  if (zVolume !== null && !volumeGated) {
-    const effectiveWeight = supportWeights.volume * volumeConf;
-    supportSum += zVolume * effectiveWeight;
     supportWeightSum += effectiveWeight;
   }
   if (zCalories !== null && !caloriesGated) {
@@ -1353,20 +1237,6 @@ export function calculateHealthScore(
         ? gateReason(stepsConf, stepsGated)
         : stepsCheck.reason,
       source: "garmin" as const,
-    },
-    {
-      name: "Volume",
-      rawZScore: rawZVolume,
-      goodnessZScore: zVolume,
-      weight: supportWeights.volume,
-      contribution:
-        zVolume !== null && !volumeGated
-          ? zVolume * supportWeights.volume * volumeConf
-          : null,
-      confidence: volumeConf,
-      isGated: volumeGated,
-      gateReason: gateReason(volumeConf, volumeGated),
-      source: fusedInputs?.volume?.source ?? ("hevy" as const),
     },
     {
       name: "Calories",

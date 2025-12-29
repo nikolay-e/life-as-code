@@ -18,8 +18,6 @@ export const TRENDS_METRIC_KEYS = [
   "strain",
   "calories",
   "dailyStrain",
-  "volume",
-  "sets",
 ] as const;
 
 export type DashboardMetricKey = (typeof DASHBOARD_METRIC_KEYS)[number];

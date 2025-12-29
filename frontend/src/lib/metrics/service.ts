@@ -385,15 +385,6 @@ export function computeHealthAnalysis(
   const weightData = computedMetrics.weight?.raw ?? [];
   const caloriesData = computedMetrics.calories?.raw ?? [];
 
-  const volumeData = (data?.workouts ?? []).map((d) => ({
-    date: d.date,
-    value: d.total_volume,
-  }));
-  const setsData = (data?.workouts ?? []).map((d) => ({
-    date: d.date,
-    value: d.total_sets,
-  }));
-
   const fusedData = data ? createFusedHealthData(data) : null;
   const fusedHrvData = fusedData ? unifiedToMetricData(fusedData.hrv) : hrvData;
   const fusedSleepData = fusedData
@@ -495,8 +486,6 @@ export function computeHealthAnalysis(
   const activityMetrics = calculateActivityMetrics(
     fusedStrainData,
     stepsData,
-    volumeData,
-    setsData,
     modeConfig.shortTerm,
     modeConfig.baseline,
     modeConfig.trendWindow,

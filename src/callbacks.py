@@ -9,7 +9,6 @@ from sqlalchemy import select
 from data_loaders import (
     get_sleep_metrics,
     get_stress_categories,
-    get_workout_volume_data,
     load_data_for_user,
 )
 from database import SessionLocal, get_db_session_context
@@ -62,7 +61,6 @@ def register_callbacks(app):
             Output("hr-hrv-chart", "figure"),
             Output("sleep-chart", "figure"),
             Output("whoop-recovery-chart", "figure"),
-            Output("workout-volume-chart", "figure"),
             Output("stress-chart", "figure"),
             Output("steps-chart", "figure"),
         ],
@@ -75,7 +73,7 @@ def register_callbacks(app):
         if not current_user.is_authenticated:
             empty_fig = go.Figure()
             empty_fig.update_layout(title="Please log in")
-            return tuple([empty_fig] * 7)
+            return tuple([empty_fig] * 6)
 
         user_id = current_user.id
         data = load_data_for_user(start_date, end_date, user_id)
@@ -92,9 +90,6 @@ def register_callbacks(app):
         # Whoop Recovery Chart
         whoop_recovery_fig = create_whoop_recovery_chart(data["whoop_recovery"])
 
-        # Workout Volume Chart
-        workout_fig = create_workout_chart(data["workouts"])
-
         # Stress Chart
         stress_fig = create_stress_chart(data["stress"])
 
@@ -106,7 +101,6 @@ def register_callbacks(app):
             hr_hrv_fig,
             sleep_fig,
             whoop_recovery_fig,
-            workout_fig,
             stress_fig,
             steps_fig,
         )
@@ -483,57 +477,6 @@ def create_sleep_chart(sleep_df):
             )
 
     fig.update_layout(title="😴 Sleep Analysis", height=600, showlegend=True)
-
-    return fig
-
-
-def create_workout_chart(workouts_df):
-    if workouts_df.empty:
-        fig = go.Figure()
-        fig.update_layout(title="🏋️‍♂️ Workout Analysis - No Data Available")
-        return fig
-
-    volume_data = get_workout_volume_data(workouts_df)
-
-    if volume_data.empty:
-        fig = go.Figure()
-        fig.update_layout(title="🏋️‍♂️ Workout Analysis - No Volume Data")
-        return fig
-
-    fig = make_subplots(
-        rows=2,
-        cols=1,
-        subplot_titles=("Daily Training Volume", "Training Frequency"),
-        vertical_spacing=0.1,
-    )
-
-    # Training volume
-    fig.add_trace(
-        go.Bar(
-            x=volume_data["date"],
-            y=volume_data["total_volume"],
-            name="Volume (kg×reps)",
-            marker_color="#007bff",
-        ),
-        row=1,
-        col=1,
-    )
-
-    # Training frequency (sets per day)
-    fig.add_trace(
-        go.Bar(
-            x=volume_data["date"],
-            y=volume_data["total_sets"],
-            name="Total Sets",
-            marker_color="#28a745",
-        ),
-        row=2,
-        col=1,
-    )
-
-    fig.update_layout(
-        title="🏋️‍♂️ Workout Volume & Frequency", height=600, showlegend=True
-    )
 
     return fig
 
