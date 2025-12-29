@@ -7,11 +7,13 @@ import { mergeProviderData } from "../../lib/chart-utils";
 interface HeartRateChartProps {
   garminData: HeartRateData[];
   whoopData?: WhoopRecoveryData[];
+  showTrends?: boolean;
 }
 
 export const HeartRateChart = memo(function HeartRateChart({
   garminData,
   whoopData = [],
+  showTrends = false,
 }: HeartRateChartProps) {
   const config = MULTI_PROVIDER_CONFIGS.restingHr;
 
@@ -31,6 +33,7 @@ export const HeartRateChart = memo(function HeartRateChart({
       whoopLabel="Whoop RHR"
       unit="bpm"
       yDomain={["dataMin - 5", "dataMax + 5"]}
+      showTrends={showTrends}
     />
   );
 });

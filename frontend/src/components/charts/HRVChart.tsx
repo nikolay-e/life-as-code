@@ -7,11 +7,13 @@ import { mergeProviderData } from "../../lib/chart-utils";
 interface HRVChartProps {
   garminData: HRVData[];
   whoopData?: WhoopRecoveryData[];
+  showTrends?: boolean;
 }
 
 export const HRVChart = memo(function HRVChart({
   garminData,
   whoopData = [],
+  showTrends = false,
 }: HRVChartProps) {
   const config = MULTI_PROVIDER_CONFIGS.hrv;
 
@@ -30,6 +32,7 @@ export const HRVChart = memo(function HRVChart({
       garminLabel="Garmin HRV"
       whoopLabel="Whoop HRV"
       unit="ms"
+      showTrends={showTrends}
     />
   );
 });

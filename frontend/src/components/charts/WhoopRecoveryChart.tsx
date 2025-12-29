@@ -27,9 +27,8 @@ export const WhoopRecoveryChart = memo(function WhoopRecoveryChart({
     "recovery_score",
     {
       method: config.method,
-      shortTermWindow: config.shortTermWindow,
-      longTermWindow: config.longTermWindow,
-      longerTermWindow: config.longerTermWindow,
+      shortTermWindow: 7,
+      longTermWindow: 21,
       showBaseline,
       baselineWindow: config.baselineWindow,
     },
@@ -44,9 +43,9 @@ export const WhoopRecoveryChart = memo(function WhoopRecoveryChart({
       emptyMessage="No Whoop recovery data available"
       valueLabel="Recovery"
       unit="%"
-      shortTermLabel="7-day trend"
-      longTermLabel="30-day trend"
-      longerTermLabel="90-day trend"
+      shortTermLabel="7-day avg"
+      longTermLabel="21-day avg"
+      longerTermLabel="90-day avg"
       showTrends={showTrends}
       showBaseline={showBaseline}
     />

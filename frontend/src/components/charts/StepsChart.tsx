@@ -38,8 +38,8 @@ export const StepsChart = memo(function StepsChart({
 
   const { chartData, hasData } = useTrendData(normalizedData, "total_steps", {
     method: config.method,
-    shortTermWindow: config.shortTermWindow,
-    longTermWindow: config.longTermWindow,
+    shortTermWindow: 7,
+    longTermWindow: 21,
     showBaseline: false,
   });
 
@@ -69,7 +69,7 @@ export const StepsChart = memo(function StepsChart({
             if (name === "shortTermTrend")
               return [`${(v / 1000).toFixed(1)}k`, "7-day avg"];
             if (name === "longTermTrend")
-              return [`${(v / 1000).toFixed(1)}k`, "30-day avg"];
+              return [`${(v / 1000).toFixed(1)}k`, "21-day avg"];
             return [v, name];
           }}
           contentStyle={chartTooltipStyle}

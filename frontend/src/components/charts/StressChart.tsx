@@ -35,8 +35,8 @@ export const StressChart = memo(function StressChart({
 
   const { chartData, hasData } = useTrendData(normalizedData, "avg_stress", {
     method: config.method,
-    shortTermWindow: config.shortTermWindow,
-    longTermWindow: config.longTermWindow,
+    shortTermWindow: 7,
+    longTermWindow: 21,
     showBaseline: false,
   });
 
@@ -60,8 +60,8 @@ export const StressChart = memo(function StressChart({
             const v = value as number | undefined;
             if (v === undefined) return ["-", name];
             if (name === "value") return [v.toFixed(0), "Avg Stress"];
-            if (name === "shortTermTrend") return [v.toFixed(0), "5-day trend"];
-            if (name === "longTermTrend") return [v.toFixed(0), "14-day trend"];
+            if (name === "shortTermTrend") return [v.toFixed(0), "7-day avg"];
+            if (name === "longTermTrend") return [v.toFixed(0), "21-day avg"];
             return [v, name];
           }}
           contentStyle={chartTooltipStyle}

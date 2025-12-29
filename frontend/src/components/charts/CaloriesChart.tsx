@@ -7,11 +7,13 @@ import { mergeProviderData } from "../../lib/chart-utils";
 interface CaloriesChartProps {
   garminData: GarminTrainingStatusData[];
   whoopData?: WhoopCycleData[];
+  showTrends?: boolean;
 }
 
 export const CaloriesChart = memo(function CaloriesChart({
   garminData,
   whoopData = [],
+  showTrends = false,
 }: CaloriesChartProps) {
   const config = MULTI_PROVIDER_CONFIGS.calories;
 
@@ -32,6 +34,7 @@ export const CaloriesChart = memo(function CaloriesChart({
       unit="kcal"
       yDomain={["dataMin - 100", "dataMax + 100"]}
       valueFormatter={(v) => v.toLocaleString()}
+      showTrends={showTrends}
     />
   );
 });

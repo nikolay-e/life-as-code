@@ -188,6 +188,7 @@ export function DashboardOverview() {
           <HRVChart
             garminData={data?.hrv ?? []}
             whoopData={data?.whoop_recovery ?? []}
+            showTrends
           />
         </ChartCard>
 
@@ -200,6 +201,7 @@ export function DashboardOverview() {
           <SleepChart
             garminData={data?.sleep ?? []}
             whoopData={data?.whoop_sleep ?? []}
+            showTrends
           />
         </ChartCard>
 
@@ -221,6 +223,7 @@ export function DashboardOverview() {
           <HeartRateChart
             garminData={data?.heart_rate ?? []}
             whoopData={data?.whoop_recovery ?? []}
+            showTrends
           />
         </ChartCard>
       </div>
@@ -231,7 +234,7 @@ export function DashboardOverview() {
         iconColorClass="text-steps"
         iconBgClass="bg-steps-muted"
       >
-        <StepsChart data={data?.steps ?? []} />
+        <StepsChart data={data?.steps ?? []} showTrends />
       </ChartCard>
 
       <ChartCard
@@ -240,7 +243,7 @@ export function DashboardOverview() {
         iconColorClass="text-whoop"
         iconBgClass="bg-whoop-muted"
       >
-        <WhoopRecoveryChart data={data?.whoop_recovery ?? []} />
+        <WhoopRecoveryChart data={data?.whoop_recovery ?? []} showTrends />
       </ChartCard>
 
       <ChartCard
@@ -261,6 +264,7 @@ export function DashboardOverview() {
         <CaloriesChart
           garminData={data?.garmin_training_status ?? []}
           whoopData={data?.whoop_cycle ?? []}
+          showTrends
         />
       </ChartCard>
     </div>

@@ -1,6 +1,5 @@
 import { memo, useMemo } from "react";
 import {
-  BarChart,
   Bar,
   XAxis,
   YAxis,
@@ -8,17 +7,21 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
+  ComposedChart,
+  Line,
 } from "recharts";
 import { format, parseISO } from "date-fns";
 import type { SleepData, WhoopSleepData } from "../../types/api";
 import { EmptyChartMessage } from "./shared";
 import { chartTooltipStyle, MULTI_PROVIDER_CONFIGS } from "./chart-config";
 import { sortByDateAsc } from "../../lib/chart-utils";
+import { calculateEMA } from "../../lib/statistics";
 
 interface SleepChartProps {
   garminData: SleepData[];
   whoopData?: WhoopSleepData[];
   showBreakdown?: boolean;
+  showTrends?: boolean;
 }
 
 const SLEEP_STAGE_COLORS = {
@@ -32,6 +35,7 @@ export const SleepChart = memo(function SleepChart({
   garminData,
   whoopData = [],
   showBreakdown = false,
+  showTrends = false,
 }: SleepChartProps) {
   const config = MULTI_PROVIDER_CONFIGS.sleep;
 
@@ -77,6 +81,27 @@ export const SleepChart = memo(function SleepChart({
   const hasData = chartData.some(
     (d) => d.garminTotal !== null || d.whoopTotal !== null,
   );
+
+  const chartDataWithTrends = useMemo(() => {
+    if (!showTrends || chartData.length === 0) return chartData;
+
+    const withAvg = chartData.map((d) => ({
+      ...d,
+      avgValue:
+        d.garminTotal !== null && d.whoopTotal !== null
+          ? (d.garminTotal + d.whoopTotal) / 2
+          : (d.garminTotal ?? d.whoopTotal),
+    }));
+
+    const ema7 = calculateEMA(withAvg, 7, "avgValue");
+    const ema21 = calculateEMA(withAvg, 21, "avgValue");
+
+    return withAvg.map((d, i) => ({
+      ...d,
+      trend7: ema7[i]?.ema ?? null,
+      trend21: ema21[i]?.ema ?? null,
+    }));
+  }, [chartData, showTrends]);
 
   if (!hasData) {
     return <EmptyChartMessage message="No sleep data available" />;
@@ -139,7 +164,7 @@ export const SleepChart = memo(function SleepChart({
 
   return (
     <ResponsiveContainer width="100%" height={250}>
-      <BarChart data={chartData} barGap={0} barCategoryGap="20%">
+      <ComposedChart data={chartDataWithTrends} barGap={0} barCategoryGap="20%">
         <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
         <XAxis
           dataKey="date"
@@ -155,13 +180,26 @@ export const SleepChart = memo(function SleepChart({
           labelFormatter={(value) => format(parseISO(value as string), "PPP")}
           formatter={(value, name) => {
             if (value === null) return ["-", name];
-            const label = name === "garminTotal" ? "Garmin" : "Whoop";
-            return [formatHours(Number(value)), label];
+            if (name === "garminTotal")
+              return [formatHours(Number(value)), "Garmin"];
+            if (name === "whoopTotal")
+              return [formatHours(Number(value)), "Whoop"];
+            if (name === "trend7")
+              return [formatHours(Number(value)), "7-day avg"];
+            if (name === "trend21")
+              return [formatHours(Number(value)), "21-day avg"];
+            return [formatHours(Number(value)), name];
           }}
           contentStyle={chartTooltipStyle}
         />
         <Legend
-          formatter={(value) => (value === "garminTotal" ? "Garmin" : "Whoop")}
+          formatter={(value) => {
+            if (value === "garminTotal") return "Garmin";
+            if (value === "whoopTotal") return "Whoop";
+            if (value === "trend7") return "7-day avg";
+            if (value === "trend21") return "21-day avg";
+            return value;
+          }}
         />
         <Bar
           dataKey="garminTotal"
@@ -175,7 +213,31 @@ export const SleepChart = memo(function SleepChart({
           radius={[4, 4, 0, 0]}
           name="whoopTotal"
         />
-      </BarChart>
+        {showTrends && (
+          <Line
+            type="monotone"
+            dataKey="trend7"
+            stroke="hsl(var(--foreground) / 0.7)"
+            strokeWidth={2.5}
+            strokeDasharray="6 4"
+            dot={false}
+            name="trend7"
+            connectNulls
+          />
+        )}
+        {showTrends && (
+          <Line
+            type="monotone"
+            dataKey="trend21"
+            stroke="hsl(var(--foreground) / 0.5)"
+            strokeWidth={2}
+            strokeDasharray="10 5"
+            dot={false}
+            name="trend21"
+            connectNulls
+          />
+        )}
+      </ComposedChart>
     </ResponsiveContainer>
   );
 });

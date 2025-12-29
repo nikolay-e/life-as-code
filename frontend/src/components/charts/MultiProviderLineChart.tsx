@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import {
   LineChart,
   Line,
@@ -14,6 +14,7 @@ import { format, parseISO } from "date-fns";
 import { EmptyChartMessage } from "./shared";
 import { chartTooltipStyle } from "./chart-config";
 import type { MultiProviderDataPoint } from "../../lib/chart-utils";
+import { calculateEMA } from "../../lib/statistics";
 
 interface MultiProviderLineChartProps {
   data: MultiProviderDataPoint[];
@@ -30,6 +31,7 @@ interface MultiProviderLineChartProps {
   valueFormatter?: (value: number) => string;
   showDots?: boolean;
   baselineValue?: number | null;
+  showTrends?: boolean;
 }
 
 export const MultiProviderLineChart = memo(function MultiProviderLineChart({
@@ -44,10 +46,32 @@ export const MultiProviderLineChart = memo(function MultiProviderLineChart({
   valueFormatter = (v) => v.toFixed(0),
   showDots = false,
   baselineValue,
+  showTrends = false,
 }: MultiProviderLineChartProps) {
   const hasData = data.some(
     (d) => d.garminValue !== null || d.whoopValue !== null,
   );
+
+  const chartData = useMemo(() => {
+    if (!showTrends || data.length === 0) return data;
+
+    const withAvg = data.map((d) => ({
+      ...d,
+      avgValue:
+        d.garminValue !== null && d.whoopValue !== null
+          ? (d.garminValue + d.whoopValue) / 2
+          : (d.garminValue ?? d.whoopValue),
+    }));
+
+    const ema7 = calculateEMA(withAvg, 7, "avgValue");
+    const ema21 = calculateEMA(withAvg, 21, "avgValue");
+
+    return withAvg.map((d, i) => ({
+      ...d,
+      trend7: ema7[i]?.ema ?? null,
+      trend21: ema21[i]?.ema ?? null,
+    }));
+  }, [data, showTrends]);
 
   if (!hasData) {
     return <EmptyChartMessage message={emptyMessage} />;
@@ -55,7 +79,7 @@ export const MultiProviderLineChart = memo(function MultiProviderLineChart({
 
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <LineChart data={data}>
+      <LineChart data={chartData}>
         <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
         <XAxis
           dataKey="date"
@@ -72,6 +96,10 @@ export const MultiProviderLineChart = memo(function MultiProviderLineChart({
               return [`${valueFormatter(v)} ${unit}`, garminLabel];
             if (name === "whoopValue")
               return [`${valueFormatter(v)} ${unit}`, whoopLabel];
+            if (name === "trend7")
+              return [`${valueFormatter(v)} ${unit}`, "7-day avg"];
+            if (name === "trend21")
+              return [`${valueFormatter(v)} ${unit}`, "21-day avg"];
             return [v, name];
           }}
           contentStyle={chartTooltipStyle}
@@ -99,6 +127,32 @@ export const MultiProviderLineChart = memo(function MultiProviderLineChart({
           connectNulls
         />
 
+        {showTrends && (
+          <Line
+            type="monotone"
+            dataKey="trend7"
+            stroke="hsl(var(--foreground) / 0.7)"
+            strokeWidth={2.5}
+            strokeDasharray="6 4"
+            dot={false}
+            name="trend7"
+            connectNulls
+          />
+        )}
+
+        {showTrends && (
+          <Line
+            type="monotone"
+            dataKey="trend21"
+            stroke="hsl(var(--foreground) / 0.5)"
+            strokeWidth={2}
+            strokeDasharray="10 5"
+            dot={false}
+            name="trend21"
+            connectNulls
+          />
+        )}
+
         {baselineValue !== null && baselineValue !== undefined && (
           <ReferenceLine
             y={baselineValue}
@@ -117,6 +171,8 @@ export const MultiProviderLineChart = memo(function MultiProviderLineChart({
           formatter={(value) => {
             if (value === "garminValue") return garminLabel;
             if (value === "whoopValue") return whoopLabel;
+            if (value === "trend7") return "7-day avg";
+            if (value === "trend21") return "21-day avg";
             return value;
           }}
         />
