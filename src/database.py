@@ -18,13 +18,13 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     POSTGRES_USER = os.getenv("POSTGRES_USER")
     POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
-    POSTGRES_DB = os.getenv("POSTGRES_DB")
-    POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
-    POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
+    POSTGRES_DB = os.getenv("POSTGRES_DB") or os.getenv("DB_NAME")
+    POSTGRES_HOST = os.getenv("POSTGRES_HOST") or os.getenv("DB_HOST", "localhost")
+    POSTGRES_PORT = os.getenv("POSTGRES_PORT") or os.getenv("DB_PORT", "5432")
 
     if not all([POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB]):
         raise ValueError(
-            "DATABASE_URL or individual postgres environment variables (POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB) must be set"
+            "DATABASE_URL or individual postgres environment variables (POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB/DB_NAME) must be set"
         )
 
     DATABASE_URL = f"postgresql+psycopg2://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
