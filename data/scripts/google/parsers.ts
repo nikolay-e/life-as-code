@@ -9,7 +9,7 @@ import {
   BodyComposition,
   SessionActivity,
   DailyAggregated,
-} from "./schemas";
+} from "../schemas";
 
 // Nanoseconds to Date conversion
 export function nanosToDate(nanos: number): Date {

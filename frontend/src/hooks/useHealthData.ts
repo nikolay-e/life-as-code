@@ -28,6 +28,16 @@ export function useHealthData(
   });
 }
 
+export function useHealthDataRange(startDate: string, endDate: string) {
+  return useQuery({
+    queryKey: healthKeys.dataRange(startDate, endDate),
+    queryFn: () => api.data.getRange(startDate, endDate),
+    staleTime: HEALTH_DATA_STALE_TIME,
+    refetchInterval: SYNC_REFETCH_INTERVAL,
+    refetchOnWindowFocus: true,
+  });
+}
+
 export function useSyncStatus() {
   return useQuery({
     queryKey: healthKeys.syncStatus(),

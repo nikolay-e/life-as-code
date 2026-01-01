@@ -1,7 +1,6 @@
 import { memo, useMemo } from "react";
 import {
   ComposedChart,
-  Line,
   Scatter,
   XAxis,
   YAxis,
@@ -9,14 +8,17 @@ import {
   Tooltip,
   ResponsiveContainer,
   ReferenceLine,
+  Legend,
 } from "recharts";
 import { format, parseISO } from "date-fns";
 import type { WeightData } from "../../types/api";
 import { EmptyChartMessage } from "./shared";
 import { chartTooltipStyle, TREND_CONFIGS } from "./chart-config";
+import { renderTrendLines } from "./TrendLines";
 import {
   calculateBiologicalWeightSmoothing,
   calculateBaseline,
+  calculateEMA,
 } from "../../lib/statistics";
 
 interface WeightChartProps {
@@ -27,6 +29,7 @@ interface WeightChartProps {
 
 export const WeightChart = memo(function WeightChart({
   data,
+  showTrends = false,
   showBaseline = false,
 }: WeightChartProps) {
   const config = TREND_CONFIGS.weight;
@@ -68,8 +71,20 @@ export const WeightChart = memo(function WeightChart({
 
       const baselineData = calculateBaseline(normalizedData, 14, "weight_kg");
 
+      const dataForEMA = smoothedData as unknown as Record<string, unknown>[];
+      const ema7 = calculateEMA(dataForEMA, 7, "rawWeight");
+      const ema21 = calculateEMA(dataForEMA, 21, "rawWeight");
+      const ema60 = calculateEMA(dataForEMA, 60, "rawWeight");
+
+      const withTrends = smoothedData.map((d, i) => ({
+        ...d,
+        trend7: ema7[i]?.ema ?? null,
+        trend21: ema21[i]?.ema ?? null,
+        trend60: ema60[i]?.ema ?? null,
+      }));
+
       return {
-        chartData: smoothedData,
+        chartData: withTrends,
         baseline: baselineData,
         minWeight: min,
         maxWeight: max,
@@ -101,9 +116,10 @@ export const WeightChart = memo(function WeightChart({
           formatter={(value, name) => {
             const v = value as number | null;
             if (v === null || v === undefined) return ["-", name];
-            if (name === "rawWeight") return [`${v.toFixed(1)} kg`, "Measured"];
-            if (name === "smoothedWeight")
-              return [`${v.toFixed(1)} kg`, "True Weight"];
+            if (name === "rawWeight") return [`${v.toFixed(1)} kg`, "Weight"];
+            if (name === "trend7") return [`${v.toFixed(1)} kg`, "7d avg"];
+            if (name === "trend21") return [`${v.toFixed(1)} kg`, "21d avg"];
+            if (name === "trend60") return [`${v.toFixed(1)} kg`, "60d avg"];
             return [v, name];
           }}
           contentStyle={chartTooltipStyle}
@@ -136,24 +152,28 @@ export const WeightChart = memo(function WeightChart({
           </>
         )}
 
-        <Line
-          type="monotone"
-          dataKey="smoothedWeight"
-          stroke={config.color}
-          strokeWidth={2.5}
-          dot={false}
-          activeDot={false}
-          name="smoothedWeight"
-          connectNulls
-        />
-
+        {/* Data points as scatter */}
         <Scatter
           dataKey="rawWeight"
           fill={config.color}
-          fillOpacity={0.5}
           name="rawWeight"
           r={4}
         />
+
+        {/* Trend lines */}
+        {renderTrendLines(showTrends, "weight")}
+
+        {showTrends && (
+          <Legend
+            formatter={(value) => {
+              if (value === "rawWeight") return "Weight";
+              if (value === "trend7") return "7d avg";
+              if (value === "trend21") return "21d avg";
+              if (value === "trend60") return "60d avg";
+              return value;
+            }}
+          />
+        )}
       </ComposedChart>
     </ResponsiveContainer>
   );

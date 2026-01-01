@@ -1,7 +1,7 @@
 import { memo } from "react";
 import {
-  LineChart,
-  Line,
+  ComposedChart,
+  Scatter,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -13,6 +13,7 @@ import {
 import { format, parseISO } from "date-fns";
 import { EmptyChartMessage } from "./shared";
 import { chartTooltipStyle } from "./chart-config";
+import { renderTrendLines } from "./TrendLines";
 import type { TrendChartData, BaselineData } from "../../hooks/useTrendData";
 
 interface TrendLineChartProps {
@@ -36,7 +37,6 @@ interface TrendLineChartProps {
   height?: number | `${number}%`;
   yDomain?: [number | string, number | string];
   valueFormatter?: (value: number) => string;
-  showDots?: boolean;
 }
 
 export const TrendLineChart = memo(function TrendLineChart({
@@ -55,7 +55,6 @@ export const TrendLineChart = memo(function TrendLineChart({
   height = 250,
   yDomain = ["dataMin - 5", "dataMax + 5"],
   valueFormatter = (v) => v.toFixed(0),
-  showDots = false,
 }: TrendLineChartProps) {
   if (!hasData) {
     return <EmptyChartMessage message={emptyMessage} />;
@@ -63,7 +62,7 @@ export const TrendLineChart = memo(function TrendLineChart({
 
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <LineChart data={chartData}>
+      <ComposedChart data={chartData}>
         <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
         <XAxis
           dataKey="date"
@@ -89,51 +88,11 @@ export const TrendLineChart = memo(function TrendLineChart({
           contentStyle={chartTooltipStyle}
         />
 
-        <Line
-          type="monotone"
-          dataKey="value"
-          stroke={config.color}
-          strokeWidth={2}
-          dot={showDots ? { r: 3 } : false}
-          activeDot={{ r: showDots ? 5 : 4 }}
-          name="value"
-        />
+        {/* Data points as scatter */}
+        <Scatter dataKey="value" fill={config.color} name="value" r={4} />
 
-        {showTrends && (
-          <Line
-            type="monotone"
-            dataKey="shortTermTrend"
-            stroke={config.trendColor}
-            strokeWidth={2}
-            strokeDasharray="5 5"
-            dot={false}
-            name="shortTermTrend"
-          />
-        )}
-
-        {showTrends && (
-          <Line
-            type="monotone"
-            dataKey="longTermTrend"
-            stroke={config.longTermTrendColor}
-            strokeWidth={1.5}
-            strokeDasharray="8 4"
-            dot={false}
-            name="longTermTrend"
-          />
-        )}
-
-        {showTrends && (
-          <Line
-            type="monotone"
-            dataKey="longerTermTrend"
-            stroke={config.longerTermTrendColor}
-            strokeWidth={1}
-            strokeDasharray="2 2"
-            dot={false}
-            name="longerTermTrend"
-          />
-        )}
+        {/* Trend lines */}
+        {renderTrendLines(showTrends)}
 
         {showBaseline && baseline && (
           <>
@@ -162,8 +121,18 @@ export const TrendLineChart = memo(function TrendLineChart({
           </>
         )}
 
-        {showTrends && <Legend />}
-      </LineChart>
+        {showTrends && (
+          <Legend
+            formatter={(value) => {
+              if (value === "value") return valueLabel;
+              if (value === "shortTermTrend") return shortTermLabel;
+              if (value === "longTermTrend") return longTermLabel;
+              if (value === "longerTermTrend") return longerTermLabel;
+              return value;
+            }}
+          />
+        )}
+      </ComposedChart>
     </ResponsiveContainer>
   );
 });

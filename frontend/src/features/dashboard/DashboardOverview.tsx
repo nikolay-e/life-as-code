@@ -1,11 +1,13 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
+import { toast } from "sonner";
 import {
-  useHealthData,
+  useHealthDataRange,
   useSyncStatus,
   useAutoSync,
 } from "../../hooks/useHealthData";
 import { Card, CardContent } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
 import { LoadingState } from "../../components/ui/loading-state";
 import { ErrorCard } from "../../components/ui/error-card";
 import { HRVChart } from "../../components/charts/HRVChart";
@@ -17,7 +19,7 @@ import { WhoopRecoveryChart } from "../../components/charts/WhoopRecoveryChart";
 import { StressChart } from "../../components/charts/StressChart";
 import { CaloriesChart } from "../../components/charts/CaloriesChart";
 import { ChartCard } from "../../components/charts/ChartCard";
-import { format } from "date-fns";
+import { format, subDays, differenceInDays, parseISO } from "date-fns";
 import {
   Activity,
   RefreshCw,
@@ -28,24 +30,13 @@ import {
   Scale,
   Footprints,
   Flame,
+  Copy,
+  Check,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { buildDashboardCards, type MetricCardVM } from "../../lib/metrics";
 import { toTimeMs } from "../../lib/health";
-
-function getLatestSyncDate(
-  syncs: Array<{ last_sync_date: string | null }> | undefined,
-): string | null {
-  if (!syncs) return null;
-  const withDates = syncs.filter((s) => s.last_sync_date);
-  if (withDates.length === 0) return null;
-  const latest = withDates.sort(
-    (a, b) =>
-      new Date(b.last_sync_date!).getTime() -
-      new Date(a.last_sync_date!).getTime(),
-  )[0];
-  return latest.last_sync_date;
-}
+import { getLatestSyncDate } from "../../lib/sync-utils";
 
 interface MetricCardProps {
   title: string;
@@ -84,17 +75,44 @@ function MetricCard({
 
 const TIME_RANGES = [
   { label: "Today", days: 1, description: "Latest" },
-  { label: "Week", days: 7, description: "7 days" },
-  { label: "Month", days: 30, description: "30 days" },
-  { label: "Quarter", days: 90, description: "90 days" },
-  { label: "Year", days: 365, description: "12 months" },
-  { label: "All", days: 3650, description: "Full history" },
-];
+  { label: "Short", days: 84, description: "12 weeks" },
+  { label: "Mid", days: 252, description: "9 months" },
+  { label: "Long", days: 730, description: "2 years" },
+] as const;
+
+type TimeRangeLabel = (typeof TIME_RANGES)[number]["label"] | "Custom";
 
 export function DashboardOverview() {
-  const [selectedDays, setSelectedDays] = useState(90);
-  const isToday = selectedDays === 1;
-  const { data, isLoading, error } = useHealthData(selectedDays, !isToday);
+  const today = new Date();
+  const [selectedRange, setSelectedRange] = useState<TimeRangeLabel>("Short");
+  const [customStartDate, setCustomStartDate] = useState(
+    format(subDays(today, 90), "yyyy-MM-dd"),
+  );
+  const [customEndDate, setCustomEndDate] = useState(
+    format(today, "yyyy-MM-dd"),
+  );
+
+  const isToday = selectedRange === "Today";
+  const rangeDays =
+    TIME_RANGES.find((r) => r.label === selectedRange)?.days ?? 84;
+
+  const startDate =
+    selectedRange === "Custom"
+      ? customStartDate
+      : format(subDays(today, rangeDays), "yyyy-MM-dd");
+  const endDate =
+    selectedRange === "Custom"
+      ? customEndDate
+      : isToday
+        ? format(today, "yyyy-MM-dd")
+        : format(subDays(today, 1), "yyyy-MM-dd");
+
+  const selectedDays = Math.max(
+    1,
+    differenceInDays(parseISO(endDate), parseISO(startDate)) + 1,
+  );
+
+  const { data, isLoading, error } = useHealthDataRange(startDate, endDate);
   const { data: syncStatus } = useSyncStatus();
   const { isSyncing } = useAutoSync();
 
@@ -102,6 +120,46 @@ export function DashboardOverview() {
     () => buildDashboardCards(data ?? null, selectedDays, new Date()),
     [data, selectedDays],
   );
+
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyToClipboard = useCallback(async () => {
+    if (!data || isLoading || metricCards.length === 0) return;
+
+    const rangeLabel =
+      selectedRange === "Custom"
+        ? `${startDate} — ${endDate}`
+        : `${selectedRange} (${selectedDays} days)`;
+
+    const lines = [
+      `Health Dashboard — ${rangeLabel}`,
+      `Date: ${format(new Date(), "yyyy-MM-dd HH:mm")}`,
+      "",
+      "Metrics:",
+      ...metricCards.map(
+        (card) => `• ${card.title}: ${card.value} (${card.subtitle})`,
+      ),
+    ];
+
+    const text = lines.join("\n");
+
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      toast.success("Dashboard metrics copied to clipboard");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Failed to copy to clipboard");
+    }
+  }, [
+    data,
+    isLoading,
+    metricCards,
+    selectedRange,
+    selectedDays,
+    startDate,
+    endDate,
+  ]);
 
   if (isLoading) {
     return <LoadingState message="Loading health data..." />;
@@ -125,14 +183,14 @@ export function DashboardOverview() {
               Track your daily health metrics
             </p>
           </div>
-          <div className="flex items-center gap-1.5 p-1 bg-muted/50 rounded-lg">
+          <div className="flex items-center gap-1.5 p-1 bg-muted/50 rounded-lg flex-wrap">
             <Calendar className="h-4 w-4 text-muted-foreground ml-2" />
             {TIME_RANGES.map((range) => (
               <Button
-                key={range.days}
-                variant={selectedDays === range.days ? "default" : "ghost"}
+                key={range.label}
+                variant={selectedRange === range.label ? "default" : "ghost"}
                 size="sm"
-                onClick={() => setSelectedDays(range.days)}
+                onClick={() => setSelectedRange(range.label)}
                 className="min-w-[70px] flex flex-col h-auto py-1.5"
               >
                 <span className="font-medium">{range.label}</span>
@@ -141,7 +199,49 @@ export function DashboardOverview() {
                 </span>
               </Button>
             ))}
+            <Button
+              variant={selectedRange === "Custom" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setSelectedRange("Custom")}
+              className="min-w-[70px] flex flex-col h-auto py-1.5"
+            >
+              <span className="font-medium">Custom</span>
+              <span className="text-[10px] opacity-70">Date range</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleCopyToClipboard}
+              className="ml-1"
+              aria-label="Copy dashboard metrics"
+            >
+              {copied ? (
+                <Check className="h-4 w-4 text-green-500" />
+              ) : (
+                <Copy className="h-4 w-4" />
+              )}
+            </Button>
           </div>
+          {selectedRange === "Custom" && (
+            <div className="flex items-center gap-2 mt-2">
+              <Input
+                type="date"
+                value={customStartDate}
+                onChange={(e) => setCustomStartDate(e.target.value)}
+                className="w-36"
+              />
+              <span className="text-muted-foreground">—</span>
+              <Input
+                type="date"
+                value={customEndDate}
+                onChange={(e) => setCustomEndDate(e.target.value)}
+                className="w-36"
+              />
+              <span className="text-sm text-muted-foreground">
+                ({selectedDays} days)
+              </span>
+            </div>
+          )}
         </div>
         {(() => {
           const lastSync = getLatestSyncDate(syncStatus);
@@ -211,7 +311,7 @@ export function DashboardOverview() {
           iconColorClass="text-weight"
           iconBgClass="bg-weight-muted"
         >
-          <WeightChart data={data?.weight ?? []} />
+          <WeightChart data={data?.weight ?? []} showTrends />
         </ChartCard>
 
         <ChartCard

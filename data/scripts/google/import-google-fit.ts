@@ -16,8 +16,8 @@ import {
   importBodyComposition,
   importSessionActivities,
   ImportResult,
-} from "./importers";
-import { DailyAggregated } from "./schemas";
+} from "../importers";
+import { DailyAggregated } from "../schemas";
 
 config();
 
@@ -87,7 +87,7 @@ async function main(): Promise<void> {
     ? (null as unknown as pg.Pool)
     : new Pool({ connectionString: databaseUrl });
 
-  const baseDir = join(process.cwd(), "..");
+  const baseDir = join(process.cwd(), "..", "google");
   const takeoutDirs = [
     join(baseDir, "Takeout"),
     join(baseDir, "Takeout 2"),

@@ -1,4 +1,5 @@
 import { getLocalToday, toLocalDayKey, toLocalDayDate } from "./health/date";
+import { calculateMedian } from "./health/stats";
 
 export function calculateEMA<T extends Record<string, unknown>>(
   data: T[],
@@ -48,14 +49,7 @@ export function calculateSMA<T extends Record<string, unknown>>(
   });
 }
 
-export function calculateMedian(values: number[]): number | null {
-  if (values.length === 0) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 !== 0
-    ? sorted[mid]
-    : (sorted[mid - 1] + sorted[mid]) / 2;
-}
+export { calculateMedian };
 
 export function calculateBaseline<
   T extends { date: string } & Record<string, unknown>,
@@ -83,7 +77,7 @@ export function calculateBaseline<
   }
 
   const mean = values.reduce((a, b) => a + b, 0) / values.length;
-  const median = calculateMedian(values) ?? mean;
+  const median = values.length > 0 ? calculateMedian(values) : mean;
   const variance =
     values.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) /
     values.length;

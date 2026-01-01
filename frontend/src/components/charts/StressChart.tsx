@@ -1,12 +1,11 @@
 import { memo } from "react";
 import {
-  Area,
+  Scatter,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Line,
   Legend,
   ComposedChart,
 } from "recharts";
@@ -14,6 +13,7 @@ import { format, parseISO } from "date-fns";
 import type { StressData } from "../../types/api";
 import { EmptyChartMessage } from "./shared";
 import { chartTooltipStyle, TREND_CONFIGS } from "./chart-config";
+import { renderTrendLines } from "./TrendLines";
 import { useTrendData } from "../../hooks/useTrendData";
 
 interface StressChartProps {
@@ -37,6 +37,7 @@ export const StressChart = memo(function StressChart({
     method: config.method,
     shortTermWindow: 7,
     longTermWindow: 21,
+    longerTermWindow: 60,
     showBaseline: false,
   });
 
@@ -60,48 +61,31 @@ export const StressChart = memo(function StressChart({
             const v = value as number | undefined;
             if (v === undefined) return ["-", name];
             if (name === "value") return [v.toFixed(0), "Avg Stress"];
-            if (name === "shortTermTrend") return [v.toFixed(0), "7-day avg"];
-            if (name === "longTermTrend") return [v.toFixed(0), "21-day avg"];
+            if (name === "shortTermTrend") return [v.toFixed(0), "7d avg"];
+            if (name === "longTermTrend") return [v.toFixed(0), "21d avg"];
+            if (name === "longerTermTrend") return [v.toFixed(0), "60d avg"];
             return [v, name];
           }}
           contentStyle={chartTooltipStyle}
         />
 
-        <Area
-          type="monotone"
-          dataKey="value"
-          stroke={config.color}
-          fill={config.color}
-          fillOpacity={0.3}
-          strokeWidth={2}
-          name="value"
-        />
+        {/* Data points as scatter */}
+        <Scatter dataKey="value" fill={config.color} name="value" r={4} />
+
+        {/* Trend lines */}
+        {renderTrendLines(showTrends)}
 
         {showTrends && (
-          <Line
-            type="monotone"
-            dataKey="shortTermTrend"
-            stroke={config.trendColor}
-            strokeWidth={2}
-            strokeDasharray="5 5"
-            dot={false}
-            name="shortTermTrend"
+          <Legend
+            formatter={(value) => {
+              if (value === "value") return "Stress";
+              if (value === "shortTermTrend") return "7d avg";
+              if (value === "longTermTrend") return "21d avg";
+              if (value === "longerTermTrend") return "60d avg";
+              return value;
+            }}
           />
         )}
-
-        {showTrends && (
-          <Line
-            type="monotone"
-            dataKey="longTermTrend"
-            stroke={config.longTermTrendColor}
-            strokeWidth={2}
-            strokeOpacity={0.7}
-            dot={false}
-            name="longTermTrend"
-          />
-        )}
-
-        {showTrends && <Legend />}
       </ComposedChart>
     </ResponsiveContainer>
   );

@@ -16,8 +16,8 @@ import {
   Activity,
   RefreshCw,
 } from "lucide-react";
-import type { SyncStatus } from "../../types/api";
 import { cn } from "../../lib/utils";
+import { getLatestSyncDate, getLastSyncForSource } from "../../lib/sync-utils";
 
 interface DataSourceStatus {
   name: string;
@@ -25,35 +25,6 @@ interface DataSourceStatus {
   count: number;
   latestDate: string | null;
   oldestDate: string | null;
-}
-
-function getLastSyncForSource(
-  syncs: SyncStatus[] | undefined,
-  source: string,
-): string | null {
-  if (!syncs) return null;
-  const sourceSyncs = syncs.filter(
-    (s) => s.source === source && s.last_sync_date,
-  );
-  if (sourceSyncs.length === 0) return null;
-  const latest = sourceSyncs.sort(
-    (a, b) =>
-      new Date(b.last_sync_date!).getTime() -
-      new Date(a.last_sync_date!).getTime(),
-  )[0];
-  return latest.last_sync_date;
-}
-
-function getOverallLastSync(syncs: SyncStatus[] | undefined): string | null {
-  if (!syncs) return null;
-  const withDates = syncs.filter((s) => s.last_sync_date);
-  if (withDates.length === 0) return null;
-  const latest = withDates.sort(
-    (a, b) =>
-      new Date(b.last_sync_date!).getTime() -
-      new Date(a.last_sync_date!).getTime(),
-  )[0];
-  return latest.last_sync_date;
 }
 
 export function DataStatusPage() {
@@ -261,7 +232,7 @@ export function DataStatusPage() {
           <div className="grid gap-6 sm:grid-cols-4">
             <SyncStatusItem
               label="Last Sync"
-              date={getOverallLastSync(syncStatus)}
+              date={getLatestSyncDate(syncStatus)}
             />
             <SyncStatusItem
               label="Garmin"
