@@ -46,7 +46,12 @@ export async function upsertSteps(
   data: DailyAggregated,
   result: ImportResult
 ): Promise<void> {
-  if (data.totalSteps === 0 && data.totalDistance === 0) {
+  // Skip only if all values are null/undefined (0 is valid data)
+  if (
+    (data.totalSteps === null || data.totalSteps === undefined || data.totalSteps === 0) &&
+    (data.totalDistance === null || data.totalDistance === undefined || data.totalDistance === 0) &&
+    (data.activeMinutes === null || data.activeMinutes === undefined || data.activeMinutes === 0)
+  ) {
     result.skipped++;
     return;
   }
@@ -165,17 +170,20 @@ export async function upsertEnergy(
   data: DailyAggregated,
   result: ImportResult
 ): Promise<void> {
-  if (data.totalCalories === 0) {
+  // Always insert energy data - 0 calories is valid (rest day)
+  // Only skip if there's truly no activity data at all for this day
+  if (data.totalCalories === 0 && data.totalSteps === 0 && data.totalDistance === 0) {
     result.skipped++;
     return;
   }
 
   try {
+    // Insert if no data exists, otherwise take the maximum value
     const query = `
       INSERT INTO energy (user_id, date, active_energy, created_at)
       VALUES ($1, $2, $3, NOW())
       ON CONFLICT (user_id, date) DO UPDATE SET
-        active_energy = GREATEST(energy.active_energy, EXCLUDED.active_energy)
+        active_energy = GREATEST(COALESCE(energy.active_energy, 0), EXCLUDED.active_energy)
       RETURNING (xmax = 0) AS inserted
     `;
 

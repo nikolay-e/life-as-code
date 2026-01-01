@@ -62,12 +62,13 @@ export function DataStatusPage() {
   };
 
   const dataSources: DataSourceStatus[] = [
-    getDataSourceStatus(data?.sleep, "Sleep", "Garmin"),
-    getDataSourceStatus(data?.hrv, "HRV", "Garmin"),
-    getDataSourceStatus(data?.weight, "Weight", "Garmin"),
-    getDataSourceStatus(data?.heart_rate, "Heart Rate", "Garmin"),
-    getDataSourceStatus(data?.stress, "Stress", "Garmin"),
-    getDataSourceStatus(data?.steps, "Steps", "Garmin"),
+    getDataSourceStatus(data?.sleep, "Sleep", "Health"),
+    getDataSourceStatus(data?.hrv, "HRV", "Health"),
+    getDataSourceStatus(data?.weight, "Weight", "Health"),
+    getDataSourceStatus(data?.heart_rate, "Heart Rate", "Health"),
+    getDataSourceStatus(data?.stress, "Stress", "Health"),
+    getDataSourceStatus(data?.steps, "Steps", "Health"),
+    getDataSourceStatus(data?.energy, "Energy", "Health"),
     getDataSourceStatus(
       data?.garmin_training_status,
       "Training Status",

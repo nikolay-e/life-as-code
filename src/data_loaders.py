@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from models import (
     HRV,
+    Energy,
     GarminTrainingStatus,
     HeartRate,
     Sleep,
@@ -38,6 +39,7 @@ def load_data_for_user(start_date, end_date, user_id):
             (HeartRate, "heart_rate"),
             (Stress, "stress"),
             (Steps, "steps"),
+            (Energy, "energy"),
             (WorkoutSet, "workouts"),
             (WhoopRecovery, "whoop_recovery"),
             (WhoopSleep, "whoop_sleep"),

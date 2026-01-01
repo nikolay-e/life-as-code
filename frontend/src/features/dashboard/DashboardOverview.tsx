@@ -280,7 +280,7 @@ export function DashboardOverview() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <ChartCard
-          title="HRV (Garmin + Whoop)"
+          title="HRV"
           icon={Activity}
           iconColorClass="text-hrv"
           iconBgClass="bg-hrv-muted"
@@ -293,7 +293,7 @@ export function DashboardOverview() {
         </ChartCard>
 
         <ChartCard
-          title="Sleep (Garmin + Whoop)"
+          title="Sleep"
           icon={Moon}
           iconColorClass="text-sleep"
           iconBgClass="bg-sleep-muted"
@@ -315,7 +315,7 @@ export function DashboardOverview() {
         </ChartCard>
 
         <ChartCard
-          title="Resting HR (Garmin + Whoop)"
+          title="Resting HR"
           icon={Activity}
           iconColorClass="text-heart"
           iconBgClass="bg-heart-muted"
@@ -356,7 +356,7 @@ export function DashboardOverview() {
       </ChartCard>
 
       <ChartCard
-        title="Daily Calories (Garmin + Whoop)"
+        title="Daily Calories"
         icon={Flame}
         iconColorClass="text-calories"
         iconBgClass="bg-calories-muted"
@@ -364,6 +364,7 @@ export function DashboardOverview() {
         <CaloriesChart
           garminData={data?.garmin_training_status ?? []}
           whoopData={data?.whoop_cycle ?? []}
+          energyData={data?.energy ?? []}
           showTrends
         />
       </ChartCard>

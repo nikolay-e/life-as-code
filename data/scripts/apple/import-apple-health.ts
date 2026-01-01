@@ -77,10 +77,10 @@ async function importHRVData(
       for (const [date, hrv] of batch) {
         try {
           const query = `
-            INSERT INTO hrv (user_id, date, avg_hrv, created_at)
+            INSERT INTO hrv (user_id, date, hrv_avg, created_at)
             VALUES ($1, $2, $3, NOW())
             ON CONFLICT (user_id, date) DO UPDATE SET
-              avg_hrv = COALESCE(EXCLUDED.avg_hrv, hrv.avg_hrv)
+              hrv_avg = COALESCE(EXCLUDED.hrv_avg, hrv.hrv_avg)
             RETURNING (xmax = 0) AS inserted
           `;
 

@@ -3,6 +3,38 @@ import { createGunzip } from "zlib";
 import sax from "sax";
 import { SleepData, BodyComposition, DailyAggregated } from "../schemas";
 
+// Sleep stage type for timeline
+type SleepStage = "deep" | "light" | "rem" | "awake" | null;
+
+// Raw sleep record from Apple Health
+interface SleepRecord {
+  startTime: number; // Unix timestamp in minutes
+  endTime: number;
+  stage: SleepStage;
+  source: string;
+  priority: number;
+}
+
+// Source priority - higher number = higher priority
+const SOURCE_PRIORITY: Record<string, number> = {
+  "Nikolay's Apple Watch": 100,
+  "Apple Watch": 90,
+  "Eight Sleep": 80,
+  "AutoSleep": 70,
+  "Connect": 60,
+  "WHOOP": 50,
+  "Sleep Cycle": 40,
+  "Nikolay's iPhone": 30,
+  "iPhone": 20,
+};
+
+function getSourcePriority(source: string): number {
+  for (const [key, priority] of Object.entries(SOURCE_PRIORITY)) {
+    if (source.includes(key)) return priority;
+  }
+  return 10; // Default low priority for unknown sources
+}
+
 interface AppleHealthData {
   weight: Map<string, number[]>;
   steps: Map<string, number>;
@@ -11,7 +43,7 @@ interface AppleHealthData {
   basalEnergy: Map<string, number>;
   hrv: Map<string, number[]>;
   rhr: Map<string, number[]>;
-  sleep: Map<string, { deep: number; light: number; rem: number; awake: number }>;
+  sleepRecords: SleepRecord[];
 }
 
 const HK_TYPES = {
@@ -47,8 +79,20 @@ function getDateString(date: Date): string {
   return date.toISOString().split("T")[0];
 }
 
-function durationMinutes(startDate: Date, endDate: Date): number {
-  return (endDate.getTime() - startDate.getTime()) / 1000 / 60;
+function getSleepStage(value: string): SleepStage {
+  switch (value) {
+    case SLEEP_VALUES.DEEP:
+      return "deep";
+    case SLEEP_VALUES.CORE:
+    case SLEEP_VALUES.UNSPECIFIED:
+      return "light";
+    case SLEEP_VALUES.REM:
+      return "rem";
+    case SLEEP_VALUES.AWAKE:
+      return "awake";
+    default:
+      return null;
+  }
 }
 
 export async function parseAppleHealthExport(xmlPath: string): Promise<AppleHealthData> {
@@ -60,7 +104,7 @@ export async function parseAppleHealthExport(xmlPath: string): Promise<AppleHeal
     basalEnergy: new Map(),
     hrv: new Map(),
     rhr: new Map(),
-    sleep: new Map(),
+    sleepRecords: [],
   };
 
   let recordCount = 0;
@@ -76,6 +120,7 @@ export async function parseAppleHealthExport(xmlPath: string): Promise<AppleHeal
       const startDateStr = node.attributes.startDate as string;
       const endDateStr = node.attributes.endDate as string;
       const unit = node.attributes.unit as string;
+      const sourceName = node.attributes.sourceName as string;
 
       if (!type || !startDateStr) return;
 
@@ -156,33 +201,22 @@ export async function parseAppleHealthExport(xmlPath: string): Promise<AppleHeal
         }
 
         case HK_TYPES.SLEEP: {
-          const sleepValue = value;
-          const minutes = durationMinutes(startDate, endDate);
+          const stage = getSleepStage(value);
+          if (stage === null) break; // Skip embed and unknown
 
-          if (minutes <= 0 || minutes > 24 * 60) break;
-          if (sleepValue === SLEEP_VALUES.IN_BED) break;
+          const startMinutes = Math.floor(startDate.getTime() / 60000);
+          const endMinutes = Math.floor(endDate.getTime() / 60000);
+          const duration = endMinutes - startMinutes;
 
-          if (!data.sleep.has(dateKey)) {
-            data.sleep.set(dateKey, { deep: 0, light: 0, rem: 0, awake: 0 });
-          }
+          if (duration <= 0 || duration > 24 * 60) break;
 
-          const sleepDay = data.sleep.get(dateKey)!;
-
-          switch (sleepValue) {
-            case SLEEP_VALUES.DEEP:
-              sleepDay.deep += minutes;
-              break;
-            case SLEEP_VALUES.CORE:
-            case SLEEP_VALUES.UNSPECIFIED:
-              sleepDay.light += minutes;
-              break;
-            case SLEEP_VALUES.REM:
-              sleepDay.rem += minutes;
-              break;
-            case SLEEP_VALUES.AWAKE:
-              sleepDay.awake += minutes;
-              break;
-          }
+          data.sleepRecords.push({
+            startTime: startMinutes,
+            endTime: endMinutes,
+            stage,
+            source: sourceName || "Unknown",
+            priority: getSourcePriority(sourceName || ""),
+          });
           break;
         }
       }
@@ -194,6 +228,7 @@ export async function parseAppleHealthExport(xmlPath: string): Promise<AppleHeal
 
     parser.on("end", () => {
       console.log(`  Total records parsed: ${recordCount.toLocaleString()}`);
+      console.log(`  Sleep records: ${data.sleepRecords.length.toLocaleString()}`);
       resolve(data);
     });
 
@@ -205,6 +240,61 @@ export async function parseAppleHealthExport(xmlPath: string): Promise<AppleHeal
       stream.pipe(parser);
     }
   });
+}
+
+// Group sleep records into nights and deduplicate by timeline
+function aggregateSleepData(
+  sleepRecords: SleepRecord[]
+): Map<string, { deep: number; light: number; rem: number; awake: number }> {
+  if (sleepRecords.length === 0) return new Map();
+
+  // Sort by start time
+  const sorted = [...sleepRecords].sort((a, b) => a.startTime - b.startTime);
+
+  // Create a timeline map: minute -> { stage, priority }
+  const timeline = new Map<number, { stage: SleepStage; priority: number }>();
+
+  for (const record of sorted) {
+    for (let minute = record.startTime; minute < record.endTime; minute++) {
+      const existing = timeline.get(minute);
+      // Only update if this source has higher priority
+      if (!existing || record.priority > existing.priority) {
+        timeline.set(minute, { stage: record.stage, priority: record.priority });
+      }
+    }
+  }
+
+  // Group timeline by wake-up date (date when sleep ends)
+  // Sleep that ends between 00:00 and 18:00 belongs to that date
+  // Sleep that ends between 18:00 and 24:00 belongs to next date
+  const byDate = new Map<string, { deep: number; light: number; rem: number; awake: number }>();
+
+  for (const [minute, { stage }] of timeline) {
+    if (stage === null) continue;
+
+    const date = new Date(minute * 60000);
+    const hour = date.getHours();
+
+    // Determine which date this sleep belongs to
+    let sleepDate: string;
+    if (hour >= 18) {
+      // Evening sleep - belongs to next day
+      const nextDay = new Date(date);
+      nextDay.setDate(nextDay.getDate() + 1);
+      sleepDate = getDateString(nextDay);
+    } else {
+      sleepDate = getDateString(date);
+    }
+
+    if (!byDate.has(sleepDate)) {
+      byDate.set(sleepDate, { deep: 0, light: 0, rem: 0, awake: 0 });
+    }
+
+    const day = byDate.get(sleepDate)!;
+    day[stage]++;
+  }
+
+  return byDate;
 }
 
 export function aggregateAppleHealthData(data: AppleHealthData): {
@@ -258,7 +348,10 @@ export function aggregateAppleHealthData(data: AppleHealthData): {
     }
   }
 
-  for (const [date, sleepData] of data.sleep) {
+  // Aggregate sleep with deduplication
+  const aggregatedSleep = aggregateSleepData(data.sleepRecords);
+
+  for (const [date, sleepData] of aggregatedSleep) {
     const total = sleepData.deep + sleepData.light + sleepData.rem;
     if (total < 30) continue;
 

@@ -21,6 +21,7 @@ export interface HealthData {
   heart_rate: HeartRateData[];
   stress: StressData[];
   steps: StepsData[];
+  energy: EnergyData[];
   workouts: WorkoutData[];
   whoop_recovery: WhoopRecoveryData[];
   whoop_sleep: WhoopSleepData[];
@@ -83,6 +84,12 @@ export interface StepsData {
   total_steps: number | null;
   total_distance: number | null;
   step_goal: number | null;
+}
+
+export interface EnergyData {
+  date: string;
+  active_energy: number | null;
+  basal_energy: number | null;
 }
 
 export interface WorkoutData {

@@ -71,7 +71,10 @@ export const WeightChart = memo(function WeightChart({
 
       const baselineData = calculateBaseline(normalizedData, 14, "weight_kg");
 
-      const dataForEMA = smoothedData as unknown as Record<string, unknown>[];
+      const dataForEMA = smoothedData as unknown as ({ date: string } & Record<
+        string,
+        unknown
+      >)[];
       const ema7 = calculateEMA(dataForEMA, 7, "rawWeight");
       const ema21 = calculateEMA(dataForEMA, 21, "rawWeight");
       const ema60 = calculateEMA(dataForEMA, 60, "rawWeight");
