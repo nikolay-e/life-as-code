@@ -66,15 +66,15 @@ export async function parseAppleHealthExport(xmlPath: string): Promise<AppleHeal
   let recordCount = 0;
 
   return new Promise((resolve, reject) => {
-    const parser = sax.createStream(true, { lowercase: true });
+    const parser = sax.createStream(true, {});
 
     parser.on("opentag", (node) => {
-      if (node.name !== "record") return;
+      if (node.name !== "Record") return;
 
       const type = node.attributes.type as string;
       const value = node.attributes.value as string;
-      const startDateStr = node.attributes.startdate as string;
-      const endDateStr = node.attributes.enddate as string;
+      const startDateStr = node.attributes.startDate as string;
+      const endDateStr = node.attributes.endDate as string;
       const unit = node.attributes.unit as string;
 
       if (!type || !startDateStr) return;
