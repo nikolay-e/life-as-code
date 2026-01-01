@@ -1,7 +1,7 @@
 import { memo, useMemo } from "react";
 import {
   ComposedChart,
-  Scatter,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -108,22 +108,30 @@ export const MultiProviderLineChart = memo(function MultiProviderLineChart({
           contentStyle={chartTooltipStyle}
         />
 
-        {/* Data points as scatter */}
-        <Scatter
-          dataKey="garminValue"
-          fill={config.garminColor}
-          name="garminValue"
-          r={2}
-        />
-        <Scatter
-          dataKey="whoopValue"
-          fill={config.whoopColor}
-          name="whoopValue"
-          r={2}
-        />
-
-        {/* Trend lines */}
+        {/* Trend lines first (rendered below) */}
         {renderTrendLines(showTrends, "weight")}
+
+        {/* Data points on top */}
+        <Line
+          type="linear"
+          dataKey="garminValue"
+          stroke="transparent"
+          strokeWidth={0}
+          dot={{ fill: config.garminColor, r: 2, strokeWidth: 0 }}
+          activeDot={{ fill: config.garminColor, r: 4, strokeWidth: 0 }}
+          name="garminValue"
+          isAnimationActive={false}
+        />
+        <Line
+          type="linear"
+          dataKey="whoopValue"
+          stroke="transparent"
+          strokeWidth={0}
+          dot={{ fill: config.whoopColor, r: 2, strokeWidth: 0 }}
+          activeDot={{ fill: config.whoopColor, r: 4, strokeWidth: 0 }}
+          name="whoopValue"
+          isAnimationActive={false}
+        />
 
         {baselineValue !== null && baselineValue !== undefined && (
           <ReferenceLine

@@ -1,7 +1,7 @@
 import { memo } from "react";
 import {
   ComposedChart,
-  Scatter,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -88,11 +88,20 @@ export const TrendLineChart = memo(function TrendLineChart({
           contentStyle={chartTooltipStyle}
         />
 
-        {/* Data points as scatter */}
-        <Scatter dataKey="value" fill={config.color} name="value" r={2} />
-
-        {/* Trend lines */}
+        {/* Trend lines first (rendered below) */}
         {renderTrendLines(showTrends)}
+
+        {/* Data points on top */}
+        <Line
+          type="linear"
+          dataKey="value"
+          stroke="transparent"
+          strokeWidth={0}
+          dot={{ fill: config.color, r: 2, strokeWidth: 0 }}
+          activeDot={{ fill: config.color, r: 4, strokeWidth: 0 }}
+          name="value"
+          isAnimationActive={false}
+        />
 
         {showBaseline && baseline && (
           <>
