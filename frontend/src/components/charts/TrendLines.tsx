@@ -30,14 +30,14 @@ export function renderTrendLines(
   return configs.map((config) => (
     <Line
       key={config.dataKey}
-      type="monotone"
+      type="natural"
       dataKey={config.dataKey}
       stroke="hsl(var(--foreground))"
       strokeWidth={config.strokeWidth}
       strokeDasharray={config.strokeDasharray}
       dot={false}
       name={config.dataKey}
-      connectNulls
+      connectNulls={false}
     />
   ));
 }
