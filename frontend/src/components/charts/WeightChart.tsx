@@ -152,10 +152,7 @@ export const WeightChart = memo(function WeightChart({
           </>
         )}
 
-        {/* Trend lines first (rendered below) */}
-        {renderTrendLines(showTrends, "weight")}
-
-        {/* Data points on top */}
+        {/* Data points first (rendered below) */}
         <Line
           type="linear"
           dataKey="rawWeight"
@@ -166,6 +163,9 @@ export const WeightChart = memo(function WeightChart({
           name="rawWeight"
           isAnimationActive={false}
         />
+
+        {/* Trend lines on top */}
+        {renderTrendLines(showTrends, "weight")}
 
         {showTrends && (
           <Legend

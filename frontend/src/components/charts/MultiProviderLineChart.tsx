@@ -108,10 +108,7 @@ export const MultiProviderLineChart = memo(function MultiProviderLineChart({
           contentStyle={chartTooltipStyle}
         />
 
-        {/* Trend lines first (rendered below) */}
-        {renderTrendLines(showTrends, "weight")}
-
-        {/* Data points on top */}
+        {/* Data points first (rendered below) */}
         <Line
           type="linear"
           dataKey="garminValue"
@@ -132,6 +129,9 @@ export const MultiProviderLineChart = memo(function MultiProviderLineChart({
           name="whoopValue"
           isAnimationActive={false}
         />
+
+        {/* Trend lines on top */}
+        {renderTrendLines(showTrends, "weight")}
 
         {baselineValue !== null && baselineValue !== undefined && (
           <ReferenceLine

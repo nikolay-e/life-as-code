@@ -69,10 +69,7 @@ export const StressChart = memo(function StressChart({
           contentStyle={chartTooltipStyle}
         />
 
-        {/* Trend lines first (rendered below) */}
-        {renderTrendLines(showTrends)}
-
-        {/* Data points on top */}
+        {/* Data points first (rendered below) */}
         <Line
           type="linear"
           dataKey="value"
@@ -83,6 +80,9 @@ export const StressChart = memo(function StressChart({
           name="value"
           isAnimationActive={false}
         />
+
+        {/* Trend lines on top */}
+        {renderTrendLines(showTrends)}
 
         {showTrends && (
           <Legend

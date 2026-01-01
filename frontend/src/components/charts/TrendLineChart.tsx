@@ -88,10 +88,7 @@ export const TrendLineChart = memo(function TrendLineChart({
           contentStyle={chartTooltipStyle}
         />
 
-        {/* Trend lines first (rendered below) */}
-        {renderTrendLines(showTrends)}
-
-        {/* Data points on top */}
+        {/* Data points first (rendered below) */}
         <Line
           type="linear"
           dataKey="value"
@@ -102,6 +99,9 @@ export const TrendLineChart = memo(function TrendLineChart({
           name="value"
           isAnimationActive={false}
         />
+
+        {/* Trend lines on top */}
+        {renderTrendLines(showTrends)}
 
         {showBaseline && baseline && (
           <>
