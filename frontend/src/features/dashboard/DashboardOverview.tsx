@@ -328,46 +328,48 @@ export function DashboardOverview() {
         </ChartCard>
       </div>
 
-      <ChartCard
-        title="Daily Steps"
-        icon={Footprints}
-        iconColorClass="text-steps"
-        iconBgClass="bg-steps-muted"
-      >
-        <StepsChart data={data?.steps ?? []} showTrends />
-      </ChartCard>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <ChartCard
+          title="Daily Steps"
+          icon={Footprints}
+          iconColorClass="text-steps"
+          iconBgClass="bg-steps-muted"
+        >
+          <StepsChart data={data?.steps ?? []} showTrends />
+        </ChartCard>
 
-      <ChartCard
-        title="Whoop Recovery"
-        icon={Heart}
-        iconColorClass="text-whoop"
-        iconBgClass="bg-whoop-muted"
-      >
-        <WhoopRecoveryChart data={data?.whoop_recovery ?? []} showTrends />
-      </ChartCard>
+        <ChartCard
+          title="Whoop Recovery"
+          icon={Heart}
+          iconColorClass="text-whoop"
+          iconBgClass="bg-whoop-muted"
+        >
+          <WhoopRecoveryChart data={data?.whoop_recovery ?? []} showTrends />
+        </ChartCard>
 
-      <ChartCard
-        title="Stress Levels"
-        icon={Brain}
-        iconColorClass="text-stress"
-        iconBgClass="bg-stress-muted"
-      >
-        <StressChart data={data?.stress ?? []} showTrends />
-      </ChartCard>
+        <ChartCard
+          title="Stress Levels"
+          icon={Brain}
+          iconColorClass="text-stress"
+          iconBgClass="bg-stress-muted"
+        >
+          <StressChart data={data?.stress ?? []} showTrends />
+        </ChartCard>
 
-      <ChartCard
-        title="Daily Calories"
-        icon={Flame}
-        iconColorClass="text-calories"
-        iconBgClass="bg-calories-muted"
-      >
-        <CaloriesChart
-          garminData={data?.garmin_training_status ?? []}
-          whoopData={data?.whoop_cycle ?? []}
-          energyData={data?.energy ?? []}
-          showTrends
-        />
-      </ChartCard>
+        <ChartCard
+          title="Daily Calories"
+          icon={Flame}
+          iconColorClass="text-calories"
+          iconBgClass="bg-calories-muted"
+        >
+          <CaloriesChart
+            garminData={data?.garmin_training_status ?? []}
+            whoopData={data?.whoop_cycle ?? []}
+            energyData={data?.energy ?? []}
+            showTrends
+          />
+        </ChartCard>
+      </div>
     </div>
   );
 }
