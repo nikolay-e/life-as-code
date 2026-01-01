@@ -113,13 +113,13 @@ export const MultiProviderLineChart = memo(function MultiProviderLineChart({
           dataKey="garminValue"
           fill={config.garminColor}
           name="garminValue"
-          r={4}
+          r={2}
         />
         <Scatter
           dataKey="whoopValue"
           fill={config.whoopColor}
           name="whoopValue"
-          r={4}
+          r={2}
         />
 
         {/* Trend lines */}

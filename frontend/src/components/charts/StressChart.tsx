@@ -70,7 +70,7 @@ export const StressChart = memo(function StressChart({
         />
 
         {/* Data points as scatter */}
-        <Scatter dataKey="value" fill={config.color} name="value" r={4} />
+        <Scatter dataKey="value" fill={config.color} name="value" r={2} />
 
         {/* Trend lines */}
         {renderTrendLines(showTrends)}

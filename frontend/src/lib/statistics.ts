@@ -8,6 +8,8 @@ export function calculateEMA<T extends Record<string, unknown>>(
 ): (T & { ema: number | null })[] {
   const k = 2 / (period + 1);
   let ema: number | null = null;
+  let validCount = 0;
+  const warmupPeriod = Math.floor(period / 2);
 
   return data.map((point) => {
     const value = point[valueKey] as number | null;
@@ -15,10 +17,16 @@ export function calculateEMA<T extends Record<string, unknown>>(
       return { ...point, ema: null };
     }
 
+    validCount++;
+
     if (ema === null) {
       ema = value;
     } else {
       ema = value * k + ema * (1 - k);
+    }
+
+    if (validCount < warmupPeriod) {
+      return { ...point, ema: null };
     }
 
     return { ...point, ema };

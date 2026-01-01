@@ -143,6 +143,15 @@
   --whoop-strain: 15 90% 55%;
   --whoop-strain-foreground: 0 0% 100%;
   --whoop-strain-muted: 15 90% 94%;
+  --garmin: 200 100% 45%;
+  --garmin-foreground: 0 0% 100%;
+  --garmin-muted: 200 100% 94%;
+  --google-fit: 145 65% 42%;
+  --google-fit-foreground: 0 0% 100%;
+  --google-fit-muted: 145 65% 94%;
+  --apple-health: 340 80% 55%;
+  --apple-health-foreground: 0 0% 100%;
+  --apple-health-muted: 340 80% 94%;
 
   /* New Garmin metrics */
   --vo2max: 210 100% 50%;
@@ -233,6 +242,15 @@
   --whoop-strain: 15 90% 60%;
   --whoop-strain-foreground: 224 71% 4%;
   --whoop-strain-muted: 15 50% 15%;
+  --garmin: 200 100% 55%;
+  --garmin-foreground: 224 71% 4%;
+  --garmin-muted: 200 50% 15%;
+  --google-fit: 145 65% 52%;
+  --google-fit-foreground: 224 71% 4%;
+  --google-fit-muted: 145 50% 15%;
+  --apple-health: 340 80% 65%;
+  --apple-health-foreground: 224 71% 4%;
+  --apple-health-muted: 340 50% 15%;
 
   /* New Garmin metrics - darker shades */
   --vo2max: 210 100% 60%;

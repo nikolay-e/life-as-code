@@ -157,7 +157,7 @@ export const WeightChart = memo(function WeightChart({
           dataKey="rawWeight"
           fill={config.color}
           name="rawWeight"
-          r={4}
+          r={2}
         />
 
         {/* Trend lines */}

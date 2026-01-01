@@ -12,21 +12,28 @@ export const chartTooltipStyle: CSSProperties = {
     "0 4px 12px -2px rgb(0 0 0 / 0.08), 0 2px 6px -2px rgb(0 0 0 / 0.04)",
 };
 
+export const SOURCE_COLORS = {
+  garmin: "hsl(var(--garmin))",
+  whoop: "hsl(var(--whoop))",
+  googleFit: "hsl(var(--google-fit))",
+  appleHealth: "hsl(var(--apple-health))",
+} as const;
+
 export const MULTI_PROVIDER_CONFIGS = {
   hrv: {
-    garminColor: "hsl(var(--hrv))",
-    whoopColor: "hsl(var(--whoop))",
+    garminColor: SOURCE_COLORS.garmin,
+    whoopColor: SOURCE_COLORS.whoop,
   },
   sleep: {
-    garminColor: "hsl(var(--sleep))",
-    whoopColor: "hsl(var(--whoop))",
+    garminColor: SOURCE_COLORS.garmin,
+    whoopColor: SOURCE_COLORS.whoop,
   },
   restingHr: {
-    garminColor: "hsl(var(--heart))",
-    whoopColor: "hsl(var(--whoop))",
+    garminColor: SOURCE_COLORS.garmin,
+    whoopColor: SOURCE_COLORS.whoop,
   },
   calories: {
-    garminColor: "hsl(var(--calories))",
-    whoopColor: "hsl(var(--whoop-strain))",
+    garminColor: SOURCE_COLORS.garmin,
+    whoopColor: SOURCE_COLORS.whoop,
   },
 } as const;
