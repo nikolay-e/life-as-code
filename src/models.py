@@ -581,7 +581,7 @@ class DataSync(Base):
             name="valid_sync_status",
         ),
         CheckConstraint(
-            f"source IN ('{DataSource.GARMIN.value}', '{DataSource.HEVY.value}', '{DataSource.WHOOP.value}', '{DataSource.GOOGLE.value}')",
+            f"source IN ('{DataSource.GARMIN.value}', '{DataSource.HEVY.value}', '{DataSource.WHOOP.value}', '{DataSource.GOOGLE.value}', '{DataSource.APPLE_HEALTH.value}')",
             name="valid_sync_source",
         ),
     )
@@ -622,7 +622,7 @@ class SyncProgress(Base):
     __table_args__ = (
         UniqueConstraint("user_id", "source", name="_user_sync_progress_source_uc"),
         CheckConstraint(
-            f"source IN ('{DataSource.GARMIN.value}', '{DataSource.HEVY.value}', '{DataSource.WHOOP.value}', '{DataSource.GOOGLE.value}')",
+            f"source IN ('{DataSource.GARMIN.value}', '{DataSource.HEVY.value}', '{DataSource.WHOOP.value}', '{DataSource.GOOGLE.value}', '{DataSource.APPLE_HEALTH.value}')",
             name="valid_sync_progress_source",
         ),
         CheckConstraint(

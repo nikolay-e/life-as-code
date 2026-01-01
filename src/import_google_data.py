@@ -8,7 +8,7 @@ from typing import Any
 from database import get_db_session_context
 from enums import DataSource, DataType, SyncStatus
 from logging_config import get_logger
-from models import DataSync, HeartRate, Sleep, User, Weight
+from models import DataSync, Energy, HeartRate, Sleep, User, Weight
 
 logger = get_logger(__name__)
 
@@ -28,6 +28,7 @@ class ImportStats:
         self.spo2_imported: int = 0
         self.respiratory_rate_imported: int = 0
         self.body_fat_imported: int = 0
+        self.calories_imported: int = 0
         self.errors: list[str] = []
 
     def to_dict(self) -> dict[str, int | list[str]]:
@@ -38,6 +39,7 @@ class ImportStats:
             "spo2_imported": self.spo2_imported,
             "respiratory_rate_imported": self.respiratory_rate_imported,
             "body_fat_imported": self.body_fat_imported,
+            "calories_imported": self.calories_imported,
             "errors": self.errors,
         }
 
@@ -279,6 +281,63 @@ def extract_body_fat_data(all_data_dirs: list[Path]) -> dict[datetime.date, floa
     return result
 
 
+def extract_calories_data(
+    all_data_dirs: list[Path],
+    min_total_calories: float = 2000.0,
+) -> dict[datetime.date, dict[str, float]]:
+    daily_active: dict[datetime.date, float] = defaultdict(float)
+    daily_bmr: dict[datetime.date, float] = defaultdict(float)
+
+    for data_dir in all_data_dirs:
+        for json_file in data_dir.glob("*calories.expended*.json"):
+            data = load_json_file(json_file)
+            if not data:
+                continue
+
+            for point in data.get("Data Points", []):
+                fit_values = point.get("fitValue", [])
+                if not fit_values:
+                    continue
+
+                value_obj = fit_values[0].get("value", {})
+                cal_value = value_obj.get("fpVal")
+                if cal_value is None or cal_value < 0 or cal_value > 50000:
+                    continue
+
+                end_nanos = point.get("endTimeNanos")
+                if not end_nanos:
+                    continue
+
+                date = nanos_to_date(end_nanos)
+                origin = point.get("originDataSourceId", "")
+
+                if "from_activities" in origin:
+                    daily_active[date] += cal_value
+                elif "from_bmr" in origin:
+                    daily_bmr[date] += cal_value
+
+    result: dict[datetime.date, dict[str, float]] = {}
+    all_dates = set(daily_active.keys()) | set(daily_bmr.keys())
+    skipped = 0
+    for date in all_dates:
+        active = daily_active.get(date, 0.0)
+        basal = daily_bmr.get(date, 0.0)
+        total = active + basal
+        if total >= min_total_calories:
+            result[date] = {
+                "active_energy": active,
+                "basal_energy": basal,
+            }
+        else:
+            skipped += 1
+
+    logger.info(
+        f"Extracted calories for {len(result)} days "
+        f"(skipped {skipped} incomplete days with total < {min_total_calories} kcal)"
+    )
+    return result
+
+
 def import_google_fit_json(
     user_id: int,
     base_path: Path = GOOGLE_DATA_BASE,
@@ -303,8 +362,11 @@ def import_google_fit_json(
     spo2_data = extract_spo2_data(all_data_dirs)
     rr_data = extract_respiratory_rate_data(all_data_dirs)
     bf_data = extract_body_fat_data(all_data_dirs)
+    calories_data = extract_calories_data(all_data_dirs)
 
-    stats.files_processed = len(rhr_data) + len(sleep_data) + len(bf_data)
+    stats.files_processed = (
+        len(rhr_data) + len(sleep_data) + len(bf_data) + len(calories_data)
+    )
 
     with get_db_session_context() as session:
         user = session.query(User).filter_by(id=user_id).first()
@@ -422,10 +484,56 @@ def import_google_fit_json(
                 session.add(weight_record)
                 stats.body_fat_imported += 1
 
+        for date, cal_values in calories_data.items():
+            if start_date and date < start_date:
+                continue
+            if end_date and date > end_date:
+                continue
+
+            if dry_run:
+                total = cal_values["active_energy"] + cal_values["basal_energy"]
+                logger.debug(
+                    f"[DRY RUN] Would import calories for {date}: "
+                    f"active={cal_values['active_energy']:.0f}, "
+                    f"basal={cal_values['basal_energy']:.0f}, "
+                    f"total={total:.0f}"
+                )
+                continue
+
+            existing_energy = (
+                session.query(Energy).filter_by(user_id=user_id, date=date).first()
+            )
+            if existing_energy:
+                if (
+                    existing_energy.active_energy is None
+                    or existing_energy.active_energy == 0
+                ):
+                    existing_energy.active_energy = cal_values["active_energy"]
+                if (
+                    existing_energy.basal_energy is None
+                    or existing_energy.basal_energy == 0
+                ):
+                    existing_energy.basal_energy = cal_values["basal_energy"]
+                stats.calories_imported += 1
+            else:
+                energy_record = Energy(
+                    user_id=user_id,
+                    date=date,
+                    active_energy=cal_values["active_energy"],
+                    basal_energy=cal_values["basal_energy"],
+                )
+                session.add(energy_record)
+                stats.calories_imported += 1
+
         if not dry_run:
             session.commit()
 
-            for data_type in [DataType.SLEEP, DataType.HEART_RATE, DataType.WEIGHT]:
+            for data_type in [
+                DataType.SLEEP,
+                DataType.HEART_RATE,
+                DataType.WEIGHT,
+                DataType.ENERGY,
+            ]:
                 sync_record = (
                     session.query(DataSync)
                     .filter_by(
@@ -439,6 +547,7 @@ def import_google_fit_json(
                     DataType.SLEEP: stats.sleep_imported,
                     DataType.HEART_RATE: stats.rhr_imported,
                     DataType.WEIGHT: stats.body_fat_imported,
+                    DataType.ENERGY: stats.calories_imported,
                 }.get(data_type, 0)
 
                 if sync_record:
@@ -517,6 +626,7 @@ def main():
     print(f"SpO2 records imported: {stats['spo2_imported']}")
     print(f"Respiratory rate records imported: {stats['respiratory_rate_imported']}")
     print(f"Body fat records imported: {stats['body_fat_imported']}")
+    print(f"Calories records imported: {stats['calories_imported']}")
     if stats["errors"]:
         print(f"Errors: {len(stats['errors'])}")
         for err in stats["errors"][:10]:
