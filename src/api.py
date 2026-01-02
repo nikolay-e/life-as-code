@@ -8,7 +8,6 @@ from flask import Blueprint, jsonify, request
 from flask_login import current_user, login_required, login_user, logout_user
 from sqlalchemy import select
 
-from config import APP_VERSION, BUILD_DATE, VCS_REF, get_commit_short
 from data_loaders import get_workout_volume_data, load_data_for_user
 from database import get_db_session_context
 from enums import DataSource, SyncStatus
@@ -23,6 +22,7 @@ from logging_config import get_logger
 from models import DataSync, User, UserCredentials, UserSettings
 from routes import UserModel
 from security import verify_password
+from settings import get_settings
 from sync_manager import is_sync_in_progress
 
 api = Blueprint("api", __name__, url_prefix="/api")
@@ -44,12 +44,13 @@ def handle_api_error(error: APIError):
 
 @api.route("/version")
 def get_version():
+    s = get_settings()
     return jsonify(
         {
-            "version": APP_VERSION,
-            "buildDate": BUILD_DATE,
-            "commit": get_commit_short(),
-            "commitFull": VCS_REF,
+            "version": s.app_version,
+            "buildDate": s.build_date,
+            "commit": s.commit_short,
+            "commitFull": s.vcs_ref,
         }
     )
 

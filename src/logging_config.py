@@ -121,11 +121,12 @@ def add_request_id(
 def add_app_context(
     _logger: WrappedLogger, _method_name: str, event_dict: MutableMapping[str, Any]
 ) -> MutableMapping[str, Any]:
-    from config import APP_VERSION, get_commit_short
+    from settings import get_settings_safe
 
+    s = get_settings_safe()
     event_dict["service"] = APP_NAME
-    event_dict["version"] = APP_VERSION
-    event_dict["commit"] = get_commit_short()
+    event_dict["version"] = s.app_version if s else "unknown"
+    event_dict["commit"] = s.commit_short if s else "unknown"
     event_dict["environment"] = os.getenv("FLASK_ENV", "development")
     event_dict["hostname"] = HOSTNAME
     return event_dict

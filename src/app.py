@@ -11,7 +11,6 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from api import api
 from callbacks import register_callbacks
-from config import APP_VERSION, BUILD_DATE, get_commit_short
 from database import SessionLocal, check_db_connection, init_db
 from errors import APIError
 from layouts import get_authenticated_layout
@@ -20,13 +19,15 @@ from logging_config import configure_logging, get_logger, init_request_logging
 from migrations_init import init_migrate
 from models import User
 from routes import UserModel, register_routes
+from settings import get_settings
 
 configure_logging()
 logger = get_logger(__name__)
 
-logger.info(f"Life-as-Code Backend v{APP_VERSION}")
-logger.info(f"Built: {BUILD_DATE}")
-logger.info(f"Commit: {get_commit_short()}")
+_settings = get_settings()
+logger.info(f"Life-as-Code Backend v{_settings.app_version}")
+logger.info(f"Built: {_settings.build_date}")
+logger.info(f"Commit: {_settings.commit_short}")
 
 
 def _validate_required_env_vars():
@@ -165,14 +166,18 @@ def health():
 
         return {
             "status": "healthy",
-            "version": APP_VERSION,
-            "build_date": BUILD_DATE,
-            "commit": get_commit_short(),
+            "version": _settings.app_version,
+            "build_date": _settings.build_date,
+            "commit": _settings.commit_short,
             "database": "connected",
         }, 200
     except Exception as e:
         logger.error(f"Health check failed: {e}")
-        return {"status": "unhealthy", "version": APP_VERSION, "error": str(e)}, 503
+        return {
+            "status": "unhealthy",
+            "version": _settings.app_version,
+            "error": str(e),
+        }, 503
 
 
 # Initialize request logging with correlation IDs
