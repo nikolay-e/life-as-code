@@ -20,18 +20,6 @@ else:
 echo "🔐 Bootstrapping default admin user..."
 python src/bootstrap_admin.py
 
-echo "📊 Getting data status..."
-python -c "
-from src.database import get_table_counts
-try:
-    counts = get_table_counts()
-    for table, count in counts.items():
-        if table != 'data_sync':
-            print(f'  📈 {table}: {count} records')
-except:
-    print('  📊 Data status check failed')
-"
-
 echo
 echo "🚀 Starting unified web portal on http://0.0.0.0:8080"
 echo "💡 Access the dashboard in your browser at http://localhost:8080"
