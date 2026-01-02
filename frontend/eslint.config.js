@@ -35,7 +35,7 @@ export default tseslint.config(
         ...globals.es2024,
       },
       parserOptions: {
-        project: "./tsconfig.json",
+        project: "./tsconfig.app.json",
         tsconfigRootDir: import.meta.dirname,
         ecmaFeatures: {
           jsx: true,

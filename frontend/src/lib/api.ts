@@ -20,6 +20,19 @@ class ApiError extends Error {
   }
 }
 
+function normalizeHeaders(
+  headers: HeadersInit | undefined,
+): Record<string, string> {
+  if (!headers) return {};
+  if (headers instanceof Headers) {
+    return Object.fromEntries(headers.entries());
+  }
+  if (Array.isArray(headers)) {
+    return Object.fromEntries(headers);
+  }
+  return headers;
+}
+
 async function request<T>(
   endpoint: string,
   options: RequestInit = {},
@@ -29,7 +42,7 @@ async function request<T>(
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
-      ...options.headers,
+      ...normalizeHeaders(options.headers),
     },
   });
 
@@ -85,17 +98,17 @@ export const api = {
     getStatus: (): Promise<SyncStatus[]> => request("/sync/status"),
 
     garmin: (days?: number): Promise<{ message: string }> =>
-      request(`/sync/garmin${days ? `?days=${days}` : "?full=true"}`, {
+      request(`/sync/garmin${days ? `?days=${String(days)}` : "?full=true"}`, {
         method: "POST",
       }),
 
     hevy: (days?: number): Promise<{ message: string }> =>
-      request(`/sync/hevy${days ? `?days=${days}` : "?full=true"}`, {
+      request(`/sync/hevy${days ? `?days=${String(days)}` : "?full=true"}`, {
         method: "POST",
       }),
 
     whoop: (days?: number): Promise<{ message: string }> =>
-      request(`/sync/whoop${days ? `?days=${days}` : "?full=true"}`, {
+      request(`/sync/whoop${days ? `?days=${String(days)}` : "?full=true"}`, {
         method: "POST",
       }),
   },

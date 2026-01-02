@@ -91,9 +91,6 @@ class User(Base):
     sync_progress = relationship(
         "SyncProgress", back_populates="user", cascade="all, delete-orphan"
     )
-    body_battery_data = relationship(
-        "BodyBattery", back_populates="user", cascade="all, delete-orphan"
-    )
     whoop_recoveries = relationship(
         "WhoopRecovery", back_populates="user", cascade="all, delete-orphan"
     )
@@ -696,50 +693,6 @@ class SyncProgress(Base):
         attr_name = completion_map.get(normalized)
         if attr_name:
             setattr(self, attr_name, completed_date)
-
-
-class BodyBattery(Base):
-    __tablename__ = "body_battery"
-
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    date = Column(Date, nullable=False, index=True)
-    charged = Column(Integer)
-    drained = Column(Integer)
-    highest = Column(Integer)
-    lowest = Column(Integer)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
-
-    user = relationship("User", back_populates="body_battery_data")
-
-    __table_args__ = (
-        UniqueConstraint("user_id", "date", name="_user_body_battery_date_uc"),
-        Index(
-            "idx_body_battery_user_date",
-            "user_id",
-            "date",
-            postgresql_ops={"date": "DESC"},
-        ),
-        CheckConstraint(
-            "(charged >= 0 AND charged <= 100) OR charged IS NULL",
-            name="valid_battery_charged",
-        ),
-        CheckConstraint(
-            "(drained >= 0 AND drained <= 100) OR drained IS NULL",
-            name="valid_battery_drained",
-        ),
-        CheckConstraint(
-            "(highest >= 0 AND highest <= 100) OR highest IS NULL",
-            name="valid_battery_highest",
-        ),
-        CheckConstraint(
-            "(lowest >= 0 AND lowest <= 100) OR lowest IS NULL",
-            name="valid_battery_lowest",
-        ),
-    )
-
-    def __repr__(self):
-        return f"<BodyBattery(user_id={self.user_id}, date={self.date}, highest={self.highest}, lowest={self.lowest})>"
 
 
 class WhoopRecovery(Base):

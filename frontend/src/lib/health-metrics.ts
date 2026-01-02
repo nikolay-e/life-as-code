@@ -72,9 +72,7 @@ export function calculateDataQuality(
 
   const daily = toDailySeriesForMetric(data, metricName);
   const dataInWindow = filterDataByWindow(daily, windowDays);
-  const validDataInWindow = dataInWindow.filter(
-    (d) => d.value !== null && d.value !== undefined,
-  );
+  const validDataInWindow = dataInWindow.filter((d) => d.value !== null);
   const datesWithData = new Set(
     validDataInWindow.map((d) => toLocalDayKey(d.date)),
   );
@@ -180,7 +178,7 @@ export function shouldUseTodayMetric(
     return {
       useToday: true,
       adjustedData: data,
-      reason: `Day ${Math.round(completeness * 100)}% complete`,
+      reason: `Day ${String(Math.round(completeness * 100))}% complete`,
     };
   }
 
@@ -189,7 +187,7 @@ export function shouldUseTodayMetric(
   return {
     useToday: false,
     adjustedData: filteredData,
-    reason: `Day ${Math.round(completeness * 100)}% complete - using yesterday for ${metricType}`,
+    reason: `Day ${String(Math.round(completeness * 100))}% complete - using yesterday for ${metricType}`,
   };
 }
 
@@ -388,7 +386,7 @@ export function calculateBaselineMetrics(
       if (options?.regressionUsesRealDays) {
         trendSlope = linearSlopePerDay(
           trendData,
-          options?.winsorizeTrend ? [5, 95] : undefined,
+          options.winsorizeTrend ? [5, 95] : undefined,
         );
       } else {
         // Legacy: index-based regression

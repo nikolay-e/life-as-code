@@ -5,8 +5,13 @@ from typing import Any
 
 from dotenv import load_dotenv
 from garminconnect import Garmin, GarminConnectAuthenticationError
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
-from database import get_db_session_context
 from enums import DataSource
 from garmin_schemas import (
     GarminHeartRateData,
@@ -19,8 +24,12 @@ from garmin_schemas import (
 )
 from logging_config import get_logger
 from models import HRV, GarminTrainingStatus, HeartRate, Sleep, Steps, Stress, Weight
-from security import decrypt_data_for_user
-from sync_manager import batch_sync_data, get_sync_statistics
+from sync_manager import (
+    ProviderCredentials,
+    batch_sync_data,
+    get_provider_credentials,
+    get_sync_date_range,
+)
 
 load_dotenv()
 
@@ -75,49 +84,29 @@ def init_api(email: str, password: str, user_id: int) -> Garmin:
 
 GARMIN_MAX_HISTORY_DAYS = 730  # ~2 years for health data
 GARMIN_API_RATE_LIMIT_DELAY = 0.5  # seconds between API calls to avoid rate limiting
+GARMIN_MAX_RETRIES = 3
 
 
 def sync_garmin_data_for_user(
     user_id: int, days: int = 90, full_sync: bool = False
 ) -> dict:
-    from sqlalchemy import select
-
-    from models import UserCredentials
-
-    try:
-        with get_db_session_context() as db:
-            creds = db.scalars(
-                select(UserCredentials).where(UserCredentials.user_id == user_id)
-            ).first()
-
-            if not creds or not creds.garmin_email:
-                return {"error": "No Garmin credentials found for user"}
-
-            garmin_email = creds.garmin_email
-            garmin_password = decrypt_data_for_user(
-                creds.encrypted_garmin_password, user_id
-            )
-    except Exception as e:
-        return {"error": f"Failed to get user credentials: {str(e)}"}
+    creds = get_provider_credentials(user_id, DataSource.GARMIN)
+    if isinstance(creds, dict):
+        return creds
+    assert isinstance(creds, ProviderCredentials)
 
     try:
-        api = init_api(garmin_email, garmin_password, user_id)
+        api = init_api(creds.garmin_email, creds.garmin_password, user_id)
+        date_range = get_sync_date_range(days, full_sync, GARMIN_MAX_HISTORY_DAYS)
 
-        end_date = datetime.date.today()
-        if full_sync:
-            start_date = end_date - datetime.timedelta(days=GARMIN_MAX_HISTORY_DAYS)
-        else:
-            start_date = end_date - datetime.timedelta(days=days)
-
-        sync_type = "full" if full_sync else f"{days}-day"
         logger.info(
-            f"Starting Garmin {sync_type} sync for user {user_id}",
-            start_date=start_date,
-            end_date=end_date,
+            f"Starting Garmin {date_range.sync_type} sync for user {user_id}",
+            start_date=date_range.start_date,
+            end_date=date_range.end_date,
             full_sync=full_sync,
         )
 
-        # Define sync configurations for all Garmin data types
+        dr = (date_range.start_date, date_range.end_date)
         sync_configs = [
             {
                 "data_type": "sleep",
@@ -126,7 +115,7 @@ def sync_garmin_data_for_user(
                 "model_class": Sleep,
                 "unique_fields": ["date"],
                 "source": "garmin",
-                "api_args": {"date_range": (start_date, end_date)},
+                "api_args": {"date_range": dr},
             },
             {
                 "data_type": "hrv",
@@ -135,7 +124,7 @@ def sync_garmin_data_for_user(
                 "model_class": HRV,
                 "unique_fields": ["date"],
                 "source": "garmin",
-                "api_args": {"date_range": (start_date, end_date)},
+                "api_args": {"date_range": dr},
             },
             {
                 "data_type": "stress",
@@ -144,7 +133,7 @@ def sync_garmin_data_for_user(
                 "model_class": Stress,
                 "unique_fields": ["date"],
                 "source": "garmin",
-                "api_args": {"date_range": (start_date, end_date)},
+                "api_args": {"date_range": dr},
             },
             {
                 "data_type": "steps",
@@ -153,7 +142,7 @@ def sync_garmin_data_for_user(
                 "model_class": Steps,
                 "unique_fields": ["date"],
                 "source": "garmin",
-                "api_args": {"date_range": (start_date, end_date)},
+                "api_args": {"date_range": dr},
             },
             {
                 "data_type": "weight",
@@ -162,7 +151,7 @@ def sync_garmin_data_for_user(
                 "model_class": Weight,
                 "unique_fields": ["date"],
                 "source": "garmin",
-                "api_args": {"date_range": (start_date, end_date)},
+                "api_args": {"date_range": dr},
             },
             {
                 "data_type": "heart_rate",
@@ -171,7 +160,7 @@ def sync_garmin_data_for_user(
                 "model_class": HeartRate,
                 "unique_fields": ["date"],
                 "source": "garmin",
-                "api_args": {"date_range": (start_date, end_date)},
+                "api_args": {"date_range": dr},
             },
             {
                 "data_type": "training_status",
@@ -180,23 +169,20 @@ def sync_garmin_data_for_user(
                 "model_class": GarminTrainingStatus,
                 "unique_fields": ["date"],
                 "source": "garmin",
-                "api_args": {"date_range": (start_date, end_date)},
+                "api_args": {"date_range": dr},
             },
         ]
 
-        # Create enhanced API wrapper for batch operations
-        enhanced_api = GarminAPIWrapper(api, start_date, end_date)
-
-        # Run batch sync
+        enhanced_api = GarminAPIWrapper(api, date_range.start_date, date_range.end_date)
         results = batch_sync_data(sync_configs, user_id, enhanced_api)
 
         summary = {
             "user_id": user_id,
             "sync_date": datetime.datetime.utcnow().isoformat(),
-            "sync_type": sync_type,
+            "sync_type": date_range.sync_type,
             "date_range": {
-                "start": start_date.isoformat(),
-                "end": end_date.isoformat(),
+                "start": date_range.start_date.isoformat(),
+                "end": date_range.end_date.isoformat(),
             },
             "results": [r.get_summary() for r in results],
             "total_records_processed": sum(r.records_processed for r in results),
@@ -229,21 +215,26 @@ class GarminAPIWrapper:
         data_type: str,
         fetcher: Callable[[str, datetime.date], dict | list[dict] | None],
     ) -> list[dict]:
-        """Generic daily data fetcher with rate limiting and error handling.
-
-        Args:
-            date_range: (start_date, end_date) tuple
-            data_type: Name for logging (e.g., "sleep", "hrv")
-            fetcher: Callable(date_str, current_date) -> dict | list | None
-        """
+        """Generic daily data fetcher with retry, rate limiting, and error handling."""
         results: list[dict] = []
         start_date, end_date = date_range
+
+        @retry(
+            stop=stop_after_attempt(GARMIN_MAX_RETRIES),
+            wait=wait_exponential(multiplier=1, min=2, max=30),
+            retry=retry_if_exception_type(Exception),
+            reraise=True,
+        )
+        def _fetch_with_retry(
+            date_str: str, current_date: datetime.date
+        ) -> dict | list[dict] | None:
+            return fetcher(date_str, current_date)
 
         current_date = start_date
         while current_date <= end_date:
             try:
                 date_str = current_date.strftime("%Y-%m-%d")
-                data = fetcher(date_str, current_date)
+                data = _fetch_with_retry(date_str, current_date)
                 if data:
                     if isinstance(data, list):
                         for x in data:
@@ -560,11 +551,6 @@ class GarminAPIWrapper:
             return None
 
         return self._fetch_daily(date_range, "training_status", fetch)
-
-
-def get_garmin_sync_status(user_id: int) -> dict[str, Any]:
-    """Get sync status for Garmin data."""
-    return get_sync_statistics(user_id, source=DataSource.GARMIN)  # type: ignore[no-any-return]
 
 
 if __name__ == "__main__":

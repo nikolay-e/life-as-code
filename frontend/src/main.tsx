@@ -16,7 +16,7 @@ const queryClient = new QueryClient({
   },
 });
 
-useAuthStore.getState().checkAuth();
+void useAuthStore.getState().checkAuth();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

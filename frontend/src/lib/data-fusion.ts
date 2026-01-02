@@ -53,7 +53,7 @@ interface PhysiologicalLimits {
   typicalMax: number;
 }
 
-const PHYSIOLOGICAL_LIMITS: Record<string, PhysiologicalLimits> = {
+const PHYSIOLOGICAL_LIMITS: Partial<Record<string, PhysiologicalLimits>> = {
   hrv: { min: 5, max: 300, typicalMin: 15, typicalMax: 150 },
   sleep: { min: 0, max: 840, typicalMin: 240, typicalMax: 660 },
   restingHr: { min: 30, max: 120, typicalMin: 40, typicalMax: 90 },

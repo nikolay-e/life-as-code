@@ -18,17 +18,9 @@ class SyncStatus(StrEnum):
 
 class DataType(StrEnum):
     SLEEP = "sleep"
-    HRV = "hrv"
-    WEIGHT = "weight"
-    HEART_RATE = "heart_rate"
-    STRESS = "stress"
-    STEPS = "steps"
-    ENERGY = "energy"
-    BODY_BATTERY = "body_battery"
     WORKOUTS = "workouts"
     RECOVERY = "recovery"
     CYCLES = "cycles"
-    TRAINING_STATUS = "training_status"
 
 
 class SyncWindow(StrEnum):

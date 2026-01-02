@@ -41,7 +41,6 @@ import type {
   TrendModeConfig,
   SeriesResult,
   DisplayValue,
-  AccumulatingMetricType,
 } from "./types";
 import { METRIC_REGISTRY, resolveMetric, getMetricByKey } from "./registry";
 import { DASHBOARD_METRIC_KEYS } from "./keys";
@@ -93,11 +92,7 @@ export function getSeries(
 
   let adjusted = daily;
   if (def.accumulating && !forceToday) {
-    const check = shouldUseTodayMetric(
-      daily,
-      def.accumulating as AccumulatingMetricType,
-      now,
-    );
+    const check = shouldUseTodayMetric(daily, def.accumulating, now);
     adjusted = check.adjustedData;
   }
 
@@ -150,7 +145,7 @@ export function generateSubtitle(
     const fallbackDate = new Date(toTimeMs(latestDate));
     return `${format(fallbackDate, "MMM d")} (day incomplete)`;
   }
-  return isToday ? "Latest" : `${selectedDays}d median`;
+  return isToday ? "Latest" : `${String(selectedDays)}d median`;
 }
 
 export function buildDashboardCards(
@@ -375,15 +370,15 @@ export function computeHealthAnalysis(
   baselineOptions: BaselineOptions,
   now: Date = new Date(),
 ): HealthAnalysis {
-  const hrvData = computedMetrics.hrv?.raw ?? [];
-  const sleepData = computedMetrics.sleep?.raw ?? [];
-  const rhrData = computedMetrics.rhr?.raw ?? [];
-  const stressData = computedMetrics.stress?.raw ?? [];
-  const stepsData = computedMetrics.steps?.raw ?? [];
-  const strainData = computedMetrics.strain?.raw ?? [];
-  const recoveryData = computedMetrics.recovery?.raw ?? [];
-  const weightData = computedMetrics.weight?.raw ?? [];
-  const caloriesData = computedMetrics.calories?.raw ?? [];
+  const hrvData = computedMetrics.hrv.raw;
+  const sleepData = computedMetrics.sleep.raw;
+  const rhrData = computedMetrics.rhr.raw;
+  const stressData = computedMetrics.stress.raw;
+  const stepsData = computedMetrics.steps.raw;
+  const strainData = computedMetrics.strain.raw;
+  const recoveryData = computedMetrics.recovery.raw;
+  const weightData = computedMetrics.weight.raw;
+  const caloriesData = computedMetrics.calories.raw;
 
   const fusedData = data ? createFusedHealthData(data) : null;
   const fusedHrvData = fusedData ? unifiedToMetricData(fusedData.hrv) : hrvData;

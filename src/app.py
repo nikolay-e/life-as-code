@@ -1,19 +1,14 @@
 import os
 
-import dash
-import dash_bootstrap_components as dbc
-from dash import Input, Output, callback, dcc, html
 from flask import Flask, jsonify, request
-from flask_login import LoginManager, current_user
+from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
 from sqlalchemy import select
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from api import api
-from callbacks import register_callbacks
 from database import SessionLocal, check_db_connection, init_db
 from errors import APIError
-from layouts import get_authenticated_layout
 from limiter import limiter
 from logging_config import configure_logging, get_logger, init_request_logging
 from migrations_init import init_migrate
@@ -107,30 +102,13 @@ login_manager.login_message = "Please log in to access the dashboard."
 # Initialize Flask-Limiter for rate limiting
 limiter.init_app(server)
 
-
-# Rate limiting exemption for Dash routes
-@limiter.request_filter
-def dash_route_exempt():
-    # Exempt all Dash routes by path (more reliable than endpoint names)
-    if request.path.startswith("/dashboard/"):
-        return True
-    # Also check endpoint names as fallback
-    return request.endpoint and (
-        request.endpoint.startswith("dash") or "_dash" in request.endpoint
-    )
-
-
-# CSRF Protection - exempt Dash routes via WTF_CSRF_CHECK_DEFAULT
+# CSRF Protection
 server.config["WTF_CSRF_CHECK_DEFAULT"] = False
 csrf = CSRFProtect(server)
 
 
-# Manually enable CSRF only for non-Dash routes
 @server.before_request
 def csrf_protect():
-    # Skip CSRF for Dash routes
-    if request.path.startswith("/dashboard/"):
-        return None
     # Skip CSRF for API routes (already handled by blueprint exemption)
     if request.path.startswith("/api/"):
         return None
@@ -283,46 +261,14 @@ register_routes(server, limiter)
 server.register_blueprint(api)
 csrf.exempt(api)
 
-# --- Dash App Setup ---
-app = dash.Dash(
-    __name__,
-    server=server,
-    url_base_pathname="/dashboard/",
-    external_stylesheets=[dbc.themes.BOOTSTRAP],
-    suppress_callback_exceptions=True,
-    title="Life-as-Code Health Analytics",
-)
-
-# Main app layout
-app.layout = html.Div(
-    [dcc.Location(id="url", refresh=False), html.Div(id="page-content")]
-)
-
-
-# Page routing callback
-@callback(Output("page-content", "children"), Input("url", "pathname"))
-def display_page(pathname):
-    if pathname.startswith("/dashboard") and current_user.is_authenticated:
-        return get_authenticated_layout()
-    return html.Div(
-        [
-            html.H3("Access Denied"),
-            html.P("Please log in to access the dashboard."),
-            html.A("Login", href="/login"),
-        ]
-    )
-
-
-# Register all Dash callbacks
-register_callbacks(app)
+# Export app for gunicorn
+app = server
 
 if __name__ == "__main__":
-    # Development server - use environment variable for debug mode
     debug_mode = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
     # nosemgrep: python.flask.security.audit.app-run-param-config.avoid_app_run_with_bad_host
-    app.run(
+    server.run(
         host="0.0.0.0",  # nosec B104 - Required for Docker
         port=8080,
         debug=debug_mode,
-        dev_tools_hot_reload=False,
     )

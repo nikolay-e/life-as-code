@@ -48,8 +48,8 @@ import {
   Brain,
   Copy,
   Check,
+  type LucideIcon,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import { cn } from "../../lib/utils";
 
 interface DataQualityBadgeProps {
@@ -102,12 +102,12 @@ interface MetricCardProps {
 function formatDaysLabel(days: number): string {
   if (days >= 365) {
     const years = Math.round(days / 365);
-    return `${years}Y`;
+    return `${String(years)}Y`;
   } else if (days >= 30) {
     const months = Math.round(days / 30);
-    return `${months}M`;
+    return `${String(months)}M`;
   }
-  return `${days}d`;
+  return `${String(days)}d`;
 }
 
 function MetricCard({
@@ -309,15 +309,15 @@ function formatTrendsForLLM(
   const formatMinutes = (mins: number): string => {
     const h = Math.floor(mins / 60);
     const m = Math.round(mins % 60);
-    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+    return h > 0 ? `${String(h)}h ${String(m)}m` : `${String(m)}m`;
   };
 
   const lines: string[] = [
     `# Health Trends Report`,
     `Generated: ${new Date().toISOString().split("T")[0]}`,
     `Mode: ${modeConfig.label} (${modeConfig.description})`,
-    `Analysis Window: ${modeConfig.shortTerm} days current vs ${modeConfig.baseline} days baseline`,
-    `Trend Window: ${modeConfig.trendWindow} days`,
+    `Analysis Window: ${String(modeConfig.shortTerm)} days current vs ${String(modeConfig.baseline)} days baseline`,
+    `Trend Window: ${String(modeConfig.trendWindow)} days`,
     ``,
     `## Overall Health Score`,
     `- Overall Score: ${formatNum(healthScore.overall)}`,
@@ -339,31 +339,31 @@ function formatTrendsForLLM(
     `## Recovery Analysis`,
     `- HRV-RHR Imbalance: ${formatNum(recoveryMetrics.hrvRhrImbalance)} (negative=recovered, positive=strained)`,
     `- Recovery CV: ${(recoveryMetrics.recoveryCV * 100).toFixed(1)}%`,
-    `- Stress Load (${modeConfig.shortTerm}d): ${formatNum(recoveryMetrics.stressLoadShort, 0)}`,
-    `- Stress Load (${modeConfig.baseline}d): ${formatNum(recoveryMetrics.stressLoadLong, 0)}`,
+    `- Stress Load (${String(modeConfig.shortTerm)}d): ${formatNum(recoveryMetrics.stressLoadShort, 0)}`,
+    `- Stress Load (${String(modeConfig.baseline)}d): ${formatNum(recoveryMetrics.stressLoadLong, 0)}`,
     `- Stress Trend: ${formatNum(recoveryMetrics.stressTrend, 1)} (negative=improving)`,
     ``,
     `## Sleep Analysis`,
     `- Sleep Target: ${formatMinutes(sleepMetrics.targetSleep)}/night`,
-    `- Sleep Debt (${modeConfig.shortTerm}d): ${formatMinutes(sleepMetrics.sleepDebtShort)}`,
-    `- Sleep Surplus (${modeConfig.shortTerm}d): ${formatMinutes(sleepMetrics.sleepSurplusShort)}`,
+    `- Sleep Debt (${String(modeConfig.shortTerm)}d): ${formatMinutes(sleepMetrics.sleepDebtShort)}`,
+    `- Sleep Surplus (${String(modeConfig.shortTerm)}d): ${formatMinutes(sleepMetrics.sleepSurplusShort)}`,
     `- Sleep Consistency (CV): ${(sleepMetrics.sleepCV * 100).toFixed(1)}%`,
-    `- Average Sleep (${modeConfig.shortTerm}d): ${sleepMetrics.avgSleepShort !== null ? formatMinutes(sleepMetrics.avgSleepShort) : "N/A"}`,
-    `- Average Sleep (${modeConfig.baseline}d): ${sleepMetrics.avgSleepLong !== null ? formatMinutes(sleepMetrics.avgSleepLong) : "N/A"}`,
+    `- Average Sleep (${String(modeConfig.shortTerm)}d): ${sleepMetrics.avgSleepShort !== null ? formatMinutes(sleepMetrics.avgSleepShort) : "N/A"}`,
+    `- Average Sleep (${String(modeConfig.baseline)}d): ${sleepMetrics.avgSleepLong !== null ? formatMinutes(sleepMetrics.avgSleepLong) : "N/A"}`,
     ``,
     `## Activity Analysis`,
     `- Acute:Chronic Workload Ratio: ${formatNum(activityMetrics.acwr)} (0.8-1.3 optimal, >1.5 injury risk)`,
     `- Acute Load: ${formatNum(activityMetrics.acuteLoad, 1)}`,
     `- Chronic Load: ${formatNum(activityMetrics.chronicLoad, 1)}`,
-    `- Steps (${modeConfig.shortTerm}d avg): ${activityMetrics.stepsAvgShort !== null ? Math.round(activityMetrics.stepsAvgShort).toLocaleString() : "N/A"}`,
-    `- Steps (${modeConfig.baseline}d avg): ${activityMetrics.stepsAvgLong !== null ? Math.round(activityMetrics.stepsAvgLong).toLocaleString() : "N/A"}`,
+    `- Steps (${String(modeConfig.shortTerm)}d avg): ${activityMetrics.stepsAvgShort !== null ? Math.round(activityMetrics.stepsAvgShort).toLocaleString() : "N/A"}`,
+    `- Steps (${String(modeConfig.baseline)}d avg): ${activityMetrics.stepsAvgLong !== null ? Math.round(activityMetrics.stepsAvgLong).toLocaleString() : "N/A"}`,
     `- Steps Change: ${activityMetrics.stepsChange !== null ? (activityMetrics.stepsChange > 0 ? "+" : "") + Math.round(activityMetrics.stepsChange).toLocaleString() : "N/A"}`,
     `- Steps CV: ${(activityMetrics.stepsCV * 100).toFixed(1)}%`,
     ``,
     `## Weight Analysis`,
-    `- Weight EMA (${modeConfig.shortTerm}d): ${weightMetrics.emaShort !== null ? weightMetrics.emaShort.toFixed(1) + " kg" : "N/A"}`,
-    `- Weight EMA (${modeConfig.baseline}d): ${weightMetrics.emaLong !== null ? weightMetrics.emaLong.toFixed(1) + " kg" : "N/A"}`,
-    `- Period Change: ${weightMetrics.periodChange !== null ? (weightMetrics.periodChange > 0 ? "+" : "") + weightMetrics.periodChange.toFixed(2) + " kg" : "N/A"}`,
+    `- Weight EMA (${String(modeConfig.shortTerm)}d): ${weightMetrics.emaShort !== null ? `${weightMetrics.emaShort.toFixed(1)} kg` : "N/A"}`,
+    `- Weight EMA (${String(modeConfig.baseline)}d): ${weightMetrics.emaLong !== null ? `${weightMetrics.emaLong.toFixed(1)} kg` : "N/A"}`,
+    `- Period Change: ${weightMetrics.periodChange !== null ? `${(weightMetrics.periodChange > 0 ? "+" : "") + weightMetrics.periodChange.toFixed(2)} kg` : "N/A"}`,
     `- Short-term Volatility: ±${weightMetrics.volatilityShort.toFixed(2)} kg`,
     `- Long-term Volatility: ±${weightMetrics.volatilityLong.toFixed(2)} kg`,
     ``,
@@ -374,16 +374,15 @@ function formatTrendsForLLM(
   lines.push(`Note: Using ${zScoreType} for this mode.`, ``);
 
   for (const [key, metric] of Object.entries(computedMetrics)) {
-    if (!metric) continue;
     const { baseline, quality } = metric;
     const zScore = useShiftedZScore ? baseline.shiftedZScore : baseline.zScore;
     lines.push(
       `### ${key.toUpperCase()}`,
       `- Current: ${formatNum(baseline.currentValue)}`,
       `- Z-Score: ${formatNum(zScore)}`,
-      `- ${modeConfig.shortTerm}d Average: ${formatNum(baseline.shortTermMean)}`,
-      `- ${modeConfig.baseline}d Baseline: ${formatNum(baseline.longTermMean)}`,
-      `- Trend Slope: ${baseline.trendSlope !== null ? (baseline.trendSlope > 0 ? "+" : "") + baseline.trendSlope.toFixed(3) + "/day" : "N/A"}`,
+      `- ${String(modeConfig.shortTerm)}d Average: ${formatNum(baseline.shortTermMean)}`,
+      `- ${String(modeConfig.baseline)}d Baseline: ${formatNum(baseline.longTermMean)}`,
+      `- Trend Slope: ${baseline.trendSlope !== null ? `${(baseline.trendSlope > 0 ? "+" : "") + baseline.trendSlope.toFixed(3)}/day` : "N/A"}`,
       `- CV: ${(baseline.cv * 100).toFixed(1)}%`,
       `- Confidence: ${(quality.confidence * 100).toFixed(0)}%`,
       ``,
@@ -417,8 +416,6 @@ export function TrendsPage() {
   );
 
   const handleCopyToClipboard = useCallback(async () => {
-    if (!data || isLoading) return;
-
     const metrics = computeAllMetrics(
       data,
       baselineDays,
@@ -445,13 +442,14 @@ export function TrendsPage() {
       await navigator.clipboard.writeText(text);
       setCopied(true);
       toast.success(`${modeConfig.label} trends copied to clipboard`);
-      setTimeout(() => setCopied(false), 2000);
+      setTimeout(() => {
+        setCopied(false);
+      }, 2000);
     } catch {
       toast.error("Failed to copy to clipboard");
     }
   }, [
     data,
-    isLoading,
     baselineDays,
     shortTermDays,
     trendWindow,
@@ -487,7 +485,9 @@ export function TrendsPage() {
                   key={m}
                   variant={mode === m ? "default" : "ghost"}
                   size="sm"
-                  onClick={() => setMode(m)}
+                  onClick={() => {
+                    setMode(m);
+                  }}
                   className="min-w-[90px] flex flex-col h-auto py-1.5"
                 >
                   <span className="font-medium">{cfg.label}</span>
@@ -558,7 +558,9 @@ export function TrendsPage() {
                 key={m}
                 variant={mode === m ? "default" : "ghost"}
                 size="sm"
-                onClick={() => setMode(m)}
+                onClick={() => {
+                  setMode(m);
+                }}
                 className="min-w-[90px] flex flex-col h-auto py-1.5"
               >
                 <span className="font-medium">{cfg.label}</span>
@@ -572,7 +574,6 @@ export function TrendsPage() {
             variant="ghost"
             size="icon"
             onClick={handleCopyToClipboard}
-            disabled={isLoading || !data}
             className="h-9 w-9 ml-1"
             aria-label="Copy trends data for LLM analysis"
           >
@@ -664,16 +665,14 @@ export function TrendsPage() {
           <div className="mt-6 pt-4 border-t">
             <div className="flex items-center justify-between mb-3">
               <p className="text-sm font-medium">Contributors</p>
-              {healthScore.stepsStatus && (
-                <p className="text-xs text-muted-foreground">
-                  Day {Math.round(dayCompleteness * 100)}% complete
-                  {!healthScore.stepsStatus.useToday && (
-                    <span className="text-yellow-500 ml-1">
-                      · Steps using yesterday
-                    </span>
-                  )}
-                </p>
-              )}
+              <p className="text-xs text-muted-foreground">
+                Day {Math.round(dayCompleteness * 100)}% complete
+                {!healthScore.stepsStatus.useToday && (
+                  <span className="text-yellow-500 ml-1">
+                    · Steps using yesterday
+                  </span>
+                )}
+              </p>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
               {healthScore.contributors.map((c) => (
@@ -891,7 +890,6 @@ export function TrendsPage() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {METRIC_REGISTRY.map((def) => {
             const computed = computedMetrics[def.key];
-            if (!computed) return null;
             return (
               <MetricCard
                 key={def.key}
@@ -901,7 +899,7 @@ export function TrendsPage() {
                 iconBgClass={def.iconBgClass}
                 baseline={computed.baseline}
                 quality={computed.quality}
-                format={def.format}
+                format={(value) => def.format(value)}
                 invertZScore={def.invertZScore}
                 shortTermDays={shortTermDays}
                 baselineDays={baselineDays}

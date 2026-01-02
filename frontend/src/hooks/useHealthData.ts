@@ -102,7 +102,9 @@ export function useAutoSync() {
               : api.sync.whoop;
 
         await syncFn(days);
-        queryClient.invalidateQueries({ queryKey: healthKeys.syncStatus() });
+        void queryClient.invalidateQueries({
+          queryKey: healthKeys.syncStatus(),
+        });
       } catch {
         // Sync errors are handled by the backend
       } finally {
@@ -111,7 +113,7 @@ export function useAutoSync() {
           next.delete(source);
           return next;
         });
-        queryClient.invalidateQueries({ queryKey: healthKeys.data() });
+        void queryClient.invalidateQueries({ queryKey: healthKeys.data() });
       }
     },
     [queryClient],
@@ -127,12 +129,12 @@ export function useAutoSync() {
       !isSyncInProgress(syncStatus, "garmin")
     ) {
       const days = getDaysSinceLastSync(syncStatus, "garmin");
-      triggerSync("garmin", days);
+      void triggerSync("garmin", days);
     }
 
     if (credentials.hevy_configured && !isSyncInProgress(syncStatus, "hevy")) {
       const days = getDaysSinceLastSync(syncStatus, "hevy");
-      triggerSync("hevy", days);
+      void triggerSync("hevy", days);
     }
 
     if (
@@ -140,7 +142,7 @@ export function useAutoSync() {
       !isSyncInProgress(syncStatus, "whoop")
     ) {
       const days = getDaysSinceLastSync(syncStatus, "whoop");
-      triggerSync("whoop", days);
+      void triggerSync("whoop", days);
     }
   }, [credentials, syncStatus, triggerSync]);
 

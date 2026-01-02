@@ -36,8 +36,10 @@ export function DataStatusPage() {
   }
 
   if (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
     return (
-      <ErrorCard message={`Failed to load data status: ${error.message}`} />
+      <ErrorCard message={`Failed to load data status: ${errorMessage}`} />
     );
   }
 
@@ -108,7 +110,7 @@ export function DataStatusPage() {
           icon: Clock,
           colorClass: "text-warning",
           bgClass: "bg-warning/10",
-          label: `${daysSinceUpdate}d ago`,
+          label: `${String(daysSinceUpdate)}d ago`,
         };
       }
     }
@@ -186,13 +188,15 @@ export function DataStatusPage() {
                   Last Sync
                 </p>
                 {(() => {
-                  const lastSync = syncStatus
-                    ?.filter((s) => s.last_sync_date)
-                    .sort(
-                      (a, b) =>
-                        new Date(b.last_sync_date!).getTime() -
-                        new Date(a.last_sync_date!).getTime(),
-                    )[0];
+                  const withDates = syncStatus?.filter(
+                    (s): s is typeof s & { last_sync_date: string } =>
+                      s.last_sync_date != null,
+                  );
+                  const lastSync = withDates?.sort(
+                    (a, b) =>
+                      new Date(b.last_sync_date).getTime() -
+                      new Date(a.last_sync_date).getTime(),
+                  )[0];
                   return (
                     <>
                       <p className="text-3xl font-bold tracking-tight">

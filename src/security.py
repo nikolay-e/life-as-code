@@ -167,30 +167,3 @@ def validate_password(password: str) -> tuple[bool, str]:
         )
 
     return True, "Password is valid"
-
-
-if __name__ == "__main__":
-    # Test the security functions
-    print("🔐 Testing Security Functions")
-    print("=" * 30)
-
-    # Test password hashing
-    test_password = "test123"  # nosec B105
-    hashed = get_password_hash(test_password)
-    print(f"Password hash: {hashed[:50]}...")
-    print(f"Verification: {verify_password(test_password, hashed)}")
-
-    # Test per-user data encryption
-    test_data = "my-secret-api-key"
-    user_id = 1
-    encrypted = encrypt_data_for_user(test_data, user_id)
-    decrypted = decrypt_data_for_user(encrypted, user_id)
-    print(f"Original: {test_data}")
-    print(f"Encrypted: {encrypted[:50]}...")
-    print(f"Decrypted: {decrypted}")
-    print(f"Match: {test_data == decrypted}")
-
-    # Test validation
-    print(f"Username 'user123': {validate_username('user123')}")
-    print(f"Password 'weak': {validate_password('weak')}")
-    print(f"Password 'strong123': {validate_password('strong123')}")

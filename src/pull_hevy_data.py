@@ -1,20 +1,35 @@
 import datetime
 import time
-from typing import Any
 
 import requests
 from dotenv import load_dotenv
 from pydantic import BaseModel
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
+from date_utils import parse_iso_date
 from enums import DataSource, DataType
+from http_client import RateLimitError
 from logging_config import get_logger
 from models import WorkoutSet
-from security import decrypt_data_for_user
-from sync_manager import extract_and_parse, get_sync_statistics
+from sync_manager import (
+    ProviderCredentials,
+    extract_and_parse,
+    get_provider_credentials,
+    get_sync_date_range,
+)
 
 load_dotenv()
 
 logger = get_logger(__name__)
+
+MAX_RETRIES = 3
+REQUEST_TIMEOUT = 30
+RATE_LIMIT_WAIT = 60
 
 
 class HevyWorkoutData(BaseModel):
@@ -50,9 +65,7 @@ class HevyWorkoutData(BaseModel):
         set_counters: dict[tuple, int] = {}
 
         try:
-            workout_date = datetime.datetime.fromisoformat(
-                workout_data["start_time"].replace("Z", "+00:00")
-            ).date()
+            workout_date = parse_iso_date(workout_data["start_time"])
 
             for exercise in workout_data.get("exercises", []):
                 exercise_name = exercise.get("title", "Unknown Exercise")
@@ -87,119 +100,99 @@ class HevyWorkoutData(BaseModel):
 
 
 class HevyAPIClient:
-    """Simplified Heavy API client for sync operations."""
+    """Hevy API client with tenacity retry logic."""
 
     def __init__(self, api_key: str):
         self.api_key = api_key
         self.base_url = "https://api.hevyapp.com/v1"
         self.headers = {"api-key": api_key}
 
-    def get_workouts(self, start_date: datetime.date | None = None) -> list[dict]:
-        """Fetch workouts from Heavy API with pagination.
+    def _fetch_page(self, page: int) -> requests.Response:
+        """Fetch a single page with retry logic via tenacity."""
 
-        Args:
-            start_date: Only return workouts on or after this date. If None, fetch all.
-        """
+        @retry(
+            stop=stop_after_attempt(MAX_RETRIES),
+            wait=wait_exponential(multiplier=1, min=2, max=30),
+            retry=retry_if_exception_type((requests.RequestException, RateLimitError)),
+            reraise=True,
+        )
+        def _do_request() -> requests.Response:
+            response = requests.get(
+                f"{self.base_url}/workouts",
+                headers=self.headers,
+                params={"page": page, "pageSize": 10},
+                timeout=REQUEST_TIMEOUT,
+            )
+
+            if response.status_code == 429:
+                logger.warning(f"Rate limited, waiting {RATE_LIMIT_WAIT}s...")
+                time.sleep(RATE_LIMIT_WAIT)
+                raise RateLimitError(RATE_LIMIT_WAIT)
+
+            return response
+
+        result: requests.Response = _do_request()
+        return result
+
+    def get_workouts(self, start_date: datetime.date | None = None) -> list[dict]:
+        """Fetch workouts from Hevy API with pagination."""
         all_workouts: list[dict] = []
         page = 1
-        max_retries = 3
+        max_pages = 1000
 
-        while True:
-            logger.info(f"Fetching Heavy workouts page {page}...")
+        while page <= max_pages:
+            logger.info(f"Fetching Hevy workouts page {page}...")
 
-            params = {"page": page, "pageSize": 10}  # Max 10 per page
-            page_success = False
+            try:
+                response = self._fetch_page(page)
 
-            # Retry logic for transient errors
-            for retry in range(max_retries):
-                try:
-                    response = requests.get(
-                        f"{self.base_url}/workouts",
-                        headers=self.headers,
-                        params=params,
-                        timeout=30,
-                    )
+                if response.status_code == 200:
+                    page_data = response.json()
+                    workouts = page_data.get("workouts", [])
 
-                    if response.status_code == 200:
-                        page_data = response.json()
-                        workouts = page_data.get("workouts", [])
-
-                        if not workouts:
-                            logger.info("No more workouts found, stopping pagination")
-                            return all_workouts
-
-                        # Filter by start_date if provided
-                        if start_date:
-                            filtered = []
-                            oldest_in_page = None
-                            for w in workouts:
-                                try:
-                                    workout_date = datetime.datetime.fromisoformat(
-                                        w["start_time"].replace("Z", "+00:00")
-                                    ).date()
-                                    if (
-                                        oldest_in_page is None
-                                        or workout_date < oldest_in_page
-                                    ):
-                                        oldest_in_page = workout_date
-                                    if workout_date >= start_date:
-                                        filtered.append(w)
-                                except (KeyError, ValueError):
-                                    filtered.append(w)  # Include if can't parse date
-                            workouts = filtered
-                            # Stop if all workouts in page are older than start_date
-                            if oldest_in_page and oldest_in_page < start_date:
-                                logger.info(
-                                    f"Reached workouts older than {start_date}, stopping"
-                                )
-                                all_workouts.extend(workouts)
-                                return all_workouts
-
-                        all_workouts.extend(workouts)
-                        logger.info(
-                            f"Retrieved {len(workouts)} workouts from page {page}"
-                        )
-                        page_success = True
+                    if not workouts:
+                        logger.info("No more workouts found, stopping pagination")
                         break
 
-                    elif response.status_code == 404:
-                        # 404 means no more pages - end of pagination
-                        logger.info(
-                            f"Page {page} returned 404 - end of data, stopping pagination"
-                        )
-                        return all_workouts
+                    if start_date:
+                        filtered = []
+                        oldest_in_page = None
+                        for w in workouts:
+                            try:
+                                workout_date = parse_iso_date(w["start_time"])
+                                if (
+                                    oldest_in_page is None
+                                    or workout_date < oldest_in_page
+                                ):
+                                    oldest_in_page = workout_date
+                                if workout_date >= start_date:
+                                    filtered.append(w)
+                            except (KeyError, ValueError):
+                                filtered.append(w)
+                        workouts = filtered
+                        if oldest_in_page and oldest_in_page < start_date:
+                            logger.info(
+                                f"Reached workouts older than {start_date}, stopping"
+                            )
+                            all_workouts.extend(workouts)
+                            break
 
-                    elif response.status_code == 429:
-                        # Rate limit - wait and retry
-                        logger.warning("Rate limited, waiting 60 seconds...")
-                        time.sleep(60)
-                        continue
+                    all_workouts.extend(workouts)
+                    logger.info(f"Retrieved {len(workouts)} workouts from page {page}")
 
-                    else:
-                        logger.error(f"HTTP {response.status_code}: {response.text}")
-                        if retry == max_retries - 1:
-                            raise Exception(f"Failed after {max_retries} retries")
+                elif response.status_code == 404:
+                    logger.info(f"Page {page} returned 404 - end of data")
+                    break
 
-                except requests.exceptions.RequestException as e:
-                    logger.warning(f"Request failed (attempt {retry + 1}): {e}")
-                    if retry == max_retries - 1:
-                        raise
+                else:
+                    logger.error(f"HTTP {response.status_code}: {response.text}")
+                    break
 
-                    # Wait between retries
-                    time.sleep(5 * (retry + 1))
-
-            if not page_success:
-                logger.error(
-                    f"Failed to fetch page {page} after {max_retries} attempts"
-                )
+            except Exception as e:
+                logger.error(f"Failed to fetch page {page}: {e}")
                 break
 
             page += 1
-
-            # Safety limit to prevent infinite loops
-            if page > 1000:
-                logger.warning("Reached maximum page limit (1000)")
-                break
 
         logger.info(f"Total workouts retrieved: {len(all_workouts)}")
         return all_workouts
@@ -208,37 +201,20 @@ class HevyAPIClient:
 def sync_hevy_data_for_user(
     user_id: int, days: int = 90, full_sync: bool = False
 ) -> dict:
-    from sqlalchemy import select
-
-    from database import get_db_session_context
-    from models import UserCredentials
-
-    try:
-        with get_db_session_context() as db:
-            creds = db.scalars(
-                select(UserCredentials).where(UserCredentials.user_id == user_id)
-            ).first()
-
-            if not creds or not creds.encrypted_hevy_api_key:
-                return {"error": "No Hevy API key found for user"}
-
-            hevy_api_key = decrypt_data_for_user(creds.encrypted_hevy_api_key, user_id)
-    except Exception as e:
-        return {"error": f"Failed to get user credentials: {str(e)}"}
+    creds = get_provider_credentials(user_id, DataSource.HEVY)
+    if isinstance(creds, dict):
+        return creds
+    assert isinstance(creds, ProviderCredentials)
 
     try:
-        api_client = HevyAPIClient(hevy_api_key)
+        api_client = HevyAPIClient(creds.hevy_api_key)
+        date_range = get_sync_date_range(days, full_sync)
+        start_date = None if full_sync else date_range.start_date
 
-        end_date = datetime.date.today()
-        start_date: datetime.date | None = None
-        if not full_sync:
-            start_date = end_date - datetime.timedelta(days=days)
-
-        sync_type = "full" if full_sync else f"{days}-day"
         logger.info(
-            f"Starting Hevy {sync_type} sync for user {user_id}",
+            f"Starting Hevy {date_range.sync_type} sync for user {user_id}",
             start_date=start_date,
-            end_date=end_date,
+            end_date=date_range.end_date,
             full_sync=full_sync,
         )
 
@@ -255,7 +231,7 @@ def sync_hevy_data_for_user(
         summary = {
             "user_id": user_id,
             "sync_date": datetime.datetime.utcnow().isoformat(),
-            "sync_type": sync_type,
+            "sync_type": date_range.sync_type,
             "source": "hevy",
             "data_type": "workouts",
             "success": sync_result.success,
@@ -274,10 +250,6 @@ def sync_hevy_data_for_user(
         error_msg = f"Failed to sync Hevy data for user {user_id}: {str(e)}"
         logger.error(error_msg)
         return {"error": error_msg, "user_id": user_id}
-
-
-def get_hevy_sync_status(user_id: int) -> dict[str, Any]:
-    return get_sync_statistics(user_id, source=DataSource.HEVY)  # type: ignore[no-any-return]
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@ import os
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 
 limiter = Limiter(
     key_func=get_remote_address,

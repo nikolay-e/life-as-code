@@ -6,13 +6,27 @@ from typing import Any
 import requests
 from dotenv import load_dotenv
 from sqlalchemy import select
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from database import get_db_session_context
+from date_utils import parse_iso_date
 from enums import DataSource, DataType
+from http_client import AuthenticationError, RateLimitError
 from logging_config import get_logger
 from models import UserCredentials, WhoopCycle, WhoopRecovery, WhoopSleep, WhoopWorkout
-from security import decrypt_data_for_user, encrypt_data_for_user
-from sync_manager import SyncResult, upsert_data
+from security import encrypt_data_for_user
+from sync_manager import (
+    ProviderCredentials,
+    SyncResult,
+    get_provider_credentials,
+    get_sync_date_range,
+    upsert_data,
+)
 from whoop_schemas import (
     WhoopCycleParser,
     WhoopRecoveryParser,
@@ -23,6 +37,10 @@ from whoop_schemas import (
 load_dotenv()
 
 logger = get_logger(__name__)
+
+MAX_RETRIES = 3
+REQUEST_TIMEOUT = 30
+RATE_LIMIT_DELAY = 0.6
 
 
 class WhoopAPIClient:
@@ -92,13 +110,20 @@ class WhoopAPIClient:
             return False
 
     def _make_request(self, endpoint: str, params: dict | None = None) -> dict | None:
-        """Make API request with automatic token refresh and rate limiting."""
-        try:
+        """Make API request with automatic token refresh and retry via tenacity."""
+
+        @retry(
+            stop=stop_after_attempt(MAX_RETRIES),
+            wait=wait_exponential(multiplier=1, min=2, max=60),
+            retry=retry_if_exception_type((requests.RequestException, RateLimitError)),
+            reraise=True,
+        )
+        def _do_request() -> dict | None:
             response = requests.get(
                 f"{self.base_url}/{endpoint}",
                 headers=self._get_headers(),
                 params=params or {},
-                timeout=30,
+                timeout=REQUEST_TIMEOUT,
             )
 
             if response.status_code == 401:
@@ -108,14 +133,16 @@ class WhoopAPIClient:
                         f"{self.base_url}/{endpoint}",
                         headers=self._get_headers(),
                         params=params or {},
-                        timeout=30,
+                        timeout=REQUEST_TIMEOUT,
                     )
+                else:
+                    raise AuthenticationError("Failed to refresh Whoop token")
 
             if response.status_code == 429:
                 retry_after = int(response.headers.get("Retry-After", 60))
                 logger.warning(f"Rate limited, waiting {retry_after}s...")
                 time.sleep(retry_after)
-                return self._make_request(endpoint, params)
+                raise RateLimitError(retry_after)
 
             if response.status_code == 200:
                 result: dict = response.json()
@@ -126,6 +153,12 @@ class WhoopAPIClient:
             )
             return None
 
+        try:
+            result: dict | None = _do_request()
+            return result
+        except (AuthenticationError, RateLimitError) as e:
+            logger.error(f"Whoop API error after retries: {e}")
+            return None
         except Exception as e:
             logger.error(f"Error making Whoop API request: {e}")
             return None
@@ -184,10 +217,7 @@ class WhoopAPIClient:
         for recovery in recoveries:
             created_at = recovery.get("created_at")
             if created_at:
-                date_obj = datetime.datetime.fromisoformat(
-                    created_at.replace("Z", "+00:00")
-                ).date()
-                recovery["date"] = date_obj
+                recovery["date"] = parse_iso_date(created_at)
                 results.append(recovery)
 
         return results
@@ -214,9 +244,7 @@ class WhoopAPIClient:
             if not start_time:
                 continue
 
-            date_obj = datetime.datetime.fromisoformat(
-                start_time.replace("Z", "+00:00")
-            ).date()
+            date_obj = parse_iso_date(start_time)
             sleep["date"] = date_obj
 
             score = sleep.get("score", {})
@@ -254,10 +282,7 @@ class WhoopAPIClient:
         for workout in workouts:
             start_time = workout.get("start")
             if start_time:
-                date_obj = datetime.datetime.fromisoformat(
-                    start_time.replace("Z", "+00:00")
-                ).date()
-                workout["date"] = date_obj
+                workout["date"] = parse_iso_date(start_time)
                 results.append(workout)
 
         return results
@@ -280,9 +305,7 @@ class WhoopAPIClient:
         for cycle in cycles:
             start_time = cycle.get("start")
             if start_time:
-                date_obj = datetime.datetime.fromisoformat(
-                    start_time.replace("Z", "+00:00")
-                ).date()
+                date_obj = parse_iso_date(start_time)
                 cycle["date"] = date_obj
                 existing = cycles_by_date.get(date_obj)
                 if existing is None:
@@ -502,43 +525,21 @@ def sync_whoop_cycles(
 def sync_whoop_data_for_user(
     user_id: int, days: int = 90, full_sync: bool = False
 ) -> dict[str, Any]:
-    try:
-        with get_db_session_context() as db:
-            creds = db.scalars(
-                select(UserCredentials).where(UserCredentials.user_id == user_id)
-            ).first()
-
-            logger.info(
-                "whoop_creds_check",
-                user_id=user_id,
-                creds_found=creds is not None,
-                has_access_token=bool(creds and creds.encrypted_whoop_access_token),
-            )
-
-            if not creds or not creds.encrypted_whoop_access_token:
-                return {"error": "No Whoop credentials found for user"}
-
-            access_token = decrypt_data_for_user(
-                creds.encrypted_whoop_access_token, user_id
-            )
-            refresh_token = decrypt_data_for_user(
-                creds.encrypted_whoop_refresh_token, user_id
-            )
-
-    except Exception as e:
-        return {"error": f"Failed to get user credentials: {str(e)}"}
+    creds = get_provider_credentials(user_id, DataSource.WHOOP)
+    if isinstance(creds, dict):
+        return creds
+    assert isinstance(creds, ProviderCredentials)
 
     try:
-        client = WhoopAPIClient(access_token, refresh_token, user_id)
+        client = WhoopAPIClient(
+            creds.whoop_access_token, creds.whoop_refresh_token, user_id
+        )
+        date_range = get_sync_date_range(days, full_sync)
+        start_date = None if full_sync else date_range.start_date
+        end_date = date_range.end_date
 
-        end_date = datetime.date.today()
-        start_date: datetime.date | None = None
-        if not full_sync:
-            start_date = end_date - datetime.timedelta(days=days)
-
-        sync_type = "full" if full_sync else f"{days}-day"
         logger.info(
-            f"Starting Whoop {sync_type} sync for user {user_id}",
+            f"Starting Whoop {date_range.sync_type} sync for user {user_id}",
             start_date=start_date,
             end_date=end_date,
             full_sync=full_sync,
@@ -554,7 +555,7 @@ def sync_whoop_data_for_user(
         summary = {
             "user_id": user_id,
             "sync_date": datetime.datetime.utcnow().isoformat(),
-            "sync_type": sync_type,
+            "sync_type": date_range.sync_type,
             "date_range": {
                 "start": start_date.isoformat() if start_date else "all",
                 "end": end_date.isoformat(),

@@ -32,8 +32,8 @@ import {
   Flame,
   Copy,
   Check,
+  type LucideIcon,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import { buildDashboardCards, type MetricCardVM } from "../../lib/metrics";
 import { toTimeMs } from "../../lib/health";
 import { getLatestSyncDate } from "../../lib/sync-utils";
@@ -124,12 +124,12 @@ export function DashboardOverview() {
   const [copied, setCopied] = useState(false);
 
   const handleCopyToClipboard = useCallback(async () => {
-    if (!data || isLoading || metricCards.length === 0) return;
+    if (metricCards.length === 0) return;
 
     const rangeLabel =
       selectedRange === "Custom"
         ? `${startDate} — ${endDate}`
-        : `${selectedRange} (${selectedDays} days)`;
+        : `${selectedRange} (${String(selectedDays)} days)`;
 
     const lines = [
       `Health Dashboard — ${rangeLabel}`,
@@ -147,7 +147,9 @@ export function DashboardOverview() {
       await navigator.clipboard.writeText(text);
       setCopied(true);
       toast.success("Dashboard metrics copied to clipboard");
-      setTimeout(() => setCopied(false), 2000);
+      setTimeout(() => {
+        setCopied(false);
+      }, 2000);
     } catch {
       toast.error("Failed to copy to clipboard");
     }
@@ -190,7 +192,9 @@ export function DashboardOverview() {
                 key={range.label}
                 variant={selectedRange === range.label ? "default" : "ghost"}
                 size="sm"
-                onClick={() => setSelectedRange(range.label)}
+                onClick={() => {
+                  setSelectedRange(range.label);
+                }}
                 className="min-w-[70px] flex flex-col h-auto py-1.5"
               >
                 <span className="font-medium">{range.label}</span>
@@ -202,7 +206,9 @@ export function DashboardOverview() {
             <Button
               variant={selectedRange === "Custom" ? "default" : "ghost"}
               size="sm"
-              onClick={() => setSelectedRange("Custom")}
+              onClick={() => {
+                setSelectedRange("Custom");
+              }}
               className="min-w-[70px] flex flex-col h-auto py-1.5"
             >
               <span className="font-medium">Custom</span>
@@ -227,14 +233,18 @@ export function DashboardOverview() {
               <Input
                 type="date"
                 value={customStartDate}
-                onChange={(e) => setCustomStartDate(e.target.value)}
+                onChange={(e) => {
+                  setCustomStartDate(e.target.value);
+                }}
                 className="w-36"
               />
               <span className="text-muted-foreground">—</span>
               <Input
                 type="date"
                 value={customEndDate}
-                onChange={(e) => setCustomEndDate(e.target.value)}
+                onChange={(e) => {
+                  setCustomEndDate(e.target.value);
+                }}
                 className="w-36"
               />
               <span className="text-sm text-muted-foreground">

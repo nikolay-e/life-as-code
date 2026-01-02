@@ -10,6 +10,7 @@ from sqlalchemy import select
 
 from data_loaders import get_workout_volume_data, load_data_for_user
 from database import get_db_session_context
+from date_utils import parse_date_string
 from enums import DataSource, SyncStatus
 from errors import (
     APIError,
@@ -19,11 +20,12 @@ from errors import (
 )
 from limiter import limiter
 from logging_config import get_logger
-from models import DataSync, User, UserCredentials, UserSettings
+from models import DataSync, User, UserSettings
 from routes import UserModel
 from security import verify_password
 from settings import get_settings
 from sync_manager import is_sync_in_progress
+from utils import get_user_credentials
 
 api = Blueprint("api", __name__, url_prefix="/api")
 logger = get_logger(__name__)
@@ -136,8 +138,8 @@ def api_data_range():
         start_date = end_date - timedelta(days=90)
     else:
         try:
-            start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
-            end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+            start_date = parse_date_string(start_date)
+            end_date = parse_date_string(end_date)
         except ValueError:
             raise InvalidDateFormatError(f"{start_date} or {end_date}") from None
 
@@ -302,29 +304,21 @@ def api_save_thresholds():
 @api.route("/settings/credentials", methods=["GET"])
 @login_required
 def api_get_credentials():
-    """
-    Get credentials configuration status (read-only).
-    Credentials are now managed through environment variables.
-    """
-    with get_db_session_context() as db:
-        creds = db.scalars(
-            select(UserCredentials).filter_by(user_id=current_user.id)
-        ).first()
+    creds = get_user_credentials(current_user.id)
+    whoop_client_id = os.getenv("WHOOP_CLIENT_ID")
+    whoop_auth_url = "/whoop/authorize" if whoop_client_id else None
 
-        whoop_client_id = os.getenv("WHOOP_CLIENT_ID")
-        whoop_auth_url = "/whoop/authorize" if whoop_client_id else None
-
-        return jsonify(
-            {
-                "garmin_configured": bool(
-                    creds and creds.garmin_email and creds.encrypted_garmin_password
-                ),
-                "hevy_configured": bool(creds and creds.encrypted_hevy_api_key),
-                "whoop_configured": bool(creds and creds.encrypted_whoop_access_token),
-                "whoop_auth_url": whoop_auth_url,
-                "message": "Credentials are managed through environment variables",
-            }
-        )
+    return jsonify(
+        {
+            "garmin_configured": bool(
+                creds and creds.garmin_email and creds.encrypted_garmin_password
+            ),
+            "hevy_configured": bool(creds and creds.encrypted_hevy_api_key),
+            "whoop_configured": bool(creds and creds.encrypted_whoop_access_token),
+            "whoop_auth_url": whoop_auth_url,
+            "message": "Credentials are managed through environment variables",
+        }
+    )
 
 
 @api.route("/sync/status", methods=["GET"])
@@ -553,157 +547,3 @@ def api_sync_whoop():
         return sync_whoop_data_for_user
 
     return _handle_sync_request(DataSource.WHOOP, "Whoop", get_sync_func)
-
-
-@api.route("/sync/progressive", methods=["POST"])
-@login_required
-def api_start_progressive_sync():
-    from progressive_sync import start_progressive_sync
-
-    user_id = current_user.id
-    payload = request.get_json(silent=True) or {}
-    sources = payload.get("sources")
-    force_raw = payload.get("force", False)
-
-    if not isinstance(force_raw, bool):
-        raise ValidationError(
-            "force must be a boolean",
-            field="force",
-            provided_value=str(type(force_raw)),
-        )
-    force = force_raw
-
-    if sources is not None:
-        if not isinstance(sources, list):
-            raise ValidationError(
-                "sources must be a list of strings",
-                field="sources",
-                provided_value=str(type(sources)),
-            )
-
-        if len(sources) == 0:
-            raise ValidationError(
-                "sources cannot be empty",
-                field="sources",
-                provided_value=[],
-            )
-
-        if not all(isinstance(s, str) for s in sources):
-            raise ValidationError(
-                "sources must be a list of strings",
-                field="sources",
-                provided_value=str(sources),
-            )
-
-        allowed_sources = {
-            DataSource.GARMIN.value,
-            DataSource.HEVY.value,
-            DataSource.WHOOP.value,
-        }
-        invalid_sources = [s for s in sources if s not in allowed_sources]
-        if invalid_sources:
-            raise ValidationError(
-                f"Invalid sources: {invalid_sources}",
-                field="sources",
-                provided_value=invalid_sources,
-            )
-
-    results = start_progressive_sync(user_id, sources=sources, force=force) or {}
-
-    started_any = any(status == "started" for status in results.values())
-    any_failed = any(status in ("failed", "error") for status in results.values())
-    any_skipped = any(
-        status in ("already_running", "rate_limited", "no_credentials")
-        for status in results.values()
-    )
-    all_running = results and all(
-        status in ("already_running", "rate_limited") for status in results.values()
-    )
-
-    if any_failed:
-        return (
-            jsonify(
-                {
-                    "message": "Sync failed to start for some sources",
-                    "results": results,
-                }
-            ),
-            502,
-        )
-
-    if all_running:
-        return (
-            jsonify(
-                {
-                    "message": "Sync already in progress or rate limited",
-                    "results": results,
-                }
-            ),
-            409,
-        )
-
-    requested = sources or ["all"]
-    attempted = list(results.keys())
-
-    if started_any:
-        message = (
-            "Progressive sync started for some sources"
-            if any_skipped
-            else "Progressive sync started"
-        )
-        return (
-            jsonify(
-                {
-                    "message": message,
-                    "requested_sources": requested,
-                    "attempted_sources": attempted,
-                    "results": results,
-                }
-            ),
-            202,
-        )
-
-    return (
-        jsonify(
-            {
-                "message": "No sync started",
-                "requested_sources": requested,
-                "attempted_sources": attempted,
-                "results": results,
-            }
-        ),
-        200,
-    )
-
-
-@api.route("/sync/progressive/status", methods=["GET"])
-@login_required
-def api_progressive_sync_status():
-    from progressive_sync import get_sync_progress_summary
-
-    user_id = current_user.id
-    summary = get_sync_progress_summary(user_id)
-
-    return jsonify(summary)
-
-
-@api.route("/sync/progressive/continue", methods=["POST"])
-@login_required
-def api_continue_progressive_sync():
-    from progressive_sync import start_background_progressive_sync
-
-    user_id = current_user.id
-    status = start_background_progressive_sync(user_id)
-
-    if status == "already_running":
-        return (
-            jsonify(
-                {"message": "Background sync already in progress", "status": status}
-            ),
-            409,
-        )
-
-    return (
-        jsonify({"message": "Background progressive sync started", "status": status}),
-        202,
-    )

@@ -10,29 +10,29 @@ interface HRVChartProps {
   showTrends?: boolean;
 }
 
-export const HRVChart = memo(function HRVChart({
-  garminData,
-  whoopData = [],
-  showTrends = false,
-}: HRVChartProps) {
-  const config = MULTI_PROVIDER_CONFIGS.hrv;
+export const HRVChart = memo(
+  ({ garminData, whoopData = [], showTrends = false }: HRVChartProps) => {
+    const config = MULTI_PROVIDER_CONFIGS.hrv;
 
-  const mergedData = mergeProviderData(
-    garminData,
-    whoopData,
-    (d) => d.hrv_avg,
-    (d) => d.hrv_rmssd,
-  );
+    const mergedData = mergeProviderData(
+      garminData,
+      whoopData,
+      (d) => d.hrv_avg,
+      (d) => d.hrv_rmssd,
+    );
 
-  return (
-    <MultiProviderLineChart
-      data={mergedData}
-      config={config}
-      emptyMessage="No HRV data available"
-      garminLabel="Garmin HRV"
-      whoopLabel="Whoop HRV"
-      unit="ms"
-      showTrends={showTrends}
-    />
-  );
-});
+    return (
+      <MultiProviderLineChart
+        data={mergedData}
+        config={config}
+        emptyMessage="No HRV data available"
+        garminLabel="Garmin HRV"
+        whoopLabel="Whoop HRV"
+        unit="ms"
+        showTrends={showTrends}
+      />
+    );
+  },
+);
+
+HRVChart.displayName = "HRVChart";

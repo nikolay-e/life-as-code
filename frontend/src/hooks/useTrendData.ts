@@ -53,7 +53,7 @@ export function useTrendData<T extends { date: string }>(
   } = options;
 
   return useMemo(() => {
-    if (!data || data.length === 0) {
+    if (data.length === 0) {
       return { chartData: [], baseline: null, hasData: false };
     }
 

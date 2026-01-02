@@ -27,7 +27,7 @@ export function calculateEMA<
   const maxGapDays = period * 2;
 
   return data.map((point) => {
-    const value = point[valueKey] as number | null;
+    const value = point[valueKey] as number | null | undefined;
     const currentDate = point.date;
 
     if (value === null || value === undefined) {
@@ -87,7 +87,7 @@ export function calculateSMA<T extends Record<string, unknown>>(
 
     const values = data
       .slice(index - window + 1, index + 1)
-      .map((d) => d[valueKey] as number | null)
+      .map((d) => d[valueKey] as number | null | undefined)
       .filter((v): v is number => v !== null && v !== undefined);
 
     if (values.length < window * 0.5) {
@@ -119,7 +119,7 @@ export function calculateBaseline<
   });
 
   const values = windowData
-    .map((d) => d[valueKey] as number | null)
+    .map((d) => d[valueKey] as number | null | undefined)
     .filter((v): v is number => v !== null && v !== undefined);
 
   if (values.length < windowDays * 0.5) {
@@ -175,7 +175,7 @@ export function calculateBiologicalWeightSmoothing<
 >(
   data: T[],
   valueKey: keyof T,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
   _options: {
     smoothingDays?: number;
     maxDailyChangeKg?: number;
@@ -193,7 +193,7 @@ export function calculateBiologicalWeightSmoothing<
   const firstDate = new Date(sortedData[0].date);
 
   for (const point of sortedData) {
-    const value = point[valueKey] as number | null;
+    const value = point[valueKey] as number | null | undefined;
     if (value !== null && value !== undefined) {
       const date = new Date(point.date);
       const dayIndex = Math.round(

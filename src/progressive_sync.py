@@ -9,8 +9,9 @@ from sqlalchemy import select
 from database import get_db_session_context
 from enums import DataSource, SyncWindow, SyncWindowStatus
 from logging_config import get_logger
-from models import SyncProgress, UserCredentials
+from models import SyncProgress
 from sync_manager import is_sync_in_progress
+from utils import get_user_credentials
 
 logger = get_logger(__name__)
 
@@ -51,65 +52,6 @@ def should_start_sync(user_id: int, source: str) -> bool:
                 return False
 
         return True
-
-
-def get_or_create_sync_progress(user_id: int, source: str) -> SyncProgress:
-    from sqlalchemy.dialects.postgresql import insert as pg_insert
-    from sqlalchemy.exc import IntegrityError
-
-    with get_db_session_context() as db:
-        progress = db.scalars(
-            select(SyncProgress).where(
-                SyncProgress.user_id == user_id, SyncProgress.source == source
-            )
-        ).first()
-
-        if progress:
-            return progress
-
-        try:
-            stmt = (
-                pg_insert(SyncProgress)
-                .values(
-                    user_id=user_id,
-                    source=source,
-                    current_window=SyncWindow.DAY.value,
-                    window_status=SyncWindowStatus.PENDING.value,
-                )
-                .on_conflict_do_nothing(index_elements=["user_id", "source"])
-                .returning(SyncProgress)
-            )
-
-            result = db.execute(stmt)
-            db.commit()
-
-            progress = result.scalars().first()
-            if progress:
-                return progress
-
-            progress = db.scalars(
-                select(SyncProgress).where(
-                    SyncProgress.user_id == user_id, SyncProgress.source == source
-                )
-            ).first()
-
-            if progress:
-                return progress
-
-            raise RuntimeError(
-                f"Failed to get or create SyncProgress for user {user_id}, source {source}"
-            )
-
-        except IntegrityError:
-            db.rollback()
-            progress = db.scalars(
-                select(SyncProgress).where(
-                    SyncProgress.user_id == user_id, SyncProgress.source == source
-                )
-            ).first()
-            if progress:
-                return progress
-            raise
 
 
 def get_sync_date_range(window: str, reference_date: datetime.date | None = None):
@@ -229,22 +171,18 @@ def update_sync_progress(
 
 
 def has_credentials_for_source(user_id: int, source: str) -> bool:
-    with get_db_session_context() as db:
-        creds = db.scalars(
-            select(UserCredentials).where(UserCredentials.user_id == user_id)
-        ).first()
-
-        if not creds:
-            return False
-
-        if source == DataSource.GARMIN.value:
-            return bool(creds.garmin_email and creds.encrypted_garmin_password)
-        elif source == DataSource.HEVY.value:
-            return bool(creds.encrypted_hevy_api_key)
-        elif source == DataSource.WHOOP.value:
-            return bool(creds.encrypted_whoop_access_token)
-
+    creds = get_user_credentials(user_id)
+    if not creds:
         return False
+
+    if source == DataSource.GARMIN.value:
+        return bool(creds.garmin_email and creds.encrypted_garmin_password)
+    elif source == DataSource.HEVY.value:
+        return bool(creds.encrypted_hevy_api_key)
+    elif source == DataSource.WHOOP.value:
+        return bool(creds.encrypted_whoop_access_token)
+
+    return False
 
 
 def run_progressive_sync_for_source(

@@ -10,7 +10,7 @@ interface ProviderCardProps {
   colorClass: string;
   isConfigured: boolean;
   isConnected?: boolean;
-  syncMutation: UseMutationResult<SyncResponse, Error, void, unknown>;
+  syncMutation: UseMutationResult<SyncResponse, Error, void>;
   onSync: () => void;
   authUrl?: string;
   showOAuthNotConfigured?: boolean;

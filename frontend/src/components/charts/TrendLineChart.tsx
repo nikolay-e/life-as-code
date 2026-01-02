@@ -39,7 +39,7 @@ interface TrendLineChartProps {
   valueFormatter?: (value: number) => string;
 }
 
-export const TrendLineChart = memo(function TrendLineChart({
+function TrendLineChartComponent({
   chartData,
   hasData,
   baseline,
@@ -54,8 +54,8 @@ export const TrendLineChart = memo(function TrendLineChart({
   showBaseline = false,
   height = 250,
   yDomain = ["dataMin - 5", "dataMax + 5"],
-  valueFormatter = (v) => v.toFixed(0),
-}: TrendLineChartProps) {
+  valueFormatter = (v: number): string => v.toFixed(0),
+}: TrendLineChartProps): React.ReactElement | null {
   if (!hasData) {
     return <EmptyChartMessage message={emptyMessage} />;
   }
@@ -75,15 +75,19 @@ export const TrendLineChart = memo(function TrendLineChart({
           formatter={(value, name) => {
             const v = value as number | undefined;
             if (v === undefined) return ["-", name];
-            if (name === "value")
+            if (name === "value") {
               return [`${valueFormatter(v)} ${unit}`, valueLabel];
-            if (name === "shortTermTrend")
+            }
+            if (name === "shortTermTrend") {
               return [`${valueFormatter(v)} ${unit}`, shortTermLabel];
-            if (name === "longTermTrend")
+            }
+            if (name === "longTermTrend") {
               return [`${valueFormatter(v)} ${unit}`, longTermLabel];
-            if (name === "longerTermTrend")
+            }
+            if (name === "longerTermTrend") {
               return [`${valueFormatter(v)} ${unit}`, longerTermLabel];
-            return [v, name];
+            }
+            return [String(v), name];
           }}
           contentStyle={chartTooltipStyle}
         />
@@ -144,4 +148,6 @@ export const TrendLineChart = memo(function TrendLineChart({
       </ComposedChart>
     </ResponsiveContainer>
   );
-});
+}
+
+export const TrendLineChart = memo(TrendLineChartComponent);

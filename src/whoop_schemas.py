@@ -3,6 +3,7 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
+from date_utils import parse_iso_datetime
 from logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -141,11 +142,7 @@ class WhoopWorkoutParser(BaseModel):
             score_data = data.get("score", {})
 
             start_str = data.get("start")
-            start_time = (
-                datetime.datetime.fromisoformat(start_str.replace("Z", "+00:00"))
-                if start_str
-                else None
-            )
+            start_time = parse_iso_datetime(start_str) if start_str else None
 
             if not start_time:
                 return None

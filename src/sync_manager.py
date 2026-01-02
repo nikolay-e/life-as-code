@@ -1,5 +1,6 @@
 import datetime
 import threading
+from dataclasses import dataclass
 from typing import Any
 
 from pydantic import BaseModel
@@ -7,11 +8,117 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from database import bulk_upsert_records, get_db_session_context
-from enums import SyncStatus
+from enums import DataSource, SyncStatus
 from logging_config import get_logger
 from models import Base, DataSync
+from security import decrypt_data_for_user
+from utils import get_user_credentials
 
 logger = get_logger(__name__)
+
+
+@dataclass
+class SyncDateRange:
+    start_date: datetime.date | None
+    end_date: datetime.date
+    sync_type: str
+
+
+@dataclass
+class ProviderCredentials:
+    garmin_email: str | None = None
+    garmin_password: str | None = None
+    hevy_api_key: str | None = None
+    whoop_access_token: str | None = None
+    whoop_refresh_token: str | None = None
+
+
+def get_sync_date_range(
+    days: int = 90, full_sync: bool = False, max_history_days: int = 730
+) -> SyncDateRange:
+    end_date = datetime.date.today()
+    if full_sync:
+        start_date = end_date - datetime.timedelta(days=max_history_days)
+    else:
+        start_date = end_date - datetime.timedelta(days=days)
+    sync_type = "full" if full_sync else f"{days}-day"
+    return SyncDateRange(start_date=start_date, end_date=end_date, sync_type=sync_type)
+
+
+def get_provider_credentials(
+    user_id: int, provider: DataSource
+) -> ProviderCredentials | dict[str, str]:
+    try:
+        creds = get_user_credentials(user_id)
+        if not creds:
+            return {"error": f"No credentials found for user {user_id}"}
+
+        if provider == DataSource.GARMIN:
+            if not creds.garmin_email:
+                return {"error": "No Garmin credentials found for user"}
+            return ProviderCredentials(
+                garmin_email=creds.garmin_email,
+                garmin_password=decrypt_data_for_user(
+                    creds.encrypted_garmin_password, user_id
+                ),
+            )
+
+        elif provider == DataSource.HEVY:
+            if not creds.encrypted_hevy_api_key:
+                return {"error": "No Hevy API key found for user"}
+            return ProviderCredentials(
+                hevy_api_key=decrypt_data_for_user(
+                    creds.encrypted_hevy_api_key, user_id
+                ),
+            )
+
+        elif provider == DataSource.WHOOP:
+            if not creds.encrypted_whoop_access_token:
+                return {"error": "No Whoop credentials found for user"}
+            return ProviderCredentials(
+                whoop_access_token=decrypt_data_for_user(
+                    creds.encrypted_whoop_access_token, user_id
+                ),
+                whoop_refresh_token=decrypt_data_for_user(
+                    creds.encrypted_whoop_refresh_token, user_id
+                ),
+            )
+
+        return {"error": f"Unknown provider: {provider}"}
+
+    except Exception as e:
+        return {"error": f"Failed to get user credentials: {str(e)}"}
+
+
+def build_sync_summary(
+    user_id: int,
+    source: str,
+    sync_type: str,
+    sync_result: "SyncResult",
+    date_range: SyncDateRange | None = None,
+) -> dict[str, Any]:
+    summary: dict[str, Any] = {
+        "user_id": user_id,
+        "sync_date": datetime.datetime.utcnow().isoformat(),
+        "sync_type": sync_type,
+        "source": source,
+        "success": sync_result.success,
+        "records_processed": sync_result.records_processed,
+        "records_created": sync_result.records_created,
+        "records_updated": sync_result.records_updated,
+        "records_skipped": sync_result.records_skipped,
+        "errors": sync_result.errors[:5],
+        "error_count": len(sync_result.errors),
+    }
+    if date_range:
+        summary["date_range"] = {
+            "start": (
+                date_range.start_date.isoformat() if date_range.start_date else "all"
+            ),
+            "end": date_range.end_date.isoformat(),
+        }
+    return summary
+
 
 _sync_locks: dict[tuple[int, str], threading.Lock] = {}
 _locks_lock = threading.Lock()

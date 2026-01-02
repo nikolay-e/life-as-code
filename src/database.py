@@ -3,7 +3,7 @@ import os
 from collections.abc import Generator
 from contextlib import contextmanager
 
-from sqlalchemy import create_engine, func, select, text
+from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, scoped_session, sessionmaker
 
@@ -135,65 +135,6 @@ def check_db_connection() -> bool:
         return False
 
 
-def get_table_counts() -> dict:
-    counts = {}
-    try:
-        with get_db_session_context() as db:
-            from models import HRV, DataSync, HeartRate, Sleep, Weight, WorkoutSet
-
-            counts["sleep"] = db.scalar(select(func.count()).select_from(Sleep))
-            counts["hrv"] = db.scalar(select(func.count()).select_from(HRV))
-            counts["weight"] = db.scalar(select(func.count()).select_from(Weight))
-            counts["heart_rate"] = db.scalar(
-                select(func.count()).select_from(HeartRate)
-            )
-            counts["workout_sets"] = db.scalar(
-                select(func.count()).select_from(WorkoutSet)
-            )
-            counts["data_sync"] = db.scalar(select(func.count()).select_from(DataSync))
-
-        return counts
-    except SQLAlchemyError as e:
-        logger.error(f"Error getting table counts: {e}")
-        return {}
-
-
-def get_counts_for_models(user_id: int, models_list: list) -> dict:
-    counts = {}
-    try:
-        with get_db_session_context() as db:
-            # Batch all count queries into a single transaction
-            for model_class, key in models_list:
-                count = db.scalar(
-                    select(func.count())
-                    .select_from(model_class)
-                    .filter(model_class.user_id == user_id)
-                )
-                counts[key] = count
-
-        return counts
-    except SQLAlchemyError as e:
-        logger.error(f"Error getting model counts for user {user_id}: {e}")
-        return {}
-
-
-def get_table_counts_for_user(user_id: int) -> dict:
-    from models import HRV, Energy, HeartRate, Sleep, Steps, Stress, Weight, WorkoutSet
-
-    models_list = [
-        (Sleep, "sleep"),
-        (HRV, "hrv"),
-        (Weight, "weight"),
-        (HeartRate, "heart_rate"),
-        (Stress, "stress"),
-        (Steps, "steps"),
-        (Energy, "energy"),
-        (WorkoutSet, "workout_sets"),
-    ]
-
-    return get_counts_for_models(user_id, models_list)
-
-
 def bulk_upsert_records(
     records: list, model_class, unique_fields: list, user_id: int
 ) -> dict:
@@ -259,17 +200,3 @@ def bulk_upsert_records(
     except SQLAlchemyError as e:
         logger.error(f"Error in bulk upsert: {e}")
         return {"error": str(e)}
-
-
-if __name__ == "__main__":
-    # Test database connection and initialization
-    print("Testing database connection...")
-
-    if check_db_connection():
-        init_db()
-        counts = get_table_counts()
-        print("\nCurrent table record counts:")
-        for table, count in counts.items():
-            print(f"  {table}: {count} records")
-    else:
-        print("Failed to connect to database")

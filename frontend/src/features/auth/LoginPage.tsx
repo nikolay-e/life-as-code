@@ -21,17 +21,19 @@ export function LoginPage() {
   const { login, isLoading, error, clearError } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = location.state?.from?.pathname || "/dashboard";
+  const state = location.state as { from?: { pathname?: string } } | null;
+  const from = state?.from?.pathname ?? "/dashboard";
 
-  const handleSubmit = async (e: FormEvent) => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     clearError();
-    try {
-      await login(username, password);
-      navigate(from, { replace: true });
-    } catch {
-      // Error is handled in store
-    }
+    void login(username, password)
+      .then(() => {
+        void navigate(from, { replace: true });
+      })
+      .catch(() => {
+        // Error is handled in store
+      });
   };
 
   return (
@@ -71,7 +73,9 @@ export function LoginPage() {
                 type="text"
                 placeholder="Enter your username"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                onChange={(e) => {
+                  setUsername(e.target.value);
+                }}
                 disabled={isLoading}
                 required
                 className="h-11 bg-background/50 border-muted-foreground/20 focus:border-primary focus:bg-background transition-colors"
@@ -86,7 +90,9 @@ export function LoginPage() {
                 type="password"
                 placeholder="Enter your password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                }}
                 disabled={isLoading}
                 required
                 className="h-11 bg-background/50 border-muted-foreground/20 focus:border-primary focus:bg-background transition-colors"
