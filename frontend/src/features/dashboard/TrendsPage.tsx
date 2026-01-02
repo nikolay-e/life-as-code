@@ -417,7 +417,7 @@ export function TrendsPage() {
 
   const handleCopyToClipboard = useCallback(async () => {
     const metrics = computeAllMetrics(
-      data,
+      data ?? null,
       baselineDays,
       shortTermDays,
       trendWindow,
@@ -425,7 +425,7 @@ export function TrendsPage() {
     );
 
     const analysis = computeHealthAnalysis(
-      data,
+      data ?? null,
       metrics,
       modeConfig,
       baselineOptions,
