@@ -47,21 +47,19 @@ def init_api(email: str, password: str, user_id: int) -> Garmin:
     try:
         # Try to use existing tokens first
         if (tokenstore / "oauth1_token.json").exists():
-            logger.info(f"Loading existing tokens for user {user_id}")
+            logger.info("garmin_loading_tokens", user_id=user_id)
             api = Garmin()
             api.login(str(tokenstore))
             return api
 
         # First-time login with credentials
-        logger.info(
-            f"First-time login for user {user_id}, authenticating with credentials"
-        )
+        logger.info("garmin_first_login", user_id=user_id)
         api = Garmin(email, password)
         api.login()
 
         # Save tokens for future use
         api.garth.dump(str(tokenstore))
-        logger.info(f"Saved authentication tokens for user {user_id}")
+        logger.info("garmin_tokens_saved", user_id=user_id)
         return api
 
     except GarminConnectAuthenticationError as e:
@@ -100,7 +98,9 @@ def sync_garmin_data_for_user(
         date_range = get_sync_date_range(days, full_sync, GARMIN_MAX_HISTORY_DAYS)
 
         logger.info(
-            f"Starting Garmin {date_range.sync_type} sync for user {user_id}",
+            "garmin_sync_started",
+            user_id=user_id,
+            sync_type=date_range.sync_type,
             start_date=date_range.start_date,
             end_date=date_range.end_date,
             full_sync=full_sync,
@@ -192,13 +192,18 @@ def sync_garmin_data_for_user(
             "success": all(r.success for r in results),
         }
 
-        logger.info(f"Garmin sync completed for user {user_id}: {summary}")
+        logger.info(
+            "garmin_sync_completed",
+            user_id=user_id,
+            records_processed=summary["total_records_processed"],
+            records_created=summary["total_records_created"],
+            success=summary["success"],
+        )
         return summary
 
     except Exception as e:
-        error_msg = f"Failed to sync Garmin data for user {user_id}: {str(e)}"
-        logger.error(error_msg)
-        return {"error": error_msg, "user_id": user_id}
+        logger.error("garmin_sync_failed", user_id=user_id, error=str(e))
+        return {"error": str(e), "user_id": user_id}
 
 
 class GarminAPIWrapper:
@@ -337,8 +342,8 @@ class GarminAPIWrapper:
                     }
                     if result["totalSteps"] is not None:
                         return result
-            except Exception as e:
-                logger.debug(f"get_user_summary failed for {current_date}: {e}")
+            except Exception:
+                pass
 
             # Fallback to get_steps_data and aggregate hourly buckets
             steps_data = self.api.get_steps_data(date_str)
@@ -512,8 +517,8 @@ class GarminAPIWrapper:
                     combined_data["anaerobicTrainingEffect"] = training_status.get(
                         "anaerobicTrainingEffect"
                     )
-            except Exception as e:
-                logger.debug(f"get_training_status failed for {current_date}: {e}")
+            except Exception:
+                pass
 
             # Get user summary for calories
             try:
@@ -525,8 +530,8 @@ class GarminAPIWrapper:
                     combined_data["activeKilocalories"] = self._safe_float(
                         summary.get("activeKilocalories")
                     )
-            except Exception as e:
-                logger.debug(f"get_user_summary failed for {current_date}: {e}")
+            except Exception:
+                pass
 
             # Try to get endurance score
             try:
@@ -535,8 +540,8 @@ class GarminAPIWrapper:
                     combined_data["enduranceScore"] = endurance.get(
                         "overallScore"
                     ) or endurance.get("enduranceScore")
-            except Exception as e:
-                logger.debug(f"get_endurance_score failed for {current_date}: {e}")
+            except Exception:
+                pass
 
             # Only return if we have at least some meaningful data
             meaningful_keys = [

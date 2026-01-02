@@ -90,36 +90,6 @@ def get_provider_credentials(
         return {"error": f"Failed to get user credentials: {str(e)}"}
 
 
-def build_sync_summary(
-    user_id: int,
-    source: str,
-    sync_type: str,
-    sync_result: "SyncResult",
-    date_range: SyncDateRange | None = None,
-) -> dict[str, Any]:
-    summary: dict[str, Any] = {
-        "user_id": user_id,
-        "sync_date": datetime.datetime.utcnow().isoformat(),
-        "sync_type": sync_type,
-        "source": source,
-        "success": sync_result.success,
-        "records_processed": sync_result.records_processed,
-        "records_created": sync_result.records_created,
-        "records_updated": sync_result.records_updated,
-        "records_skipped": sync_result.records_skipped,
-        "errors": sync_result.errors[:5],
-        "error_count": len(sync_result.errors),
-    }
-    if date_range:
-        summary["date_range"] = {
-            "start": (
-                date_range.start_date.isoformat() if date_range.start_date else "all"
-            ),
-            "end": date_range.end_date.isoformat(),
-        }
-    return summary
-
-
 _sync_locks: dict[tuple[int, str], threading.Lock] = {}
 _locks_lock = threading.Lock()
 
@@ -158,7 +128,9 @@ class SyncResult:
     def add_error(self, error: str):
         """Add an error to the sync result."""
         self.errors.append(error)
-        logger.error(f"Sync error for {self.source}/{self.data_type}: {error}")
+        logger.error(
+            "sync_error", source=self.source, data_type=self.data_type, error=error
+        )
 
     def finish(self, success: bool = True):
         """Mark the sync as finished."""
@@ -278,7 +250,7 @@ def extract_and_parse(
         with get_db_session_context() as db:
             _set_sync_in_progress(db, user_id, source, data_type)
 
-        logger.info(f"Starting {source} {data_type} sync for user {user_id}")
+        logger.info("sync_started", source=source, data_type=data_type, user_id=user_id)
         api_response = api_call_func(**api_kwargs)
 
         if api_response is None:
@@ -372,7 +344,7 @@ def _set_sync_in_progress(db: Session, user_id: int, source: str, data_type: str
             db.add(new_sync)
 
     except Exception as e:
-        logger.error(f"Error setting sync in_progress: {e}")
+        logger.error("sync_in_progress_error", error=str(e))
 
 
 def update_sync_status(
@@ -418,7 +390,7 @@ def update_sync_status(
             db.add(new_sync)
 
     except Exception as e:
-        logger.error(f"Error updating sync status: {e}")
+        logger.error("sync_status_update_error", error=str(e))
 
 
 def batch_sync_data(
@@ -525,5 +497,5 @@ def get_sync_statistics(user_id: int, source: str | None = None) -> dict[str, An
             return stats
 
     except Exception as e:
-        logger.error(f"Error getting sync statistics: {e}")
+        logger.error("sync_statistics_error", error=str(e))
         return {"error": str(e)}

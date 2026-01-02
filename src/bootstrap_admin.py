@@ -35,7 +35,7 @@ def create_default_admin():
 
     is_valid, message = validate_password(admin_password)
     if not is_valid:
-        logger.error(f"Admin password validation failed: {message}")
+        logger.error("admin_password_validation_failed", message=message)
         sys.exit(1)
 
     db = SessionLocal()
@@ -43,7 +43,7 @@ def create_default_admin():
         admin = db.scalars(select(User).where(User.username == admin_username)).first()
 
         if admin:
-            logger.info(f"Admin user already exists: {admin_username}")
+            logger.info("admin_user_exists", username=admin_username)
 
             if any([garmin_email, garmin_password, hevy_api_key]):
                 _update_admin_credentials(
@@ -52,7 +52,7 @@ def create_default_admin():
 
             return admin.id
 
-        logger.info(f"Creating default admin user: {admin_username}")
+        logger.info("creating_admin_user", username=admin_username)
         admin = User(
             username=admin_username, password_hash=get_password_hash(admin_password)
         )
@@ -84,18 +84,17 @@ def create_default_admin():
 
         db.commit()
         logger.info(
-            f"✅ Successfully created admin user: {admin_username} (ID: {admin_id})"
+            "admin_user_created",
+            username=admin_username,
+            user_id=admin_id,
+            garmin_configured=bool(garmin_email),
+            hevy_configured=bool(hevy_api_key),
         )
-
-        if garmin_email:
-            logger.info("  ✅ Garmin credentials configured")
-        if hevy_api_key:
-            logger.info("  ✅ Hevy API key configured")
 
         return admin_id
 
     except Exception as e:
-        logger.error(f"Failed to create admin user: {e}")
+        logger.error("admin_user_creation_failed", error=str(e))
         db.rollback()
         sys.exit(1)
     finally:
@@ -115,7 +114,7 @@ def _create_admin_credentials(db, user_id, garmin_email, garmin_password, hevy_a
         ),
     )
     db.add(creds)
-    logger.info(f"Created credentials for admin user {user_id}")
+    logger.info("admin_credentials_created", user_id=user_id)
 
 
 def _update_admin_credentials(db, user_id, garmin_email, garmin_password, hevy_api_key):
@@ -130,31 +129,28 @@ def _update_admin_credentials(db, user_id, garmin_email, garmin_password, hevy_a
         )
         return
 
-    updated = False
+    updated_fields = []
     if garmin_email and garmin_email != creds.garmin_email:
         creds.garmin_email = garmin_email
-        updated = True
-        logger.info(f"Updated Garmin email for user {user_id}")
+        updated_fields.append("garmin_email")
 
     if garmin_password:
         creds.encrypted_garmin_password = encrypt_data_for_user(
             garmin_password, user_id
         )
-        updated = True
-        logger.info(f"Updated Garmin password for user {user_id}")
+        updated_fields.append("garmin_password")
 
     if hevy_api_key:
         creds.encrypted_hevy_api_key = encrypt_data_for_user(hevy_api_key, user_id)
-        updated = True
-        logger.info(f"Updated Hevy API key for user {user_id}")
+        updated_fields.append("hevy_api_key")
 
-    if updated:
+    if updated_fields:
         db.commit()
-        logger.info(f"✅ Credentials updated for user {user_id}")
+        logger.info("admin_credentials_updated", user_id=user_id, fields=updated_fields)
 
 
 if __name__ == "__main__":
-    logger.info("🔐 Bootstrapping default admin user...")
+    logger.info("bootstrap_started")
     init_db()
     create_default_admin()
-    logger.info("✅ Bootstrap complete")
+    logger.info("bootstrap_complete")

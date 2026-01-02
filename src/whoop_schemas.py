@@ -44,7 +44,7 @@ class WhoopRecoveryParser(BaseModel):
                 user_calibrating=1 if calibrating else 0,
             )
         except Exception as e:
-            logger.error(f"Error parsing Whoop recovery data: {e}")
+            logger.error("whoop_recovery_parse_error", error=str(e))
             return None
 
 
@@ -112,7 +112,7 @@ class WhoopSleepParser(BaseModel):
                 respiratory_rate=score_data.get("respiratory_rate"),
             )
         except Exception as e:
-            logger.error(f"Error parsing Whoop sleep data: {e}")
+            logger.error("whoop_sleep_parse_error", error=str(e))
             return None
 
 
@@ -158,7 +158,7 @@ class WhoopWorkoutParser(BaseModel):
                 sport_name=data.get("sport_name"),
             )
         except Exception as e:
-            logger.error(f"Error parsing Whoop workout data: {e}")
+            logger.error("whoop_workout_parse_error", error=str(e))
             return None
 
 
@@ -188,5 +188,5 @@ class WhoopCycleParser(BaseModel):
                 max_heart_rate=score_data.get("max_heart_rate"),
             )
         except Exception as e:
-            logger.error(f"Error parsing Whoop cycle data: {e}")
+            logger.error("whoop_cycle_parse_error", error=str(e))
             return None

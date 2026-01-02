@@ -392,7 +392,7 @@ def _update_data_sync(
                 )
                 db.add(new_sync)
     except Exception as e:
-        logger.error(f"Error updating data sync status: {e}")
+        logger.error("data_sync_status_update_error", error=str(e))
 
 
 def _run_two_phase_sync(

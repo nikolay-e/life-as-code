@@ -20,9 +20,12 @@ configure_logging()
 logger = get_logger(__name__)
 
 _settings = get_settings()
-logger.info(f"Life-as-Code Backend v{_settings.app_version}")
-logger.info(f"Built: {_settings.build_date}")
-logger.info(f"Commit: {_settings.commit_short}")
+logger.info(
+    "app_startup",
+    version=_settings.app_version,
+    build_date=_settings.build_date,
+    commit=_settings.commit_short,
+)
 
 
 def _validate_required_env_vars():
@@ -78,9 +81,9 @@ def _cleanup_orphaned_syncs():
                     sync.status = SyncStatus.ERROR
                     sync.error_message = "Sync interrupted by application restart"
                 db.commit()
-                logger.info(f"Cleaned up {len(orphaned)} orphaned in_progress syncs")
+                logger.info("orphaned_syncs_cleaned", count=len(orphaned))
     except Exception as e:
-        logger.error(f"Error cleaning up orphaned syncs: {e}")
+        logger.error("orphaned_syncs_cleanup_error", error=str(e))
 
 
 # Initialize database
@@ -150,7 +153,7 @@ def health():
             "database": "connected",
         }, 200
     except Exception as e:
-        logger.error(f"Health check failed: {e}")
+        logger.error("health_check_failed", error=str(e))
         return {
             "status": "unhealthy",
             "version": _settings.app_version,

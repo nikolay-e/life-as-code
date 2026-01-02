@@ -48,7 +48,7 @@ class GarminBaseModel(BaseModel):
             return cls(**parsed_data)
 
         except Exception as e:
-            logger.error(f"Error parsing {cls.__name__} from Garmin response: {e}")
+            logger.error("garmin_parse_error", model=cls.__name__, error=str(e))
             return None
 
 

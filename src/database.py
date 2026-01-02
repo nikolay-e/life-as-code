@@ -28,9 +28,7 @@ if not DATABASE_URL:
         )
 
     DATABASE_URL = f"postgresql+psycopg2://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
-    logger.info(
-        f"Constructed DATABASE_URL from environment variables for host: {POSTGRES_HOST}"
-    )
+    logger.info("database_url_constructed", host=POSTGRES_HOST)
 
 if not DATABASE_URL:
     raise ValueError("Could not determine database connection parameters")
@@ -79,7 +77,7 @@ def init_db() -> None:
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables created via create_all()")
     except Exception as e:
-        logger.error(f"Database initialization failed: {e}")
+        logger.error("database_init_failed", error=str(e))
         raise
 
 
@@ -131,7 +129,7 @@ def check_db_connection() -> bool:
         logger.info("✅ Database connection is healthy")
         return True
     except SQLAlchemyError as e:
-        logger.error(f"❌ Database connection failed: {e}")
+        logger.error("database_connection_failed", error=str(e))
         return False
 
 
@@ -165,7 +163,7 @@ def bulk_upsert_records(
                     all_keys.update(data_dict.keys())
                     processed_records.append(data_dict)
                 except Exception as e:
-                    logger.error(f"Error processing record: {e}")
+                    logger.error("record_processing_error", error=str(e))
                     result["errors"] += 1
 
             if not processed_records:
@@ -194,9 +192,14 @@ def bulk_upsert_records(
             db.execute(stmt)
             result["created"] = len(processed_records)
 
-        logger.info(f"Bulk upsert completed: {result}")
+        logger.info(
+            "bulk_upsert_completed",
+            created=result["created"],
+            updated=result.get("updated", 0),
+            errors=result.get("errors", 0),
+        )
         return result
 
     except SQLAlchemyError as e:
-        logger.error(f"Error in bulk upsert: {e}")
+        logger.error("bulk_upsert_error", error=str(e))
         return {"error": str(e)}

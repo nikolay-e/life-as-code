@@ -21,7 +21,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     try:
         return bool(pwd_context.verify(plain_password, hashed_password))
     except Exception as e:
-        logger.error(f"Password verification error: {e}")
+        logger.error("password_verification_error", error=str(e))
         return False
 
 
@@ -83,7 +83,7 @@ def get_or_create_user_key(user_id: int) -> str:
         else:
             user_key = _generate_user_key()
             user.encryption_key_sealed = _seal_user_key(user_key)  # type: ignore[assignment]
-            logger.info(f"Generated new encryption key for user {user_id}")
+            logger.info("encryption_key_generated", user_id=user_id)
             return user_key
 
 
@@ -96,7 +96,7 @@ def encrypt_data_for_user(data: str, user_id: int) -> str:
         user_cipher = Fernet(user_key.encode())
         return str(user_cipher.encrypt(data.encode()).decode())
     except Exception as e:
-        logger.error(f"Encryption error for user {user_id}: {e}")
+        logger.error("encryption_error", user_id=user_id, error=str(e))
         raise
 
 
@@ -109,7 +109,7 @@ def decrypt_data_for_user(encrypted_data: str, user_id: int) -> str:
         user_cipher = Fernet(user_key.encode())
         return str(user_cipher.decrypt(encrypted_data.encode()).decode())
     except Exception as e:
-        logger.error(f"Decryption error for user {user_id}: {e}")
+        logger.error("decryption_error", user_id=user_id, error=str(e))
         raise
 
 

@@ -82,8 +82,6 @@ dev = [
     "black>=24.1.0",
     "ruff>=0.1.15",
     "mypy>=1.8.0",
-    "pytest>=7.4.0",
-    "pytest-cov>=4.1.0",
     # Type Checking Stubs
     "types-PyYAML>=6.0.12.20250516",
     "types-requests>=2.32.4.20250611",

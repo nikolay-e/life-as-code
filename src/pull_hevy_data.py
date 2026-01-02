@@ -90,11 +90,11 @@ class HevyWorkoutData(BaseModel):
                         workout_sets.append(workout_set)
 
                     except Exception as e:
-                        logger.warning(f"Error parsing workout set: {e}")
+                        logger.warning("hevy_workout_set_parse_error", error=str(e))
                         continue
 
         except Exception as e:
-            logger.error(f"Error parsing workout data: {e}")
+            logger.error("hevy_workout_data_parse_error", error=str(e))
 
         return workout_sets
 
@@ -125,7 +125,7 @@ class HevyAPIClient:
             )
 
             if response.status_code == 429:
-                logger.warning(f"Rate limited, waiting {RATE_LIMIT_WAIT}s...")
+                logger.warning("hevy_rate_limited", wait_seconds=RATE_LIMIT_WAIT)
                 time.sleep(RATE_LIMIT_WAIT)
                 raise RateLimitError(RATE_LIMIT_WAIT)
 
@@ -141,7 +141,7 @@ class HevyAPIClient:
         max_pages = 1000
 
         while page <= max_pages:
-            logger.info(f"Fetching Hevy workouts page {page}...")
+            logger.info("hevy_fetching_page", page=page)
 
             try:
                 response = self._fetch_page(page)
@@ -151,7 +151,7 @@ class HevyAPIClient:
                     workouts = page_data.get("workouts", [])
 
                     if not workouts:
-                        logger.info("No more workouts found, stopping pagination")
+                        logger.info("hevy_pagination_end")
                         break
 
                     if start_date:
@@ -171,30 +171,34 @@ class HevyAPIClient:
                                 filtered.append(w)
                         workouts = filtered
                         if oldest_in_page and oldest_in_page < start_date:
-                            logger.info(
-                                f"Reached workouts older than {start_date}, stopping"
-                            )
+                            logger.info("hevy_date_cutoff", cutoff_date=start_date)
                             all_workouts.extend(workouts)
                             break
 
                     all_workouts.extend(workouts)
-                    logger.info(f"Retrieved {len(workouts)} workouts from page {page}")
+                    logger.info(
+                        "hevy_page_retrieved", workouts=len(workouts), page=page
+                    )
 
                 elif response.status_code == 404:
-                    logger.info(f"Page {page} returned 404 - end of data")
+                    logger.info("hevy_page_not_found", page=page)
                     break
 
                 else:
-                    logger.error(f"HTTP {response.status_code}: {response.text}")
+                    logger.error(
+                        "hevy_request_failed",
+                        status_code=response.status_code,
+                        response=response.text[:200],
+                    )
                     break
 
             except Exception as e:
-                logger.error(f"Failed to fetch page {page}: {e}")
+                logger.error("hevy_fetch_error", page=page, error=str(e))
                 break
 
             page += 1
 
-        logger.info(f"Total workouts retrieved: {len(all_workouts)}")
+        logger.info("hevy_fetch_complete", total_workouts=len(all_workouts))
         return all_workouts
 
 
@@ -212,7 +216,9 @@ def sync_hevy_data_for_user(
         start_date = None if full_sync else date_range.start_date
 
         logger.info(
-            f"Starting Hevy {date_range.sync_type} sync for user {user_id}",
+            "hevy_sync_started",
+            user_id=user_id,
+            sync_type=date_range.sync_type,
             start_date=start_date,
             end_date=date_range.end_date,
             full_sync=full_sync,
@@ -243,13 +249,18 @@ def sync_hevy_data_for_user(
             "error_count": len(sync_result.errors),
         }
 
-        logger.info(f"Hevy sync completed for user {user_id}: {summary}")
+        logger.info(
+            "hevy_sync_completed",
+            user_id=user_id,
+            records_processed=summary["records_processed"],
+            records_created=summary["records_created"],
+            success=summary["success"],
+        )
         return summary
 
     except Exception as e:
-        error_msg = f"Failed to sync Hevy data for user {user_id}: {str(e)}"
-        logger.error(error_msg)
-        return {"error": error_msg, "user_id": user_id}
+        logger.error("hevy_sync_failed", user_id=user_id, error=str(e))
+        return {"error": str(e), "user_id": user_id}
 
 
 if __name__ == "__main__":

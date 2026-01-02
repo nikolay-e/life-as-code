@@ -1,5 +1,4 @@
 import datetime
-import enum
 from typing import Any, cast
 
 from sqlalchemy import (
@@ -20,27 +19,6 @@ from sqlalchemy.orm import declarative_base, relationship, validates
 from enums import DataSource, SyncStatus, SyncWindow, SyncWindowStatus
 
 Base: Any = declarative_base()
-
-
-class StressLevelEnum(str, enum.Enum):
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-
-
-class HRVStatusEnum(str, enum.Enum):
-    GOOD = "good"
-    MODERATE = "moderate"
-    LOW = "low"
-    BALANCED = "balanced"
-    UNBALANCED = "unbalanced"
-
-
-class SetTypeEnum(str, enum.Enum):
-    NORMAL = "normal"
-    WARMUP = "warmup"
-    FAILURE = "failure"
-    DROP_SET = "drop_set"
 
 
 class User(Base):

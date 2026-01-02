@@ -1,6 +1,7 @@
 import datetime
 import os
 import time
+from dataclasses import dataclass
 from typing import Any
 
 import requests
@@ -59,9 +60,14 @@ class WhoopAPIClient:
         return {"Authorization": f"Bearer {self.access_token}"}
 
     def _refresh_access_token(self) -> bool:
-        """Refresh access token using refresh token."""
-        try:
-            response = requests.post(
+        @retry(
+            stop=stop_after_attempt(MAX_RETRIES),
+            wait=wait_exponential(multiplier=1, min=2, max=30),
+            retry=retry_if_exception_type(requests.RequestException),
+            reraise=True,
+        )
+        def _do_refresh() -> requests.Response:
+            return requests.post(
                 "https://api.prod.whoop.com/oauth/oauth2/token",
                 data={
                     "grant_type": "refresh_token",
@@ -71,6 +77,9 @@ class WhoopAPIClient:
                 },
                 timeout=30,
             )
+
+        try:
+            response = _do_refresh()
 
             if response.status_code == 200:
                 tokens = response.json()
@@ -97,16 +106,18 @@ class WhoopAPIClient:
                         )
                         db.commit()
 
-                logger.info(f"Refreshed Whoop access token for user {self.user_id}")
+                logger.info("whoop_token_refreshed", user_id=self.user_id)
                 return True
 
             logger.error(
-                f"Failed to refresh Whoop token: {response.status_code} {response.text}"
+                "whoop_token_refresh_failed",
+                status_code=response.status_code,
+                response_text=response.text[:200],
             )
             return False
 
         except Exception as e:
-            logger.error(f"Error refreshing Whoop token: {e}")
+            logger.error("whoop_token_refresh_error", error=str(e))
             return False
 
     def _make_request(self, endpoint: str, params: dict | None = None) -> dict | None:
@@ -127,7 +138,7 @@ class WhoopAPIClient:
             )
 
             if response.status_code == 401:
-                logger.info("Whoop token expired, refreshing...")
+                logger.info("whoop_token_expired")
                 if self._refresh_access_token():
                     response = requests.get(
                         f"{self.base_url}/{endpoint}",
@@ -140,7 +151,7 @@ class WhoopAPIClient:
 
             if response.status_code == 429:
                 retry_after = int(response.headers.get("Retry-After", 60))
-                logger.warning(f"Rate limited, waiting {retry_after}s...")
+                logger.warning("whoop_rate_limited", retry_after=retry_after)
                 time.sleep(retry_after)
                 raise RateLimitError(retry_after)
 
@@ -149,7 +160,9 @@ class WhoopAPIClient:
                 return result
 
             logger.error(
-                f"Whoop API request failed: {response.status_code} {response.text}"
+                "whoop_api_request_failed",
+                status_code=response.status_code,
+                response_text=response.text[:200],
             )
             return None
 
@@ -157,10 +170,10 @@ class WhoopAPIClient:
             result: dict | None = _do_request()
             return result
         except (AuthenticationError, RateLimitError) as e:
-            logger.error(f"Whoop API error after retries: {e}")
+            logger.error("whoop_api_error", error=str(e))
             return None
         except Exception as e:
-            logger.error(f"Error making Whoop API request: {e}")
+            logger.error("whoop_api_request_error", error=str(e))
             return None
 
     def _paginated_request(
@@ -193,10 +206,14 @@ class WhoopAPIClient:
 
             if page_count % 10 == 0:
                 logger.info(
-                    f"Fetched {len(all_records)} records from {page_count} pages"
+                    "whoop_pagination_progress",
+                    records=len(all_records),
+                    pages=page_count,
                 )
 
-        logger.info(f"Total: {len(all_records)} records from {page_count} pages")
+        logger.info(
+            "whoop_pagination_complete", records=len(all_records), pages=page_count
+        )
         return all_records
 
     def get_recovery_data(
@@ -319,25 +336,74 @@ class WhoopAPIClient:
         return list(cycles_by_date.values())
 
 
-def sync_whoop_recovery(
+@dataclass
+class WhoopSyncConfig:
+    data_type: str
+    model_class: type
+    parser_class: Any  # Parser class with from_whoop_response method
+    unique_fields: list[str]
+    get_data_method: str
+    parser_needs_date: bool = True
+
+
+WHOOP_SYNC_CONFIGS = [
+    WhoopSyncConfig(
+        data_type=DataType.RECOVERY,
+        model_class=WhoopRecovery,
+        parser_class=WhoopRecoveryParser,
+        unique_fields=["date"],
+        get_data_method="get_recovery_data",
+    ),
+    WhoopSyncConfig(
+        data_type=DataType.SLEEP,
+        model_class=WhoopSleep,
+        parser_class=WhoopSleepParser,
+        unique_fields=["date"],
+        get_data_method="get_sleep_data",
+    ),
+    WhoopSyncConfig(
+        data_type=DataType.WORKOUTS,
+        model_class=WhoopWorkout,
+        parser_class=WhoopWorkoutParser,
+        unique_fields=["date", "start_time"],
+        get_data_method="get_workout_data",
+        parser_needs_date=False,
+    ),
+    WhoopSyncConfig(
+        data_type=DataType.CYCLES,
+        model_class=WhoopCycle,
+        parser_class=WhoopCycleParser,
+        unique_fields=["date"],
+        get_data_method="get_cycle_data",
+    ),
+]
+
+
+def _sync_whoop_data_type(
     client: WhoopAPIClient,
     user_id: int,
+    config: WhoopSyncConfig,
     start_date: datetime.date | None = None,
     end_date: datetime.date | None = None,
 ) -> SyncResult:
     sync_result = SyncResult(
-        source=DataSource.WHOOP, data_type=DataType.RECOVERY, user_id=user_id
+        source=DataSource.WHOOP, data_type=config.data_type, user_id=user_id
     )
 
     try:
-        recovery_data = client.get_recovery_data(start_date, end_date)
+        get_data = getattr(client, config.get_data_method)
+        raw_data = get_data(start_date, end_date)
 
         with get_db_session_context() as db:
-            for item in recovery_data:
+            for item in raw_data:
                 try:
-                    parsed = WhoopRecoveryParser.from_whoop_response(
-                        item, item.get("date")
-                    )
+                    if config.parser_needs_date:
+                        parsed = config.parser_class.from_whoop_response(
+                            item, item.get("date")
+                        )
+                    else:
+                        parsed = config.parser_class.from_whoop_response(item)
+
                     if not parsed:
                         sync_result.records_skipped += 1
                         continue
@@ -350,167 +416,17 @@ def sync_whoop_recovery(
 
                     upsert_data(
                         db,
-                        WhoopRecovery,
+                        config.model_class,
                         data_dict,
-                        ["date"],
+                        config.unique_fields,
                         user_id,
                         sync_result,
                     )
 
                 except Exception as e:
-                    sync_result.add_error(f"Error processing recovery: {str(e)}")
-                    sync_result.records_skipped += 1
-
-            db.commit()
-            sync_result.success = True
-
-    except Exception as e:
-        sync_result.add_error(f"Sync error: {str(e)}")
-
-    return sync_result
-
-
-def sync_whoop_sleep(
-    client: WhoopAPIClient,
-    user_id: int,
-    start_date: datetime.date | None = None,
-    end_date: datetime.date | None = None,
-) -> SyncResult:
-    sync_result = SyncResult(
-        source=DataSource.WHOOP, data_type=DataType.SLEEP, user_id=user_id
-    )
-
-    try:
-        sleep_data = client.get_sleep_data(start_date, end_date)
-
-        with get_db_session_context() as db:
-            for item in sleep_data:
-                try:
-                    parsed = WhoopSleepParser.from_whoop_response(
-                        item, item.get("date")
+                    sync_result.add_error(
+                        f"Error processing {config.data_type}: {str(e)}"
                     )
-                    if not parsed:
-                        sync_result.records_skipped += 1
-                        continue
-
-                    data_dict = {
-                        "user_id": user_id,
-                        "date": item.get("date"),
-                        **parsed.model_dump(),
-                    }
-
-                    upsert_data(
-                        db,
-                        WhoopSleep,
-                        data_dict,
-                        ["date"],
-                        user_id,
-                        sync_result,
-                    )
-
-                except Exception as e:
-                    sync_result.add_error(f"Error processing sleep: {str(e)}")
-                    sync_result.records_skipped += 1
-
-            db.commit()
-            sync_result.success = True
-
-    except Exception as e:
-        sync_result.add_error(f"Sync error: {str(e)}")
-
-    return sync_result
-
-
-def sync_whoop_workouts(
-    client: WhoopAPIClient,
-    user_id: int,
-    start_date: datetime.date | None = None,
-    end_date: datetime.date | None = None,
-) -> SyncResult:
-    sync_result = SyncResult(
-        source=DataSource.WHOOP, data_type=DataType.WORKOUTS, user_id=user_id
-    )
-
-    try:
-        workout_data = client.get_workout_data(start_date, end_date)
-
-        with get_db_session_context() as db:
-            for item in workout_data:
-                try:
-                    parsed = WhoopWorkoutParser.from_whoop_response(item)
-                    if not parsed:
-                        sync_result.records_skipped += 1
-                        continue
-
-                    data_dict = {
-                        "user_id": user_id,
-                        "date": item.get("date"),
-                        **parsed.model_dump(),
-                    }
-
-                    upsert_data(
-                        db,
-                        WhoopWorkout,
-                        data_dict,
-                        ["date", "start_time"],
-                        user_id,
-                        sync_result,
-                    )
-
-                except Exception as e:
-                    sync_result.add_error(f"Error processing workout: {str(e)}")
-                    sync_result.records_skipped += 1
-
-            db.commit()
-            sync_result.success = True
-
-    except Exception as e:
-        sync_result.add_error(f"Sync error: {str(e)}")
-
-    return sync_result
-
-
-def sync_whoop_cycles(
-    client: WhoopAPIClient,
-    user_id: int,
-    start_date: datetime.date | None = None,
-    end_date: datetime.date | None = None,
-) -> SyncResult:
-    """Sync Whoop physiological cycles (daily strain summaries)."""
-    sync_result = SyncResult(
-        source=DataSource.WHOOP, data_type=DataType.CYCLES, user_id=user_id
-    )
-
-    try:
-        cycle_data = client.get_cycle_data(start_date, end_date)
-
-        with get_db_session_context() as db:
-            for item in cycle_data:
-                try:
-                    parsed = WhoopCycleParser.from_whoop_response(
-                        item, item.get("date")
-                    )
-                    if not parsed:
-                        sync_result.records_skipped += 1
-                        continue
-
-                    data_dict = {
-                        "user_id": user_id,
-                        "date": item.get("date"),
-                        **parsed.model_dump(),
-                    }
-
-                    upsert_data(
-                        db,
-                        WhoopCycle,
-                        data_dict,
-                        ["date"],
-                        user_id,
-                        sync_result,
-                    )
-
-                except Exception as e:
-                    sync_result.add_error(f"Error processing cycle: {str(e)}")
                     sync_result.records_skipped += 1
 
             db.commit()
@@ -539,18 +455,18 @@ def sync_whoop_data_for_user(
         end_date = date_range.end_date
 
         logger.info(
-            f"Starting Whoop {date_range.sync_type} sync for user {user_id}",
+            "whoop_sync_started",
+            user_id=user_id,
+            sync_type=date_range.sync_type,
             start_date=start_date,
             end_date=end_date,
             full_sync=full_sync,
         )
 
-        recovery_result = sync_whoop_recovery(client, user_id, start_date, end_date)
-        sleep_result = sync_whoop_sleep(client, user_id, start_date, end_date)
-        workout_result = sync_whoop_workouts(client, user_id, start_date, end_date)
-        cycle_result = sync_whoop_cycles(client, user_id, start_date, end_date)
-
-        results = [recovery_result, sleep_result, workout_result, cycle_result]
+        results = [
+            _sync_whoop_data_type(client, user_id, config, start_date, end_date)
+            for config in WHOOP_SYNC_CONFIGS
+        ]
 
         summary = {
             "user_id": user_id,
@@ -568,13 +484,18 @@ def sync_whoop_data_for_user(
             "success": all(r.success for r in results),
         }
 
-        logger.info(f"Whoop sync completed for user {user_id}: {summary}")
+        logger.info(
+            "whoop_sync_completed",
+            user_id=user_id,
+            records_processed=summary["total_records_processed"],
+            records_created=summary["total_records_created"],
+            success=summary["success"],
+        )
         return summary
 
     except Exception as e:
-        error_msg = f"Failed to sync Whoop data for user {user_id}: {str(e)}"
-        logger.error(error_msg)
-        return {"error": error_msg, "user_id": user_id}
+        logger.error("whoop_sync_failed", user_id=user_id, error=str(e))
+        return {"error": str(e), "user_id": user_id}
 
 
 if __name__ == "__main__":
