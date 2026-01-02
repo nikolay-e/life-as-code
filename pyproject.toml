@@ -63,6 +63,7 @@ dependencies = [
     "passlib>=1.7.4",
     "flask-wtf>=1.2.1",
     "flask-limiter>=3.8.0",
+    "redis>=5.0.0",
     # Data Validation & Settings
     "pydantic>=2.10.4",
     "pydantic-settings>=2.7.0",
