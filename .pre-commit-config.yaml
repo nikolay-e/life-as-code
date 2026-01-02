@@ -1,43 +1,39 @@
 minimum_pre_commit_version: '3.5.0'
 default_stages: [pre-commit]
 default_language_version:
-  python: python3
+  python: python3.12
   node: system
 
-fail_fast: false # Run all hooks to get complete feedback
+fail_fast: false
 
 repos:
-  # =============================================================================
-  # FILE HYGIENE (Autofixing)
-  # =============================================================================
+  # ============================================================================
+  # BASIC FILE QUALITY CHECKS (baseline hygiene)
+  # ============================================================================
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
-      # Auto-fixable hygiene
       - id: trailing-whitespace
       - id: end-of-file-fixer
-      - id: mixed-line-ending
-        args: ['--fix=lf']
-      - id: fix-byte-order-marker
-
-      # Critical safety checks
-      - id: check-merge-conflict
-      - id: check-case-conflict
-      - id: detect-private-key
-      - id: debug-statements
-      - id: check-added-large-files
-        args: ['--maxkb=1024']
-
-      # File format checks
       - id: check-yaml
         exclude: ^helm/
-      - id: check-json
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]
+      - id: check-merge-conflict
       - id: check-toml
+      - id: check-json
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+      - id: check-case-conflict
+      - id: check-docstring-first
       - id: check-ast
+      - id: debug-statements
+      - id: fix-byte-order-marker
+      - id: detect-private-key
 
-  # =============================================================================
+  # ============================================================================
   # GITHUB ACTIONS VALIDATION
-  # =============================================================================
+  # ============================================================================
   - repo: https://github.com/python-jsonschema/check-jsonschema
     rev: 0.35.0
     hooks:
@@ -53,9 +49,16 @@ repos:
       - id: actionlint
         name: Lint GitHub Actions
 
-  # =============================================================================
-  # PYTHON FORMATTING & LINTING
-  # =============================================================================
+  # ============================================================================
+  # PYTHON FORMATTING (Order: isort → black to avoid conflicts)
+  # ============================================================================
+  - repo: https://github.com/pycqa/isort
+    rev: 7.0.0
+    hooks:
+      - id: isort
+        args: ['--profile', 'black']
+        files: ^src/
+
   - repo: https://github.com/psf/black
     rev: 25.1.0
     hooks:
@@ -63,96 +66,91 @@ repos:
         language_version: python3
         files: ^src/
 
-  - repo: https://github.com/pycqa/isort
-    rev: 6.0.1
-    hooks:
-      - id: isort
-        args: ['--profile', 'black']
-        files: ^src/
-
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.5
-    hooks:
-      - id: ruff
-        name: Lint Python with ruff
-        args: ['--fix', '--exit-non-zero-on-fix']
-        files: ^src/
-      - id: ruff-format
-        name: Format Python with ruff
-        files: ^src/
-
   - repo: https://github.com/asottile/pyupgrade
     rev: v3.21.1
     hooks:
       - id: pyupgrade
-        name: Upgrade Python syntax
-        args: ['--py310-plus']
+        name: pyupgrade (auto-upgrade Python syntax)
+        args: ['--py312-plus']
         files: ^src/.*\.py$
 
+  # ============================================================================
+  # STATIC TYPING
+  # ============================================================================
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.18.2
     hooks:
       - id: mypy
-        name: Type check Python with mypy
+        name: mypy (strict mode)
         args: ['--ignore-missing-imports']
         additional_dependencies:
-          - 'types-requests'
-          - 'types-PyYAML'
-          - 'structlog'
-          - 'flask'
-          - 'sqlalchemy'
+          - types-requests
+          - types-PyYAML
+          - structlog
+          - flask
+          - sqlalchemy
         files: ^src/
 
-  # =============================================================================
-  # PYTHON SECURITY
-  # =============================================================================
-  - repo: https://github.com/PyCQA/bandit
-    rev: 1.9.0
+  # ============================================================================
+  # LINTING (Ruff for speed + correctness)
+  # ============================================================================
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.0
     hooks:
-      - id: bandit
-        name: Security scan Python (bandit)
-        args: ['-q', '-r', '-x', 'tests,*/test_*.py', '--skip', 'B101,B108,B110']
+      - id: ruff
+        name: ruff (correctness-focused checks)
+        args: ["--fix", "--exit-non-zero-on-fix"]
+        files: ^src/
+      - id: ruff-format
+        name: ruff-format (Python formatting)
         files: ^src/
 
+  # ============================================================================
+  # PYTHON SECURITY
+  # ============================================================================
   - repo: https://github.com/returntocorp/semgrep
-    rev: v1.89.0
+    rev: v1.99.0
     hooks:
       - id: semgrep
-        name: Semgrep (AST-based security)
+        name: semgrep (AST-based security & policy)
         args:
-          - '--config=p/security-audit'
-          - '--config=p/python'
-          - '--config=p/javascript'
-          - '--config=p/typescript'
-          - '--config=p/react'
-          - '--error'
-          - '--skip-unknown-extensions'
-          - '--metrics=off'
+          [
+            "--config=p/security-audit",
+            "--config=p/python",
+            "--config=p/javascript",
+            "--config=p/typescript",
+            "--config=p/react",
+            "--error",
+            "--skip-unknown-extensions",
+            "--metrics=off",
+          ]
         files: ^(src/|frontend/src/)
         exclude: /tests/
 
   - repo: https://github.com/PyCQA/pylint
-    rev: v3.3.4
+    rev: v4.0.1
     hooks:
       - id: pylint
-        name: Pylint (duplicate code detection)
+        name: pylint (duplicate code detection)
         args:
-          - '--disable=all'
-          - '--enable=duplicate-code'
-          - '--min-similarity-lines=20'
-          - '--ignore-comments=yes'
-          - '--ignore-docstrings=yes'
-          - '--ignore-imports=yes'
+          [
+            "--disable=all",
+            "--enable=duplicate-code",
+            "--min-similarity-lines=20",
+            "--ignore-comments=yes",
+            "--ignore-docstrings=yes",
+            "--ignore-imports=yes",
+          ]
         files: ^src/
 
-  # =============================================================================
-  # PYTHON DEAD CODE DETECTION
-  # =============================================================================
+  # ============================================================================
+  # DEAD CODE DETECTION
+  # ============================================================================
   - repo: https://github.com/jendrikseipp/vulture
     rev: v2.14
     hooks:
       - id: vulture
-        name: Dead code detection (vulture)
+        name: vulture (dead code)
         args:
           - 'src'
           - 'vulture_whitelist.py'
@@ -163,20 +161,20 @@ repos:
         pass_filenames: false
         files: ^src/.*\.py$
 
-  # =============================================================================
+  # ============================================================================
   # PYTHON DEPENDENCY SECURITY
-  # =============================================================================
+  # ============================================================================
   - repo: https://github.com/trailofbits/pip-audit
     rev: v2.9.0
     hooks:
       - id: pip-audit
-        name: Python dependency vulnerability audit
+        name: pip-audit (CVE detection)
         args: ['--skip-editable']
         files: ^(pyproject\.toml|requirements.*\.txt)$
 
-  # =============================================================================
+  # ============================================================================
   # SECRET DETECTION
-  # =============================================================================
+  # ============================================================================
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.29.0
     hooks:
@@ -191,18 +189,17 @@ repos:
         args: ['--baseline', '.secrets.baseline']
         exclude: ^(frontend/package-lock\.json)$
 
-  # =============================================================================
+  # ============================================================================
   # FRONTEND (React/TypeScript)
-  # =============================================================================
+  # ============================================================================
   - repo: https://github.com/pre-commit/mirrors-prettier
     rev: v4.0.0-alpha.8
     hooks:
       - id: prettier
-        name: Format frontend with Prettier
+        name: prettier (frontend formatting)
         files: ^frontend/.*\.(js|jsx|ts|tsx|json|css|md)$
         exclude: ^frontend/(node_modules|dist)/
         args: ['--write']
-
 
   - repo: local
     hooks:
@@ -262,9 +259,9 @@ repos:
         files: ^frontend/package(-lock)?\.json$
         pass_filenames: false
 
-  # =============================================================================
+  # ============================================================================
   # CSS LINTING
-  # =============================================================================
+  # ============================================================================
   - repo: https://github.com/thibaudcolas/pre-commit-stylelint
     rev: v16.25.0
     hooks:
@@ -276,9 +273,9 @@ repos:
           - stylelint@16.12.0
           - stylelint-config-recommended@13.0.0
 
-  # =============================================================================
+  # ============================================================================
   # SHELL SCRIPTS
-  # =============================================================================
+  # ============================================================================
   - repo: https://github.com/scop/pre-commit-shfmt
     rev: v3.12.0-2
     hooks:
@@ -293,19 +290,19 @@ repos:
         name: Lint shell scripts
         args: ['--exclude=SC2034,SC2155']
 
-  # =============================================================================
+  # ============================================================================
   # DOCKER & INFRASTRUCTURE
-  # =============================================================================
+  # ============================================================================
   - repo: https://github.com/hadolint/hadolint
     rev: v2.14.0
     hooks:
       - id: hadolint-docker
         name: Lint Dockerfiles
         args:
-          - '--ignore=DL3008'  # Pin versions (apt-get)
-          - '--ignore=DL3018'  # Pin versions (alpine apk)
-          - '--ignore=DL3013'  # Pin versions (pip)
-          - '--ignore=DL3059'  # Multiple consecutive RUN
+          - '--ignore=DL3008'
+          - '--ignore=DL3018'
+          - '--ignore=DL3013'
+          - '--ignore=DL3059'
 
   - repo: local
     hooks:
@@ -324,9 +321,9 @@ repos:
         pass_filenames: false
         stages: [pre-push]
 
-  # =============================================================================
+  # ============================================================================
   # YAML & MARKDOWN
-  # =============================================================================
+  # ============================================================================
   - repo: https://github.com/adrienverge/yamllint
     rev: v1.37.1
     hooks:
@@ -344,9 +341,9 @@ repos:
         args: ['--fix']
         files: \.(md|markdown)$
 
-  # =============================================================================
+  # ============================================================================
   # SPELL CHECKING
-  # =============================================================================
+  # ============================================================================
   - repo: https://github.com/codespell-project/codespell
     rev: v2.4.1
     hooks:
@@ -357,13 +354,11 @@ repos:
           - '--ignore-words-list=crate,nd,ser,async,theses,ba,te,tha,ue,ist,hevy,checkin'
         exclude: ^(frontend/node_modules/|frontend/dist/|frontend/package-lock\.json)$
 
-  # =============================================================================
-  # COMMIT MESSAGE QUALITY (commit-msg hook)
-  # =============================================================================
-  - repo: https://github.com/jorisroovers/gitlint
-    rev: v0.19.1
+  # ============================================================================
+  # COMMIT MESSAGE QUALITY
+  # ============================================================================
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v4.9.1
     hooks:
-      - id: gitlint
-        name: Validate commit message
+      - id: commitizen
         stages: [commit-msg]
-        args: ['--msg-filename']
