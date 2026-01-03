@@ -10,6 +10,7 @@ interface HeartRateChartProps {
   showTrends?: boolean;
   bandwidthShort?: number;
   bandwidthLong?: number;
+  dateRange?: { start: string; end: string };
 }
 
 export const HeartRateChart = memo(
@@ -19,6 +20,7 @@ export const HeartRateChart = memo(
     showTrends = false,
     bandwidthShort = 0.17,
     bandwidthLong = 0.33,
+    dateRange,
   }: HeartRateChartProps) => {
     const config = MULTI_PROVIDER_CONFIGS.restingHr;
 
@@ -41,6 +43,7 @@ export const HeartRateChart = memo(
         showTrends={showTrends}
         bandwidthShort={bandwidthShort}
         bandwidthLong={bandwidthLong}
+        dateRange={dateRange}
       />
     );
   },

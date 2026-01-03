@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import {
   Line,
   XAxis,
@@ -9,18 +9,23 @@ import {
   Legend,
   ComposedChart,
 } from "recharts";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, startOfDay } from "date-fns";
 import type { StressData } from "../../types/api";
 import { EmptyChartMessage } from "./shared";
 import { chartTooltipStyle, TREND_CONFIGS } from "./chart-config";
 import { renderTrendLines } from "./TrendLines";
 import { useTrendData } from "../../hooks/useTrendData";
 
+function dateToTimestamp(dateStr: string): number {
+  return startOfDay(parseISO(dateStr)).getTime();
+}
+
 interface StressChartProps {
   data: StressData[];
   showTrends?: boolean;
   bandwidthShort?: number;
   bandwidthLong?: number;
+  dateRange?: { start: string; end: string };
 }
 
 export const StressChart = memo(
@@ -29,13 +34,13 @@ export const StressChart = memo(
     showTrends = false,
     bandwidthShort = 0.17,
     bandwidthLong = 0.33,
+    dateRange,
   }: StressChartProps) => {
     const config = TREND_CONFIGS.stress;
 
     const normalizedData = data.map((d) => ({
       date: d.date,
       avg_stress: d.avg_stress,
-      max_stress: d.max_stress,
     }));
 
     const { chartData, hasData } = useTrendData(normalizedData, "avg_stress", {
@@ -44,6 +49,16 @@ export const StressChart = memo(
       bandwidthLong,
       showBaseline: false,
     });
+
+    const xDomain = useMemo(() => {
+      if (dateRange) {
+        return [
+          dateToTimestamp(dateRange.start),
+          dateToTimestamp(dateRange.end),
+        ];
+      }
+      return undefined;
+    }, [dateRange]);
 
     if (!hasData) {
       return <EmptyChartMessage message="No stress data available" />;
@@ -54,13 +69,16 @@ export const StressChart = memo(
         <ComposedChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
           <XAxis
-            dataKey="date"
-            tickFormatter={(value) => format(parseISO(value), "MMM d")}
+            dataKey="timestamp"
+            tickFormatter={(value) => format(new Date(value), "MMM d")}
             className="text-xs"
+            type="number"
+            scale="time"
+            domain={xDomain ?? ["dataMin", "dataMax"]}
           />
           <YAxis domain={[0, 100]} className="text-xs" />
           <Tooltip
-            labelFormatter={(value) => format(parseISO(value as string), "PPP")}
+            labelFormatter={(value) => format(new Date(value as number), "PPP")}
             formatter={(value, name) => {
               const v = value as number | undefined;
               if (v === undefined) return ["-", name];

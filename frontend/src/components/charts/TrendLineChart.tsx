@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import {
   ComposedChart,
   Line,
@@ -10,11 +10,15 @@ import {
   ReferenceLine,
   Legend,
 } from "recharts";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, startOfDay } from "date-fns";
 import { EmptyChartMessage } from "./shared";
 import { chartTooltipStyle } from "./chart-config";
 import { renderTrendLines } from "./TrendLines";
 import type { TrendChartData, BaselineData } from "../../hooks/useTrendData";
+
+function dateToTimestamp(dateStr: string): number {
+  return startOfDay(parseISO(dateStr)).getTime();
+}
 
 interface TrendLineChartProps {
   chartData: TrendChartData[];
@@ -33,6 +37,7 @@ interface TrendLineChartProps {
   height?: number | `${number}%`;
   yDomain?: [number | string, number | string];
   valueFormatter?: (value: number) => string;
+  dateRange?: { start: string; end: string };
 }
 
 function TrendLineChartComponent({
@@ -50,7 +55,15 @@ function TrendLineChartComponent({
   height = 250,
   yDomain = ["dataMin - 5", "dataMax + 5"],
   valueFormatter = (v: number): string => v.toFixed(0),
+  dateRange,
 }: TrendLineChartProps): React.ReactElement | null {
+  const xDomain = useMemo(() => {
+    if (dateRange) {
+      return [dateToTimestamp(dateRange.start), dateToTimestamp(dateRange.end)];
+    }
+    return undefined;
+  }, [dateRange]);
+
   if (!hasData) {
     return <EmptyChartMessage message={emptyMessage} />;
   }
@@ -60,13 +73,16 @@ function TrendLineChartComponent({
       <ComposedChart data={chartData}>
         <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
         <XAxis
-          dataKey="date"
-          tickFormatter={(value) => format(parseISO(value), "MMM d")}
+          dataKey="timestamp"
+          tickFormatter={(value) => format(new Date(value), "MMM d")}
           className="text-xs"
+          type="number"
+          scale="time"
+          domain={xDomain ?? ["dataMin", "dataMax"]}
         />
         <YAxis domain={yDomain} className="text-xs" />
         <Tooltip
-          labelFormatter={(value) => format(parseISO(value as string), "PPP")}
+          labelFormatter={(value) => format(new Date(value as number), "PPP")}
           formatter={(value, name) => {
             const v = value as number | undefined;
             if (v === undefined) return ["-", name];

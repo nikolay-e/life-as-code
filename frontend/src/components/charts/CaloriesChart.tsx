@@ -1,20 +1,22 @@
 import { memo, useMemo } from "react";
-import type {
-  GarminTrainingStatusData,
-  WhoopCycleData,
-  EnergyData,
-} from "../../types/api";
+import type { WhoopCycleData, EnergyData } from "../../types/api";
 import { MULTI_PROVIDER_CONFIGS } from "./chart-config";
 import { MultiProviderLineChart } from "./MultiProviderLineChart";
 import { mergeProviderData } from "../../lib/chart-utils";
 
+interface GarminCaloriesData {
+  date: string;
+  total_kilocalories: number | null;
+}
+
 interface CaloriesChartProps {
-  garminData: GarminTrainingStatusData[];
+  garminData: GarminCaloriesData[];
   whoopData?: WhoopCycleData[];
   energyData?: EnergyData[];
   showTrends?: boolean;
   bandwidthShort?: number;
   bandwidthLong?: number;
+  dateRange?: { start: string; end: string };
 }
 
 export const CaloriesChart = memo(
@@ -25,10 +27,11 @@ export const CaloriesChart = memo(
     showTrends = false,
     bandwidthShort = 0.17,
     bandwidthLong = 0.33,
+    dateRange,
   }: CaloriesChartProps) => {
     const config = MULTI_PROVIDER_CONFIGS.calories;
 
-    const combinedGarminData = useMemo(() => {
+    const combinedGarminData = useMemo((): GarminCaloriesData[] => {
       const energyByDate = new Map(
         energyData
           .filter((d) => d.active_energy !== null)
@@ -52,7 +55,7 @@ export const CaloriesChart = memo(
         return {
           date,
           total_kilocalories: garmin?.total_kilocalories ?? energy ?? null,
-        } as GarminTrainingStatusData;
+        };
       });
     }, [garminData, energyData]);
 
@@ -76,6 +79,7 @@ export const CaloriesChart = memo(
         showTrends={showTrends}
         bandwidthShort={bandwidthShort}
         bandwidthLong={bandwidthLong}
+        dateRange={dateRange}
       />
     );
   },

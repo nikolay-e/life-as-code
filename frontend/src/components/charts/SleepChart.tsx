@@ -11,12 +11,16 @@ import {
   ComposedChart,
   Line,
 } from "recharts";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, startOfDay } from "date-fns";
 import type { SleepData, WhoopSleepData } from "../../types/api";
 import { EmptyChartMessage } from "./shared";
 import { chartTooltipStyle, MULTI_PROVIDER_CONFIGS } from "./chart-config";
 import { sortByDateAsc } from "../../lib/chart-utils";
 import { loessSmooth } from "../../lib/statistics";
+
+function dateToTimestamp(dateStr: string): number {
+  return startOfDay(parseISO(dateStr)).getTime();
+}
 
 interface SleepChartProps {
   garminData: SleepData[];
@@ -25,6 +29,7 @@ interface SleepChartProps {
   showTrends?: boolean;
   bandwidthShort?: number;
   bandwidthLong?: number;
+  dateRange?: { start: string; end: string };
 }
 
 const SLEEP_STAGE_COLORS = {
@@ -42,6 +47,7 @@ export const SleepChart = memo(
     showTrends = false,
     bandwidthShort = 0.17,
     bandwidthLong = 0.33,
+    dateRange,
   }: SleepChartProps) => {
     const config = MULTI_PROVIDER_CONFIGS.sleep;
 
@@ -69,6 +75,7 @@ export const SleepChart = memo(
           const whoop = whoopMap.get(date);
           return {
             date,
+            timestamp: dateToTimestamp(date),
             garminTotal: garmin?.total_sleep_minutes
               ? garmin.total_sleep_minutes / 60
               : null,
@@ -83,6 +90,16 @@ export const SleepChart = memo(
         }),
       [allDates, garminMap, whoopMap],
     );
+
+    const xDomain = useMemo(() => {
+      if (dateRange) {
+        return [
+          dateToTimestamp(dateRange.start),
+          dateToTimestamp(dateRange.end),
+        ];
+      }
+      return undefined;
+    }, [dateRange]);
 
     const hasData = chartData.some(
       (d) => d.garminTotal !== null || d.whoopTotal !== null,
@@ -121,14 +138,17 @@ export const SleepChart = memo(
           <BarChart data={sortByDateAsc(chartData)}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
             <XAxis
-              dataKey="date"
-              tickFormatter={(value) => format(parseISO(value), "MMM d")}
+              dataKey="timestamp"
+              tickFormatter={(value) => format(new Date(value), "MMM d")}
               className="text-xs"
+              type="number"
+              scale="time"
+              domain={xDomain ?? ["dataMin", "dataMax"]}
             />
             <YAxis tickFormatter={formatHours} className="text-xs" />
             <Tooltip
               labelFormatter={(value) =>
-                format(parseISO(value as string), "PPP")
+                format(new Date(value as number), "PPP")
               }
               formatter={(value, name) => [
                 formatHours(Number(value)),
@@ -179,9 +199,12 @@ export const SleepChart = memo(
         >
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
           <XAxis
-            dataKey="date"
-            tickFormatter={(value) => format(parseISO(value), "MMM d")}
+            dataKey="timestamp"
+            tickFormatter={(value) => format(new Date(value), "MMM d")}
             className="text-xs"
+            type="number"
+            scale="time"
+            domain={xDomain ?? ["dataMin", "dataMax"]}
           />
           <YAxis
             tickFormatter={formatHours}
@@ -189,7 +212,7 @@ export const SleepChart = memo(
             domain={[0, 12]}
           />
           <Tooltip
-            labelFormatter={(value) => format(parseISO(value as string), "PPP")}
+            labelFormatter={(value) => format(new Date(value as number), "PPP")}
             formatter={(value, name) => {
               if (name === "garminTotal") {
                 return [formatHours(Number(value)), "Garmin"];

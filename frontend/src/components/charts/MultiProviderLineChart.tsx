@@ -10,12 +10,16 @@ import {
   ReferenceLine,
   Legend,
 } from "recharts";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, startOfDay } from "date-fns";
 import { EmptyChartMessage } from "./shared";
 import { chartTooltipStyle } from "./chart-config";
 import { renderTrendLines } from "./TrendLines";
 import type { MultiProviderDataPoint } from "../../lib/chart-utils";
 import { loessSmooth } from "../../lib/statistics";
+
+function dateToTimestamp(dateStr: string): number {
+  return startOfDay(parseISO(dateStr)).getTime();
+}
 
 interface MultiProviderLineChartProps {
   data: MultiProviderDataPoint[];
@@ -34,6 +38,7 @@ interface MultiProviderLineChartProps {
   showTrends?: boolean;
   bandwidthShort?: number;
   bandwidthLong?: number;
+  dateRange?: { start: string; end: string };
 }
 
 export const MultiProviderLineChart = memo(
@@ -51,15 +56,21 @@ export const MultiProviderLineChart = memo(
     showTrends = false,
     bandwidthShort = 0.17,
     bandwidthLong = 0.33,
+    dateRange,
   }: MultiProviderLineChartProps) => {
     const hasData = data.some(
       (d) => d.garminValue !== null || d.whoopValue !== null,
     );
 
     const chartData = useMemo(() => {
-      if (!showTrends || data.length === 0) return data;
+      const baseData = data.map((d) => ({
+        ...d,
+        timestamp: dateToTimestamp(d.date),
+      }));
 
-      const withAvg = data.map((d) => ({
+      if (!showTrends || baseData.length === 0) return baseData;
+
+      const withAvg = baseData.map((d) => ({
         ...d,
         avgValue:
           d.garminValue !== null && d.whoopValue !== null
@@ -77,6 +88,16 @@ export const MultiProviderLineChart = memo(
       }));
     }, [data, showTrends, bandwidthShort, bandwidthLong]);
 
+    const xDomain = useMemo(() => {
+      if (dateRange) {
+        return [
+          dateToTimestamp(dateRange.start),
+          dateToTimestamp(dateRange.end),
+        ];
+      }
+      return undefined;
+    }, [dateRange]);
+
     if (!hasData) {
       return <EmptyChartMessage message={emptyMessage} />;
     }
@@ -86,13 +107,16 @@ export const MultiProviderLineChart = memo(
         <ComposedChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
           <XAxis
-            dataKey="date"
-            tickFormatter={(value) => format(parseISO(value), "MMM d")}
+            dataKey="timestamp"
+            tickFormatter={(value) => format(new Date(value), "MMM d")}
             className="text-xs"
+            type="number"
+            scale="time"
+            domain={xDomain ?? ["dataMin", "dataMax"]}
           />
           <YAxis domain={yDomain} className="text-xs" />
           <Tooltip
-            labelFormatter={(value) => format(parseISO(value as string), "PPP")}
+            labelFormatter={(value) => format(new Date(value as number), "PPP")}
             formatter={(value, name) => {
               const v = value as number | undefined;
               if (v === undefined) {

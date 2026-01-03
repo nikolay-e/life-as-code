@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { parseISO, startOfDay } from "date-fns";
 import {
   calculateEMA,
   calculateSMA,
@@ -6,6 +7,10 @@ import {
   loessSmooth,
 } from "../lib/statistics";
 import { sortByDateAsc } from "../lib/chart-utils";
+
+function dateToTimestamp(dateStr: string): number {
+  return startOfDay(parseISO(dateStr)).getTime();
+}
 
 type TrendMethod = "ema" | "sma" | "loess";
 
@@ -21,6 +26,7 @@ interface TrendOptions {
 
 export interface TrendDataPoint {
   date: string;
+  timestamp: number;
   value: number | null;
   trendShort: number | null;
   trendLong: number | null;
@@ -67,11 +73,15 @@ export function useTrendData<T extends { date: string }>(
       deduped.set(dateKey, d);
     }
 
-    const normalized = Array.from(deduped.values()).map((d) => ({
-      ...d,
-      date: d.date.split("T")[0],
-      value: d[valueKey] as number | null,
-    }));
+    const normalized = Array.from(deduped.values()).map((d) => {
+      const dateOnly = d.date.split("T")[0];
+      return {
+        ...d,
+        date: dateOnly,
+        timestamp: dateToTimestamp(dateOnly),
+        value: d[valueKey] as number | null,
+      };
+    });
 
     let withTrends: Array<
       (typeof normalized)[number] & {

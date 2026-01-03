@@ -115,6 +115,11 @@ export function DashboardOverview() {
     differenceInDays(parseISO(endDate), parseISO(startDate)) + 1,
   );
 
+  const dateRange = useMemo(
+    () => ({ start: startDate, end: endDate }),
+    [startDate, endDate],
+  );
+
   const { data, isLoading, error } = useHealthDataRange(startDate, endDate);
   const { data: syncStatus } = useSyncStatus();
   const { isSyncing } = useAutoSync();
@@ -320,6 +325,7 @@ export function DashboardOverview() {
             showTrends
             bandwidthShort={bandwidthShort}
             bandwidthLong={bandwidthLong}
+            dateRange={dateRange}
           />
         </ChartCard>
 
@@ -335,6 +341,7 @@ export function DashboardOverview() {
             showTrends
             bandwidthShort={bandwidthShort}
             bandwidthLong={bandwidthLong}
+            dateRange={dateRange}
           />
         </ChartCard>
 
@@ -349,6 +356,7 @@ export function DashboardOverview() {
             showTrends
             bandwidthShort={bandwidthShort}
             bandwidthLong={bandwidthLong}
+            dateRange={dateRange}
           />
         </ChartCard>
 
@@ -364,6 +372,7 @@ export function DashboardOverview() {
             showTrends
             bandwidthShort={bandwidthShort}
             bandwidthLong={bandwidthLong}
+            dateRange={dateRange}
           />
         </ChartCard>
       </div>
@@ -380,6 +389,7 @@ export function DashboardOverview() {
             showTrends
             bandwidthShort={bandwidthShort}
             bandwidthLong={bandwidthLong}
+            dateRange={dateRange}
           />
         </ChartCard>
 
@@ -394,6 +404,7 @@ export function DashboardOverview() {
             showTrends
             bandwidthShort={bandwidthShort}
             bandwidthLong={bandwidthLong}
+            dateRange={dateRange}
           />
         </ChartCard>
 
@@ -408,6 +419,7 @@ export function DashboardOverview() {
             showTrends
             bandwidthShort={bandwidthShort}
             bandwidthLong={bandwidthLong}
+            dateRange={dateRange}
           />
         </ChartCard>
 
@@ -424,6 +436,7 @@ export function DashboardOverview() {
             showTrends
             bandwidthShort={bandwidthShort}
             bandwidthLong={bandwidthLong}
+            dateRange={dateRange}
           />
         </ChartCard>
       </div>

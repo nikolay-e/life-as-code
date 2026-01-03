@@ -10,6 +10,7 @@ interface HRVChartProps {
   showTrends?: boolean;
   bandwidthShort?: number;
   bandwidthLong?: number;
+  dateRange?: { start: string; end: string };
 }
 
 export const HRVChart = memo(
@@ -19,6 +20,7 @@ export const HRVChart = memo(
     showTrends = false,
     bandwidthShort = 0.17,
     bandwidthLong = 0.33,
+    dateRange,
   }: HRVChartProps) => {
     const config = MULTI_PROVIDER_CONFIGS.hrv;
 
@@ -40,6 +42,7 @@ export const HRVChart = memo(
         showTrends={showTrends}
         bandwidthShort={bandwidthShort}
         bandwidthLong={bandwidthLong}
+        dateRange={dateRange}
       />
     );
   },

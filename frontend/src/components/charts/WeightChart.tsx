@@ -10,7 +10,7 @@ import {
   ReferenceLine,
   Legend,
 } from "recharts";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, startOfDay } from "date-fns";
 import type { WeightData } from "../../types/api";
 import { EmptyChartMessage } from "./shared";
 import { chartTooltipStyle, TREND_CONFIGS } from "./chart-config";
@@ -21,12 +21,17 @@ import {
   loessSmooth,
 } from "../../lib/statistics";
 
+function dateToTimestamp(dateStr: string): number {
+  return startOfDay(parseISO(dateStr)).getTime();
+}
+
 interface WeightChartProps {
   data: WeightData[];
   showTrends?: boolean;
   showBaseline?: boolean;
   bandwidthShort?: number;
   bandwidthLong?: number;
+  dateRange?: { start: string; end: string };
 }
 
 export const WeightChart = memo(
@@ -36,6 +41,7 @@ export const WeightChart = memo(
     showBaseline = false,
     bandwidthShort = 0.17,
     bandwidthLong = 0.33,
+    dateRange,
   }: WeightChartProps) => {
     const config = TREND_CONFIGS.weight;
 
@@ -88,6 +94,7 @@ export const WeightChart = memo(
 
         const withTrends = smoothedData.map((d, i) => ({
           ...d,
+          timestamp: dateToTimestamp(d.date),
           trendShort: loessShort[i]?.loess ?? null,
           trendLong: loessLong[i]?.loess ?? null,
         }));
@@ -102,6 +109,16 @@ export const WeightChart = memo(
         };
       }, [data, bandwidthShort, bandwidthLong]);
 
+    const xDomain = useMemo(() => {
+      if (dateRange) {
+        return [
+          dateToTimestamp(dateRange.start),
+          dateToTimestamp(dateRange.end),
+        ];
+      }
+      return undefined;
+    }, [dateRange]);
+
     if (!hasData) {
       return <EmptyChartMessage message="No weight data available" />;
     }
@@ -111,9 +128,12 @@ export const WeightChart = memo(
         <ComposedChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
           <XAxis
-            dataKey="date"
-            tickFormatter={(value) => format(parseISO(value), "MMM d")}
+            dataKey="timestamp"
+            tickFormatter={(value) => format(new Date(value), "MMM d")}
             className="text-xs"
+            type="number"
+            scale="time"
+            domain={xDomain ?? ["dataMin", "dataMax"]}
           />
           <YAxis
             domain={[minWeight - padding, maxWeight + padding]}
@@ -121,7 +141,7 @@ export const WeightChart = memo(
             tickFormatter={(v) => v.toFixed(1)}
           />
           <Tooltip
-            labelFormatter={(value) => format(parseISO(value as string), "PPP")}
+            labelFormatter={(value) => format(new Date(value as number), "PPP")}
             formatter={(value, name) => {
               const v = value as number | null;
               if (v === null) return ["-", name];

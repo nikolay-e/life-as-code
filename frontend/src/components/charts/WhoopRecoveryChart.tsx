@@ -10,6 +10,7 @@ interface WhoopRecoveryChartProps {
   showBaseline?: boolean;
   bandwidthShort?: number;
   bandwidthLong?: number;
+  dateRange?: { start: string; end: string };
 }
 
 export const WhoopRecoveryChart = memo(
@@ -19,6 +20,7 @@ export const WhoopRecoveryChart = memo(
     showBaseline = false,
     bandwidthShort = 0.17,
     bandwidthLong = 0.33,
+    dateRange,
   }: WhoopRecoveryChartProps) => {
     const config = TREND_CONFIGS.whoopRecovery;
 
@@ -52,6 +54,7 @@ export const WhoopRecoveryChart = memo(
         longTermLabel="Long trend"
         showTrends={showTrends}
         showBaseline={showBaseline}
+        dateRange={dateRange}
       />
     );
   },
