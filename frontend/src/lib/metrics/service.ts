@@ -334,7 +334,7 @@ export function getBaselineOptions(
     excludeRecentDaysFromBaseline: modeConfig.useShiftedZScore
       ? modeConfig.shortTerm
       : 1,
-    regressionUsesRealDays: mode === "long",
+    regressionUsesRealDays: mode === "year" || mode === "all",
     winsorizeTrend: true,
   };
 }
