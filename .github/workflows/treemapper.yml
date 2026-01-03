@@ -41,3 +41,5 @@ jobs:
             | Size | ${{ steps.context.outputs.size }} |
 
             [Download context](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/${{ steps.artifact.outputs.artifact-id }})
+
+            Use this context for AI code review with ChatGPT, Claude, or other LLMs.
