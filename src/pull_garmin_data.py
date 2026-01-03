@@ -80,7 +80,7 @@ def init_api(email: str, password: str, user_id: int) -> Garmin:
         raise
 
 
-GARMIN_MAX_HISTORY_DAYS = 730  # ~2 years for health data
+GARMIN_MAX_HISTORY_DAYS = 1825  # ~5 years for health data
 GARMIN_API_RATE_LIMIT_DELAY = 0.5  # seconds between API calls to avoid rate limiting
 GARMIN_MAX_RETRIES = 3
 

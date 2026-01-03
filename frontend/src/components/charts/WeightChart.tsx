@@ -18,17 +18,25 @@ import { renderTrendLines } from "./TrendLines";
 import {
   calculateBiologicalWeightSmoothing,
   calculateBaseline,
-  calculateEMA,
+  loessSmooth,
 } from "../../lib/statistics";
 
 interface WeightChartProps {
   data: WeightData[];
   showTrends?: boolean;
   showBaseline?: boolean;
+  bandwidthShort?: number;
+  bandwidthLong?: number;
 }
 
 export const WeightChart = memo(
-  ({ data, showTrends = false, showBaseline = false }: WeightChartProps) => {
+  ({
+    data,
+    showTrends = false,
+    showBaseline = false,
+    bandwidthShort = 0.17,
+    bandwidthLong = 0.33,
+  }: WeightChartProps) => {
     const config = TREND_CONFIGS.weight;
 
     const { chartData, baseline, minWeight, maxWeight, padding, hasData } =
@@ -68,18 +76,20 @@ export const WeightChart = memo(
 
         const baselineData = calculateBaseline(normalizedData, 14, "weight_kg");
 
-        const dataForEMA = smoothedData as unknown as ({
+        const dataForLoess = smoothedData as unknown as ({
           date: string;
         } & Record<string, unknown>)[];
-        const ema7 = calculateEMA(dataForEMA, 7, "rawWeight");
-        const ema21 = calculateEMA(dataForEMA, 21, "rawWeight");
-        const ema60 = calculateEMA(dataForEMA, 60, "rawWeight");
+        const loessShort = loessSmooth(
+          dataForLoess,
+          "rawWeight",
+          bandwidthShort,
+        );
+        const loessLong = loessSmooth(dataForLoess, "rawWeight", bandwidthLong);
 
         const withTrends = smoothedData.map((d, i) => ({
           ...d,
-          trend7: ema7[i]?.ema ?? null,
-          trend21: ema21[i]?.ema ?? null,
-          trend60: ema60[i]?.ema ?? null,
+          trendShort: loessShort[i]?.loess ?? null,
+          trendLong: loessLong[i]?.loess ?? null,
         }));
 
         return {
@@ -90,7 +100,7 @@ export const WeightChart = memo(
           padding: pad,
           hasData: true,
         };
-      }, [data]);
+      }, [data, bandwidthShort, bandwidthLong]);
 
     if (!hasData) {
       return <EmptyChartMessage message="No weight data available" />;
@@ -116,9 +126,12 @@ export const WeightChart = memo(
               const v = value as number | null;
               if (v === null) return ["-", name];
               if (name === "rawWeight") return [`${v.toFixed(1)} kg`, "Weight"];
-              if (name === "trend7") return [`${v.toFixed(1)} kg`, "7d avg"];
-              if (name === "trend21") return [`${v.toFixed(1)} kg`, "21d avg"];
-              if (name === "trend60") return [`${v.toFixed(1)} kg`, "60d avg"];
+              if (name === "trendShort") {
+                return [`${v.toFixed(1)} kg`, "Short trend"];
+              }
+              if (name === "trendLong") {
+                return [`${v.toFixed(1)} kg`, "Long trend"];
+              }
               return [v, name];
             }}
             contentStyle={chartTooltipStyle}
@@ -151,7 +164,6 @@ export const WeightChart = memo(
             </>
           )}
 
-          {/* Data points first (rendered below) */}
           <Line
             type="linear"
             dataKey="rawWeight"
@@ -163,16 +175,14 @@ export const WeightChart = memo(
             isAnimationActive={false}
           />
 
-          {/* Trend lines on top */}
-          {renderTrendLines(showTrends, "weight")}
+          {renderTrendLines(showTrends)}
 
           {showTrends && (
             <Legend
               formatter={(value) => {
                 if (value === "rawWeight") return "Weight";
-                if (value === "trend7") return "7d avg";
-                if (value === "trend21") return "21d avg";
-                if (value === "trend60") return "60d avg";
+                if (value === "trendShort") return "Short trend";
+                if (value === "trendLong") return "Long trend";
                 return value;
               }}
             />

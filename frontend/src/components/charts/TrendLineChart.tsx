@@ -22,16 +22,12 @@ interface TrendLineChartProps {
   baseline: BaselineData | null;
   config: {
     color: string;
-    trendColor: string;
-    longTermTrendColor: string;
-    longerTermTrendColor: string;
   };
   emptyMessage: string;
   valueLabel: string;
   unit: string;
-  shortTermLabel: string;
-  longTermLabel: string;
-  longerTermLabel: string;
+  shortTermLabel?: string;
+  longTermLabel?: string;
   showTrends?: boolean;
   showBaseline?: boolean;
   height?: number | `${number}%`;
@@ -47,9 +43,8 @@ function TrendLineChartComponent({
   emptyMessage,
   valueLabel,
   unit,
-  shortTermLabel,
-  longTermLabel,
-  longerTermLabel,
+  shortTermLabel = "Short trend",
+  longTermLabel = "Long trend",
   showTrends = false,
   showBaseline = false,
   height = 250,
@@ -78,14 +73,11 @@ function TrendLineChartComponent({
             if (name === "value") {
               return [`${valueFormatter(v)} ${unit}`, valueLabel];
             }
-            if (name === "shortTermTrend") {
+            if (name === "trendShort") {
               return [`${valueFormatter(v)} ${unit}`, shortTermLabel];
             }
-            if (name === "longTermTrend") {
+            if (name === "trendLong") {
               return [`${valueFormatter(v)} ${unit}`, longTermLabel];
-            }
-            if (name === "longerTermTrend") {
-              return [`${valueFormatter(v)} ${unit}`, longerTermLabel];
             }
             return [String(v), name];
           }}
@@ -138,9 +130,8 @@ function TrendLineChartComponent({
           <Legend
             formatter={(value) => {
               if (value === "value") return valueLabel;
-              if (value === "shortTermTrend") return shortTermLabel;
-              if (value === "longTermTrend") return longTermLabel;
-              if (value === "longerTermTrend") return longerTermLabel;
+              if (value === "trendShort") return shortTermLabel;
+              if (value === "trendLong") return longTermLabel;
               return value;
             }}
           />

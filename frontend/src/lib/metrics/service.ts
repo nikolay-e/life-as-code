@@ -46,33 +46,57 @@ import { METRIC_REGISTRY, resolveMetric, getMetricByKey } from "./registry";
 import { DASHBOARD_METRIC_KEYS } from "./keys";
 
 export const TREND_MODES: Record<TrendMode, TrendModeConfig> = {
-  short: {
-    label: "Short",
+  recent: {
+    label: "6W",
+    rangeDays: 42,
     shortTerm: 7,
-    baseline: 84,
+    longTerm: 14,
+    baseline: 42,
     trendWindow: 7,
+    bandwidthShort: 0.17,
+    bandwidthLong: 0.33,
     useShiftedZScore: false,
-    description: "7d vs 12w",
+    description: "Daily",
   },
-  mid: {
-    label: "Mid",
-    shortTerm: 28,
-    baseline: 252,
+  quarter: {
+    label: "6M",
+    rangeDays: 180,
+    shortTerm: 14,
+    longTerm: 30,
+    baseline: 90,
     trendWindow: 14,
+    bandwidthShort: 0.08,
+    bandwidthLong: 0.17,
     useShiftedZScore: true,
-    description: "4w vs 9mo",
+    description: "Training",
   },
-  long: {
-    label: "Long",
-    shortTerm: 90,
-    baseline: 730,
+  year: {
+    label: "2Y",
+    rangeDays: 730,
+    shortTerm: 30,
+    longTerm: 90,
+    baseline: 180,
     trendWindow: 30,
+    bandwidthShort: 0.04,
+    bandwidthLong: 0.12,
     useShiftedZScore: true,
-    description: "90d vs 2yr",
+    description: "Seasonal",
+  },
+  all: {
+    label: "5Y",
+    rangeDays: 1825,
+    shortTerm: 90,
+    longTerm: 180,
+    baseline: 365,
+    trendWindow: 60,
+    bandwidthShort: 0.05,
+    bandwidthLong: 0.1,
+    useShiftedZScore: true,
+    description: "Lifetime",
   },
 };
 
-export const MODE_ORDER: TrendMode[] = ["short", "mid", "long"];
+export const MODE_ORDER: TrendMode[] = ["recent", "quarter", "year", "all"];
 
 function aggregationMethodFromDef(
   def: MetricDef,

@@ -8,10 +8,18 @@ interface HeartRateChartProps {
   garminData: HeartRateData[];
   whoopData?: WhoopRecoveryData[];
   showTrends?: boolean;
+  bandwidthShort?: number;
+  bandwidthLong?: number;
 }
 
 export const HeartRateChart = memo(
-  ({ garminData, whoopData = [], showTrends = false }: HeartRateChartProps) => {
+  ({
+    garminData,
+    whoopData = [],
+    showTrends = false,
+    bandwidthShort = 0.17,
+    bandwidthLong = 0.33,
+  }: HeartRateChartProps) => {
     const config = MULTI_PROVIDER_CONFIGS.restingHr;
 
     const mergedData = mergeProviderData(
@@ -31,6 +39,8 @@ export const HeartRateChart = memo(
         unit="bpm"
         yDomain={["dataMin - 5", "dataMax + 5"]}
         showTrends={showTrends}
+        bandwidthShort={bandwidthShort}
+        bandwidthLong={bandwidthLong}
       />
     );
   },

@@ -8,10 +8,18 @@ interface HRVChartProps {
   garminData: HRVData[];
   whoopData?: WhoopRecoveryData[];
   showTrends?: boolean;
+  bandwidthShort?: number;
+  bandwidthLong?: number;
 }
 
 export const HRVChart = memo(
-  ({ garminData, whoopData = [], showTrends = false }: HRVChartProps) => {
+  ({
+    garminData,
+    whoopData = [],
+    showTrends = false,
+    bandwidthShort = 0.17,
+    bandwidthLong = 0.33,
+  }: HRVChartProps) => {
     const config = MULTI_PROVIDER_CONFIGS.hrv;
 
     const mergedData = mergeProviderData(
@@ -30,6 +38,8 @@ export const HRVChart = memo(
         whoopLabel="Whoop HRV"
         unit="ms"
         showTrends={showTrends}
+        bandwidthShort={bandwidthShort}
+        bandwidthLong={bandwidthLong}
       />
     );
   },

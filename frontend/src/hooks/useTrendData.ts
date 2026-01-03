@@ -3,26 +3,27 @@ import {
   calculateEMA,
   calculateSMA,
   calculateBaseline,
+  loessSmooth,
 } from "../lib/statistics";
 import { sortByDateAsc } from "../lib/chart-utils";
 
-type TrendMethod = "ema" | "sma";
+type TrendMethod = "ema" | "sma" | "loess";
 
 interface TrendOptions {
   method?: TrendMethod;
   shortTermWindow?: number;
   longTermWindow?: number;
-  longerTermWindow?: number;
   showBaseline?: boolean;
   baselineWindow?: number;
+  bandwidthShort?: number;
+  bandwidthLong?: number;
 }
 
 export interface TrendDataPoint {
   date: string;
   value: number | null;
-  shortTermTrend: number | null;
-  longTermTrend: number | null;
-  longerTermTrend: number | null;
+  trendShort: number | null;
+  trendLong: number | null;
 }
 
 export type TrendChartData = TrendDataPoint;
@@ -44,12 +45,13 @@ export function useTrendData<T extends { date: string }>(
   options: TrendOptions = {},
 ): TrendResult<T> {
   const {
-    method = "ema",
+    method = "loess",
     shortTermWindow = 7,
     longTermWindow = 30,
-    longerTermWindow = 90,
     showBaseline = false,
     baselineWindow = 14,
+    bandwidthShort = 0.17,
+    bandwidthLong = 0.33,
   } = options;
 
   return useMemo(() => {
@@ -73,30 +75,32 @@ export function useTrendData<T extends { date: string }>(
 
     let withTrends: Array<
       (typeof normalized)[number] & {
-        shortTrend: number | null;
-        longTrend: number | null;
-        longerTrend: number | null;
+        trendShort: number | null;
+        trendLong: number | null;
       }
     >;
 
-    if (method === "ema") {
+    if (method === "loess") {
+      const shortTermResult = loessSmooth(normalized, "value", bandwidthShort);
+      const longTermResult = loessSmooth(normalized, "value", bandwidthLong);
+
+      withTrends = normalized.map((d, idx) => ({
+        ...d,
+        trendShort: shortTermResult[idx]?.loess ?? null,
+        trendLong: longTermResult[idx]?.loess ?? null,
+      }));
+    } else if (method === "ema") {
       const shortTermResult = calculateEMA(
         normalized,
         shortTermWindow,
         "value",
       );
       const longTermResult = calculateEMA(normalized, longTermWindow, "value");
-      const longerTermResult = calculateEMA(
-        normalized,
-        longerTermWindow,
-        "value",
-      );
 
       withTrends = normalized.map((d, idx) => ({
         ...d,
-        shortTrend: shortTermResult[idx]?.ema ?? null,
-        longTrend: longTermResult[idx]?.ema ?? null,
-        longerTrend: longerTermResult[idx]?.ema ?? null,
+        trendShort: shortTermResult[idx]?.ema ?? null,
+        trendLong: longTermResult[idx]?.ema ?? null,
       }));
     } else {
       const shortTermResult = calculateSMA(
@@ -105,26 +109,15 @@ export function useTrendData<T extends { date: string }>(
         "value",
       );
       const longTermResult = calculateSMA(normalized, longTermWindow, "value");
-      const longerTermResult = calculateSMA(
-        normalized,
-        longerTermWindow,
-        "value",
-      );
 
       withTrends = normalized.map((d, idx) => ({
         ...d,
-        shortTrend: shortTermResult[idx]?.sma ?? null,
-        longTrend: longTermResult[idx]?.sma ?? null,
-        longerTrend: longerTermResult[idx]?.sma ?? null,
+        trendShort: shortTermResult[idx]?.sma ?? null,
+        trendLong: longTermResult[idx]?.sma ?? null,
       }));
     }
 
-    const chartData = withTrends.map((d) => ({
-      ...d,
-      shortTermTrend: d.shortTrend,
-      longTermTrend: d.longTrend,
-      longerTermTrend: d.longerTrend,
-    })) as (T & TrendDataPoint)[];
+    const chartData = withTrends as (T & TrendDataPoint)[];
 
     const baseline = showBaseline
       ? calculateBaseline(normalized, baselineWindow, "value")
@@ -139,8 +132,9 @@ export function useTrendData<T extends { date: string }>(
     method,
     shortTermWindow,
     longTermWindow,
-    longerTermWindow,
     showBaseline,
     baselineWindow,
+    bandwidthShort,
+    bandwidthLong,
   ]);
 }

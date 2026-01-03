@@ -6,6 +6,7 @@ export type {
   TrendMethod,
   TrendMode,
   TrendModeConfig,
+  ViewMode,
   AccumulatingMetricType,
   MetricAggregation,
   MetricName,

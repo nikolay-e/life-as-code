@@ -8,6 +8,8 @@ interface WhoopRecoveryChartProps {
   data: WhoopRecoveryData[];
   showTrends?: boolean;
   showBaseline?: boolean;
+  bandwidthShort?: number;
+  bandwidthLong?: number;
 }
 
 export const WhoopRecoveryChart = memo(
@@ -15,6 +17,8 @@ export const WhoopRecoveryChart = memo(
     data,
     showTrends = false,
     showBaseline = false,
+    bandwidthShort = 0.17,
+    bandwidthLong = 0.33,
   }: WhoopRecoveryChartProps) => {
     const config = TREND_CONFIGS.whoopRecovery;
 
@@ -27,9 +31,9 @@ export const WhoopRecoveryChart = memo(
       normalizedData,
       "recovery_score",
       {
-        method: config.method,
-        shortTermWindow: 7,
-        longTermWindow: 21,
+        method: "loess",
+        bandwidthShort,
+        bandwidthLong,
         showBaseline,
         baselineWindow: config.baselineWindow,
       },
@@ -44,9 +48,8 @@ export const WhoopRecoveryChart = memo(
         emptyMessage="No Whoop recovery data available"
         valueLabel="Recovery"
         unit="%"
-        shortTermLabel="7-day avg"
-        longTermLabel="21-day avg"
-        longerTermLabel="90-day avg"
+        shortTermLabel="Short trend"
+        longTermLabel="Long trend"
         showTrends={showTrends}
         showBaseline={showBaseline}
       />

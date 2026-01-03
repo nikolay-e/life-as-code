@@ -15,7 +15,7 @@ import { EmptyChartMessage } from "./shared";
 import { chartTooltipStyle } from "./chart-config";
 import { renderTrendLines } from "./TrendLines";
 import type { MultiProviderDataPoint } from "../../lib/chart-utils";
-import { calculateEMA } from "../../lib/statistics";
+import { loessSmooth } from "../../lib/statistics";
 
 interface MultiProviderLineChartProps {
   data: MultiProviderDataPoint[];
@@ -32,6 +32,8 @@ interface MultiProviderLineChartProps {
   valueFormatter?: (value: number) => string;
   baselineValue?: number | null;
   showTrends?: boolean;
+  bandwidthShort?: number;
+  bandwidthLong?: number;
 }
 
 export const MultiProviderLineChart = memo(
@@ -47,6 +49,8 @@ export const MultiProviderLineChart = memo(
     valueFormatter = (v) => v.toFixed(0),
     baselineValue,
     showTrends = false,
+    bandwidthShort = 0.17,
+    bandwidthLong = 0.33,
   }: MultiProviderLineChartProps) => {
     const hasData = data.some(
       (d) => d.garminValue !== null || d.whoopValue !== null,
@@ -63,17 +67,15 @@ export const MultiProviderLineChart = memo(
             : (d.garminValue ?? d.whoopValue),
       }));
 
-      const ema7 = calculateEMA(withAvg, 7, "avgValue");
-      const ema21 = calculateEMA(withAvg, 21, "avgValue");
-      const ema60 = calculateEMA(withAvg, 60, "avgValue");
+      const loessShort = loessSmooth(withAvg, "avgValue", bandwidthShort);
+      const loessLong = loessSmooth(withAvg, "avgValue", bandwidthLong);
 
       return withAvg.map((d, i) => ({
         ...d,
-        trend7: ema7[i]?.ema ?? null,
-        trend21: ema21[i]?.ema ?? null,
-        trend60: ema60[i]?.ema ?? null,
+        trendShort: loessShort[i]?.loess ?? null,
+        trendLong: loessLong[i]?.loess ?? null,
       }));
-    }, [data, showTrends]);
+    }, [data, showTrends, bandwidthShort, bandwidthLong]);
 
     if (!hasData) {
       return <EmptyChartMessage message={emptyMessage} />;
@@ -102,21 +104,17 @@ export const MultiProviderLineChart = memo(
               if (name === "whoopValue") {
                 return [`${valueFormatter(v)} ${unit}`, whoopLabel];
               }
-              if (name === "trend7") {
-                return [`${valueFormatter(v)} ${unit}`, "7d avg"];
+              if (name === "trendShort") {
+                return [`${valueFormatter(v)} ${unit}`, "Short trend"];
               }
-              if (name === "trend21") {
-                return [`${valueFormatter(v)} ${unit}`, "21d avg"];
-              }
-              if (name === "trend60") {
-                return [`${valueFormatter(v)} ${unit}`, "60d avg"];
+              if (name === "trendLong") {
+                return [`${valueFormatter(v)} ${unit}`, "Long trend"];
               }
               return [v, name];
             }}
             contentStyle={chartTooltipStyle}
           />
 
-          {/* Data points first (rendered below) */}
           <Line
             type="linear"
             dataKey="garminValue"
@@ -138,8 +136,7 @@ export const MultiProviderLineChart = memo(
             isAnimationActive={false}
           />
 
-          {/* Trend lines on top */}
-          {renderTrendLines(showTrends, "weight")}
+          {renderTrendLines(showTrends)}
 
           {baselineValue !== null && baselineValue !== undefined && (
             <ReferenceLine
@@ -163,14 +160,11 @@ export const MultiProviderLineChart = memo(
               if (value === "whoopValue") {
                 return whoopLabel;
               }
-              if (value === "trend7") {
-                return "7d avg";
+              if (value === "trendShort") {
+                return "Short trend";
               }
-              if (value === "trend21") {
-                return "21d avg";
-              }
-              if (value === "trend60") {
-                return "60d avg";
+              if (value === "trendLong") {
+                return "Long trend";
               }
               return value;
             }}

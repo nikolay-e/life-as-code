@@ -34,7 +34,13 @@ import {
   Check,
   type LucideIcon,
 } from "lucide-react";
-import { buildDashboardCards, type MetricCardVM } from "../../lib/metrics";
+import {
+  buildDashboardCards,
+  TREND_MODES,
+  MODE_ORDER,
+  type MetricCardVM,
+  type ViewMode,
+} from "../../lib/metrics";
 import { toTimeMs } from "../../lib/health";
 import { getLatestSyncDate } from "../../lib/sync-utils";
 
@@ -73,18 +79,9 @@ function MetricCard({
   );
 }
 
-const TIME_RANGES = [
-  { label: "Today", days: 1, description: "Latest" },
-  { label: "Short", days: 84, description: "12 weeks" },
-  { label: "Mid", days: 252, description: "9 months" },
-  { label: "Long", days: 730, description: "2 years" },
-] as const;
-
-type TimeRangeLabel = (typeof TIME_RANGES)[number]["label"] | "Custom";
-
 export function DashboardOverview() {
   const today = new Date();
-  const [selectedRange, setSelectedRange] = useState<TimeRangeLabel>("Short");
+  const [selectedRange, setSelectedRange] = useState<ViewMode>("recent");
   const [customStartDate, setCustomStartDate] = useState(
     format(subDays(today, 90), "yyyy-MM-dd"),
   );
@@ -92,20 +89,26 @@ export function DashboardOverview() {
     format(today, "yyyy-MM-dd"),
   );
 
-  const isToday = selectedRange === "Today";
-  const rangeDays =
-    TIME_RANGES.find((r) => r.label === selectedRange)?.days ?? 84;
+  const isToday = selectedRange === "today";
+  const isCustom = selectedRange === "custom";
+  const modeConfig =
+    selectedRange !== "today" && selectedRange !== "custom"
+      ? TREND_MODES[selectedRange]
+      : null;
+  const rangeDays = modeConfig?.rangeDays ?? 42;
+  const bandwidthShort = modeConfig?.bandwidthShort ?? 0.17;
+  const bandwidthLong = modeConfig?.bandwidthLong ?? 0.33;
 
-  const startDate =
-    selectedRange === "Custom"
-      ? customStartDate
+  const startDate = isCustom
+    ? customStartDate
+    : isToday
+      ? format(today, "yyyy-MM-dd")
       : format(subDays(today, rangeDays), "yyyy-MM-dd");
-  const endDate =
-    selectedRange === "Custom"
-      ? customEndDate
-      : isToday
-        ? format(today, "yyyy-MM-dd")
-        : format(subDays(today, 1), "yyyy-MM-dd");
+  const endDate = isCustom
+    ? customEndDate
+    : isToday
+      ? format(today, "yyyy-MM-dd")
+      : format(subDays(today, 1), "yyyy-MM-dd");
 
   const selectedDays = Math.max(
     1,
@@ -126,10 +129,11 @@ export function DashboardOverview() {
   const handleCopyToClipboard = useCallback(async () => {
     if (metricCards.length === 0) return;
 
-    const rangeLabel =
-      selectedRange === "Custom"
-        ? `${startDate} — ${endDate}`
-        : `${selectedRange} (${String(selectedDays)} days)`;
+    const rangeLabel = isCustom
+      ? `${startDate} — ${endDate}`
+      : isToday
+        ? "Today"
+        : `${modeConfig?.label ?? selectedRange} (${String(selectedDays)} days)`;
 
     const lines = [
       `Health Dashboard — ${rangeLabel}`,
@@ -154,9 +158,10 @@ export function DashboardOverview() {
       toast.error("Failed to copy to clipboard");
     }
   }, [
-    data,
-    isLoading,
     metricCards,
+    isCustom,
+    isToday,
+    modeConfig,
     selectedRange,
     selectedDays,
     startDate,
@@ -187,32 +192,46 @@ export function DashboardOverview() {
           </div>
           <div className="flex items-center gap-1.5 p-1 bg-muted/50 rounded-lg flex-wrap">
             <Calendar className="h-4 w-4 text-muted-foreground ml-2" />
-            {TIME_RANGES.map((range) => (
-              <Button
-                key={range.label}
-                variant={selectedRange === range.label ? "default" : "ghost"}
-                size="sm"
-                onClick={() => {
-                  setSelectedRange(range.label);
-                }}
-                className="min-w-[70px] flex flex-col h-auto py-1.5"
-              >
-                <span className="font-medium">{range.label}</span>
-                <span className="text-[10px] opacity-70">
-                  {range.description}
-                </span>
-              </Button>
-            ))}
             <Button
-              variant={selectedRange === "Custom" ? "default" : "ghost"}
+              variant={selectedRange === "today" ? "default" : "ghost"}
               size="sm"
               onClick={() => {
-                setSelectedRange("Custom");
+                setSelectedRange("today");
               }}
-              className="min-w-[70px] flex flex-col h-auto py-1.5"
+              className="min-w-[60px] flex flex-col h-auto py-1.5"
+            >
+              <span className="font-medium">Today</span>
+              <span className="text-[10px] opacity-70">Latest</span>
+            </Button>
+            {MODE_ORDER.map((m) => {
+              const cfg = TREND_MODES[m];
+              return (
+                <Button
+                  key={m}
+                  variant={selectedRange === m ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => {
+                    setSelectedRange(m);
+                  }}
+                  className="min-w-[60px] flex flex-col h-auto py-1.5"
+                >
+                  <span className="font-medium">{cfg.label}</span>
+                  <span className="text-[10px] opacity-70">
+                    {cfg.description}
+                  </span>
+                </Button>
+              );
+            })}
+            <Button
+              variant={selectedRange === "custom" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => {
+                setSelectedRange("custom");
+              }}
+              className="min-w-[60px] flex flex-col h-auto py-1.5"
             >
               <span className="font-medium">Custom</span>
-              <span className="text-[10px] opacity-70">Date range</span>
+              <span className="text-[10px] opacity-70">Range</span>
             </Button>
             <Button
               variant="ghost"
@@ -228,7 +247,7 @@ export function DashboardOverview() {
               )}
             </Button>
           </div>
-          {selectedRange === "Custom" && (
+          {isCustom && (
             <div className="flex items-center gap-2 mt-2">
               <Input
                 type="date"
@@ -299,6 +318,8 @@ export function DashboardOverview() {
             garminData={data?.hrv ?? []}
             whoopData={data?.whoop_recovery ?? []}
             showTrends
+            bandwidthShort={bandwidthShort}
+            bandwidthLong={bandwidthLong}
           />
         </ChartCard>
 
@@ -312,6 +333,8 @@ export function DashboardOverview() {
             garminData={data?.sleep ?? []}
             whoopData={data?.whoop_sleep ?? []}
             showTrends
+            bandwidthShort={bandwidthShort}
+            bandwidthLong={bandwidthLong}
           />
         </ChartCard>
 
@@ -321,7 +344,12 @@ export function DashboardOverview() {
           iconColorClass="text-weight"
           iconBgClass="bg-weight-muted"
         >
-          <WeightChart data={data?.weight ?? []} showTrends />
+          <WeightChart
+            data={data?.weight ?? []}
+            showTrends
+            bandwidthShort={bandwidthShort}
+            bandwidthLong={bandwidthLong}
+          />
         </ChartCard>
 
         <ChartCard
@@ -334,6 +362,8 @@ export function DashboardOverview() {
             garminData={data?.heart_rate ?? []}
             whoopData={data?.whoop_recovery ?? []}
             showTrends
+            bandwidthShort={bandwidthShort}
+            bandwidthLong={bandwidthLong}
           />
         </ChartCard>
       </div>
@@ -345,7 +375,12 @@ export function DashboardOverview() {
           iconColorClass="text-steps"
           iconBgClass="bg-steps-muted"
         >
-          <StepsChart data={data?.steps ?? []} showTrends />
+          <StepsChart
+            data={data?.steps ?? []}
+            showTrends
+            bandwidthShort={bandwidthShort}
+            bandwidthLong={bandwidthLong}
+          />
         </ChartCard>
 
         <ChartCard
@@ -354,7 +389,12 @@ export function DashboardOverview() {
           iconColorClass="text-whoop"
           iconBgClass="bg-whoop-muted"
         >
-          <WhoopRecoveryChart data={data?.whoop_recovery ?? []} showTrends />
+          <WhoopRecoveryChart
+            data={data?.whoop_recovery ?? []}
+            showTrends
+            bandwidthShort={bandwidthShort}
+            bandwidthLong={bandwidthLong}
+          />
         </ChartCard>
 
         <ChartCard
@@ -363,7 +403,12 @@ export function DashboardOverview() {
           iconColorClass="text-stress"
           iconBgClass="bg-stress-muted"
         >
-          <StressChart data={data?.stress ?? []} showTrends />
+          <StressChart
+            data={data?.stress ?? []}
+            showTrends
+            bandwidthShort={bandwidthShort}
+            bandwidthLong={bandwidthLong}
+          />
         </ChartCard>
 
         <ChartCard
@@ -377,6 +422,8 @@ export function DashboardOverview() {
             whoopData={data?.whoop_cycle ?? []}
             energyData={data?.energy ?? []}
             showTrends
+            bandwidthShort={bandwidthShort}
+            bandwidthLong={bandwidthLong}
           />
         </ChartCard>
       </div>
