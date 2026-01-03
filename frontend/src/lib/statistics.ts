@@ -271,3 +271,75 @@ export function calculateBiologicalWeightSmoothing<
     };
   });
 }
+
+export interface LoessPoint {
+  x: number;
+  y: number;
+  index: number;
+}
+
+const tricube = (d: number): number => {
+  const absD = Math.abs(d);
+  return absD < 1 ? Math.pow(1 - Math.pow(absD, 3), 3) : 0;
+};
+
+export function loessSmooth<
+  T extends { date: string } & Record<string, unknown>,
+>(
+  data: T[],
+  valueKey: keyof T,
+  bandwidth: number = 0.25,
+): (T & { loess: number | null })[] {
+  const points: LoessPoint[] = [];
+
+  for (let i = 0; i < data.length; i++) {
+    const val = data[i][valueKey] as number | null;
+    if (val !== null) {
+      points.push({
+        x: new Date(data[i].date).getTime(),
+        y: val,
+        index: i,
+      });
+    }
+  }
+
+  if (points.length < 3) {
+    return data.map((d) => ({ ...d, loess: d[valueKey] as number | null }));
+  }
+
+  const windowSize = Math.max(3, Math.floor(points.length * bandwidth));
+  const smoothed = new Map<number, number>();
+
+  for (const target of points) {
+    const distances = points
+      .map((p) => ({ p, dist: Math.abs(p.x - target.x) }))
+      .sort((a, b) => a.dist - b.dist)
+      .slice(0, windowSize);
+
+    const maxDist = distances[distances.length - 1].dist || 1;
+
+    let sumW = 0,
+      sumWX = 0,
+      sumWY = 0,
+      sumWXX = 0,
+      sumWXY = 0;
+
+    for (const { p, dist } of distances) {
+      const w = tricube(dist / maxDist);
+      const dx = p.x - target.x;
+      sumW += w;
+      sumWX += w * dx;
+      sumWY += w * p.y;
+      sumWXX += w * dx * dx;
+      sumWXY += w * dx * p.y;
+    }
+
+    const denom = sumW * sumWXX - sumWX * sumWX;
+    smoothed.set(
+      target.index,
+      denom !== 0 ? (sumWXX * sumWY - sumWX * sumWXY) / denom : sumWY / sumW,
+    );
+  }
+
+  return data.map((d, i) => ({ ...d, loess: smoothed.get(i) ?? null }));
+}

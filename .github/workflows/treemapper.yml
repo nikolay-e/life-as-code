@@ -1,0 +1,45 @@
+name: Diff Context
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  extract-context:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract diff context
+        id: context
+        uses: nikolay-e/treemapper-action@v1
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        id: artifact
+        with:
+          name: diff-context
+          path: ${{ steps.context.outputs.context-file }}
+
+      - name: Comment on PR
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: treemapper
+          message: |
+            ## Diff Context
+
+            | Metric | Value |
+            |--------|-------|
+            | Fragments | ${{ steps.context.outputs.fragment-count }} |
+            | Tokens | ~${{ steps.context.outputs.token-count }} |
+            | Size | ${{ steps.context.outputs.size }} |
+
+            [Download context](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/${{ steps.artifact.outputs.artifact-id }})
+
+            Use this context for AI code review with ChatGPT, Claude, or other LLMs.

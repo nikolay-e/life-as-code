@@ -16,13 +16,15 @@ import type { SleepData, WhoopSleepData } from "../../types/api";
 import { EmptyChartMessage } from "./shared";
 import { chartTooltipStyle, MULTI_PROVIDER_CONFIGS } from "./chart-config";
 import { sortByDateAsc } from "../../lib/chart-utils";
-import { calculateEMA } from "../../lib/statistics";
+import { loessSmooth } from "../../lib/statistics";
 
 interface SleepChartProps {
   garminData: SleepData[];
   whoopData?: WhoopSleepData[];
   showBreakdown?: boolean;
   showTrends?: boolean;
+  bandwidthShort?: number;
+  bandwidthLong?: number;
 }
 
 const SLEEP_STAGE_COLORS = {
@@ -38,6 +40,8 @@ export const SleepChart = memo(
     whoopData = [],
     showBreakdown = false,
     showTrends = false,
+    bandwidthShort = 0.17,
+    bandwidthLong = 0.33,
   }: SleepChartProps) => {
     const config = MULTI_PROVIDER_CONFIGS.sleep;
 
@@ -95,15 +99,15 @@ export const SleepChart = memo(
             : (d.garminTotal ?? d.whoopTotal),
       }));
 
-      const ema7 = calculateEMA(withAvg, 7, "avgValue");
-      const ema21 = calculateEMA(withAvg, 21, "avgValue");
+      const loessShort = loessSmooth(withAvg, "avgValue", bandwidthShort);
+      const loessLong = loessSmooth(withAvg, "avgValue", bandwidthLong);
 
       return withAvg.map((d, i) => ({
         ...d,
-        trend7: ema7[i]?.ema ?? null,
-        trend21: ema21[i]?.ema ?? null,
+        trendShort: loessShort[i]?.loess ?? null,
+        trendLong: loessLong[i]?.loess ?? null,
       }));
-    }, [chartData, showTrends]);
+    }, [chartData, showTrends, bandwidthShort, bandwidthLong]);
 
     if (!hasData) {
       return <EmptyChartMessage message="No sleep data available" />;
@@ -193,11 +197,11 @@ export const SleepChart = memo(
               if (name === "whoopTotal") {
                 return [formatHours(Number(value)), "Whoop"];
               }
-              if (name === "trend7") {
-                return [formatHours(Number(value)), "7-day avg"];
+              if (name === "trendShort") {
+                return [formatHours(Number(value)), "Short trend"];
               }
-              if (name === "trend21") {
-                return [formatHours(Number(value)), "21-day avg"];
+              if (name === "trendLong") {
+                return [formatHours(Number(value)), "Long trend"];
               }
               return [formatHours(Number(value)), name];
             }}
@@ -207,8 +211,8 @@ export const SleepChart = memo(
             formatter={(value) => {
               if (value === "garminTotal") return "Garmin";
               if (value === "whoopTotal") return "Whoop";
-              if (value === "trend7") return "7-day avg";
-              if (value === "trend21") return "21-day avg";
+              if (value === "trendShort") return "Short trend";
+              if (value === "trendLong") return "Long trend";
               return value;
             }}
           />
@@ -226,26 +230,25 @@ export const SleepChart = memo(
           />
           {showTrends && (
             <Line
-              type="monotone"
-              dataKey="trend7"
+              type="natural"
+              dataKey="trendShort"
               stroke="hsl(var(--foreground) / 0.7)"
-              strokeWidth={2.5}
-              strokeDasharray="6 4"
+              strokeWidth={1.5}
+              strokeDasharray="4 4"
               dot={false}
-              name="trend7"
-              connectNulls
+              name="trendShort"
+              connectNulls={false}
             />
           )}
           {showTrends && (
             <Line
-              type="monotone"
-              dataKey="trend21"
+              type="natural"
+              dataKey="trendLong"
               stroke="hsl(var(--foreground) / 0.5)"
-              strokeWidth={2}
-              strokeDasharray="10 5"
+              strokeWidth={2.5}
               dot={false}
-              name="trend21"
-              connectNulls
+              name="trendLong"
+              connectNulls={false}
             />
           )}
         </ComposedChart>

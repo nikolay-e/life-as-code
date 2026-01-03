@@ -22,10 +22,17 @@ import { useTrendData } from "../../hooks/useTrendData";
 interface StepsChartProps {
   data: StepsData[];
   showTrends?: boolean;
+  bandwidthShort?: number;
+  bandwidthLong?: number;
 }
 
 export const StepsChart = memo(
-  ({ data, showTrends = false }: StepsChartProps) => {
+  ({
+    data,
+    showTrends = false,
+    bandwidthShort = 0.17,
+    bandwidthLong = 0.33,
+  }: StepsChartProps) => {
     const config = TREND_CONFIGS.steps;
 
     const normalizedData = data.map((d) => ({
@@ -35,9 +42,9 @@ export const StepsChart = memo(
     }));
 
     const { chartData, hasData } = useTrendData(normalizedData, "total_steps", {
-      method: config.method,
-      shortTermWindow: 7,
-      longTermWindow: 21,
+      method: "loess",
+      bandwidthShort,
+      bandwidthLong,
       showBaseline: false,
     });
 
@@ -64,11 +71,11 @@ export const StepsChart = memo(
               const v = value as number | undefined;
               if (v === undefined) return ["-", name];
               if (name === "value") return [v.toLocaleString(), "Steps"];
-              if (name === "shortTermTrend") {
-                return [`${(v / 1000).toFixed(1)}k`, "7-day avg"];
+              if (name === "trendShort") {
+                return [`${(v / 1000).toFixed(1)}k`, "Short trend"];
               }
-              if (name === "longTermTrend") {
-                return [`${(v / 1000).toFixed(1)}k`, "21-day avg"];
+              if (name === "trendLong") {
+                return [`${(v / 1000).toFixed(1)}k`, "Long trend"];
               }
               return [v, name];
             }}
@@ -114,24 +121,24 @@ export const StepsChart = memo(
 
           {showTrends && (
             <Line
-              type="monotone"
-              dataKey="shortTermTrend"
-              stroke={config.trendColor}
-              strokeWidth={2}
-              strokeDasharray="5 5"
+              type="natural"
+              dataKey="trendShort"
+              stroke="hsl(var(--foreground) / 0.7)"
+              strokeWidth={1.5}
+              strokeDasharray="4 4"
               dot={false}
-              name="shortTermTrend"
+              name="trendShort"
             />
           )}
 
           {showTrends && (
             <Line
-              type="monotone"
-              dataKey="longTermTrend"
-              stroke={config.longTermTrendColor}
-              strokeWidth={3}
+              type="natural"
+              dataKey="trendLong"
+              stroke="hsl(var(--foreground) / 0.5)"
+              strokeWidth={2.5}
               dot={false}
-              name="longTermTrend"
+              name="trendLong"
             />
           )}
 

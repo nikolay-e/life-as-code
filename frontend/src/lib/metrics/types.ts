@@ -71,13 +71,18 @@ export interface TrendConfig {
   colorVar: string;
 }
 
-export type TrendMode = "short" | "mid" | "long";
+export type TrendMode = "recent" | "quarter" | "year" | "all";
+export type ViewMode = TrendMode | "today" | "custom";
 
 export interface TrendModeConfig {
   label: string;
+  rangeDays: number;
   shortTerm: number;
+  longTerm: number;
   baseline: number;
   trendWindow: number;
+  bandwidthShort: number;
+  bandwidthLong: number;
   useShiftedZScore: boolean;
   description: string;
 }

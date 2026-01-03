@@ -13,6 +13,8 @@ interface CaloriesChartProps {
   whoopData?: WhoopCycleData[];
   energyData?: EnergyData[];
   showTrends?: boolean;
+  bandwidthShort?: number;
+  bandwidthLong?: number;
 }
 
 export const CaloriesChart = memo(
@@ -21,6 +23,8 @@ export const CaloriesChart = memo(
     whoopData = [],
     energyData = [],
     showTrends = false,
+    bandwidthShort = 0.17,
+    bandwidthLong = 0.33,
   }: CaloriesChartProps) => {
     const config = MULTI_PROVIDER_CONFIGS.calories;
 
@@ -70,6 +74,8 @@ export const CaloriesChart = memo(
         yDomain={["dataMin - 100", "dataMax + 100"]}
         valueFormatter={(v) => v.toLocaleString()}
         showTrends={showTrends}
+        bandwidthShort={bandwidthShort}
+        bandwidthLong={bandwidthLong}
       />
     );
   },

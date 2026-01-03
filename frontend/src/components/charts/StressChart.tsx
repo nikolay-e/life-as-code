@@ -19,10 +19,17 @@ import { useTrendData } from "../../hooks/useTrendData";
 interface StressChartProps {
   data: StressData[];
   showTrends?: boolean;
+  bandwidthShort?: number;
+  bandwidthLong?: number;
 }
 
 export const StressChart = memo(
-  ({ data, showTrends = false }: StressChartProps) => {
+  ({
+    data,
+    showTrends = false,
+    bandwidthShort = 0.17,
+    bandwidthLong = 0.33,
+  }: StressChartProps) => {
     const config = TREND_CONFIGS.stress;
 
     const normalizedData = data.map((d) => ({
@@ -32,10 +39,9 @@ export const StressChart = memo(
     }));
 
     const { chartData, hasData } = useTrendData(normalizedData, "avg_stress", {
-      method: config.method,
-      shortTermWindow: 7,
-      longTermWindow: 21,
-      longerTermWindow: 60,
+      method: "loess",
+      bandwidthShort,
+      bandwidthLong,
       showBaseline: false,
     });
 
@@ -59,9 +65,8 @@ export const StressChart = memo(
               const v = value as number | undefined;
               if (v === undefined) return ["-", name];
               if (name === "value") return [v.toFixed(0), "Avg Stress"];
-              if (name === "shortTermTrend") return [v.toFixed(0), "7d avg"];
-              if (name === "longTermTrend") return [v.toFixed(0), "21d avg"];
-              if (name === "longerTermTrend") return [v.toFixed(0), "60d avg"];
+              if (name === "trendShort") return [v.toFixed(0), "Short trend"];
+              if (name === "trendLong") return [v.toFixed(0), "Long trend"];
               return [v, name];
             }}
             contentStyle={chartTooltipStyle}
@@ -86,9 +91,8 @@ export const StressChart = memo(
             <Legend
               formatter={(value) => {
                 if (value === "value") return "Stress";
-                if (value === "shortTermTrend") return "7d avg";
-                if (value === "longTermTrend") return "21d avg";
-                if (value === "longerTermTrend") return "60d avg";
+                if (value === "trendShort") return "Short trend";
+                if (value === "trendLong") return "Long trend";
                 return value;
               }}
             />

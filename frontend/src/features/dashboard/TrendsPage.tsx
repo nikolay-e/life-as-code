@@ -399,7 +399,7 @@ function formatTrendsForLLM(
 }
 
 export function TrendsPage() {
-  const [mode, setMode] = useState<TrendMode>("short");
+  const [mode, setMode] = useState<TrendMode>("recent");
   const [copied, setCopied] = useState(false);
   const modeConfig = TREND_MODES[mode];
   const {
