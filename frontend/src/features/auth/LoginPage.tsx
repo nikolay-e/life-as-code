@@ -12,8 +12,8 @@ import {
   CardTitle,
 } from "../../components/ui/card";
 import { Spinner } from "../../components/ui/spinner";
+import { VersionInfo } from "../../components/ui/version-info";
 import { Heart, Activity, ArrowRight } from "lucide-react";
-import { APP_VERSION } from "../../lib/version";
 
 export function LoginPage() {
   const [username, setUsername] = useState("");
@@ -119,9 +119,9 @@ export function LoginPage() {
           <p className="mt-6 text-center text-sm text-muted-foreground">
             Contact your administrator for account access.
           </p>
-          <p className="mt-4 text-center text-xs text-muted-foreground/60 font-mono">
-            {APP_VERSION}
-          </p>
+          <div className="mt-4">
+            <VersionInfo />
+          </div>
         </CardContent>
       </Card>
     </div>

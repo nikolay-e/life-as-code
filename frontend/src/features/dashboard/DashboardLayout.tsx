@@ -11,7 +11,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
-import { APP_VERSION } from "../../lib/version";
+import { VersionInfo } from "../../components/ui/version-info";
 
 const navItems = [
   { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard", end: true },
@@ -92,9 +92,7 @@ export function DashboardLayout() {
 
       <footer className="border-t bg-background/50">
         <div className="container flex h-12 items-center justify-center px-4 sm:px-6 lg:px-8">
-          <span className="text-xs text-muted-foreground/60 font-mono">
-            v{APP_VERSION}
-          </span>
+          <VersionInfo />
         </div>
       </footer>
     </div>

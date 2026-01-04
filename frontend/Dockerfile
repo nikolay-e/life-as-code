@@ -2,6 +2,7 @@
 FROM node:20-alpine AS builder
 
 ARG VITE_APP_VERSION=dev
+ARG VITE_APP_ENVIRONMENT=development
 ARG VITE_BUILD_DATE
 ARG VITE_COMMIT_SHA
 
@@ -12,14 +13,11 @@ RUN npm ci
 
 COPY . .
 
-ENV VITE_APP_VERSION=${VITE_APP_VERSION}
-ENV VITE_BUILD_DATE=${VITE_BUILD_DATE}
-ENV VITE_COMMIT_SHA=${VITE_COMMIT_SHA}
-
-RUN npm run build && \
-    # Replace version placeholder with actual version in all built files
-    find /app/dist -type f \( -name '*.js' -o -name '*.json' -o -name '*.html' \) -exec \
-        sed -i "s/0\.0\.0-placeholder/${VITE_APP_VERSION}/g" {} + 2>/dev/null || true
+RUN VITE_APP_VERSION=${VITE_APP_VERSION} \
+    VITE_APP_ENVIRONMENT=${VITE_APP_ENVIRONMENT} \
+    VITE_BUILD_DATE=${VITE_BUILD_DATE} \
+    VITE_COMMIT_SHA=${VITE_COMMIT_SHA} \
+    npm run build
 
 # Production stage
 FROM nginx:alpine

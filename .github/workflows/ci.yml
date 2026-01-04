@@ -138,16 +138,19 @@ jobs:
           BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           TAGS="${{ env.FRONTEND_IMAGE }}:${SHA_VERSION},${{ env.FRONTEND_IMAGE }}:latest"
           VERSION="$SHA_VERSION"
+          APP_ENVIRONMENT="staging"
           if [[ "$GIT_REF" == refs/tags/v* ]]; then
             TAGS="${TAGS},${{ env.FRONTEND_IMAGE }}:${GIT_REF_NAME}"
             VERSION="$GIT_REF_NAME"
+            APP_ENVIRONMENT="production"
           fi
           {
             echo "version=$VERSION"
             echo "build_date=$BUILD_DATE"
             echo "tags=$TAGS"
+            echo "app_environment=$APP_ENVIRONMENT"
           } >> "$GITHUB_OUTPUT"
-          echo "Building frontend with tags: $TAGS (version: $VERSION)"
+          echo "Building frontend with tags: $TAGS (version: $VERSION, env: $APP_ENVIRONMENT)"
 
       - name: Build and push frontend image
         uses: docker/build-push-action@v6
@@ -160,5 +163,6 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             VITE_APP_VERSION=${{ steps.meta.outputs.version }}
+            VITE_APP_ENVIRONMENT=${{ steps.meta.outputs.app_environment }}
             VITE_BUILD_DATE=${{ steps.meta.outputs.build_date }}
             VITE_COMMIT_SHA=${{ github.sha }}
