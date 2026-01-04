@@ -25,6 +25,7 @@ interface StressChartProps {
   showTrends?: boolean;
   bandwidthShort?: number;
   bandwidthLong?: number;
+  height?: number;
   dateRange?: { start: string; end: string };
 }
 
@@ -34,6 +35,7 @@ export const StressChart = memo(
     showTrends = false,
     bandwidthShort = 0.17,
     bandwidthLong = 0.33,
+    height = 250,
     dateRange,
   }: StressChartProps) => {
     const config = TREND_CONFIGS.stress;
@@ -65,12 +67,12 @@ export const StressChart = memo(
     }
 
     return (
-      <ResponsiveContainer width="100%" height={250}>
+      <ResponsiveContainer width="100%" height={height}>
         <ComposedChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
           <XAxis
             dataKey="timestamp"
-            tickFormatter={(value) => format(new Date(value), "MMM d")}
+            tickFormatter={(value: number) => format(new Date(value), "MMM d")}
             className="text-xs"
             type="number"
             scale="time"
@@ -107,7 +109,7 @@ export const StressChart = memo(
 
           {showTrends && (
             <Legend
-              formatter={(value) => {
+              formatter={(value: string) => {
                 if (value === "value") return "Stress";
                 if (value === "trendShort") return "Short trend";
                 if (value === "trendLong") return "Long trend";

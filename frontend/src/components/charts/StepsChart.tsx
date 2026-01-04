@@ -28,6 +28,7 @@ interface StepsChartProps {
   showTrends?: boolean;
   bandwidthShort?: number;
   bandwidthLong?: number;
+  height?: number;
   dateRange?: { start: string; end: string };
 }
 
@@ -37,6 +38,7 @@ export const StepsChart = memo(
     showTrends = false,
     bandwidthShort = 0.17,
     bandwidthLong = 0.33,
+    height = 250,
     dateRange,
   }: StepsChartProps) => {
     const config = TREND_CONFIGS.steps;
@@ -68,12 +70,12 @@ export const StepsChart = memo(
     }
 
     return (
-      <ResponsiveContainer width="100%" height={250}>
+      <ResponsiveContainer width="100%" height={height}>
         <ComposedChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
           <XAxis
             dataKey="timestamp"
-            tickFormatter={(value) => format(new Date(value), "MMM d")}
+            tickFormatter={(value: number) => format(new Date(value), "MMM d")}
             className="text-xs"
             type="number"
             scale="time"

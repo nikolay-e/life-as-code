@@ -47,14 +47,16 @@ async function request<T>(
   });
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
+    const errorData = (await response.json().catch(() => ({}))) as {
+      message?: string;
+    };
     throw new ApiError(
       response.status,
-      errorData.message || `Request failed: ${response.statusText}`,
+      errorData.message ?? `Request failed: ${response.statusText}`,
     );
   }
 
-  return response.json();
+  return response.json() as Promise<T>;
 }
 
 export const api = {

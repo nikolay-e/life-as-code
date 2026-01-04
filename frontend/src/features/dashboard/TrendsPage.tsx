@@ -52,6 +52,67 @@ import {
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 
+function getConfidenceColor(confidence: number): string {
+  if (confidence >= 0.8) return "text-green-500";
+  if (confidence >= 0.6) return "text-yellow-500";
+  return "text-red-500";
+}
+
+function getHrvRhrColor(value: number | null): string {
+  if (value === null) return "text-muted-foreground";
+  if (value > 1) return "text-red-500";
+  if (value < -1) return "text-green-500";
+  return "text-blue-500";
+}
+
+function getHrvRhrLabel(value: number | null): string {
+  if (value === null) return "Insufficient data";
+  if (value > 1) return "Body under strain";
+  if (value < -1) return "Well recovered";
+  return "Balanced";
+}
+
+function getSleepDebtColor(value: number): string {
+  if (value > 120) return "text-red-500";
+  if (value > 60) return "text-yellow-500";
+  return "text-green-500";
+}
+
+function getAcwrColor(value: number | null): string {
+  if (value === null) return "text-muted-foreground";
+  if (value > 1.5) return "text-red-500";
+  if (value < 0.8) return "text-yellow-500";
+  return "text-green-500";
+}
+
+function getAcwrLabel(value: number | null): string {
+  if (value === null) return "Insufficient strain data";
+  if (value > 1.5) return "Injury risk - reduce load";
+  if (value < 0.8) return "Detraining risk";
+  return "Sweet spot";
+}
+
+function getStepsChangeColor(value: number | null): string {
+  if (value === null) return "text-muted-foreground";
+  if (value < -1000) return "text-red-500";
+  if (value > 1000) return "text-green-500";
+  return "text-blue-500";
+}
+
+function getWeightChangeColor(value: number | null): string {
+  if (value === null) return "";
+  if (value > 0.5) return "text-red-500";
+  if (value < -0.5) return "text-green-500";
+  return "text-blue-500";
+}
+
+function getStressTrendColor(value: number | null): string {
+  if (value === null) return "";
+  if (value > 5) return "text-red-500";
+  if (value < -5) return "text-green-500";
+  return "text-blue-500";
+}
+
 interface DataQualityBadgeProps {
   quality: DataQuality;
 }
@@ -130,14 +191,15 @@ function MetricCard({
 
   const zScoreLabel = useShiftedZScore ? "period z" : "z-score";
 
-  const trendIcon =
-    baseline.trendSlope === null ? (
-      <Minus className="h-4 w-4 text-muted-foreground" />
-    ) : baseline.trendSlope > 0 ? (
-      <TrendingUp className="h-4 w-4 text-green-500" />
-    ) : (
-      <TrendingDown className="h-4 w-4 text-red-500" />
-    );
+  const trendIcon = (() => {
+    if (baseline.trendSlope === null) {
+      return <Minus className="h-4 w-4 text-muted-foreground" />;
+    }
+    if (baseline.trendSlope > 0) {
+      return <TrendingUp className="h-4 w-4 text-green-500" />;
+    }
+    return <TrendingDown className="h-4 w-4 text-red-500" />;
+  })();
 
   return (
     <Card>
@@ -398,6 +460,10 @@ function formatTrendsForLLM(
   return lines.join("\n");
 }
 
+const MAX_BASELINE_DAYS = Math.max(
+  ...MODE_ORDER.map((m) => TREND_MODES[m].baseline),
+);
+
 export function TrendsPage() {
   const [mode, setMode] = useState<TrendMode>("recent");
   const [copied, setCopied] = useState(false);
@@ -408,7 +474,7 @@ export function TrendsPage() {
     trendWindow,
     useShiftedZScore,
   } = modeConfig;
-  const { data, isLoading, error } = useHealthData(baselineDays, true);
+  const { data, isLoading, error } = useHealthData(MAX_BASELINE_DAYS, true);
 
   const baselineOptions = useMemo(
     () => getBaselineOptions(mode, modeConfig),
@@ -416,47 +482,40 @@ export function TrendsPage() {
   );
 
   const handleCopyToClipboard = useCallback(async () => {
-    const metrics = computeAllMetrics(
-      data ?? null,
-      baselineDays,
-      shortTermDays,
-      trendWindow,
-      baselineOptions,
-    );
+    const reports: string[] = [];
 
-    const analysis = computeHealthAnalysis(
-      data ?? null,
-      metrics,
-      modeConfig,
-      baselineOptions,
-    );
+    for (const m of MODE_ORDER) {
+      const cfg = TREND_MODES[m];
+      const opts = getBaselineOptions(m, cfg);
 
-    const text = formatTrendsForLLM(
-      modeConfig,
-      analysis,
-      metrics,
-      useShiftedZScore,
-    );
+      const metrics = computeAllMetrics(
+        data ?? null,
+        cfg.baseline,
+        cfg.shortTerm,
+        cfg.trendWindow,
+        opts,
+      );
+
+      const analysis = computeHealthAnalysis(data ?? null, metrics, cfg, opts);
+
+      reports.push(
+        formatTrendsForLLM(cfg, analysis, metrics, cfg.useShiftedZScore),
+      );
+    }
+
+    const text = reports.join("\n\n---\n\n");
 
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
-      toast.success(`${modeConfig.label} trends copied to clipboard`);
+      toast.success("All trends copied to clipboard");
       setTimeout(() => {
         setCopied(false);
       }, 2000);
     } catch {
       toast.error("Failed to copy to clipboard");
     }
-  }, [
-    data,
-    baselineDays,
-    shortTermDays,
-    trendWindow,
-    baselineOptions,
-    modeConfig,
-    useShiftedZScore,
-  ]);
+  }, [data]);
 
   if (error) {
     return (
@@ -702,11 +761,7 @@ export function TrendsPage() {
                   <p
                     className={cn(
                       "text-[10px]",
-                      c.confidence >= 0.8
-                        ? "text-green-500"
-                        : c.confidence >= 0.6
-                          ? "text-yellow-500"
-                          : "text-red-500",
+                      getConfidenceColor(c.confidence),
                     )}
                   >
                     conf: {(c.confidence * 100).toFixed(0)}%
@@ -770,13 +825,7 @@ export function TrendsPage() {
             <p
               className={cn(
                 "text-2xl font-bold",
-                recoveryMetrics.hrvRhrImbalance !== null
-                  ? recoveryMetrics.hrvRhrImbalance > 1
-                    ? "text-red-500"
-                    : recoveryMetrics.hrvRhrImbalance < -1
-                      ? "text-green-500"
-                      : "text-blue-500"
-                  : "text-muted-foreground",
+                getHrvRhrColor(recoveryMetrics.hrvRhrImbalance),
               )}
             >
               {recoveryMetrics.hrvRhrImbalance !== null
@@ -784,13 +833,7 @@ export function TrendsPage() {
                 : "—"}
             </p>
             <p className="text-xs text-muted-foreground">
-              {recoveryMetrics.hrvRhrImbalance !== null
-                ? recoveryMetrics.hrvRhrImbalance > 1
-                  ? "Body under strain"
-                  : recoveryMetrics.hrvRhrImbalance < -1
-                    ? "Well recovered"
-                    : "Balanced"
-                : "Insufficient data"}
+              {getHrvRhrLabel(recoveryMetrics.hrvRhrImbalance)}
             </p>
           </CardContent>
         </Card>
@@ -806,11 +849,7 @@ export function TrendsPage() {
             <p
               className={cn(
                 "text-2xl font-bold",
-                sleepMetrics.sleepDebtShort > 120
-                  ? "text-red-500"
-                  : sleepMetrics.sleepDebtShort > 60
-                    ? "text-yellow-500"
-                    : "text-green-500",
+                getSleepDebtColor(sleepMetrics.sleepDebtShort),
               )}
             >
               {formatSleepMinutes(sleepMetrics.sleepDebtShort)}
@@ -830,13 +869,7 @@ export function TrendsPage() {
             <p
               className={cn(
                 "text-2xl font-bold",
-                activityMetrics.acwr !== null
-                  ? activityMetrics.acwr > 1.5
-                    ? "text-red-500"
-                    : activityMetrics.acwr < 0.8
-                      ? "text-yellow-500"
-                      : "text-green-500"
-                  : "text-muted-foreground",
+                getAcwrColor(activityMetrics.acwr),
               )}
             >
               {activityMetrics.acwr !== null
@@ -844,13 +877,7 @@ export function TrendsPage() {
                 : "—"}
             </p>
             <p className="text-xs text-muted-foreground">
-              {activityMetrics.acwr !== null
-                ? activityMetrics.acwr > 1.5
-                  ? "Injury risk - reduce load"
-                  : activityMetrics.acwr < 0.8
-                    ? "Detraining risk"
-                    : "Sweet spot"
-                : "Insufficient strain data"}
+              {getAcwrLabel(activityMetrics.acwr)}
             </p>
           </CardContent>
         </Card>
@@ -864,13 +891,7 @@ export function TrendsPage() {
             <p
               className={cn(
                 "text-2xl font-bold",
-                activityMetrics.stepsChange !== null
-                  ? activityMetrics.stepsChange < -1000
-                    ? "text-red-500"
-                    : activityMetrics.stepsChange > 1000
-                      ? "text-green-500"
-                      : "text-blue-500"
-                  : "text-muted-foreground",
+                getStepsChangeColor(activityMetrics.stepsChange),
               )}
             >
               {activityMetrics.stepsChange !== null
@@ -1072,13 +1093,7 @@ export function TrendsPage() {
                 <p
                   className={cn(
                     "font-medium",
-                    weightMetrics.periodChange !== null
-                      ? weightMetrics.periodChange > 0.5
-                        ? "text-red-500"
-                        : weightMetrics.periodChange < -0.5
-                          ? "text-green-500"
-                          : "text-blue-500"
-                      : "",
+                    getWeightChangeColor(weightMetrics.periodChange),
                   )}
                 >
                   {weightMetrics.periodChange !== null
@@ -1132,13 +1147,7 @@ export function TrendsPage() {
                 <p
                   className={cn(
                     "font-medium",
-                    recoveryMetrics.stressTrend !== null
-                      ? recoveryMetrics.stressTrend > 5
-                        ? "text-red-500"
-                        : recoveryMetrics.stressTrend < -5
-                          ? "text-green-500"
-                          : "text-blue-500"
-                      : "",
+                    getStressTrendColor(recoveryMetrics.stressTrend),
                   )}
                 >
                   {recoveryMetrics.stressTrend !== null

@@ -15,7 +15,6 @@ import { format, parseISO, startOfDay } from "date-fns";
 import type { SleepData, WhoopSleepData } from "../../types/api";
 import { EmptyChartMessage } from "./shared";
 import { chartTooltipStyle, MULTI_PROVIDER_CONFIGS } from "./chart-config";
-import { sortByDateAsc } from "../../lib/chart-utils";
 import { loessSmooth } from "../../lib/statistics";
 
 function dateToTimestamp(dateStr: string): number {
@@ -29,6 +28,7 @@ interface SleepChartProps {
   showTrends?: boolean;
   bandwidthShort?: number;
   bandwidthLong?: number;
+  height?: number;
   dateRange?: { start: string; end: string };
 }
 
@@ -47,6 +47,7 @@ export const SleepChart = memo(
     showTrends = false,
     bandwidthShort = 0.17,
     bandwidthLong = 0.33,
+    height = 250,
     dateRange,
   }: SleepChartProps) => {
     const config = MULTI_PROVIDER_CONFIGS.sleep;
@@ -119,11 +120,13 @@ export const SleepChart = memo(
       const loessShort = loessSmooth(withAvg, "avgValue", bandwidthShort);
       const loessLong = loessSmooth(withAvg, "avgValue", bandwidthLong);
 
-      return withAvg.map((d, i) => ({
-        ...d,
-        trendShort: loessShort[i]?.loess ?? null,
-        trendLong: loessLong[i]?.loess ?? null,
-      }));
+      return withAvg
+        .map((d, i) => ({
+          ...d,
+          trendShort: loessShort[i]?.loess ?? null,
+          trendLong: loessLong[i]?.loess ?? null,
+        }))
+        .sort((a, b) => a.timestamp - b.timestamp);
     }, [chartData, showTrends, bandwidthShort, bandwidthLong]);
 
     if (!hasData) {
@@ -135,11 +138,13 @@ export const SleepChart = memo(
     if (showBreakdown) {
       return (
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={sortByDateAsc(chartData)}>
+          <BarChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
             <XAxis
               dataKey="timestamp"
-              tickFormatter={(value) => format(new Date(value), "MMM d")}
+              tickFormatter={(value: number) =>
+                format(new Date(value), "MMM d")
+              }
               className="text-xs"
               type="number"
               scale="time"
@@ -191,7 +196,7 @@ export const SleepChart = memo(
     }
 
     return (
-      <ResponsiveContainer width="100%" height={250}>
+      <ResponsiveContainer width="100%" height={height}>
         <ComposedChart
           data={chartDataWithTrends}
           barGap={0}
@@ -200,7 +205,7 @@ export const SleepChart = memo(
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
           <XAxis
             dataKey="timestamp"
-            tickFormatter={(value) => format(new Date(value), "MMM d")}
+            tickFormatter={(value: number) => format(new Date(value), "MMM d")}
             className="text-xs"
             type="number"
             scale="time"
@@ -230,15 +235,17 @@ export const SleepChart = memo(
             }}
             contentStyle={chartTooltipStyle}
           />
-          <Legend
-            formatter={(value) => {
-              if (value === "garminTotal") return "Garmin";
-              if (value === "whoopTotal") return "Whoop";
-              if (value === "trendShort") return "Short trend";
-              if (value === "trendLong") return "Long trend";
-              return value;
-            }}
-          />
+          {showTrends && (
+            <Legend
+              formatter={(value: string) => {
+                if (value === "garminTotal") return "Garmin";
+                if (value === "whoopTotal") return "Whoop";
+                if (value === "trendShort") return "Short trend";
+                if (value === "trendLong") return "Long trend";
+                return value;
+              }}
+            />
+          )}
           <Bar
             dataKey="garminTotal"
             fill={config.garminColor}

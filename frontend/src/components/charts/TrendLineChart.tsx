@@ -74,7 +74,7 @@ function TrendLineChartComponent({
         <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
         <XAxis
           dataKey="timestamp"
-          tickFormatter={(value) => format(new Date(value), "MMM d")}
+          tickFormatter={(value: number) => format(new Date(value), "MMM d")}
           className="text-xs"
           type="number"
           scale="time"
@@ -144,7 +144,7 @@ function TrendLineChartComponent({
 
         {showTrends && (
           <Legend
-            formatter={(value) => {
+            formatter={(value: string) => {
               if (value === "value") return valueLabel;
               if (value === "trendShort") return shortTermLabel;
               if (value === "trendLong") return longTermLabel;
@@ -158,3 +158,5 @@ function TrendLineChartComponent({
 }
 
 export const TrendLineChart = memo(TrendLineChartComponent);
+
+TrendLineChart.displayName = "TrendLineChart";

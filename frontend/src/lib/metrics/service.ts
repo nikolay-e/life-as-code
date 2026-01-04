@@ -151,7 +151,9 @@ export function getDisplayValue(
     };
   }
 
-  const values = validData.map((d) => d.value!);
+  const values = validData
+    .filter((d): d is typeof d & { value: number } => d.value !== null)
+    .map((d) => d.value);
   return {
     value: calculateMedian(values),
     latestDate: null,

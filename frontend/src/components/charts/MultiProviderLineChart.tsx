@@ -108,7 +108,7 @@ export const MultiProviderLineChart = memo(
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
           <XAxis
             dataKey="timestamp"
-            tickFormatter={(value) => format(new Date(value), "MMM d")}
+            tickFormatter={(value: number) => format(new Date(value), "MMM d")}
             className="text-xs"
             type="number"
             scale="time"
@@ -176,23 +176,25 @@ export const MultiProviderLineChart = memo(
             />
           )}
 
-          <Legend
-            formatter={(value) => {
-              if (value === "garminValue") {
-                return garminLabel;
-              }
-              if (value === "whoopValue") {
-                return whoopLabel;
-              }
-              if (value === "trendShort") {
-                return "Short trend";
-              }
-              if (value === "trendLong") {
-                return "Long trend";
-              }
-              return value;
-            }}
-          />
+          {showTrends && (
+            <Legend
+              formatter={(value: string) => {
+                if (value === "garminValue") {
+                  return garminLabel;
+                }
+                if (value === "whoopValue") {
+                  return whoopLabel;
+                }
+                if (value === "trendShort") {
+                  return "Short trend";
+                }
+                if (value === "trendLong") {
+                  return "Long trend";
+                }
+                return value;
+              }}
+            />
+          )}
         </ComposedChart>
       </ResponsiveContainer>
     );

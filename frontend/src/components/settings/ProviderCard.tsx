@@ -37,7 +37,7 @@ function SyncButton({ name, isPending, onClick, disabled }: SyncButtonProps) {
       variant="outline"
       size="sm"
       onClick={onClick}
-      disabled={disabled || isPending}
+      disabled={disabled ?? isPending}
       aria-label={`Sync ${name}`}
     >
       {isPending ? (

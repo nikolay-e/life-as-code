@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import {
+  useHealthData,
   useHealthDataRange,
   useSyncStatus,
   useAutoSync,
@@ -43,6 +44,10 @@ import {
 } from "../../lib/metrics";
 import { toTimeMs } from "../../lib/health";
 import { getLatestSyncDate } from "../../lib/sync-utils";
+
+const MAX_RANGE_DAYS = Math.max(
+  ...MODE_ORDER.map((m) => TREND_MODES[m].rangeDays),
+);
 
 interface MetricCardProps {
   title: string;
@@ -99,16 +104,16 @@ export function DashboardOverview() {
   const bandwidthShort = modeConfig?.bandwidthShort ?? 0.17;
   const bandwidthLong = modeConfig?.bandwidthLong ?? 0.33;
 
-  const startDate = isCustom
-    ? customStartDate
-    : isToday
-      ? format(today, "yyyy-MM-dd")
-      : format(subDays(today, rangeDays), "yyyy-MM-dd");
-  const endDate = isCustom
-    ? customEndDate
-    : isToday
-      ? format(today, "yyyy-MM-dd")
-      : format(subDays(today, 1), "yyyy-MM-dd");
+  const startDate = (() => {
+    if (isCustom) return customStartDate;
+    if (isToday) return format(today, "yyyy-MM-dd");
+    return format(subDays(today, rangeDays), "yyyy-MM-dd");
+  })();
+  const endDate = (() => {
+    if (isCustom) return customEndDate;
+    if (isToday) return format(today, "yyyy-MM-dd");
+    return format(subDays(today, 1), "yyyy-MM-dd");
+  })();
 
   const selectedDays = Math.max(
     1,
@@ -121,6 +126,7 @@ export function DashboardOverview() {
   );
 
   const { data, isLoading, error } = useHealthDataRange(startDate, endDate);
+  const { data: allRangesData } = useHealthData(MAX_RANGE_DAYS, false);
   const { data: syncStatus } = useSyncStatus();
   const { isSyncing } = useAutoSync();
 
@@ -132,46 +138,41 @@ export function DashboardOverview() {
   const [copied, setCopied] = useState(false);
 
   const handleCopyToClipboard = useCallback(async () => {
-    if (metricCards.length === 0) return;
+    if (!allRangesData) return;
 
-    const rangeLabel = isCustom
-      ? `${startDate} — ${endDate}`
-      : isToday
-        ? "Today"
-        : `${modeConfig?.label ?? selectedRange} (${String(selectedDays)} days)`;
-
-    const lines = [
-      `Health Dashboard — ${rangeLabel}`,
-      `Date: ${format(new Date(), "yyyy-MM-dd HH:mm")}`,
+    const now = new Date();
+    const sections: string[] = [
+      `Health Dashboard — All Ranges`,
+      `Generated: ${format(now, "yyyy-MM-dd HH:mm")}`,
       "",
-      "Metrics:",
-      ...metricCards.map(
-        (card) => `• ${card.title}: ${card.value} (${card.subtitle})`,
-      ),
     ];
 
-    const text = lines.join("\n");
+    for (const m of MODE_ORDER) {
+      const cfg = TREND_MODES[m];
+      const cards = buildDashboardCards(allRangesData, cfg.rangeDays, now);
+
+      sections.push(
+        `## ${cfg.label} (${cfg.description}, ${String(cfg.rangeDays)} days)`,
+        ...cards.map(
+          (card) => `• ${card.title}: ${card.value} (${card.subtitle})`,
+        ),
+        "",
+      );
+    }
+
+    const text = sections.join("\n");
 
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
-      toast.success("Dashboard metrics copied to clipboard");
+      toast.success("All ranges copied to clipboard");
       setTimeout(() => {
         setCopied(false);
       }, 2000);
     } catch {
       toast.error("Failed to copy to clipboard");
     }
-  }, [
-    metricCards,
-    isCustom,
-    isToday,
-    modeConfig,
-    selectedRange,
-    selectedDays,
-    startDate,
-    endDate,
-  ]);
+  }, [allRangesData]);
 
   if (isLoading) {
     return <LoadingState message="Loading health data..." />;

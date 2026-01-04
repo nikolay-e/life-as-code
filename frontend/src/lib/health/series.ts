@@ -45,13 +45,17 @@ export function toDailySeries(
     const dayKey = toLocalDayKey(d.date);
     const timestamp = toTimeMs(d.date);
     const existing = dayMap.get(dayKey) ?? { values: [], lastTimestamp: 0 };
-    existing.values.push(d.value!);
+    if (d.value !== null) {
+      existing.values.push(d.value);
+    }
     existing.lastTimestamp = Math.max(existing.lastTimestamp, timestamp);
     dayMap.set(dayKey, existing);
   }
 
   const result: DataPoint[] = [];
   for (const [date, { values }] of dayMap) {
+    if (values.length === 0) continue;
+
     let aggregated: number;
     switch (method) {
       case "mean":
@@ -85,10 +89,9 @@ export function getWindowValues(
   data: DataPoint[],
   windowDays: number,
 ): number[] {
-  const windowData = filterDataByWindow(data, windowDays).filter(
-    (d) => d.value !== null,
-  );
-  return windowData.map((d) => d.value!);
+  return filterDataByWindow(data, windowDays)
+    .filter((d): d is DataPoint & { value: number } => d.value !== null)
+    .map((d) => d.value);
 }
 
 export function getWindowRangeValues(
@@ -96,10 +99,7 @@ export function getWindowRangeValues(
   daysBack: number,
   daysBackEnd: number,
 ): number[] {
-  const windowData = filterDataByWindowRange(
-    data,
-    daysBack,
-    daysBackEnd,
-  ).filter((d) => d.value !== null);
-  return windowData.map((d) => d.value!);
+  return filterDataByWindowRange(data, daysBack, daysBackEnd)
+    .filter((d): d is DataPoint & { value: number } => d.value !== null)
+    .map((d) => d.value);
 }

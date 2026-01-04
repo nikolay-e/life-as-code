@@ -18,7 +18,7 @@ export function calculateEMA<
 ): (T & { ema: number | null })[] {
   if (data.length === 0) return [];
 
-  const alpha = period;
+  const timescale = period;
   let ema: number | null = null;
   let prevValue: number | null = null;
   let prevDate: string | null = null;
@@ -59,7 +59,7 @@ export function calculateEMA<
       return { ...point, ema: validCount < warmupPeriod ? null : ema };
     }
 
-    const a = daysDelta / alpha;
+    const a = daysDelta / timescale;
     const u = Math.exp(-a);
     const v = (1 - u) / a;
     ema = u * ema + (v - u) * prevValue + (1 - v) * value;
@@ -172,15 +172,7 @@ function catmullRomSpline(
 
 export function calculateBiologicalWeightSmoothing<
   T extends { date: string } & Record<string, unknown>,
->(
-  data: T[],
-  valueKey: keyof T,
-
-  _options: {
-    smoothingDays?: number;
-    maxDailyChangeKg?: number;
-  } = {},
-): WeightSmoothedPoint[] {
+>(data: T[], valueKey: keyof T): WeightSmoothedPoint[] {
   const sortedData = [...data].sort(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
   );

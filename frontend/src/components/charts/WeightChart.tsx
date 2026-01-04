@@ -15,11 +15,7 @@ import type { WeightData } from "../../types/api";
 import { EmptyChartMessage } from "./shared";
 import { chartTooltipStyle, TREND_CONFIGS } from "./chart-config";
 import { renderTrendLines } from "./TrendLines";
-import {
-  calculateBiologicalWeightSmoothing,
-  calculateBaseline,
-  loessSmooth,
-} from "../../lib/statistics";
+import { useWeightTrendData } from "../../hooks/useWeightTrendData";
 
 function dateToTimestamp(dateStr: string): number {
   return startOfDay(parseISO(dateStr)).getTime();
@@ -31,6 +27,7 @@ interface WeightChartProps {
   showBaseline?: boolean;
   bandwidthShort?: number;
   bandwidthLong?: number;
+  height?: number;
   dateRange?: { start: string; end: string };
 }
 
@@ -41,73 +38,17 @@ export const WeightChart = memo(
     showBaseline = false,
     bandwidthShort = 0.17,
     bandwidthLong = 0.33,
+    height = 250,
     dateRange,
   }: WeightChartProps) => {
     const config = TREND_CONFIGS.weight;
 
     const { chartData, baseline, minWeight, maxWeight, padding, hasData } =
-      useMemo(() => {
-        const normalizedData = data.map((d) => ({
-          date: d.date,
-          weight_kg: d.weight_kg,
-        }));
-
-        const smoothedData = calculateBiologicalWeightSmoothing(
-          normalizedData,
-          "weight_kg",
-          {
-            smoothingDays: 10,
-            maxDailyChangeKg: 0.14,
-          },
-        );
-
-        const validWeights = smoothedData
-          .filter((d) => d.rawWeight !== null)
-          .map((d) => d.rawWeight!);
-
-        if (validWeights.length === 0) {
-          return {
-            chartData: [],
-            baseline: null,
-            minWeight: 0,
-            maxWeight: 100,
-            padding: 5,
-            hasData: false,
-          };
-        }
-
-        const min = Math.min(...validWeights);
-        const max = Math.max(...validWeights);
-        const pad = (max - min) * 0.15 || 2;
-
-        const baselineData = calculateBaseline(normalizedData, 14, "weight_kg");
-
-        const dataForLoess = smoothedData as unknown as ({
-          date: string;
-        } & Record<string, unknown>)[];
-        const loessShort = loessSmooth(
-          dataForLoess,
-          "rawWeight",
-          bandwidthShort,
-        );
-        const loessLong = loessSmooth(dataForLoess, "rawWeight", bandwidthLong);
-
-        const withTrends = smoothedData.map((d, i) => ({
-          ...d,
-          timestamp: dateToTimestamp(d.date),
-          trendShort: loessShort[i]?.loess ?? null,
-          trendLong: loessLong[i]?.loess ?? null,
-        }));
-
-        return {
-          chartData: withTrends,
-          baseline: baselineData,
-          minWeight: min,
-          maxWeight: max,
-          padding: pad,
-          hasData: true,
-        };
-      }, [data, bandwidthShort, bandwidthLong]);
+      useWeightTrendData(data, {
+        bandwidthShort,
+        bandwidthLong,
+        showBaseline,
+      });
 
     const xDomain = useMemo(() => {
       if (dateRange) {
@@ -124,12 +65,12 @@ export const WeightChart = memo(
     }
 
     return (
-      <ResponsiveContainer width="100%" height={250}>
+      <ResponsiveContainer width="100%" height={height}>
         <ComposedChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
           <XAxis
             dataKey="timestamp"
-            tickFormatter={(value) => format(new Date(value), "MMM d")}
+            tickFormatter={(value: number) => format(new Date(value), "MMM d")}
             className="text-xs"
             type="number"
             scale="time"
@@ -138,7 +79,7 @@ export const WeightChart = memo(
           <YAxis
             domain={[minWeight - padding, maxWeight + padding]}
             className="text-xs"
-            tickFormatter={(v) => v.toFixed(1)}
+            tickFormatter={(v: number) => v.toFixed(1)}
           />
           <Tooltip
             labelFormatter={(value) => format(new Date(value as number), "PPP")}
@@ -199,7 +140,7 @@ export const WeightChart = memo(
 
           {showTrends && (
             <Legend
-              formatter={(value) => {
+              formatter={(value: string) => {
                 if (value === "rawWeight") return "Weight";
                 if (value === "trendShort") return "Short trend";
                 if (value === "trendLong") return "Long trend";

@@ -6,6 +6,7 @@ import { healthKeys, settingsKeys } from "../lib/query-keys";
 import {
   HEALTH_DATA_STALE_TIME,
   SYNC_REFETCH_INTERVAL,
+  DEFAULT_SYNC_DAYS,
 } from "../lib/constants";
 import type { SyncStatus } from "../types/api";
 
@@ -57,13 +58,13 @@ function getDaysSinceLastSync(
   );
 
   if (!sourceSync?.last_sync_date) {
-    return 90;
+    return DEFAULT_SYNC_DAYS;
   }
 
   const lastSyncDate = parseISO(sourceSync.last_sync_date);
   const today = new Date();
   const days = differenceInDays(today, lastSyncDate) + 1;
-  return Math.max(1, Math.min(days, 90));
+  return Math.max(1, Math.min(days, DEFAULT_SYNC_DAYS));
 }
 
 function isSyncInProgress(
@@ -94,12 +95,12 @@ export function useAutoSync() {
       setSyncingProviders((prev) => new Set(prev).add(source));
 
       try {
-        const syncFn =
-          source === "garmin"
-            ? api.sync.garmin
-            : source === "hevy"
-              ? api.sync.hevy
-              : api.sync.whoop;
+        const syncFnMap = {
+          garmin: api.sync.garmin,
+          hevy: api.sync.hevy,
+          whoop: api.sync.whoop,
+        } as const;
+        const syncFn = syncFnMap[source];
 
         await syncFn(days);
         void queryClient.invalidateQueries({

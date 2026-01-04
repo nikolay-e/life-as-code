@@ -96,7 +96,9 @@ export function calculateDataQuality(
     );
   }
 
-  const valuesInWindow = validDataInWindow.map((d) => d.value!);
+  const valuesInWindow = validDataInWindow
+    .filter((d): d is typeof d & { value: number } => d.value !== null)
+    .map((d) => d.value);
   const outlierRate = calculateOutlierRate(valuesInWindow);
 
   const missingStreak = calculateMissingStreak(datesInWindow, datesWithData);
@@ -313,7 +315,9 @@ export function calculateBaselineMetrics(
     };
   }
 
-  const rawValues = baselineData.map((d) => d.value!);
+  const rawValues = baselineData
+    .filter((d): d is typeof d & { value: number } => d.value !== null)
+    .map((d) => d.value);
   const baselineValues = winsorize(rawValues, 5, 95);
 
   const stats = calculateRobustStats(baselineValues);
@@ -339,7 +343,9 @@ export function calculateBaselineMetrics(
       ? ((currentValue - mean) / Math.abs(mean)) * 100
       : null;
 
-  const shortTermValues = shortTermData.map((d) => d.value!);
+  const shortTermValues = shortTermData
+    .filter((d): d is typeof d & { value: number } => d.value !== null)
+    .map((d) => d.value);
   const shortTermMean =
     shortTermValues.length > 0
       ? shortTermValues.reduce((a, b) => a + b, 0) / shortTermValues.length
@@ -362,9 +368,12 @@ export function calculateBaselineMetrics(
     trendWindow,
   ).filter((d) => d.value !== null);
 
-  // FIX 3: Apply winsorize to trend values if option is set
-  const rawTrendValues = trendData.map((d) => d.value!);
-  const rawPrevTrendValues = prevTrendData.map((d) => d.value!);
+  const rawTrendValues = trendData
+    .filter((d): d is typeof d & { value: number } => d.value !== null)
+    .map((d) => d.value);
+  const rawPrevTrendValues = prevTrendData
+    .filter((d): d is typeof d & { value: number } => d.value !== null)
+    .map((d) => d.value);
   const trendValues = options?.winsorizeTrend
     ? winsorize(rawTrendValues, 5, 95)
     : rawTrendValues;
@@ -429,11 +438,13 @@ function linearSlopePerDay(
   points: DataPoint[],
   winsorizePct?: [number, number],
 ): number | null {
-  const pts = points.filter((p) => p.value !== null);
+  const pts = points.filter(
+    (p): p is typeof p & { value: number } => p.value !== null,
+  );
   if (pts.length < 7) return null;
 
   const xs = pts.map((p) => toDayNumber(p.date));
-  const ysRaw = pts.map((p) => p.value!);
+  const ysRaw = pts.map((p) => p.value);
   const ys = winsorizePct
     ? winsorize(ysRaw, winsorizePct[0], winsorizePct[1])
     : ysRaw;
@@ -732,7 +743,9 @@ export function calculateWeightMetrics(
     };
   }
 
-  const allValues = dailyWeight.map((d) => d.value!);
+  const allValues = dailyWeight
+    .filter((d): d is typeof d & { value: number } => d.value !== null)
+    .map((d) => d.value);
   const emaShort = calculateEMAValue(allValues, shortTermWindow);
   const emaLong = calculateEMAValue(allValues, longTermWindow);
 
