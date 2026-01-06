@@ -29,8 +29,8 @@ def load_data_for_user(start_date, end_date, user_id):
 
     data = {}
 
-    # Use engine directly - each read_sql gets its own connection from pool
-    # This is thread-safe for concurrent gunicorn workers
+    # Use explicit connection context to ensure proper cleanup after each query
+    # This prevents connection pool corruption in multi-threaded gunicorn
     for model, key in [
         (Sleep, "sleep"),
         (HRV, "hrv"),
@@ -49,7 +49,8 @@ def load_data_for_user(start_date, end_date, user_id):
         query = select(model).where(
             model.user_id == user_id, model.date.between(start_date, end_date)
         )
-        df = pd.read_sql(query, engine)
+        with engine.connect() as conn:
+            df = pd.read_sql(query, conn)
         data[key] = df if not df.empty else pd.DataFrame()
 
     return data
