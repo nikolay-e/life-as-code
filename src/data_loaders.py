@@ -50,7 +50,7 @@ def load_data_for_user(start_date, end_date, user_id):
             query = select(model).where(
                 model.user_id == user_id, model.date.between(start_date, end_date)
             )
-            df = pd.read_sql(query, db.bind)
+            df = pd.read_sql(query, db.connection())
             data[key] = df if not df.empty else pd.DataFrame()
 
     return data
