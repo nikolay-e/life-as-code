@@ -311,7 +311,10 @@ def api_get_credentials():
     whoop_has_token = bool(creds and creds.encrypted_whoop_access_token)
     whoop_token_expired = False
     if whoop_has_token and creds.whoop_token_expires_at:
-        whoop_token_expired = creds.whoop_token_expires_at < datetime.now(UTC)
+        expires_at = creds.whoop_token_expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=UTC)
+        whoop_token_expired = expires_at < datetime.now(UTC)
 
     return jsonify(
         {
