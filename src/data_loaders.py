@@ -25,12 +25,12 @@ from models import (
 
 def load_data_for_user(start_date, end_date, user_id):
     """Load data from database for the specified user and date range."""
-    from database import engine
+    from database import read_engine
 
     data = {}
 
-    # Use explicit connection context to ensure proper cleanup after each query
-    # This prevents connection pool corruption in multi-threaded gunicorn
+    # Use read_engine with AUTOCOMMIT to avoid transaction state issues
+    # Each query runs without BEGIN/COMMIT overhead
     for model, key in [
         (Sleep, "sleep"),
         (HRV, "hrv"),
@@ -49,7 +49,7 @@ def load_data_for_user(start_date, end_date, user_id):
         query = select(model).where(
             model.user_id == user_id, model.date.between(start_date, end_date)
         )
-        with engine.connect() as conn:
+        with read_engine.connect() as conn:
             df = pd.read_sql(query, conn)
         data[key] = df if not df.empty else pd.DataFrame()
 

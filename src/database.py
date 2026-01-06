@@ -40,9 +40,14 @@ engine = create_engine(
     max_overflow=30,  # Increased from 20 for burst capacity
     pool_pre_ping=True,  # Validate connections before use
     pool_recycle=3600,  # Recycle connections every hour to prevent staleness
+    pool_reset_on_return="rollback",  # Ensure clean state when returning to pool
     echo=False,  # Set to True for SQL query logging in development
     hide_parameters=True,  # Hide sensitive parameters in error logs
 )
+
+# Create read-only engine with AUTOCOMMIT for pandas queries
+# This avoids transaction state issues in multi-threaded environments
+read_engine = engine.execution_options(isolation_level="AUTOCOMMIT")
 
 # Initialize database event logging (slow queries, connection pool)
 init_slow_query_logging(engine)
