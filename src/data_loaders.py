@@ -25,36 +25,32 @@ from models import (
 
 def load_data_for_user(start_date, end_date, user_id):
     """Load data from database for the specified user and date range."""
-    from database import get_db_session_context
+    from database import engine
 
     data = {}
 
-    # Use context manager for better session handling
-    with get_db_session_context() as db:
-        # Get connection once before loop to avoid pool corruption
-        conn = db.connection()
-
-        # Load each data type filtered by user_id
-        for model, key in [
-            (Sleep, "sleep"),
-            (HRV, "hrv"),
-            (Weight, "weight"),
-            (HeartRate, "heart_rate"),
-            (Stress, "stress"),
-            (Steps, "steps"),
-            (Energy, "energy"),
-            (WorkoutSet, "workouts"),
-            (WhoopRecovery, "whoop_recovery"),
-            (WhoopSleep, "whoop_sleep"),
-            (WhoopWorkout, "whoop_workout"),
-            (WhoopCycle, "whoop_cycle"),
-            (GarminTrainingStatus, "garmin_training_status"),
-        ]:
-            query = select(model).where(
-                model.user_id == user_id, model.date.between(start_date, end_date)
-            )
-            df = pd.read_sql(query, conn)
-            data[key] = df if not df.empty else pd.DataFrame()
+    # Use engine directly - each read_sql gets its own connection from pool
+    # This is thread-safe for concurrent gunicorn workers
+    for model, key in [
+        (Sleep, "sleep"),
+        (HRV, "hrv"),
+        (Weight, "weight"),
+        (HeartRate, "heart_rate"),
+        (Stress, "stress"),
+        (Steps, "steps"),
+        (Energy, "energy"),
+        (WorkoutSet, "workouts"),
+        (WhoopRecovery, "whoop_recovery"),
+        (WhoopSleep, "whoop_sleep"),
+        (WhoopWorkout, "whoop_workout"),
+        (WhoopCycle, "whoop_cycle"),
+        (GarminTrainingStatus, "garmin_training_status"),
+    ]:
+        query = select(model).where(
+            model.user_id == user_id, model.date.between(start_date, end_date)
+        )
+        df = pd.read_sql(query, engine)
+        data[key] = df if not df.empty else pd.DataFrame()
 
     return data
 
