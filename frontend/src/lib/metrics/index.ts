@@ -28,6 +28,7 @@ export { DASHBOARD_METRIC_KEYS, TRENDS_METRIC_KEYS } from "./keys";
 export {
   TREND_MODES,
   MODE_ORDER,
+  MAX_BASELINE_DAYS,
   TREND_CONFIGS,
   getSeries,
   getDisplayValue,

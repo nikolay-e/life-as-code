@@ -25,11 +25,13 @@ import {
   formatSleepMinutes,
   TREND_MODES,
   MODE_ORDER,
+  MAX_BASELINE_DAYS,
   computeAllMetrics,
   getBaselineOptions,
   computeHealthAnalysis,
   type TrendMode,
 } from "../../lib/metrics";
+import { formatTrendsForLLM } from "../../lib/report-formatter";
 import {
   Moon,
   Activity,
@@ -286,183 +288,6 @@ function MetricCard({
     </Card>
   );
 }
-
-function formatTrendsForLLM(
-  modeConfig: {
-    label: string;
-    shortTerm: number;
-    baseline: number;
-    trendWindow: number;
-    description: string;
-  },
-  healthAnalysis: {
-    healthScore: {
-      overall: number | null;
-      recoveryCore: number | null;
-      behaviorSupport: number | null;
-      contributors: Array<{
-        name: string;
-        rawZScore: number | null;
-        goodnessZScore: number | null;
-        confidence: number;
-        isGated: boolean;
-      }>;
-    };
-    recoveryMetrics: {
-      hrvRhrImbalance: number | null;
-      recoveryCV: number;
-      stressLoadShort: number | null;
-      stressLoadLong: number | null;
-      stressTrend: number | null;
-    };
-    sleepMetrics: {
-      sleepDebtShort: number;
-      sleepSurplusShort: number;
-      sleepCV: number;
-      targetSleep: number;
-      avgSleepShort: number | null;
-      avgSleepLong: number | null;
-    };
-    activityMetrics: {
-      acuteLoad: number | null;
-      chronicLoad: number | null;
-      acwr: number | null;
-      stepsAvgShort: number | null;
-      stepsAvgLong: number | null;
-      stepsChange: number | null;
-      stepsCV: number;
-    };
-    weightMetrics: {
-      emaShort: number | null;
-      emaLong: number | null;
-      periodChange: number | null;
-      volatilityShort: number;
-      volatilityLong: number;
-    };
-  },
-  computedMetrics: Record<
-    string,
-    {
-      baseline: {
-        currentValue: number | null;
-        zScore: number | null;
-        shiftedZScore: number | null;
-        shortTermMean: number | null;
-        longTermMean: number | null;
-        trendSlope: number | null;
-        cv: number;
-      };
-      quality: { confidence: number };
-    }
-  >,
-  useShiftedZScore: boolean,
-): string {
-  const {
-    healthScore,
-    recoveryMetrics,
-    sleepMetrics,
-    activityMetrics,
-    weightMetrics,
-  } = healthAnalysis;
-
-  const formatNum = (v: number | null, decimals = 2): string =>
-    v !== null ? v.toFixed(decimals) : "N/A";
-
-  const formatMinutes = (mins: number): string => {
-    const h = Math.floor(mins / 60);
-    const m = Math.round(mins % 60);
-    return h > 0 ? `${String(h)}h ${String(m)}m` : `${String(m)}m`;
-  };
-
-  const lines: string[] = [
-    `# Health Trends Report`,
-    `Generated: ${new Date().toISOString().split("T")[0]}`,
-    `Mode: ${modeConfig.label} (${modeConfig.description})`,
-    `Analysis Window: ${String(modeConfig.shortTerm)} days current vs ${String(modeConfig.baseline)} days baseline`,
-    `Trend Window: ${String(modeConfig.trendWindow)} days`,
-    ``,
-    `## Overall Health Score`,
-    `- Overall Score: ${formatNum(healthScore.overall)}`,
-    `- Recovery Core (70%): ${formatNum(healthScore.recoveryCore)}`,
-    `- Behavior Support (30%): ${formatNum(healthScore.behaviorSupport)}`,
-    ``,
-    `### Score Contributors`,
-  ];
-
-  for (const c of healthScore.contributors) {
-    const status = c.isGated ? " [EXCLUDED - low confidence]" : "";
-    lines.push(
-      `- ${c.name}: z=${formatNum(c.goodnessZScore)} (raw=${formatNum(c.rawZScore)}, conf=${(c.confidence * 100).toFixed(0)}%)${status}`,
-    );
-  }
-
-  lines.push(
-    ``,
-    `## Recovery Analysis`,
-    `- HRV-RHR Imbalance: ${formatNum(recoveryMetrics.hrvRhrImbalance)} (negative=recovered, positive=strained)`,
-    `- Recovery CV: ${(recoveryMetrics.recoveryCV * 100).toFixed(1)}%`,
-    `- Stress Load (${String(modeConfig.shortTerm)}d): ${formatNum(recoveryMetrics.stressLoadShort, 0)}`,
-    `- Stress Load (${String(modeConfig.baseline)}d): ${formatNum(recoveryMetrics.stressLoadLong, 0)}`,
-    `- Stress Trend: ${formatNum(recoveryMetrics.stressTrend, 1)} (negative=improving)`,
-    ``,
-    `## Sleep Analysis`,
-    `- Sleep Target: ${formatMinutes(sleepMetrics.targetSleep)}/night`,
-    `- Sleep Debt (${String(modeConfig.shortTerm)}d): ${formatMinutes(sleepMetrics.sleepDebtShort)}`,
-    `- Sleep Surplus (${String(modeConfig.shortTerm)}d): ${formatMinutes(sleepMetrics.sleepSurplusShort)}`,
-    `- Sleep Consistency (CV): ${(sleepMetrics.sleepCV * 100).toFixed(1)}%`,
-    `- Average Sleep (${String(modeConfig.shortTerm)}d): ${sleepMetrics.avgSleepShort !== null ? formatMinutes(sleepMetrics.avgSleepShort) : "N/A"}`,
-    `- Average Sleep (${String(modeConfig.baseline)}d): ${sleepMetrics.avgSleepLong !== null ? formatMinutes(sleepMetrics.avgSleepLong) : "N/A"}`,
-    ``,
-    `## Activity Analysis`,
-    `- Acute:Chronic Workload Ratio: ${formatNum(activityMetrics.acwr)} (0.8-1.3 optimal, >1.5 injury risk)`,
-    `- Acute Load: ${formatNum(activityMetrics.acuteLoad, 1)}`,
-    `- Chronic Load: ${formatNum(activityMetrics.chronicLoad, 1)}`,
-    `- Steps (${String(modeConfig.shortTerm)}d avg): ${activityMetrics.stepsAvgShort !== null ? Math.round(activityMetrics.stepsAvgShort).toLocaleString() : "N/A"}`,
-    `- Steps (${String(modeConfig.baseline)}d avg): ${activityMetrics.stepsAvgLong !== null ? Math.round(activityMetrics.stepsAvgLong).toLocaleString() : "N/A"}`,
-    `- Steps Change: ${activityMetrics.stepsChange !== null ? (activityMetrics.stepsChange > 0 ? "+" : "") + Math.round(activityMetrics.stepsChange).toLocaleString() : "N/A"}`,
-    `- Steps CV: ${(activityMetrics.stepsCV * 100).toFixed(1)}%`,
-    ``,
-    `## Weight Analysis`,
-    `- Weight EMA (${String(modeConfig.shortTerm)}d): ${weightMetrics.emaShort !== null ? `${weightMetrics.emaShort.toFixed(1)} kg` : "N/A"}`,
-    `- Weight EMA (${String(modeConfig.baseline)}d): ${weightMetrics.emaLong !== null ? `${weightMetrics.emaLong.toFixed(1)} kg` : "N/A"}`,
-    `- Period Change: ${weightMetrics.periodChange !== null ? `${(weightMetrics.periodChange > 0 ? "+" : "") + weightMetrics.periodChange.toFixed(2)} kg` : "N/A"}`,
-    `- Short-term Volatility: ±${weightMetrics.volatilityShort.toFixed(2)} kg`,
-    `- Long-term Volatility: ±${weightMetrics.volatilityLong.toFixed(2)} kg`,
-    ``,
-    `## Individual Metrics`,
-  );
-
-  const zScoreType = useShiftedZScore ? "period z-score" : "raw z-score";
-  lines.push(`Note: Using ${zScoreType} for this mode.`, ``);
-
-  for (const [key, metric] of Object.entries(computedMetrics)) {
-    const { baseline, quality } = metric;
-    const zScore = useShiftedZScore ? baseline.shiftedZScore : baseline.zScore;
-    lines.push(
-      `### ${key.toUpperCase()}`,
-      `- Current: ${formatNum(baseline.currentValue)}`,
-      `- Z-Score: ${formatNum(zScore)}`,
-      `- ${String(modeConfig.shortTerm)}d Average: ${formatNum(baseline.shortTermMean)}`,
-      `- ${String(modeConfig.baseline)}d Baseline: ${formatNum(baseline.longTermMean)}`,
-      `- Trend Slope: ${baseline.trendSlope !== null ? `${(baseline.trendSlope > 0 ? "+" : "") + baseline.trendSlope.toFixed(3)}/day` : "N/A"}`,
-      `- CV: ${(baseline.cv * 100).toFixed(1)}%`,
-      `- Confidence: ${(quality.confidence * 100).toFixed(0)}%`,
-      ``,
-    );
-  }
-
-  lines.push(
-    `---`,
-    `Z-Score Interpretation: <-2 very low, -1 to -2 low, -1 to +1 normal, +1 to +2 high, >+2 very high`,
-    `ACWR Interpretation: <0.8 detraining, 0.8-1.3 optimal, 1.3-1.5 caution, >1.5 injury risk`,
-  );
-
-  return lines.join("\n");
-}
-
-const MAX_BASELINE_DAYS = Math.max(
-  ...MODE_ORDER.map((m) => TREND_MODES[m].baseline),
-);
 
 export function TrendsPage() {
   const [mode, setMode] = useState<TrendMode>("recent");

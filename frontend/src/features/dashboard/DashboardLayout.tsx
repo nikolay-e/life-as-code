@@ -1,5 +1,9 @@
+import { useState, useCallback, useRef, useEffect } from "react";
 import { NavLink, Outlet } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { useAuthStore } from "../auth/store";
+import { api } from "../../lib/api";
 import { Button } from "../../components/ui/button";
 import {
   Heart,
@@ -9,9 +13,16 @@ import {
   LogOut,
   Database,
   TrendingUp,
+  Copy,
+  Check,
+  Loader2,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { VersionInfo } from "../../components/ui/version-info";
+import { formatCombinedReport } from "../../lib/report-formatter";
+import { MAX_BASELINE_DAYS } from "../../lib/metrics";
+import { healthKeys } from "../../lib/query-keys";
+import { format, subDays } from "date-fns";
 
 const navItems = [
   { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard", end: true },
@@ -25,12 +36,58 @@ const navItems = [
   { to: "/dashboard/settings", icon: Settings, label: "Settings", end: false },
 ];
 
+const COPY_FEEDBACK_MS = 2000;
+
 export function DashboardLayout() {
   const { user, logout } = useAuthStore();
+  const [copyState, setCopyState] = useState<"idle" | "loading" | "copied">(
+    "idle",
+  );
+  const queryClient = useQueryClient();
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   const handleLogout = async () => {
     await logout();
   };
+
+  const handleCopyAll = useCallback(async () => {
+    setCopyState("loading");
+    try {
+      const today = new Date();
+      const endDate = format(subDays(today, 1), "yyyy-MM-dd");
+      const startDate = format(subDays(today, MAX_BASELINE_DAYS), "yyyy-MM-dd");
+
+      const data = await queryClient.fetchQuery({
+        queryKey: healthKeys.dataRange(startDate, endDate),
+        queryFn: () => api.data.getRange(startDate, endDate),
+        staleTime: 60_000,
+      });
+
+      const report = formatCombinedReport(data);
+      if (!report) {
+        toast.error("No data to copy");
+        setCopyState("idle");
+        return;
+      }
+
+      await navigator.clipboard.writeText(report);
+      setCopyState("copied");
+      toast.success("Full health report copied");
+
+      timerRef.current = setTimeout(() => {
+        setCopyState("idle");
+      }, COPY_FEEDBACK_MS);
+    } catch {
+      toast.error("Failed to copy");
+      setCopyState("idle");
+    }
+  }, [queryClient]);
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -44,6 +101,22 @@ export function DashboardLayout() {
             <span className="font-semibold text-lg hidden sm:inline-block tracking-tight">
               Life-as-Code
             </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleCopyAll}
+              disabled={copyState === "loading"}
+              title="Copy full health report"
+              className="h-8 w-8"
+            >
+              {copyState === "loading" && (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              )}
+              {copyState === "copied" && (
+                <Check className="h-4 w-4 text-green-500" />
+              )}
+              {copyState === "idle" && <Copy className="h-4 w-4" />}
+            </Button>
           </div>
 
           <nav className="flex items-center gap-1 flex-1">

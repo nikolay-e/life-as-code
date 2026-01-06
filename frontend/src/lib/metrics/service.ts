@@ -98,6 +98,10 @@ export const TREND_MODES: Record<TrendMode, TrendModeConfig> = {
 
 export const MODE_ORDER: TrendMode[] = ["recent", "quarter", "year", "all"];
 
+export const MAX_BASELINE_DAYS = Math.max(
+  ...MODE_ORDER.map((m) => TREND_MODES[m].baseline),
+);
+
 function aggregationMethodFromDef(
   def: MetricDef,
 ): "last" | "mean" | "max" | "sum" {
