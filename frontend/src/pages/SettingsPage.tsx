@@ -14,7 +14,10 @@ import {
   CardTitle,
 } from "../components/ui/card";
 import { SkeletonCard } from "../components/ui/skeleton";
-import { ProviderCard } from "../components/settings/ProviderCard";
+import {
+  ProviderCard,
+  ReadOnlyProviderCard,
+} from "../components/settings/ProviderCard";
 import { Settings } from "lucide-react";
 
 export function SettingsPage() {
@@ -111,6 +114,20 @@ export function SettingsPage() {
             onSync={() => handleSync("whoop", syncWhoop)}
             authUrl={whoopAuthUrl}
             showOAuthNotConfigured={!whoopAuthUrl}
+          />
+          <ReadOnlyProviderCard
+            name="Google Fit"
+            shortName="GF"
+            colorClass="bg-green-100 dark:bg-green-900/30"
+            hasData={true}
+            statusText="Manually imported"
+          />
+          <ReadOnlyProviderCard
+            name="Apple Health"
+            shortName="AH"
+            colorClass="bg-red-100 dark:bg-red-900/30"
+            hasData={true}
+            statusText="Manually imported"
             isLastItem
           />
         </CardContent>

@@ -64,6 +64,73 @@ function SyncButton({ name, isPending, onClick, disabled }: SyncButtonProps) {
   );
 }
 
+interface ReadOnlyProviderCardProps {
+  name: string;
+  shortName: string;
+  colorClass: string;
+  hasData?: boolean;
+  statusText?: string;
+  lastSyncDate?: string | null;
+  isLastItem?: boolean;
+}
+
+export function ReadOnlyProviderCard({
+  name,
+  shortName,
+  colorClass,
+  hasData = true,
+  statusText = "Data imported",
+  lastSyncDate,
+  isLastItem,
+}: ReadOnlyProviderCardProps) {
+  return (
+    <article
+      className={`flex items-center justify-between py-4 ${!isLastItem ? "border-b" : ""}`}
+      aria-label={`${name} provider: ${hasData ? statusText : "No data"}`}
+    >
+      <div className="flex items-center gap-4">
+        <div
+          className={`w-10 h-10 rounded-full ${colorClass} flex items-center justify-center`}
+        >
+          <span
+            className={`font-bold ${colorClass.replace("bg-", "text-").replace("-100", "-600").replace("-900", "-300")}`}
+          >
+            {shortName}
+          </span>
+        </div>
+        <div>
+          <h3 className="font-medium">{name}</h3>
+          <div className="flex items-center gap-2 text-sm">
+            {hasData ? (
+              <>
+                <CheckCircle
+                  className="h-4 w-4 text-green-500"
+                  aria-hidden="true"
+                />
+                <span className="text-green-600 dark:text-green-400">
+                  {statusText}
+                </span>
+              </>
+            ) : (
+              <>
+                <XCircle
+                  className="h-4 w-4 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                <span className="text-muted-foreground">No data</span>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="text-sm text-muted-foreground">
+        {lastSyncDate &&
+          `Last import: ${new Date(lastSyncDate).toLocaleDateString()}`}
+      </div>
+    </article>
+  );
+}
+
 export function ProviderCard({
   name,
   shortName,
