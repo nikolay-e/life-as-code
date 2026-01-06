@@ -106,6 +106,7 @@ export function SettingsPage() {
             colorClass="bg-orange-100 dark:bg-orange-900/30"
             isConfigured={credentials?.whoop_configured ?? false}
             isConnected={credentials?.whoop_configured}
+            isTokenExpired={credentials?.whoop_token_expired ?? false}
             syncMutation={syncWhoop}
             onSync={() => handleSync("whoop", syncWhoop)}
             authUrl={whoopAuthUrl}

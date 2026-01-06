@@ -171,6 +171,7 @@ export interface CredentialsStatus {
   garmin_configured: boolean;
   hevy_configured: boolean;
   whoop_configured: boolean;
+  whoop_token_expired: boolean;
   whoop_auth_url?: string;
   message: string;
 }

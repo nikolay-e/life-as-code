@@ -308,13 +308,21 @@ def api_get_credentials():
     whoop_client_id = os.getenv("WHOOP_CLIENT_ID")
     whoop_auth_url = "/whoop/authorize" if whoop_client_id else None
 
+    whoop_has_token = bool(creds and creds.encrypted_whoop_access_token)
+    whoop_token_expired = False
+    if whoop_has_token and creds.whoop_token_expires_at:
+        whoop_token_expired = creds.whoop_token_expires_at < datetime.datetime.now(
+            datetime.UTC
+        )
+
     return jsonify(
         {
             "garmin_configured": bool(
                 creds and creds.garmin_email and creds.encrypted_garmin_password
             ),
             "hevy_configured": bool(creds and creds.encrypted_hevy_api_key),
-            "whoop_configured": bool(creds and creds.encrypted_whoop_access_token),
+            "whoop_configured": whoop_has_token and not whoop_token_expired,
+            "whoop_token_expired": whoop_token_expired,
             "whoop_auth_url": whoop_auth_url,
             "message": "Credentials are managed through environment variables",
         }
