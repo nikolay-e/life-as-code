@@ -1,7 +1,7 @@
 import os
 import threading
 from collections.abc import Callable
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from flask import Blueprint, jsonify, request
@@ -311,9 +311,7 @@ def api_get_credentials():
     whoop_has_token = bool(creds and creds.encrypted_whoop_access_token)
     whoop_token_expired = False
     if whoop_has_token and creds.whoop_token_expires_at:
-        whoop_token_expired = creds.whoop_token_expires_at < datetime.datetime.now(
-            datetime.UTC
-        )
+        whoop_token_expired = creds.whoop_token_expires_at < datetime.now(UTC)
 
     return jsonify(
         {
