@@ -59,8 +59,8 @@ COPY docker-entrypoint.sh .
 # Create directories for data and logs
 RUN mkdir -p /app/data /app/logs
 
-# Create non-root user for security
-RUN groupadd -r appuser && useradd -r -g appuser appuser && \
+# Create non-root user for security with numeric UID
+RUN groupadd -r -g 1000 appuser && useradd -r -u 1000 -g appuser appuser && \
     chown -R appuser:appuser /app && \
     chmod +x docker-entrypoint.sh
 
@@ -73,7 +73,7 @@ ENV PATH="/opt/venv/bin:$PATH" \
     VCS_REF=${VCS_REF}
 
 # Switch to non-root user
-USER appuser
+USER 1000
 
 # Expose port for dashboard
 EXPOSE 8080

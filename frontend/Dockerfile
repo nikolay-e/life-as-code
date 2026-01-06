@@ -25,9 +25,16 @@ FROM nginx:alpine
 LABEL org.opencontainers.image.title="Life-as-Code Frontend" \
       org.opencontainers.image.description="React frontend for health analytics platform"
 
+# Setup nginx to run as non-root
+RUN chown -R nginx:nginx /var/cache/nginx /var/run && \
+    chmod -R 755 /var/cache/nginx /var/run
+
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
+RUN chown -R nginx:nginx /usr/share/nginx/html
+
+USER nginx
 EXPOSE 80
 
 CMD ["nginx", "-g", "daemon off;"]
