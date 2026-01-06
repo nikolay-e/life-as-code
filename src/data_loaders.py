@@ -31,6 +31,9 @@ def load_data_for_user(start_date, end_date, user_id):
 
     # Use context manager for better session handling
     with get_db_session_context() as db:
+        # Get connection once before loop to avoid pool corruption
+        conn = db.connection()
+
         # Load each data type filtered by user_id
         for model, key in [
             (Sleep, "sleep"),
@@ -50,7 +53,7 @@ def load_data_for_user(start_date, end_date, user_id):
             query = select(model).where(
                 model.user_id == user_id, model.date.between(start_date, end_date)
             )
-            df = pd.read_sql(query, db.connection())
+            df = pd.read_sql(query, conn)
             data[key] = df if not df.empty else pd.DataFrame()
 
     return data
