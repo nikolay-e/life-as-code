@@ -56,9 +56,10 @@ async function importHRVData(
   pool: pg.Pool,
   userId: number,
   hrvData: Map<string, number>,
-  dryRun: boolean
+  dryRun: boolean,
+  source: string = "apple_health"
 ): Promise<ImportResult> {
-  const result = createImportResult("apple-health", "hrv");
+  const result = createImportResult(source, "hrv");
   const entries = Array.from(hrvData.entries());
 
   if (dryRun) {
@@ -77,14 +78,14 @@ async function importHRVData(
       for (const [date, hrv] of batch) {
         try {
           const query = `
-            INSERT INTO hrv (user_id, date, hrv_avg, created_at)
-            VALUES ($1, $2, $3, NOW())
-            ON CONFLICT (user_id, date) DO UPDATE SET
+            INSERT INTO hrv (user_id, date, source, hrv_avg, created_at)
+            VALUES ($1, $2, $3, $4, NOW())
+            ON CONFLICT (user_id, date, source) DO UPDATE SET
               hrv_avg = COALESCE(EXCLUDED.hrv_avg, hrv.hrv_avg)
             RETURNING (xmax = 0) AS inserted
           `;
 
-          const res = await client.query(query, [userId, date, hrv]);
+          const res = await client.query(query, [userId, date, source, hrv]);
 
           if (res.rows[0]?.inserted) {
             result.inserted++;
@@ -106,9 +107,10 @@ async function importRHRData(
   pool: pg.Pool,
   userId: number,
   rhrData: Map<string, number>,
-  dryRun: boolean
+  dryRun: boolean,
+  source: string = "apple_health"
 ): Promise<ImportResult> {
-  const result = createImportResult("apple-health", "rhr");
+  const result = createImportResult(source, "rhr");
   const entries = Array.from(rhrData.entries());
 
   if (dryRun) {
@@ -127,14 +129,14 @@ async function importRHRData(
       for (const [date, rhr] of batch) {
         try {
           const query = `
-            INSERT INTO heart_rate (user_id, date, resting_hr, created_at)
-            VALUES ($1, $2, $3, NOW())
-            ON CONFLICT (user_id, date) DO UPDATE SET
+            INSERT INTO heart_rate (user_id, date, source, resting_hr, created_at)
+            VALUES ($1, $2, $3, $4, NOW())
+            ON CONFLICT (user_id, date, source) DO UPDATE SET
               resting_hr = LEAST(COALESCE(heart_rate.resting_hr, EXCLUDED.resting_hr), EXCLUDED.resting_hr)
             RETURNING (xmax = 0) AS inserted
           `;
 
-          const res = await client.query(query, [userId, date, rhr]);
+          const res = await client.query(query, [userId, date, source, rhr]);
 
           if (res.rows[0]?.inserted) {
             result.inserted++;
@@ -227,31 +229,31 @@ async function main(): Promise<void> {
     console.log("");
 
     console.log("═══ Importing Daily Metrics ═══");
-    const dailyResult = await importDailyMetrics(pool, options.userId, aggregated.daily, options.dryRun);
+    const dailyResult = await importDailyMetrics(pool, options.userId, aggregated.daily, options.dryRun, "apple_health");
     results.push(dailyResult);
     printResult(dailyResult);
     console.log("");
 
     console.log("═══ Importing Sleep Data ═══");
-    const sleepResult = await importSleepData(pool, options.userId, aggregated.sleep, options.dryRun);
+    const sleepResult = await importSleepData(pool, options.userId, aggregated.sleep, options.dryRun, "apple_health");
     results.push(sleepResult);
     printResult(sleepResult);
     console.log("");
 
     console.log("═══ Importing Body Composition ═══");
-    const bodyResult = await importBodyComposition(pool, options.userId, aggregated.body, options.dryRun);
+    const bodyResult = await importBodyComposition(pool, options.userId, aggregated.body, options.dryRun, "apple_health");
     results.push(bodyResult);
     printResult(bodyResult);
     console.log("");
 
     console.log("═══ Importing HRV Data ═══");
-    const hrvResult = await importHRVData(pool, options.userId, aggregated.hrv, options.dryRun);
+    const hrvResult = await importHRVData(pool, options.userId, aggregated.hrv, options.dryRun, "apple_health");
     results.push(hrvResult);
     printResult(hrvResult);
     console.log("");
 
     console.log("═══ Importing RHR Data ═══");
-    const rhrResult = await importRHRData(pool, options.userId, aggregated.rhr, options.dryRun);
+    const rhrResult = await importRHRData(pool, options.userId, aggregated.rhr, options.dryRun, "apple_health");
     results.push(rhrResult);
     printResult(rhrResult);
     console.log("");

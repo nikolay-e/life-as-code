@@ -139,7 +139,11 @@ def check_db_connection() -> bool:
 
 
 def bulk_upsert_records(
-    records: list, model_class, unique_fields: list, user_id: int
+    records: list,
+    model_class,
+    unique_fields: list,
+    user_id: int,
+    source: str | None = None,
 ) -> dict:
     from sqlalchemy.dialects.postgresql import insert
 
@@ -162,6 +166,8 @@ def bulk_upsert_records(
                         data_dict = record_data.copy()
 
                     data_dict["user_id"] = user_id
+                    if source is not None:
+                        data_dict["source"] = source
                     if "created_at" not in data_dict:
                         data_dict["created_at"] = datetime.datetime.utcnow()
 
@@ -187,7 +193,7 @@ def bulk_upsert_records(
             update_dict = {
                 col: getattr(stmt.excluded, col)
                 for col in processed_records[0].keys()
-                if col not in ["id", "created_at", "user_id"]
+                if col not in ["id", "created_at", "user_id", "source"]
             }
 
             stmt = stmt.on_conflict_do_update(

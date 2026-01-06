@@ -119,7 +119,7 @@ async function main(): Promise<void> {
       }
 
       console.log(`  Total daily records: ${allDailyData.length}`);
-      const csvResult = await importDailyMetrics(pool, options.userId, allDailyData, options.dryRun);
+      const csvResult = await importDailyMetrics(pool, options.userId, allDailyData, options.dryRun, "google");
       results.push(csvResult);
       printResult(csvResult);
       console.log("");
@@ -138,7 +138,7 @@ async function main(): Promise<void> {
         console.log(`  Found ${sleepData.size} days with sleep data`);
 
         if (sleepData.size > 0) {
-          const sleepResult = await importSleepData(pool, options.userId, sleepData, options.dryRun);
+          const sleepResult = await importSleepData(pool, options.userId, sleepData, options.dryRun, "google");
           results.push(sleepResult);
           printResult(sleepResult);
         }
@@ -159,7 +159,7 @@ async function main(): Promise<void> {
         console.log(`  Found ${bodyData.size} days with body composition data`);
 
         if (bodyData.size > 0) {
-          const bodyResult = await importBodyComposition(pool, options.userId, bodyData, options.dryRun);
+          const bodyResult = await importBodyComposition(pool, options.userId, bodyData, options.dryRun, "google");
           results.push(bodyResult);
           printResult(bodyResult);
         }
@@ -190,7 +190,7 @@ async function main(): Promise<void> {
         }
 
         if (activities.length > 0) {
-          const sessResult = await importSessionActivities(pool, options.userId, activities, options.dryRun);
+          const sessResult = await importSessionActivities(pool, options.userId, activities, options.dryRun, "google");
           results.push(sessResult);
           printResult(sessResult);
         }

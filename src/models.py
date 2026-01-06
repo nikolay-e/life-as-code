@@ -151,6 +151,7 @@ class Sleep(Base):
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     date = Column(Date, nullable=False, index=True)
+    source = Column(String(50), nullable=False, default="garmin")
     deep_minutes = Column(Float)
     light_minutes = Column(Float)
     rem_minutes = Column(Float)
@@ -172,7 +173,9 @@ class Sleep(Base):
     user = relationship("User", back_populates="sleep_data")
 
     __table_args__ = (
-        UniqueConstraint("user_id", "date", name="_user_sleep_date_uc"),
+        UniqueConstraint(
+            "user_id", "date", "source", name="_user_sleep_date_source_uc"
+        ),
         Index(
             "idx_sleep_user_date", "user_id", "date", postgresql_ops={"date": "DESC"}
         ),
@@ -220,6 +223,7 @@ class HRV(Base):
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     date = Column(Date, nullable=False, index=True)
+    source = Column(String(50), nullable=False, default="garmin")
     hrv_avg = Column(Float)
     hrv_status = Column(String(50))
     baseline_low_ms = Column(Float)
@@ -231,7 +235,7 @@ class HRV(Base):
     user = relationship("User", back_populates="hrv_data")
 
     __table_args__ = (
-        UniqueConstraint("user_id", "date", name="_user_hrv_date_uc"),
+        UniqueConstraint("user_id", "date", "source", name="_user_hrv_date_source_uc"),
         Index("idx_hrv_user_date", "user_id", "date", postgresql_ops={"date": "DESC"}),
         CheckConstraint(
             "(hrv_avg >= 0 AND hrv_avg <= 500) OR hrv_avg IS NULL",
@@ -257,6 +261,7 @@ class Weight(Base):
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     date = Column(Date, nullable=False, index=True)
+    source = Column(String(50), nullable=False, default="garmin")
     weight_kg = Column(Float)
     bmi = Column(Float)
     body_fat_pct = Column(Float)
@@ -269,7 +274,9 @@ class Weight(Base):
     user = relationship("User", back_populates="weight_data")
 
     __table_args__ = (
-        UniqueConstraint("user_id", "date", name="_user_weight_date_uc"),
+        UniqueConstraint(
+            "user_id", "date", "source", name="_user_weight_date_source_uc"
+        ),
         Index(
             "idx_weight_user_date",
             "user_id",
@@ -307,6 +314,7 @@ class HeartRate(Base):
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     date = Column(Date, nullable=False, index=True)
+    source = Column(String(50), nullable=False, default="garmin")
     resting_hr = Column(Integer)
     max_hr = Column(Integer)
     avg_hr = Column(Integer)
@@ -316,7 +324,9 @@ class HeartRate(Base):
     user = relationship("User", back_populates="heart_rate_data")
 
     __table_args__ = (
-        UniqueConstraint("user_id", "date", name="_user_heart_rate_date_uc"),
+        UniqueConstraint(
+            "user_id", "date", "source", name="_user_heart_rate_date_source_uc"
+        ),
         Index(
             "idx_heart_rate_user_date",
             "user_id",
@@ -396,6 +406,7 @@ class Energy(Base):
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     date = Column(Date, nullable=False, index=True)
+    source = Column(String(50), nullable=False, default="garmin")
     active_energy = Column(Float, default=0)
     basal_energy = Column(Float, default=0)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
@@ -403,7 +414,9 @@ class Energy(Base):
     user = relationship("User", back_populates="energy_data")
 
     __table_args__ = (
-        UniqueConstraint("user_id", "date", name="_user_date_energy_uc"),
+        UniqueConstraint(
+            "user_id", "date", "source", name="_user_energy_date_source_uc"
+        ),
         Index(
             "idx_energy_user_date", "user_id", "date", postgresql_ops={"date": "DESC"}
         ),
@@ -438,6 +451,7 @@ class Steps(Base):
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     date = Column(Date, nullable=False, index=True)
+    source = Column(String(50), nullable=False, default="garmin")
     total_steps = Column(Integer, default=0)
     total_distance = Column(Float, default=0)
     step_goal = Column(Integer, default=10000)
@@ -448,7 +462,9 @@ class Steps(Base):
     user = relationship("User", back_populates="steps")
 
     __table_args__ = (
-        UniqueConstraint("user_id", "date", name="_user_date_steps_uc"),
+        UniqueConstraint(
+            "user_id", "date", "source", name="_user_steps_date_source_uc"
+        ),
         Index(
             "idx_steps_user_date", "user_id", "date", postgresql_ops={"date": "DESC"}
         ),

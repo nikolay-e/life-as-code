@@ -293,7 +293,7 @@ def extract_and_parse(
 
         if all_records:
             result = bulk_upsert_records(
-                all_records, model_class, unique_fields, user_id
+                all_records, model_class, unique_fields, user_id, source
             )
             if "error" in result:
                 sync_result.add_error(result["error"])

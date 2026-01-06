@@ -44,7 +44,8 @@ export async function upsertSteps(
   client: pg.PoolClient,
   userId: number,
   data: DailyAggregated,
-  result: ImportResult
+  result: ImportResult,
+  source: string = "garmin"
 ): Promise<void> {
   // Skip only if all values are null/undefined (0 is valid data)
   if (
@@ -58,9 +59,9 @@ export async function upsertSteps(
 
   try {
     const query = `
-      INSERT INTO steps (user_id, date, total_steps, total_distance, active_minutes, created_at)
-      VALUES ($1, $2, $3, $4, $5, NOW())
-      ON CONFLICT (user_id, date) DO UPDATE SET
+      INSERT INTO steps (user_id, date, source, total_steps, total_distance, active_minutes, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, NOW())
+      ON CONFLICT (user_id, date, source) DO UPDATE SET
         total_steps = GREATEST(steps.total_steps, EXCLUDED.total_steps),
         total_distance = GREATEST(steps.total_distance, EXCLUDED.total_distance),
         active_minutes = GREATEST(steps.active_minutes, EXCLUDED.active_minutes)
@@ -70,6 +71,7 @@ export async function upsertSteps(
     const res = await client.query(query, [
       userId,
       data.date,
+      source,
       data.totalSteps,
       data.totalDistance,
       data.activeMinutes,
@@ -91,7 +93,8 @@ export async function upsertHeartRate(
   client: pg.PoolClient,
   userId: number,
   data: DailyAggregated,
-  result: ImportResult
+  result: ImportResult,
+  source: string = "garmin"
 ): Promise<void> {
   if (data.avgHeartRate === null) {
     result.skipped++;
@@ -104,16 +107,16 @@ export async function upsertHeartRate(
     const avgHr = Math.round(data.avgHeartRate);
 
     const query = `
-      INSERT INTO heart_rate (user_id, date, resting_hr, max_hr, avg_hr, created_at)
-      VALUES ($1, $2, $3, $4, $5, NOW())
-      ON CONFLICT (user_id, date) DO UPDATE SET
+      INSERT INTO heart_rate (user_id, date, source, resting_hr, max_hr, avg_hr, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, NOW())
+      ON CONFLICT (user_id, date, source) DO UPDATE SET
         resting_hr = LEAST(COALESCE(heart_rate.resting_hr, EXCLUDED.resting_hr), EXCLUDED.resting_hr),
         max_hr = GREATEST(COALESCE(heart_rate.max_hr, EXCLUDED.max_hr), EXCLUDED.max_hr),
         avg_hr = COALESCE(EXCLUDED.avg_hr, heart_rate.avg_hr)
       RETURNING (xmax = 0) AS inserted
     `;
 
-    const res = await client.query(query, [userId, data.date, restingHr, maxHr, avgHr]);
+    const res = await client.query(query, [userId, data.date, source, restingHr, maxHr, avgHr]);
 
     if (res.rows[0]?.inserted) {
       result.inserted++;
@@ -133,7 +136,8 @@ export async function upsertWeight(
   date: string,
   weightKg: number | null,
   bodyFatPct: number | null,
-  result: ImportResult
+  result: ImportResult,
+  source: string = "garmin"
 ): Promise<void> {
   if (weightKg === null && bodyFatPct === null) {
     result.skipped++;
@@ -142,15 +146,15 @@ export async function upsertWeight(
 
   try {
     const query = `
-      INSERT INTO weight (user_id, date, weight_kg, body_fat_pct, created_at)
-      VALUES ($1, $2, $3, $4, NOW())
-      ON CONFLICT (user_id, date) DO UPDATE SET
+      INSERT INTO weight (user_id, date, source, weight_kg, body_fat_pct, created_at)
+      VALUES ($1, $2, $3, $4, $5, NOW())
+      ON CONFLICT (user_id, date, source) DO UPDATE SET
         weight_kg = COALESCE(EXCLUDED.weight_kg, weight.weight_kg),
         body_fat_pct = COALESCE(EXCLUDED.body_fat_pct, weight.body_fat_pct)
       RETURNING (xmax = 0) AS inserted
     `;
 
-    const res = await client.query(query, [userId, date, weightKg, bodyFatPct]);
+    const res = await client.query(query, [userId, date, source, weightKg, bodyFatPct]);
 
     if (res.rows[0]?.inserted) {
       result.inserted++;
@@ -168,7 +172,8 @@ export async function upsertEnergy(
   client: pg.PoolClient,
   userId: number,
   data: DailyAggregated,
-  result: ImportResult
+  result: ImportResult,
+  source: string = "garmin"
 ): Promise<void> {
   // Always insert energy data - 0 calories is valid (rest day)
   // Only skip if there's truly no activity data at all for this day
@@ -180,14 +185,14 @@ export async function upsertEnergy(
   try {
     // Insert if no data exists, otherwise take the maximum value
     const query = `
-      INSERT INTO energy (user_id, date, active_energy, created_at)
-      VALUES ($1, $2, $3, NOW())
-      ON CONFLICT (user_id, date) DO UPDATE SET
+      INSERT INTO energy (user_id, date, source, active_energy, created_at)
+      VALUES ($1, $2, $3, $4, NOW())
+      ON CONFLICT (user_id, date, source) DO UPDATE SET
         active_energy = GREATEST(COALESCE(energy.active_energy, 0), EXCLUDED.active_energy)
       RETURNING (xmax = 0) AS inserted
     `;
 
-    const res = await client.query(query, [userId, data.date, data.totalCalories]);
+    const res = await client.query(query, [userId, data.date, source, data.totalCalories]);
 
     if (res.rows[0]?.inserted) {
       result.inserted++;
@@ -205,7 +210,8 @@ export async function upsertSleep(
   client: pg.PoolClient,
   userId: number,
   data: SleepData,
-  result: ImportResult
+  result: ImportResult,
+  source: string = "garmin"
 ): Promise<void> {
   if (data.totalSleepMinutes < 30) {
     result.skipped++;
@@ -215,13 +221,13 @@ export async function upsertSleep(
   try {
     const query = `
       INSERT INTO sleep (
-        user_id, date,
+        user_id, date, source,
         deep_minutes, light_minutes, rem_minutes, awake_minutes, total_sleep_minutes,
         sleep_score, spo2_avg, spo2_min, respiratory_rate,
         created_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
-      ON CONFLICT (user_id, date) DO UPDATE SET
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
+      ON CONFLICT (user_id, date, source) DO UPDATE SET
         deep_minutes = COALESCE(EXCLUDED.deep_minutes, sleep.deep_minutes),
         light_minutes = COALESCE(EXCLUDED.light_minutes, sleep.light_minutes),
         rem_minutes = COALESCE(EXCLUDED.rem_minutes, sleep.rem_minutes),
@@ -237,6 +243,7 @@ export async function upsertSleep(
     const res = await client.query(query, [
       userId,
       data.date,
+      source,
       data.deepSleepMinutes,
       data.lightSleepMinutes,
       data.remSleepMinutes,
@@ -285,9 +292,10 @@ export async function importDailyMetrics(
   pool: pg.Pool,
   userId: number,
   dailyData: DailyAggregated[],
-  dryRun: boolean
+  dryRun: boolean,
+  source: string = "garmin"
 ): Promise<ImportResult> {
-  const result = createImportResult("google-fit", "daily-metrics");
+  const result = createImportResult(source, "daily-metrics");
 
   if (dryRun) {
     for (const data of dailyData) {
@@ -304,10 +312,10 @@ export async function importDailyMetrics(
 
     await withTransaction(pool, async (client) => {
       for (const data of batch) {
-        await upsertSteps(client, userId, data, result);
-        await upsertHeartRate(client, userId, data, result);
-        await upsertWeight(client, userId, data.date, data.avgWeight, null, result);
-        await upsertEnergy(client, userId, data, result);
+        await upsertSteps(client, userId, data, result, source);
+        await upsertHeartRate(client, userId, data, result, source);
+        await upsertWeight(client, userId, data.date, data.avgWeight, null, result, source);
+        await upsertEnergy(client, userId, data, result, source);
       }
     });
 
@@ -324,9 +332,10 @@ export async function importSleepData(
   pool: pg.Pool,
   userId: number,
   sleepData: Map<string, SleepData>,
-  dryRun: boolean
+  dryRun: boolean,
+  source: string = "garmin"
 ): Promise<ImportResult> {
-  const result = createImportResult("google-fit", "sleep");
+  const result = createImportResult(source, "sleep");
   const sleepArray = Array.from(sleepData.values());
 
   if (dryRun) {
@@ -343,7 +352,7 @@ export async function importSleepData(
 
     await withTransaction(pool, async (client) => {
       for (const data of batch) {
-        await upsertSleep(client, userId, data, result);
+        await upsertSleep(client, userId, data, result, source);
       }
     });
   }
@@ -356,9 +365,10 @@ export async function importBodyComposition(
   pool: pg.Pool,
   userId: number,
   bodyData: Map<string, BodyComposition>,
-  dryRun: boolean
+  dryRun: boolean,
+  source: string = "garmin"
 ): Promise<ImportResult> {
-  const result = createImportResult("google-fit", "body-composition");
+  const result = createImportResult(source, "body-composition");
   const bodyArray = Array.from(bodyData.values());
 
   if (dryRun) {
@@ -375,7 +385,7 @@ export async function importBodyComposition(
 
     await withTransaction(pool, async (client) => {
       for (const data of batch) {
-        await upsertWeight(client, userId, data.date, data.weight, data.bodyFatPct, result);
+        await upsertWeight(client, userId, data.date, data.weight, data.bodyFatPct, result, source);
       }
     });
   }
@@ -388,9 +398,10 @@ export async function importSessionActivities(
   pool: pg.Pool,
   userId: number,
   activities: SessionActivity[],
-  dryRun: boolean
+  dryRun: boolean,
+  source: string = "garmin"
 ): Promise<ImportResult> {
-  const result = createImportResult("google-fit", "sessions");
+  const result = createImportResult(source, "sessions");
   const aggregated = aggregateSessionsByDate(activities);
 
   if (dryRun) {
@@ -424,7 +435,7 @@ export async function importSessionActivities(
             minSpO2: null,
             activeMinutes: data.activeMinutes,
           };
-          await upsertSteps(client, userId, dailyData, result);
+          await upsertSteps(client, userId, dailyData, result, source);
         }
 
         // Update energy if session has calorie data
@@ -442,7 +453,7 @@ export async function importSessionActivities(
             minSpO2: null,
             activeMinutes: 0,
           };
-          await upsertEnergy(client, userId, dailyData, result);
+          await upsertEnergy(client, userId, dailyData, result, source);
         }
 
         result.processed++;
