@@ -6,6 +6,7 @@ import {
   getLocalDateString,
   toDailySeries,
   calculateMedian,
+  filterDataByWindow,
 } from "../health";
 import {
   calculateDataQuality,
@@ -132,6 +133,7 @@ export function getDisplayValue(
   adjustedData: MetricData[],
   isToday: boolean,
   now: Date = new Date(),
+  windowDays?: number,
 ): DisplayValue {
   const today = getLocalDateString(now);
   const validData = adjustedData.filter((d) => d.value !== null);
@@ -155,7 +157,12 @@ export function getDisplayValue(
     };
   }
 
-  const values = validData
+  const dataForMedian =
+    windowDays !== undefined
+      ? filterDataByWindow(validData, windowDays)
+      : validData;
+
+  const values = dataForMedian
     .filter((d): d is typeof d & { value: number } => d.value !== null)
     .map((d) => d.value);
   return {
@@ -205,6 +212,7 @@ export function buildDashboardCards(
       adjusted,
       isToday,
       now,
+      isToday ? undefined : selectedDays,
     );
     const subtitle = generateSubtitle(
       isToday,

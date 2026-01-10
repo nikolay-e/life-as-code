@@ -1,5 +1,6 @@
 import { toLocalDayKey, toTimeMs } from "./date";
 import { filterDataByWindow, filterDataByWindowRange } from "./windows";
+import { sumOrNull } from "./stats";
 
 interface DataPoint {
   date: string;
@@ -57,15 +58,16 @@ export function toDailySeries(
     if (values.length === 0) continue;
 
     let aggregated: number;
+    const sum = sumOrNull(values) ?? 0;
     switch (method) {
       case "mean":
-        aggregated = values.reduce((a, b) => a + b, 0) / values.length;
+        aggregated = sum / values.length;
         break;
       case "max":
         aggregated = Math.max(...values);
         break;
       case "sum":
-        aggregated = values.reduce((a, b) => a + b, 0);
+        aggregated = sum;
         break;
       case "last":
       default:

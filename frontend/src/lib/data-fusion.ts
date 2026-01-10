@@ -9,7 +9,13 @@ import type {
   GarminTrainingStatusData,
 } from "../types/api";
 import { type DataProvider, PROVIDER_CONFIGS } from "./providers";
-import { getLocalToday, toLocalDayKey, toLocalDayDate } from "./health/date";
+import {
+  getLocalToday,
+  toLocalDayKey,
+  toLocalDayDate,
+  toTimeMs,
+} from "./health/date";
+import { meanOrNull, calculateStd, MIN_STD_THRESHOLD } from "./health/stats";
 
 // Re-export for backward compatibility
 export type { DataProvider } from "./providers";
@@ -63,6 +69,7 @@ const PHYSIOLOGICAL_LIMITS: Partial<Record<string, PhysiologicalLimits>> = {
 
 const MIN_OVERLAP_FOR_BLENDING = 7;
 const MIN_OVERLAP_FOR_NORMALIZATION = 14;
+const SOURCE_STATS_WINDOW = 30;
 
 function isPhysiologicallyValid(value: number, metricType: string): boolean {
   const limits = PHYSIOLOGICAL_LIMITS[metricType];
@@ -72,7 +79,7 @@ function isPhysiologicallyValid(value: number, metricType: string): boolean {
 
 function calculateSourceStats(
   values: ProviderValue[],
-  windowDays: number = 30,
+  windowDays: number = SOURCE_STATS_WINDOW,
 ): SourceStats {
   const today = getLocalToday();
   const windowStart = new Date(today);
@@ -90,13 +97,9 @@ function calculateSourceStats(
     return { mean: 0, std: 1, count: 0, coverage: 0 };
   }
 
-  const mean = nums.reduce((a, b) => a + b, 0) / nums.length;
-  const variance =
-    nums.length > 1
-      ? nums.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) /
-        (nums.length - 1)
-      : 0;
-  const std = Math.sqrt(variance) || 1;
+  const mean = meanOrNull(nums) ?? 0;
+  const rawStd = calculateStd(nums);
+  const std = rawStd > MIN_STD_THRESHOLD ? rawStd : 1;
   const coverage = Math.min(1, nums.length / windowDays);
 
   return { mean, std, count: nums.length, coverage };
@@ -292,9 +295,7 @@ function blendedMerge(
     });
   }
 
-  return result.sort(
-    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
-  );
+  return result.sort((a, b) => toTimeMs(a.date) - toTimeMs(b.date));
 }
 
 function extractProviderValues<T extends { date: string }>(
@@ -429,10 +430,8 @@ export function getFusionStats(data: UnifiedMetricPoint[]): {
   const garminDays = data.filter((d) => d.garminValue !== null).length;
   const whoopDays = data.filter((d) => d.whoopValue !== null).length;
 
-  const avgConfidence =
-    data.length > 0
-      ? data.reduce((sum, d) => sum + d.confidence, 0) / data.length
-      : 0;
+  const confidenceValues = data.map((d) => d.confidence);
+  const avgConfidence = meanOrNull(confidenceValues) ?? 0;
 
   return {
     total: data.length,

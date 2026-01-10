@@ -1,5 +1,15 @@
-import { getLocalToday, toLocalDayKey, toLocalDayDate } from "./health/date";
-import { calculateMedian } from "./health/stats";
+import {
+  getLocalToday,
+  toLocalDayKey,
+  toLocalDayDate,
+  toTimeMs,
+} from "./health/date";
+import {
+  calculateMedian,
+  meanOrNull,
+  calculateStd,
+  sumOrNull,
+} from "./health/stats";
 
 function getDaysBetween(date1: string, date2: string): number {
   const d1 = new Date(date1);
@@ -94,12 +104,10 @@ export function calculateSMA<T extends Record<string, unknown>>(
       return { ...point, sma: null };
     }
 
-    const sum = values.reduce((acc, val) => acc + val, 0);
+    const sum = sumOrNull(values) ?? 0;
     return { ...point, sma: sum / values.length };
   });
 }
-
-export { calculateMedian };
 
 export function calculateBaseline<
   T extends { date: string } & Record<string, unknown>,
@@ -126,13 +134,11 @@ export function calculateBaseline<
     return null;
   }
 
-  const mean = values.reduce((a, b) => a + b, 0) / values.length;
+  const mean = meanOrNull(values) ?? 0;
   const median = values.length > 0 ? calculateMedian(values) : mean;
-  const variance =
-    values.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) /
-    values.length;
+  const deviation = calculateStd(values);
 
-  return { baseline: mean, median, deviation: Math.sqrt(variance) };
+  return { baseline: mean, median, deviation };
 }
 
 export interface WeightSmoothedPoint {
@@ -174,7 +180,7 @@ export function calculateBiologicalWeightSmoothing<
   T extends { date: string } & Record<string, unknown>,
 >(data: T[], valueKey: keyof T): WeightSmoothedPoint[] {
   const sortedData = [...data].sort(
-    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+    (a, b) => toTimeMs(a.date) - toTimeMs(b.date),
   );
 
   if (sortedData.length === 0) {

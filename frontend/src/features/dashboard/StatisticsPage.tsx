@@ -16,6 +16,14 @@ import {
   getZScoreColor,
   getHealthScoreLabel,
   getHealthScoreColor,
+  calculateClinicalAlerts,
+  calculateOverreachingMetrics,
+  calculateCorrelationMetrics,
+  detectAnomalies,
+  calculateVelocityMetrics,
+  calculateRecoveryCapacity,
+  calculateIllnessRiskSignal,
+  calculateDecorrelationAlert,
   type DataQuality,
   type BaselineMetrics,
 } from "../../lib/health-metrics";
@@ -50,6 +58,15 @@ import {
   Brain,
   Copy,
   Check,
+  ShieldAlert,
+  Flame,
+  GitBranch,
+  Radar,
+  ArrowUpRight,
+  ArrowDownRight,
+  RefreshCw,
+  Thermometer,
+  Unlink,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
@@ -289,7 +306,7 @@ function MetricCard({
   );
 }
 
-export function TrendsPage() {
+export function StatisticsPage() {
   const [mode, setMode] = useState<TrendMode>("recent");
   const [copied, setCopied] = useState(false);
   const modeConfig = TREND_MODES[mode];
@@ -421,6 +438,77 @@ export function TrendsPage() {
     dayCompleteness,
     dataSourceSummary,
   } = healthAnalysis;
+
+  // Calculate advanced metrics
+  const hrvData = computedMetrics.hrv.raw;
+  const rhrData = computedMetrics.rhr.raw;
+  const sleepDataRaw = computedMetrics.sleep.raw;
+  const strainData = computedMetrics.strain.raw;
+  const weightDataRaw = computedMetrics.weight.raw;
+  const stressData = computedMetrics.stress.raw;
+
+  const clinicalAlerts = calculateClinicalAlerts(
+    rhrData,
+    hrvData,
+    weightDataRaw,
+    strainData,
+    baselineDays,
+  );
+
+  const overreachingMetrics = calculateOverreachingMetrics(
+    hrvData,
+    rhrData,
+    sleepDataRaw,
+    strainData,
+    baselineDays,
+    shortTermDays,
+  );
+
+  const correlationMetrics = calculateCorrelationMetrics(
+    hrvData,
+    rhrData,
+    sleepDataRaw,
+    strainData,
+    baselineDays,
+  );
+
+  const anomalyMetrics = detectAnomalies(
+    hrvData,
+    rhrData,
+    sleepDataRaw,
+    stressData,
+    baselineDays,
+    shortTermDays,
+  );
+
+  const velocityMetrics = calculateVelocityMetrics(
+    hrvData,
+    rhrData,
+    weightDataRaw,
+    sleepDataRaw,
+    shortTermDays,
+  );
+
+  const recoveryCapacity = calculateRecoveryCapacity(
+    hrvData,
+    strainData,
+    baselineDays,
+  );
+
+  const illnessRisk = calculateIllnessRiskSignal(
+    hrvData,
+    rhrData,
+    sleepDataRaw,
+    baselineDays,
+    3,
+  );
+
+  const decorrelationAlert = calculateDecorrelationAlert(
+    hrvData,
+    rhrData,
+    14,
+    baselineDays,
+  );
 
   return (
     <div className="space-y-8">
@@ -990,6 +1078,579 @@ export function TrendsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Clinical Alerts Section */}
+      {clinicalAlerts.anyAlert && (
+        <Card className="border-red-500/50 bg-red-500/5">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-red-500/20">
+                <ShieldAlert className="h-6 w-6 text-red-500" />
+              </div>
+              <div>
+                <CardTitle className="text-red-600 dark:text-red-400">
+                  Clinical Alerts
+                </CardTitle>
+                <CardDescription>
+                  Potential health concerns detected
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+              {clinicalAlerts.persistentTachycardia && (
+                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Heart className="h-4 w-4 text-red-500" />
+                    <span className="text-sm font-medium text-red-600 dark:text-red-400">
+                      Elevated RHR
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {clinicalAlerts.tachycardiaDays} consecutive days above
+                    baseline +2σ
+                  </p>
+                </div>
+              )}
+              {clinicalAlerts.acuteHRVDrop && (
+                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                  <div className="flex items-center gap-2 mb-1">
+                    <TrendingDown className="h-4 w-4 text-red-500" />
+                    <span className="text-sm font-medium text-red-600 dark:text-red-400">
+                      Acute HRV Drop
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {clinicalAlerts.hrvDropPercent !== null
+                      ? `${(clinicalAlerts.hrvDropPercent * 100).toFixed(0)}%`
+                      : "—"}{" "}
+                    drop from previous day
+                  </p>
+                </div>
+              )}
+              {clinicalAlerts.progressiveWeightLoss && (
+                <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Scale className="h-4 w-4 text-yellow-500" />
+                    <span className="text-sm font-medium text-yellow-600 dark:text-yellow-400">
+                      Weight Loss
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {clinicalAlerts.weightLossPercent !== null
+                      ? `${(clinicalAlerts.weightLossPercent * 100).toFixed(1)}%`
+                      : "—"}{" "}
+                    loss over 30 days
+                  </p>
+                </div>
+              )}
+              {clinicalAlerts.severeOvertraining && (
+                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Flame className="h-4 w-4 text-red-500" />
+                    <span className="text-sm font-medium text-red-600 dark:text-red-400">
+                      Overtraining Risk
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    High ACWR + suppressed HRV detected
+                  </p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Advanced Metrics Grid */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {/* Overreaching Score */}
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <Flame className="h-4 w-4 text-orange-500" />
+              <CardTitle className="text-base">Overreaching Score</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-baseline gap-2 mb-3">
+              <span
+                className={cn(
+                  "text-3xl font-bold",
+                  overreachingMetrics.riskLevel === "low" && "text-green-500",
+                  overreachingMetrics.riskLevel === "moderate" &&
+                    "text-yellow-500",
+                  overreachingMetrics.riskLevel === "high" && "text-orange-500",
+                  overreachingMetrics.riskLevel === "critical" &&
+                    "text-red-500",
+                )}
+              >
+                {overreachingMetrics.score !== null
+                  ? overreachingMetrics.score.toFixed(2)
+                  : "—"}
+              </span>
+              {overreachingMetrics.riskLevel && (
+                <span
+                  className={cn(
+                    "text-sm font-medium px-2 py-0.5 rounded-full",
+                    overreachingMetrics.riskLevel === "low" &&
+                      "bg-green-500/10 text-green-600",
+                    overreachingMetrics.riskLevel === "moderate" &&
+                      "bg-yellow-500/10 text-yellow-600",
+                    overreachingMetrics.riskLevel === "high" &&
+                      "bg-orange-500/10 text-orange-600",
+                    overreachingMetrics.riskLevel === "critical" &&
+                      "bg-red-500/10 text-red-600",
+                  )}
+                >
+                  {overreachingMetrics.riskLevel}
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div>
+                <p className="text-xs text-muted-foreground">Low HRV streak</p>
+                <p className="font-medium">
+                  {overreachingMetrics.consecutiveLowRecoveryDays} days
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Components</p>
+                <div className="text-xs space-x-1">
+                  {overreachingMetrics.components.strainComponent !== null && (
+                    <span className="text-orange-500">
+                      S:
+                      {overreachingMetrics.components.strainComponent.toFixed(
+                        1,
+                      )}
+                    </span>
+                  )}
+                  {overreachingMetrics.components.hrvComponent !== null && (
+                    <span className="text-red-500">
+                      H:{overreachingMetrics.components.hrvComponent.toFixed(1)}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Correlations */}
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <GitBranch className="h-4 w-4 text-purple-500" />
+              <CardTitle className="text-base">Correlations</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">HRV ↔ RHR</span>
+                <span
+                  className={cn(
+                    "font-mono text-sm",
+                    correlationMetrics.hrvRhrCorrelation !== null &&
+                      correlationMetrics.hrvRhrCorrelation < -0.3
+                      ? "text-green-500"
+                      : correlationMetrics.hrvRhrCorrelation !== null &&
+                          correlationMetrics.hrvRhrCorrelation > 0
+                        ? "text-red-500"
+                        : "text-muted-foreground",
+                  )}
+                >
+                  {correlationMetrics.hrvRhrCorrelation !== null
+                    ? correlationMetrics.hrvRhrCorrelation.toFixed(2)
+                    : "—"}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">
+                  Sleep → HRV
+                </span>
+                <span
+                  className={cn(
+                    "font-mono text-sm",
+                    correlationMetrics.sleepHrvLagCorrelation !== null &&
+                      correlationMetrics.sleepHrvLagCorrelation > 0.3
+                      ? "text-green-500"
+                      : "text-muted-foreground",
+                  )}
+                >
+                  {correlationMetrics.sleepHrvLagCorrelation !== null
+                    ? correlationMetrics.sleepHrvLagCorrelation.toFixed(2)
+                    : "—"}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">
+                  Strain → Recovery
+                </span>
+                <span
+                  className={cn(
+                    "font-mono text-sm",
+                    correlationMetrics.strainRecoveryCorrelation !== null &&
+                      correlationMetrics.strainRecoveryCorrelation < -0.2
+                      ? "text-green-500"
+                      : "text-muted-foreground",
+                  )}
+                >
+                  {correlationMetrics.strainRecoveryCorrelation !== null
+                    ? correlationMetrics.strainRecoveryCorrelation.toFixed(2)
+                    : "—"}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground pt-1 border-t">
+                Sample size: {correlationMetrics.sampleSize} days
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Velocity / Rate of Change */}
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-blue-500" />
+              <CardTitle className="text-base">Trends (Velocity)</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {[
+                {
+                  label: "HRV",
+                  value: velocityMetrics.hrvVelocity,
+                  unit: "ms/d",
+                  status: velocityMetrics.interpretation.hrv,
+                },
+                {
+                  label: "RHR",
+                  value: velocityMetrics.rhrVelocity,
+                  unit: "bpm/d",
+                  status: velocityMetrics.interpretation.rhr,
+                },
+                {
+                  label: "Weight",
+                  value: velocityMetrics.weightVelocity,
+                  unit: "kg/d",
+                  status: velocityMetrics.interpretation.weight,
+                },
+                {
+                  label: "Sleep",
+                  value: velocityMetrics.sleepVelocity,
+                  unit: "min/d",
+                  status: velocityMetrics.interpretation.sleep,
+                },
+              ].map(({ label, value, unit, status }) => (
+                <div key={label} className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">{label}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-sm">
+                      {value !== null
+                        ? `${value > 0 ? "+" : ""}${value.toFixed(2)} ${unit}`
+                        : "—"}
+                    </span>
+                    {status && (
+                      <span
+                        className={cn(
+                          "text-xs",
+                          status === "improving" && "text-green-500",
+                          status === "declining" && "text-red-500",
+                          status === "stable" && "text-muted-foreground",
+                          status === "gaining" && "text-yellow-500",
+                          status === "losing" && "text-blue-500",
+                        )}
+                      >
+                        {status === "improving" && (
+                          <ArrowUpRight className="h-3 w-3" />
+                        )}
+                        {status === "declining" && (
+                          <ArrowDownRight className="h-3 w-3" />
+                        )}
+                        {status === "stable" && <Minus className="h-3 w-3" />}
+                        {status === "gaining" && (
+                          <ArrowUpRight className="h-3 w-3" />
+                        )}
+                        {status === "losing" && (
+                          <ArrowDownRight className="h-3 w-3" />
+                        )}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Anomaly Detection */}
+      {anomalyMetrics.anomalyCount > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Radar className="h-4 w-4 text-amber-500" />
+                <CardTitle className="text-base">
+                  Anomalies Detected ({anomalyMetrics.anomalyCount})
+                </CardTitle>
+              </div>
+              {anomalyMetrics.hasRecentAnomaly && (
+                <span className="text-xs px-2 py-1 rounded-full bg-amber-500/10 text-amber-600">
+                  Recent
+                </span>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-4">
+              {anomalyMetrics.anomalies.slice(0, 8).map((anomaly, i) => (
+                <div
+                  key={`${anomaly.date}-${anomaly.metric}-${String(i)}`}
+                  className={cn(
+                    "p-2 rounded-lg border text-sm",
+                    anomaly.severity === "critical" &&
+                      "bg-red-500/10 border-red-500/30",
+                    anomaly.severity === "alert" &&
+                      "bg-orange-500/10 border-orange-500/30",
+                    anomaly.severity === "warning" &&
+                      "bg-yellow-500/10 border-yellow-500/30",
+                  )}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-medium">{anomaly.metric}</span>
+                    <span
+                      className={cn(
+                        "text-xs px-1.5 py-0.5 rounded",
+                        anomaly.severity === "critical" &&
+                          "bg-red-500/20 text-red-600",
+                        anomaly.severity === "alert" &&
+                          "bg-orange-500/20 text-orange-600",
+                        anomaly.severity === "warning" &&
+                          "bg-yellow-500/20 text-yellow-600",
+                      )}
+                    >
+                      {anomaly.severity}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    z={anomaly.zScore.toFixed(1)} on{" "}
+                    {new Date(anomaly.date).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Recovery Capacity */}
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center gap-2">
+            <RefreshCw className="h-4 w-4 text-green-500" />
+            <CardTitle className="text-base">Recovery Capacity</CardTitle>
+          </div>
+          <CardDescription>
+            How quickly HRV returns to baseline after high strain
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs text-muted-foreground">Avg Recovery Days</p>
+              <p className="text-lg font-semibold">
+                {recoveryCapacity.avgRecoveryDays !== null
+                  ? `${recoveryCapacity.avgRecoveryDays.toFixed(1)} days`
+                  : "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">
+                Recovery Efficiency
+              </p>
+              <p className="text-lg font-semibold">
+                {recoveryCapacity.recoveryEfficiency !== null
+                  ? recoveryCapacity.recoveryEfficiency.toFixed(2)
+                  : "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">
+                High Strain Events
+              </p>
+              <p className="text-lg font-semibold">
+                {recoveryCapacity.highStrainEvents}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Recovered Events</p>
+              <p className="text-lg font-semibold">
+                {recoveryCapacity.recoveredEvents}
+              </p>
+            </div>
+          </div>
+          {recoveryCapacity.highStrainEvents > 0 && (
+            <p className="text-xs text-muted-foreground mt-2">
+              Recovery rate:{" "}
+              {Math.round(
+                (recoveryCapacity.recoveredEvents /
+                  recoveryCapacity.highStrainEvents) *
+                  100,
+              )}
+              %
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Pre-Illness Risk Signal */}
+      <Card
+        className={cn(
+          illnessRisk.riskLevel === "high" && "border-red-500/50",
+          illnessRisk.riskLevel === "moderate" && "border-yellow-500/50",
+        )}
+      >
+        <CardHeader className="pb-2">
+          <div className="flex items-center gap-2">
+            <Thermometer
+              className={cn(
+                "h-4 w-4",
+                illnessRisk.riskLevel === "high" && "text-red-500",
+                illnessRisk.riskLevel === "moderate" && "text-yellow-500",
+                illnessRisk.riskLevel === "low" && "text-green-500",
+                illnessRisk.riskLevel === null && "text-muted-foreground",
+              )}
+            />
+            <CardTitle className="text-base">Pre-Illness Risk</CardTitle>
+            {illnessRisk.riskLevel && (
+              <span
+                className={cn(
+                  "text-xs px-1.5 py-0.5 rounded ml-auto",
+                  illnessRisk.riskLevel === "high" &&
+                    "bg-red-500/20 text-red-600",
+                  illnessRisk.riskLevel === "moderate" &&
+                    "bg-yellow-500/20 text-yellow-600",
+                  illnessRisk.riskLevel === "low" &&
+                    "bg-green-500/20 text-green-600",
+                )}
+              >
+                {illnessRisk.riskLevel}
+              </span>
+            )}
+          </div>
+          <CardDescription>
+            Combined HRV drop, RHR rise, and sleep deficit signal
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">
+                Combined Deviation
+              </span>
+              <span className="font-mono text-sm">
+                {illnessRisk.combinedDeviation !== null
+                  ? illnessRisk.combinedDeviation.toFixed(2)
+                  : "—"}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">
+                Consecutive Days
+              </span>
+              <span className="font-mono text-sm">
+                {illnessRisk.consecutiveDaysElevated}
+              </span>
+            </div>
+            <div className="text-xs text-muted-foreground pt-2 border-t">
+              <span className="block">
+                HRV Drop: {illnessRisk.components.hrvDrop?.toFixed(2) ?? "—"}σ
+              </span>
+              <span className="block">
+                RHR Rise: {illnessRisk.components.rhrRise?.toFixed(2) ?? "—"}σ
+              </span>
+              <span className="block">
+                Sleep Drop:{" "}
+                {illnessRisk.components.sleepDrop?.toFixed(2) ?? "—"}σ
+              </span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* HRV-RHR Decorrelation */}
+      {decorrelationAlert.currentCorrelation !== null && (
+        <Card
+          className={
+            decorrelationAlert.isDecorrelated ? "border-orange-500/50" : ""
+          }
+        >
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <Unlink
+                className={cn(
+                  "h-4 w-4",
+                  decorrelationAlert.isDecorrelated
+                    ? "text-orange-500"
+                    : "text-muted-foreground",
+                )}
+              />
+              <CardTitle className="text-base">HRV-RHR Correlation</CardTitle>
+              {decorrelationAlert.isDecorrelated && (
+                <span className="text-xs px-1.5 py-0.5 rounded ml-auto bg-orange-500/20 text-orange-600">
+                  decorrelated
+                </span>
+              )}
+            </div>
+            <CardDescription>
+              Normally negative correlation; decorrelation may signal stress
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">
+                  Current (14d)
+                </span>
+                <span className="font-mono text-sm">
+                  r = {decorrelationAlert.currentCorrelation.toFixed(2)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">
+                  Baseline ({baselineDays}d)
+                </span>
+                <span className="font-mono text-sm">
+                  r ={" "}
+                  {decorrelationAlert.baselineCorrelation?.toFixed(2) ?? "—"}
+                </span>
+              </div>
+              {decorrelationAlert.correlationDelta !== null && (
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Delta</span>
+                  <span
+                    className={cn(
+                      "font-mono text-sm",
+                      decorrelationAlert.correlationDelta > 0.1 &&
+                        "text-orange-500",
+                    )}
+                  >
+                    {decorrelationAlert.correlationDelta > 0 ? "+" : ""}
+                    {decorrelationAlert.correlationDelta.toFixed(2)}
+                  </span>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

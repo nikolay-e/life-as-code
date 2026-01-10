@@ -17,9 +17,9 @@ const DashboardOverview = lazy(() =>
     default: m.DashboardOverview,
   })),
 );
-const TrendsPage = lazy(() =>
-  import("./features/dashboard/TrendsPage").then((m) => ({
-    default: m.TrendsPage,
+const StatisticsPage = lazy(() =>
+  import("./features/dashboard/StatisticsPage").then((m) => ({
+    default: m.StatisticsPage,
   })),
 );
 const DataStatusPage = lazy(() =>
@@ -48,7 +48,10 @@ export default function App() {
           <Route element={<ProtectedRoute />}>
             <Route element={<DashboardLayout />}>
               <Route path="/dashboard" element={<DashboardOverview />} />
-              <Route path="/dashboard/trends" element={<TrendsPage />} />
+              <Route
+                path="/dashboard/statistics"
+                element={<StatisticsPage />}
+              />
               <Route
                 path="/dashboard/data-status"
                 element={<DataStatusPage />}

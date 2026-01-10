@@ -26,7 +26,12 @@ import { format, subDays } from "date-fns";
 
 const navItems = [
   { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard", end: true },
-  { to: "/dashboard/trends", icon: TrendingUp, label: "Trends", end: false },
+  {
+    to: "/dashboard/statistics",
+    icon: TrendingUp,
+    label: "Statistics",
+    end: false,
+  },
   {
     to: "/dashboard/data-status",
     icon: Database,
@@ -60,7 +65,7 @@ export function DashboardLayout() {
     setCopyState("loading");
     try {
       const today = new Date();
-      const endDate = format(subDays(today, 1), "yyyy-MM-dd");
+      const endDate = format(today, "yyyy-MM-dd");
       const startDate = format(subDays(today, MAX_BASELINE_DAYS), "yyyy-MM-dd");
 
       const data = await queryClient.fetchQuery({
