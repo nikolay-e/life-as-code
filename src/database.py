@@ -157,6 +157,8 @@ def bulk_upsert_records(
             # Convert all records to dicts and add user_id
             processed_records = []
             all_keys: set[str] = set()
+            model_columns = {c.name for c in model_class.__table__.columns}
+            include_source = source is not None and "source" in model_columns
 
             for record_data in records:
                 try:
@@ -166,7 +168,7 @@ def bulk_upsert_records(
                         data_dict = record_data.copy()
 
                     data_dict["user_id"] = user_id
-                    if source is not None:
+                    if include_source:
                         data_dict["source"] = source
                     if "created_at" not in data_dict:
                         data_dict["created_at"] = datetime.datetime.utcnow()
