@@ -10,6 +10,11 @@ import {
   type ComputedMetric,
   type HealthAnalysis,
 } from "./metrics";
+import {
+  calculateRecoveryCapacity,
+  calculateIllnessRiskSignal,
+  calculateDecorrelationAlert,
+} from "./health-metrics";
 
 function formatNum(v: number | null, decimals = 2): string {
   return v !== null ? v.toFixed(decimals) : "N/A";
@@ -117,6 +122,57 @@ export function formatTrendsForLLM(
       ``,
     );
   }
+
+  const hrvData = computedMetrics.hrv.raw;
+  const rhrData = computedMetrics.rhr.raw;
+  const sleepData = computedMetrics.sleep.raw;
+  const strainData = computedMetrics.strain.raw;
+
+  const recoveryCapacity = calculateRecoveryCapacity(
+    hrvData,
+    strainData,
+    modeConfig.baseline,
+  );
+
+  const illnessRisk = calculateIllnessRiskSignal(
+    hrvData,
+    rhrData,
+    sleepData,
+    modeConfig.baseline,
+    3,
+  );
+
+  const decorrelationAlert = calculateDecorrelationAlert(
+    hrvData,
+    rhrData,
+    14,
+    modeConfig.baseline,
+  );
+
+  lines.push(
+    `## Clinical Metrics`,
+    ``,
+    `### Recovery Capacity`,
+    `- Avg Recovery Days: ${recoveryCapacity.avgRecoveryDays !== null ? recoveryCapacity.avgRecoveryDays.toFixed(1) : "N/A"}`,
+    `- Recovery Efficiency: ${recoveryCapacity.recoveryEfficiency !== null ? recoveryCapacity.recoveryEfficiency.toFixed(2) : "N/A"}`,
+    `- High Strain Events: ${String(recoveryCapacity.highStrainEvents)}`,
+    `- Recovered Events: ${String(recoveryCapacity.recoveredEvents)}`,
+    ``,
+    `### Pre-Illness Risk Signal`,
+    `- Risk Level: ${illnessRisk.riskLevel ?? "N/A"}`,
+    `- Combined Deviation: ${illnessRisk.combinedDeviation !== null ? illnessRisk.combinedDeviation.toFixed(2) : "N/A"}`,
+    `- Consecutive Days Elevated: ${String(illnessRisk.consecutiveDaysElevated)}`,
+    `- HRV Drop: ${illnessRisk.components.hrvDrop !== null ? illnessRisk.components.hrvDrop.toFixed(2) : "N/A"}`,
+    `- RHR Rise: ${illnessRisk.components.rhrRise !== null ? illnessRisk.components.rhrRise.toFixed(2) : "N/A"}`,
+    `- Sleep Drop: ${illnessRisk.components.sleepDrop !== null ? illnessRisk.components.sleepDrop.toFixed(2) : "N/A"}`,
+    ``,
+    `### HRV-RHR Decorrelation Alert`,
+    `- Is Decorrelated: ${decorrelationAlert.isDecorrelated ? "YES" : "No"}`,
+    `- Current Correlation: ${decorrelationAlert.currentCorrelation !== null ? decorrelationAlert.currentCorrelation.toFixed(3) : "N/A"}`,
+    `- Baseline Correlation: ${decorrelationAlert.baselineCorrelation !== null ? decorrelationAlert.baselineCorrelation.toFixed(3) : "N/A"}`,
+    `- Correlation Delta: ${decorrelationAlert.correlationDelta !== null ? decorrelationAlert.correlationDelta.toFixed(3) : "N/A"}`,
+    ``,
+  );
 
   lines.push(
     `---`,
