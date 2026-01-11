@@ -83,6 +83,7 @@ export function useAutoSync() {
     new Set(),
   );
   const hasTriggeredRef = useRef(false);
+  const syncInFlightRef = useRef<Set<SyncSource>>(new Set());
 
   const { data: syncStatus } = useSyncStatus();
   const { data: credentials } = useQuery({
@@ -92,6 +93,8 @@ export function useAutoSync() {
 
   const triggerSync = useCallback(
     async (source: SyncSource, days: number) => {
+      if (syncInFlightRef.current.has(source)) return;
+      syncInFlightRef.current.add(source);
       setSyncingProviders((prev) => new Set(prev).add(source));
 
       try {
@@ -109,6 +112,7 @@ export function useAutoSync() {
       } catch {
         // Sync errors are handled by the backend
       } finally {
+        syncInFlightRef.current.delete(source);
         setSyncingProviders((prev) => {
           const next = new Set(prev);
           next.delete(source);

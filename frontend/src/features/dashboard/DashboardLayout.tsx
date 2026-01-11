@@ -62,6 +62,10 @@ export function DashboardLayout() {
   };
 
   const handleCopyAll = useCallback(async () => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
     setCopyState("loading");
     try {
       const today = new Date();

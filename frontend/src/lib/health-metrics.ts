@@ -1,4 +1,5 @@
 import type { DataProvider } from "./providers";
+import { STEP_FLOOR_FALLBACK } from "./constants";
 import {
   getLocalDateString,
   getLocalToday,
@@ -620,7 +621,94 @@ export function calculateSleepMetrics(
 }
 
 // ============================================
-// 5) ACTIVITY / TRAINING LOAD METRICS
+// 5) STEPS METRICS (Dynamic Floor Calculation)
+// ============================================
+
+export interface StepsMetrics {
+  dynamicFloor: number;
+  stepsAvgShort: number | null;
+  stepsAvgLong: number | null;
+  stepsChange: number | null;
+  stepsCV: number;
+  shortTermWindow: number;
+  longTermWindow: number;
+}
+
+const MAX_STEPS_FLOOR_WINDOW = 90;
+const MIN_STEPS_FLOOR_DATA = 14;
+const STEPS_FLOOR_PERCENTILE = 10;
+
+export function calculateDynamicStepsFloor(
+  stepsData: DataPoint[],
+  windowDays: number = 90,
+): number {
+  const dailySteps = toDailySeries(stepsData, "last");
+  const floorWindow = Math.min(windowDays, MAX_STEPS_FLOOR_WINDOW);
+  const floorBaselineValues = getWindowValues(dailySteps, floorWindow);
+
+  if (floorBaselineValues.length < MIN_STEPS_FLOOR_DATA) {
+    return STEP_FLOOR_FALLBACK;
+  }
+
+  const sorted = [...floorBaselineValues].sort((a, b) => a - b);
+  return Math.round(calculatePercentile(sorted, STEPS_FLOOR_PERCENTILE));
+}
+
+export function calculateStepsMetrics(
+  stepsData: DataPoint[],
+  shortTermWindow: number = 7,
+  longTermWindow: number = 30,
+  trendWindow: number = 7,
+): StepsMetrics {
+  const dailySteps = toDailySeries(stepsData, "last");
+
+  const dynamicFloor = calculateDynamicStepsFloor(stepsData, longTermWindow);
+
+  const stepsShortValues = getWindowValues(dailySteps, shortTermWindow);
+  const stepsLongValues = getWindowValues(dailySteps, longTermWindow);
+  const stepsTrendValues = getWindowValues(dailySteps, trendWindow);
+  const stepsPrevTrendValues = getWindowRangeValues(
+    dailySteps,
+    trendWindow * 2,
+    trendWindow,
+  );
+
+  const stepsAvgShort = meanOrNull(stepsShortValues);
+  const stepsAvgLong = meanOrNull(stepsLongValues);
+  const stepsTrendMean = meanOrNull(stepsTrendValues);
+  const stepsPrevTrendMean = meanOrNull(stepsPrevTrendValues);
+
+  const minDataForTrend = Math.min(
+    14,
+    Math.max(3, Math.floor(trendWindow * 0.7)),
+  );
+  const hasValidStepsTrend =
+    stepsTrendMean !== null &&
+    stepsPrevTrendMean !== null &&
+    stepsTrendValues.length >= minDataForTrend &&
+    stepsPrevTrendValues.length >= minDataForTrend;
+
+  const stepsChange = hasValidStepsTrend
+    ? stepsTrendMean - stepsPrevTrendMean
+    : null;
+
+  const stepsMean = stepsAvgLong ?? 0;
+  const stepsStd = calculateStd(stepsLongValues);
+  const stepsCV = stepsMean !== 0 ? stepsStd / Math.abs(stepsMean) : 0;
+
+  return {
+    dynamicFloor,
+    stepsAvgShort,
+    stepsAvgLong,
+    stepsChange,
+    stepsCV,
+    shortTermWindow,
+    longTermWindow,
+  };
+}
+
+// ============================================
+// 6) ACTIVITY / TRAINING LOAD METRICS
 // ============================================
 
 export interface ActivityMetrics {
@@ -2180,5 +2268,97 @@ export function calculateDecorrelationAlert(
     currentCorrelation: current,
     baselineCorrelation: baseline,
     correlationDelta,
+  };
+}
+
+// ============================================
+// 20) DAY-OVER-DAY METRICS (Delta vs Yesterday)
+// ============================================
+
+export interface DayOverDayDelta {
+  today: number | null;
+  yesterday: number | null;
+  delta: number | null;
+  deltaPercent: number | null;
+  todayDate: string | null;
+  yesterdayDate: string | null;
+}
+
+export interface DayOverDayMetrics {
+  hrv: DayOverDayDelta;
+  rhr: DayOverDayDelta;
+  sleep: DayOverDayDelta;
+  recovery: DayOverDayDelta;
+  steps: DayOverDayDelta;
+  weight: DayOverDayDelta;
+  strain: DayOverDayDelta;
+}
+
+function getDayOverDayDelta(
+  data: DataPoint[],
+  metricName: MetricName,
+): DayOverDayDelta {
+  const daily = toDailySeriesForMetric(data, metricName);
+  const sorted = [...daily]
+    .filter((d) => d.value !== null)
+    .sort((a, b) => toTimeMs(b.date) - toTimeMs(a.date));
+
+  if (sorted.length === 0) {
+    return {
+      today: null,
+      yesterday: null,
+      delta: null,
+      deltaPercent: null,
+      todayDate: null,
+      yesterdayDate: null,
+    };
+  }
+
+  if (sorted.length === 1) {
+    const todayEntry = sorted[0];
+    return {
+      today: todayEntry.value,
+      yesterday: null,
+      delta: null,
+      deltaPercent: null,
+      todayDate: todayEntry.date,
+      yesterdayDate: null,
+    };
+  }
+
+  const todayEntry = sorted[0];
+  const yesterdayEntry = sorted[1];
+  const today = todayEntry.value as number;
+  const yesterday = yesterdayEntry.value as number;
+  const delta = today - yesterday;
+  const deltaPercent = yesterday !== 0 ? (delta / yesterday) * 100 : null;
+
+  return {
+    today,
+    yesterday,
+    delta,
+    deltaPercent,
+    todayDate: todayEntry.date,
+    yesterdayDate: yesterdayEntry.date,
+  };
+}
+
+export function calculateDayOverDayMetrics(
+  hrvData: DataPoint[],
+  rhrData: DataPoint[],
+  sleepData: DataPoint[],
+  recoveryData: DataPoint[],
+  stepsData: DataPoint[],
+  weightData: DataPoint[],
+  strainData: DataPoint[],
+): DayOverDayMetrics {
+  return {
+    hrv: getDayOverDayDelta(hrvData, "hrv"),
+    rhr: getDayOverDayDelta(rhrData, "rhr"),
+    sleep: getDayOverDayDelta(sleepData, "sleep"),
+    recovery: getDayOverDayDelta(recoveryData, "recovery"),
+    steps: getDayOverDayDelta(stepsData, "steps"),
+    weight: getDayOverDayDelta(weightData, "weight"),
+    strain: getDayOverDayDelta(strainData, "strain"),
   };
 }

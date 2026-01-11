@@ -1,7 +1,5 @@
-import { useState, useMemo, useCallback } from "react";
-import { toast } from "sonner";
+import { useState, useMemo } from "react";
 import {
-  useHealthData,
   useHealthDataRange,
   useSyncStatus,
   useAutoSync,
@@ -31,8 +29,6 @@ import {
   Scale,
   Footprints,
   Flame,
-  Copy,
-  Check,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -43,11 +39,8 @@ import {
   type ViewMode,
 } from "../../lib/metrics";
 import { toTimeMs } from "../../lib/health";
+import { calculateDynamicStepsFloor } from "../../lib/health-metrics";
 import { getLatestSyncDate } from "../../lib/sync-utils";
-
-const MAX_RANGE_DAYS = Math.max(
-  ...MODE_ORDER.map((m) => TREND_MODES[m].rangeDays),
-);
 
 interface MetricCardProps {
   title: string;
@@ -126,7 +119,6 @@ export function DashboardOverview() {
   );
 
   const { data, isLoading, error } = useHealthDataRange(startDate, endDate);
-  const { data: allRangesData } = useHealthData(MAX_RANGE_DAYS, false);
   const { data: syncStatus } = useSyncStatus();
   const { isSyncing } = useAutoSync();
 
@@ -135,44 +127,15 @@ export function DashboardOverview() {
     [data, selectedDays],
   );
 
-  const [copied, setCopied] = useState(false);
-
-  const handleCopyToClipboard = useCallback(async () => {
-    if (!allRangesData) return;
-
-    const now = new Date();
-    const sections: string[] = [
-      `Health Dashboard — All Ranges`,
-      `Generated: ${format(now, "yyyy-MM-dd HH:mm")}`,
-      "",
-    ];
-
-    for (const m of MODE_ORDER) {
-      const cfg = TREND_MODES[m];
-      const cards = buildDashboardCards(allRangesData, cfg.rangeDays, now);
-
-      sections.push(
-        `## ${cfg.label} (${cfg.description}, ${String(cfg.rangeDays)} days)`,
-        ...cards.map(
-          (card) => `• ${card.title}: ${card.value} (${card.subtitle})`,
-        ),
-        "",
-      );
-    }
-
-    const text = sections.join("\n");
-
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      toast.success("All ranges copied to clipboard");
-      setTimeout(() => {
-        setCopied(false);
-      }, 2000);
-    } catch {
-      toast.error("Failed to copy to clipboard");
-    }
-  }, [allRangesData]);
+  const stepsFloor = useMemo(() => {
+    const steps = data?.steps;
+    if (!steps || steps.length === 0) return undefined;
+    const stepsDataPoints = steps.map((s) => ({
+      date: s.date,
+      value: s.total_steps ?? null,
+    }));
+    return calculateDynamicStepsFloor(stepsDataPoints, rangeDays);
+  }, [data, rangeDays]);
 
   if (isLoading) {
     return <LoadingState message="Loading health data..." />;
@@ -238,19 +201,6 @@ export function DashboardOverview() {
             >
               <span className="font-medium">Custom</span>
               <span className="text-[10px] opacity-70">Range</span>
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleCopyToClipboard}
-              className="ml-1"
-              aria-label="Copy dashboard metrics"
-            >
-              {copied ? (
-                <Check className="h-4 w-4 text-green-500" />
-              ) : (
-                <Copy className="h-4 w-4" />
-              )}
             </Button>
           </div>
           {isCustom && (
@@ -391,6 +341,7 @@ export function DashboardOverview() {
             bandwidthShort={bandwidthShort}
             bandwidthLong={bandwidthLong}
             dateRange={dateRange}
+            stepsFloor={stepsFloor}
           />
         </ChartCard>
 

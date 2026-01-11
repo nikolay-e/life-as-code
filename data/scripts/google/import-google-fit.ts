@@ -34,8 +34,10 @@ interface ImportOptions {
 
 function parseArgs(): ImportOptions {
   const args = process.argv.slice(2);
+  const rawUserId = Number.parseInt(args.find((a) => !a.startsWith("--")) ?? "1", 10);
+  const userId = Number.isNaN(rawUserId) ? 1 : rawUserId;
   return {
-    userId: Number.parseInt(args.find((a) => !a.startsWith("--")) ?? "1", 10),
+    userId,
     dryRun: args.includes("--dry-run"),
     skipCsv: args.includes("--skip-csv"),
     skipSleep: args.includes("--skip-sleep"),
@@ -83,8 +85,8 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const pool = options.dryRun
-    ? (null as unknown as pg.Pool)
+  const pool: pg.Pool | null = options.dryRun
+    ? null
     : new Pool({ connectionString: databaseUrl });
 
   const baseDir = join(process.cwd(), "..", "google");

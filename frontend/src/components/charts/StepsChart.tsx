@@ -16,7 +16,7 @@ import { format, parseISO, startOfDay } from "date-fns";
 import type { StepsData } from "../../types/api";
 import { EmptyChartMessage } from "./shared";
 import { chartTooltipStyle, TREND_CONFIGS } from "./chart-config";
-import { STEP_GOAL_DEFAULT, STEP_FLOOR_DEFAULT } from "../../lib/constants";
+import { STEP_GOAL_DEFAULT, STEP_FLOOR_FALLBACK } from "../../lib/constants";
 import { useTrendData } from "../../hooks/useTrendData";
 
 function dateToTimestamp(dateStr: string): number {
@@ -30,6 +30,7 @@ interface StepsChartProps {
   bandwidthLong?: number;
   height?: number;
   dateRange?: { start: string; end: string };
+  stepsFloor?: number;
 }
 
 export const StepsChart = memo(
@@ -40,6 +41,7 @@ export const StepsChart = memo(
     bandwidthLong = 0.33,
     height = 250,
     dateRange,
+    stepsFloor = STEP_FLOOR_FALLBACK,
   }: StepsChartProps) => {
     const config = TREND_CONFIGS.steps;
 
@@ -115,11 +117,11 @@ export const StepsChart = memo(
           />
 
           <ReferenceLine
-            y={STEP_FLOOR_DEFAULT}
+            y={stepsFloor}
             stroke="hsl(var(--destructive))"
             strokeDasharray="3 3"
             label={{
-              value: "4k floor",
+              value: `${(stepsFloor / 1000).toFixed(1)}k floor`,
               position: "insideBottomRight",
               fill: "hsl(var(--destructive))",
               fontSize: 11,
@@ -131,7 +133,7 @@ export const StepsChart = memo(
               <Cell
                 key={`cell-${String(index)}`}
                 fill={
-                  (entry.value ?? 0) >= STEP_FLOOR_DEFAULT
+                  (entry.value ?? 0) >= stepsFloor
                     ? config.color
                     : "hsl(var(--destructive))"
                 }

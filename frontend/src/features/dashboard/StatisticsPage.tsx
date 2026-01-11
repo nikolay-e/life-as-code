@@ -1,5 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
-import { toast } from "sonner";
+import { useState, useMemo } from "react";
 import { useHealthData } from "../../hooks/useHealthData";
 import { Button } from "../../components/ui/button";
 import {
@@ -39,7 +38,6 @@ import {
   computeHealthAnalysis,
   type TrendMode,
 } from "../../lib/metrics";
-import { formatTrendsForLLM } from "../../lib/report-formatter";
 import {
   Moon,
   Activity,
@@ -56,8 +54,6 @@ import {
   Footprints,
   Scale,
   Brain,
-  Copy,
-  Check,
   ShieldAlert,
   Flame,
   GitBranch,
@@ -306,9 +302,39 @@ function MetricCard({
   );
 }
 
+function ModeSelector({
+  mode,
+  setMode,
+}: {
+  mode: TrendMode;
+  setMode: (m: TrendMode) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2 p-1 bg-muted/50 rounded-lg">
+      <Calendar className="h-4 w-4 text-muted-foreground ml-2" />
+      {MODE_ORDER.map((m) => {
+        const cfg = TREND_MODES[m];
+        return (
+          <Button
+            key={m}
+            variant={mode === m ? "default" : "ghost"}
+            size="sm"
+            onClick={() => {
+              setMode(m);
+            }}
+            className="min-w-[90px] flex flex-col h-auto py-1.5"
+          >
+            <span className="font-medium">{cfg.label}</span>
+            <span className="text-[10px] opacity-70">{cfg.description}</span>
+          </Button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function StatisticsPage() {
   const [mode, setMode] = useState<TrendMode>("recent");
-  const [copied, setCopied] = useState(false);
   const modeConfig = TREND_MODES[mode];
   const {
     baseline: baselineDays,
@@ -322,42 +348,6 @@ export function StatisticsPage() {
     () => getBaselineOptions(mode, modeConfig),
     [mode, modeConfig],
   );
-
-  const handleCopyToClipboard = useCallback(async () => {
-    const reports: string[] = [];
-
-    for (const m of MODE_ORDER) {
-      const cfg = TREND_MODES[m];
-      const opts = getBaselineOptions(m, cfg);
-
-      const metrics = computeAllMetrics(
-        data ?? null,
-        cfg.baseline,
-        cfg.shortTerm,
-        cfg.trendWindow,
-        opts,
-      );
-
-      const analysis = computeHealthAnalysis(data ?? null, metrics, cfg, opts);
-
-      reports.push(
-        formatTrendsForLLM(cfg, analysis, metrics, cfg.useShiftedZScore),
-      );
-    }
-
-    const text = reports.join("\n\n---\n\n");
-
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      toast.success("All trends copied to clipboard");
-      setTimeout(() => {
-        setCopied(false);
-      }, 2000);
-    } catch {
-      toast.error("Failed to copy to clipboard");
-    }
-  }, [data]);
 
   if (error) {
     return (
@@ -377,37 +367,7 @@ export function StatisticsPage() {
               Personal baseline deviations and trends
             </p>
           </div>
-          <div className="flex items-center gap-2 p-1 bg-muted/50 rounded-lg">
-            <Calendar className="h-4 w-4 text-muted-foreground ml-2" />
-            {MODE_ORDER.map((m) => {
-              const cfg = TREND_MODES[m];
-              return (
-                <Button
-                  key={m}
-                  variant={mode === m ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => {
-                    setMode(m);
-                  }}
-                  className="min-w-[90px] flex flex-col h-auto py-1.5"
-                >
-                  <span className="font-medium">{cfg.label}</span>
-                  <span className="text-[10px] opacity-70">
-                    {cfg.description}
-                  </span>
-                </Button>
-              );
-            })}
-            <Button
-              variant="ghost"
-              size="icon"
-              disabled
-              className="h-9 w-9 ml-1"
-              aria-label="Copy trends data for LLM analysis"
-            >
-              <Copy className="h-4 w-4" />
-            </Button>
-          </div>
+          <ModeSelector mode={mode} setMode={setMode} />
         </div>
         <LoadingState message="Analyzing health data..." />
       </div>
@@ -521,41 +481,7 @@ export function StatisticsPage() {
             Personal baseline deviations and trends
           </p>
         </div>
-        <div className="flex items-center gap-2 p-1 bg-muted/50 rounded-lg">
-          <Calendar className="h-4 w-4 text-muted-foreground ml-2" />
-          {MODE_ORDER.map((m) => {
-            const cfg = TREND_MODES[m];
-            return (
-              <Button
-                key={m}
-                variant={mode === m ? "default" : "ghost"}
-                size="sm"
-                onClick={() => {
-                  setMode(m);
-                }}
-                className="min-w-[90px] flex flex-col h-auto py-1.5"
-              >
-                <span className="font-medium">{cfg.label}</span>
-                <span className="text-[10px] opacity-70">
-                  {cfg.description}
-                </span>
-              </Button>
-            );
-          })}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleCopyToClipboard}
-            className="h-9 w-9 ml-1"
-            aria-label="Copy trends data for LLM analysis"
-          >
-            {copied ? (
-              <Check className="h-4 w-4 text-green-500" />
-            ) : (
-              <Copy className="h-4 w-4" />
-            )}
-          </Button>
-        </div>
+        <ModeSelector mode={mode} setMode={setMode} />
       </div>
 
       <Card className="border-2">

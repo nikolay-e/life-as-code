@@ -289,7 +289,7 @@ export function aggregateSessionsByDate(
 
 // Batch import CSV daily metrics
 export async function importDailyMetrics(
-  pool: pg.Pool,
+  pool: pg.Pool | null,
   userId: number,
   dailyData: DailyAggregated[],
   dryRun: boolean,
@@ -310,7 +310,7 @@ export async function importDailyMetrics(
   for (let i = 0; i < dailyData.length; i += batchSize) {
     const batch = dailyData.slice(i, i + batchSize);
 
-    await withTransaction(pool, async (client) => {
+    await withTransaction(pool!, async (client) => {
       for (const data of batch) {
         await upsertSteps(client, userId, data, result, source);
         await upsertHeartRate(client, userId, data, result, source);
@@ -329,7 +329,7 @@ export async function importDailyMetrics(
 
 // Batch import sleep data
 export async function importSleepData(
-  pool: pg.Pool,
+  pool: pg.Pool | null,
   userId: number,
   sleepData: Map<string, SleepData>,
   dryRun: boolean,
@@ -350,7 +350,7 @@ export async function importSleepData(
   for (let i = 0; i < sleepArray.length; i += batchSize) {
     const batch = sleepArray.slice(i, i + batchSize);
 
-    await withTransaction(pool, async (client) => {
+    await withTransaction(pool!, async (client) => {
       for (const data of batch) {
         await upsertSleep(client, userId, data, result, source);
       }
@@ -362,7 +362,7 @@ export async function importSleepData(
 
 // Batch import body composition data
 export async function importBodyComposition(
-  pool: pg.Pool,
+  pool: pg.Pool | null,
   userId: number,
   bodyData: Map<string, BodyComposition>,
   dryRun: boolean,
@@ -383,7 +383,7 @@ export async function importBodyComposition(
   for (let i = 0; i < bodyArray.length; i += batchSize) {
     const batch = bodyArray.slice(i, i + batchSize);
 
-    await withTransaction(pool, async (client) => {
+    await withTransaction(pool!, async (client) => {
       for (const data of batch) {
         await upsertWeight(client, userId, data.date, data.weight, data.bodyFatPct, result, source);
       }
@@ -395,7 +395,7 @@ export async function importBodyComposition(
 
 // Import session activities as additional steps/energy data
 export async function importSessionActivities(
-  pool: pg.Pool,
+  pool: pg.Pool | null,
   userId: number,
   activities: SessionActivity[],
   dryRun: boolean,
@@ -418,7 +418,7 @@ export async function importSessionActivities(
   for (let i = 0; i < entries.length; i += batchSize) {
     const batch = entries.slice(i, i + batchSize);
 
-    await withTransaction(pool, async (client) => {
+    await withTransaction(pool!, async (client) => {
       for (const [date, data] of batch) {
         // Update steps if session has step data
         if (data.steps > 0 || data.distance > 0) {

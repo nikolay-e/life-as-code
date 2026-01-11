@@ -53,7 +53,7 @@ function printResult(result: ImportResult): void {
 }
 
 async function importHRVData(
-  pool: pg.Pool,
+  pool: pg.Pool | null,
   userId: number,
   hrvData: Map<string, number>,
   dryRun: boolean,
@@ -74,7 +74,7 @@ async function importHRVData(
   for (let i = 0; i < entries.length; i += batchSize) {
     const batch = entries.slice(i, i + batchSize);
 
-    await withTransaction(pool, async (client) => {
+    await withTransaction(pool!, async (client) => {
       for (const [date, hrv] of batch) {
         try {
           const query = `
@@ -104,7 +104,7 @@ async function importHRVData(
 }
 
 async function importRHRData(
-  pool: pg.Pool,
+  pool: pg.Pool | null,
   userId: number,
   rhrData: Map<string, number>,
   dryRun: boolean,
@@ -125,7 +125,7 @@ async function importRHRData(
   for (let i = 0; i < entries.length; i += batchSize) {
     const batch = entries.slice(i, i + batchSize);
 
-    await withTransaction(pool, async (client) => {
+    await withTransaction(pool!, async (client) => {
       for (const [date, rhr] of batch) {
         try {
           const query = `
@@ -173,8 +173,8 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const pool = options.dryRun
-    ? (null as unknown as pg.Pool)
+  const pool: pg.Pool | null = options.dryRun
+    ? null
     : new Pool({ connectionString: databaseUrl });
 
   const baseDir = join(process.cwd(), "..", "apple");
