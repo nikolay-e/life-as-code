@@ -578,7 +578,7 @@ export function calculateSleepMetrics(
 ): SleepMetrics {
   const dailySleep = toDailySeries(sleepData, "last");
 
-  const targetWindow = Math.min(longTermWindow, MAX_SLEEP_TARGET_WINDOW);
+  const targetWindow = MAX_SLEEP_TARGET_WINDOW;
   const targetBaselineValues = getWindowValues(dailySleep, targetWindow);
   const personalTarget =
     targetMinutes ??
@@ -2361,4 +2361,78 @@ export function calculateDayOverDayMetrics(
     weight: getDayOverDayDelta(weightData, "weight"),
     strain: getDayOverDayDelta(strainData, "strain"),
   };
+}
+
+// ============================================
+// 21) LAST N DAYS METRICS (for detailed history)
+// ============================================
+
+export interface DayMetrics {
+  date: string;
+  hrv: number | null;
+  rhr: number | null;
+  sleep: number | null;
+  recovery: number | null;
+  steps: number | null;
+  weight: number | null;
+  strain: number | null;
+  stress: number | null;
+  calories: number | null;
+}
+
+function getLatestValueForDate(
+  data: DataPoint[],
+  metricName: MetricName,
+  targetDate: string,
+): number | null {
+  const daily = toDailySeriesForMetric(data, metricName);
+  const entry = daily.find((d) => toLocalDayKey(d.date) === targetDate);
+  return entry?.value ?? null;
+}
+
+export function calculateLastNDaysMetrics(
+  hrvData: DataPoint[],
+  rhrData: DataPoint[],
+  sleepData: DataPoint[],
+  recoveryData: DataPoint[],
+  stepsData: DataPoint[],
+  weightData: DataPoint[],
+  strainData: DataPoint[],
+  stressData: DataPoint[],
+  caloriesData: DataPoint[],
+  days: number = 3,
+): DayMetrics[] {
+  const allDates = new Set<string>();
+  [
+    hrvData,
+    rhrData,
+    sleepData,
+    recoveryData,
+    stepsData,
+    weightData,
+    strainData,
+    stressData,
+    caloriesData,
+  ].forEach((dataset) => {
+    dataset.forEach((d) => {
+      if (d.value !== null) {
+        allDates.add(toLocalDayKey(d.date));
+      }
+    });
+  });
+
+  const sortedDates = Array.from(allDates).sort().reverse().slice(0, days);
+
+  return sortedDates.map((date) => ({
+    date,
+    hrv: getLatestValueForDate(hrvData, "hrv", date),
+    rhr: getLatestValueForDate(rhrData, "rhr", date),
+    sleep: getLatestValueForDate(sleepData, "sleep", date),
+    recovery: getLatestValueForDate(recoveryData, "recovery", date),
+    steps: getLatestValueForDate(stepsData, "steps", date),
+    weight: getLatestValueForDate(weightData, "weight", date),
+    strain: getLatestValueForDate(strainData, "strain", date),
+    stress: getLatestValueForDate(stressData, "stress", date),
+    calories: getLatestValueForDate(caloriesData, "calories", date),
+  }));
 }

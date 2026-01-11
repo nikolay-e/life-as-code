@@ -15,7 +15,9 @@ import {
   calculateDecorrelationAlert,
   calculateDayOverDayMetrics,
   calculateDayCompleteness,
+  calculateLastNDaysMetrics,
   type DayOverDayMetrics,
+  type DayMetrics,
 } from "./health-metrics";
 import { toTimeMs } from "./health";
 
@@ -26,8 +28,9 @@ function formatNum(v: number | null, decimals = 1): string {
 function formatMinutes(mins: number | null): string {
   if (mins === null) return "N/A";
   if (mins < 0) return "0m";
-  const h = Math.floor(mins / 60);
-  const m = Math.round(mins % 60);
+  const totalMinutes = Math.round(mins);
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
   return h > 0 ? `${String(h)}h ${String(m)}m` : `${String(m)}m`;
 }
 
@@ -341,11 +344,13 @@ function formatTrendsSummaryTable(
   const lines: string[] = [];
   lines.push(`## Trends Summary`);
   lines.push(``);
+  lines.push(`Short-term averages by mode (baseline windows in parentheses):`);
+  lines.push(``);
   lines.push(
-    `| Metric   | 7d avg  | 42d     | 90d     | 365d    | Trend      |`,
+    `| Metric   | 6W (7d) | 6M (14d) | 2Y (30d) | 5Y (90d) | 7d Trend   |`,
   );
   lines.push(
-    `|----------|---------|---------|---------|---------|------------|`,
+    `|----------|---------|----------|----------|----------|------------|`,
   );
 
   const modes = ["recent", "quarter", "year", "all"] as const;
@@ -368,7 +373,7 @@ function formatTrendsSummaryTable(
         : "N/A";
 
     const pad = (s: string, len: number) => s.padEnd(len);
-    return `| ${pad(name, 8)} | ${pad(formatter(values[0]), 7)} | ${pad(formatter(values[1]), 7)} | ${pad(formatter(values[2]), 7)} | ${pad(formatter(values[3]), 7)} | ${pad(trendStr, 10)} |`;
+    return `| ${pad(name, 8)} | ${pad(formatter(values[0]), 7)} | ${pad(formatter(values[1]), 8)} | ${pad(formatter(values[2]), 8)} | ${pad(formatter(values[3]), 8)} | ${pad(trendStr, 10)} |`;
   };
 
   lines.push(
@@ -524,6 +529,38 @@ function formatAnalysisDetails(
   return lines;
 }
 
+function formatLastDaysTable(lastDays: DayMetrics[]): string[] {
+  const lines: string[] = [];
+  lines.push(`## Last ${String(lastDays.length)} Days Detail`);
+  lines.push(``);
+  lines.push(
+    `| Date       | Rec% | HRV | RHR | Sleep   | Steps  | Strain | Stress | Cal   | Weight |`,
+  );
+  lines.push(
+    `|------------|------|-----|-----|---------|--------|--------|--------|-------|--------|`,
+  );
+
+  for (const day of lastDays) {
+    const dateStr = format(parseISO(day.date), "MMM d (EEE)");
+    const rec = day.recovery !== null ? `${day.recovery.toFixed(0)}%` : "—";
+    const hrv = day.hrv !== null ? day.hrv.toFixed(0) : "—";
+    const rhr = day.rhr !== null ? day.rhr.toFixed(0) : "—";
+    const sleep = day.sleep !== null ? formatMinutes(day.sleep) : "—";
+    const steps = day.steps !== null ? formatSteps(day.steps) : "—";
+    const strain = day.strain !== null ? day.strain.toFixed(1) : "—";
+    const stress = day.stress !== null ? day.stress.toFixed(0) : "—";
+    const cal = day.calories !== null ? day.calories.toFixed(0) : "—";
+    const weight = day.weight !== null ? day.weight.toFixed(1) : "—";
+
+    const pad = (s: string, len: number) => s.padEnd(len);
+    lines.push(
+      `| ${pad(dateStr, 10)} | ${pad(rec, 4)} | ${pad(hrv, 3)} | ${pad(rhr, 3)} | ${pad(sleep, 7)} | ${pad(steps, 6)} | ${pad(strain, 6)} | ${pad(stress, 6)} | ${pad(cal, 5)} | ${pad(weight, 6)} |`,
+    );
+  }
+
+  return lines;
+}
+
 export function formatCombinedReport(data: HealthData | null): string {
   if (!data) return "";
 
@@ -559,6 +596,14 @@ export function formatCombinedReport(data: HealthData | null): string {
     date: d.date,
     value: d.strain,
   }));
+  const stressData = data.stress.map((d) => ({
+    date: d.date,
+    value: d.avg_stress,
+  }));
+  const caloriesData = data.whoop_cycle.map((d) => ({
+    date: d.date,
+    value: d.kilojoules !== null ? d.kilojoules * 0.239006 : null,
+  }));
 
   const dayOverDay = calculateDayOverDayMetrics(
     hrvData,
@@ -572,6 +617,21 @@ export function formatCombinedReport(data: HealthData | null): string {
 
   const dayCompleteness = calculateDayCompleteness(now);
   sections.push(...formatTodayStatus(dayOverDay, dayCompleteness, now));
+  sections.push(``);
+
+  const lastDays = calculateLastNDaysMetrics(
+    hrvData,
+    rhrData,
+    sleepData,
+    recoveryData,
+    stepsData,
+    weightData,
+    strainData,
+    stressData,
+    caloriesData,
+    3,
+  );
+  sections.push(...formatLastDaysTable(lastDays));
   sections.push(``);
 
   const recentCfg = TREND_MODES.recent;
