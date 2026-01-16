@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { ErrorBoundary } from "./components/ui/error-boundary";
 import { Spinner } from "./components/ui/spinner";
+import { ReloadPrompt } from "./components/ReloadPrompt";
 
 const LoginPage = lazy(() =>
   import("./features/auth/LoginPage").then((m) => ({ default: m.LoginPage })),
@@ -68,6 +69,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </Suspense>
+      <ReloadPrompt />
     </ErrorBoundary>
   );
 }
