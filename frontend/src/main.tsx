@@ -1,16 +1,67 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  QueryCache,
+  MutationCache,
+} from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
-import { Toaster } from "sonner";
+import { toast, Toaster } from "sonner";
 import { useAuthStore } from "./features/auth/store";
+import { ApiError } from "./lib/api";
 import "./index.css";
 import App from "./App";
 
+async function clearBrowserCaches(): Promise<void> {
+  if ("caches" in window) {
+    const names = await caches.keys();
+    await Promise.all(names.map((name) => caches.delete(name)));
+  }
+}
+
+let isHandlingUnauthorized = false;
+
+function handleUnauthorized() {
+  if (isHandlingUnauthorized) return;
+
+  const authStore = useAuthStore.getState();
+  if (authStore.user) {
+    isHandlingUnauthorized = true;
+    toast.error("Session expired. Please log in again.");
+    queryClient.clear();
+    void clearBrowserCaches();
+    void authStore.logout().finally(() => {
+      isHandlingUnauthorized = false;
+    });
+  }
+}
+
+function isUnauthorizedError(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 401;
+}
+
 const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    onError: (error) => {
+      if (isUnauthorizedError(error)) {
+        handleUnauthorized();
+      }
+    },
+  }),
+  mutationCache: new MutationCache({
+    onError: (error) => {
+      if (isUnauthorizedError(error)) {
+        handleUnauthorized();
+      }
+    },
+  }),
   defaultOptions: {
     queries: {
-      retry: 1,
+      retry: (failureCount, error) => {
+        if (isUnauthorizedError(error)) return false;
+        return failureCount < 1;
+      },
       refetchOnWindowFocus: false,
     },
   },
