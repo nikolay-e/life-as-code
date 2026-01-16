@@ -80,13 +80,14 @@ export const StressChart = memo(
           />
           <YAxis domain={[0, 100]} className="text-xs" />
           <Tooltip
-            labelFormatter={(value) => format(new Date(value as number), "PPP")}
+            labelFormatter={(value) =>
+              format(new Date(value as number), "MMM d")
+            }
             formatter={(value, name) => {
+              if (name === "trendShort" || name === "trendLong") return null;
               const v = value as number | undefined;
               if (v === undefined) return ["-", name];
-              if (name === "value") return [v.toFixed(0), "Avg Stress"];
-              if (name === "trendShort") return [v.toFixed(0), "Short trend"];
-              if (name === "trendLong") return [v.toFixed(0), "Long trend"];
+              if (name === "value") return [v.toFixed(0), "Stress"];
               return [v, name];
             }}
             contentStyle={chartTooltipStyle}

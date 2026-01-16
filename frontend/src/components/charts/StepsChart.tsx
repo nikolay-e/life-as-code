@@ -88,17 +88,14 @@ export const StepsChart = memo(
             className="text-xs"
           />
           <Tooltip
-            labelFormatter={(value) => format(new Date(value as number), "PPP")}
+            labelFormatter={(value) =>
+              format(new Date(value as number), "MMM d")
+            }
             formatter={(value, name) => {
+              if (name === "trendShort" || name === "trendLong") return null;
               const v = value as number | undefined;
               if (v === undefined) return ["-", name];
               if (name === "value") return [v.toLocaleString(), "Steps"];
-              if (name === "trendShort") {
-                return [`${(v / 1000).toFixed(1)}k`, "Short trend"];
-              }
-              if (name === "trendLong") {
-                return [`${(v / 1000).toFixed(1)}k`, "Long trend"];
-              }
               return [v, name];
             }}
             contentStyle={chartTooltipStyle}

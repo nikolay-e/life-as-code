@@ -82,17 +82,14 @@ export const WeightChart = memo(
             tickFormatter={(v: number) => v.toFixed(1)}
           />
           <Tooltip
-            labelFormatter={(value) => format(new Date(value as number), "PPP")}
+            labelFormatter={(value) =>
+              format(new Date(value as number), "MMM d")
+            }
             formatter={(value, name) => {
+              if (name === "trendShort" || name === "trendLong") return null;
               const v = value as number | null;
               if (v === null) return ["-", name];
-              if (name === "rawWeight") return [`${v.toFixed(1)} kg`, "Weight"];
-              if (name === "trendShort") {
-                return [`${v.toFixed(1)} kg`, "Short trend"];
-              }
-              if (name === "trendLong") {
-                return [`${v.toFixed(1)} kg`, "Long trend"];
-              }
+              if (name === "rawWeight") return [`${v.toFixed(1)}kg`, "Weight"];
               return [v, name];
             }}
             contentStyle={chartTooltipStyle}

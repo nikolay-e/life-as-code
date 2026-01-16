@@ -153,7 +153,7 @@ export const SleepChart = memo(
             <YAxis tickFormatter={formatHours} className="text-xs" />
             <Tooltip
               labelFormatter={(value) =>
-                format(new Date(value as number), "PPP")
+                format(new Date(value as number), "MMM d")
               }
               formatter={(value, name) => [
                 formatHours(Number(value)),
@@ -218,19 +218,16 @@ export const SleepChart = memo(
             domain={[0, 12]}
           />
           <Tooltip
-            labelFormatter={(value) => format(new Date(value as number), "PPP")}
+            labelFormatter={(value) =>
+              format(new Date(value as number), "MMM d")
+            }
             formatter={(value, name) => {
+              if (name === "trendShort" || name === "trendLong") return null;
               if (name === "garminTotal") {
                 return [formatHours(Number(value)), "Garmin"];
               }
               if (name === "whoopTotal") {
                 return [formatHours(Number(value)), "Whoop"];
-              }
-              if (name === "trendShort") {
-                return [formatHours(Number(value)), "Short trend"];
-              }
-              if (name === "trendLong") {
-                return [formatHours(Number(value)), "Long trend"];
               }
               return [formatHours(Number(value)), name];
             }}

@@ -4,12 +4,14 @@ import { TREND_CONFIGS, type TrendMethod } from "../../lib/metrics";
 export { TREND_CONFIGS, type TrendMethod };
 
 export const chartTooltipStyle: CSSProperties = {
-  backgroundColor: "hsl(var(--card))",
-  border: "1px solid hsl(var(--border))",
+  backgroundColor: "hsl(var(--card) / 0.85)",
+  border: "1px solid hsl(var(--border) / 0.5)",
   borderRadius: "var(--radius)",
-  padding: "12px 16px",
-  boxShadow:
-    "0 4px 12px -2px rgb(0 0 0 / 0.08), 0 2px 6px -2px rgb(0 0 0 / 0.04)",
+  padding: "6px 10px",
+  fontSize: "11px",
+  lineHeight: "1.3",
+  boxShadow: "0 2px 8px -2px rgb(0 0 0 / 0.1)",
+  backdropFilter: "blur(4px)",
 };
 
 export const SOURCE_COLORS = {

@@ -121,23 +121,18 @@ export const MultiProviderLineChart = memo(
           />
           <YAxis domain={yDomain} className="text-xs" />
           <Tooltip
-            labelFormatter={(value) => format(new Date(value as number), "PPP")}
+            labelFormatter={(value) =>
+              format(new Date(value as number), "MMM d")
+            }
             formatter={(value, name) => {
+              if (name === "trendShort" || name === "trendLong") return null;
               const v = value as number | undefined;
-              if (v === undefined) {
-                return ["-", name];
-              }
+              if (v === undefined) return ["-", name];
               if (name === "garminValue") {
-                return [`${valueFormatter(v)} ${unit}`, garminLabel];
+                return [`${valueFormatter(v)}${unit}`, garminLabel];
               }
               if (name === "whoopValue") {
-                return [`${valueFormatter(v)} ${unit}`, whoopLabel];
-              }
-              if (name === "trendShort") {
-                return [`${valueFormatter(v)} ${unit}`, "Short trend"];
-              }
-              if (name === "trendLong") {
-                return [`${valueFormatter(v)} ${unit}`, "Long trend"];
+                return [`${valueFormatter(v)}${unit}`, whoopLabel];
               }
               return [v, name];
             }}
