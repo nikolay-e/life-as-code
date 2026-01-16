@@ -73,7 +73,7 @@ export const StepsChart = memo(
 
     return (
       <ResponsiveContainer width="100%" height={height}>
-        <ComposedChart data={chartData}>
+        <ComposedChart data={chartData} syncId="health-dashboard">
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
           <XAxis
             dataKey="timestamp"

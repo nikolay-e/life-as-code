@@ -904,6 +904,7 @@ class GarminTrainingStatus(Base):
     primary_training_effect = Column(Float)
     anaerobic_training_effect = Column(Float)
     endurance_score = Column(Float)
+    training_readiness_score = Column(Float)
     total_kilocalories = Column(Float)
     active_kilocalories = Column(Float)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
@@ -937,6 +938,10 @@ class GarminTrainingStatus(Base):
         CheckConstraint(
             "(endurance_score >= 0 AND endurance_score <= 100) OR endurance_score IS NULL",
             name="valid_endurance_score_range",
+        ),
+        CheckConstraint(
+            "(training_readiness_score >= 0 AND training_readiness_score <= 100) OR training_readiness_score IS NULL",
+            name="valid_training_readiness_score_range",
         ),
         CheckConstraint(
             "(total_kilocalories >= 0) OR total_kilocalories IS NULL",

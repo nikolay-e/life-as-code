@@ -32,7 +32,6 @@ export interface TrendDataPoint {
   trendLong: number | null;
 }
 
-export type TrendChartData = TrendDataPoint;
 export type BaselineData = {
   baseline: number;
   median: number;

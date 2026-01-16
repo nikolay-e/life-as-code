@@ -1,7 +1,7 @@
 import { memo, useMemo } from "react";
 import {
   ComposedChart,
-  Line,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -66,7 +66,7 @@ export const WeightChart = memo(
 
     return (
       <ResponsiveContainer width="100%" height={height}>
-        <ComposedChart data={chartData}>
+        <ComposedChart data={chartData} syncId="health-dashboard">
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
           <XAxis
             dataKey="timestamp"
@@ -125,15 +125,11 @@ export const WeightChart = memo(
             </>
           )}
 
-          <Line
-            type="linear"
+          <Bar
             dataKey="rawWeight"
-            stroke="transparent"
-            strokeWidth={0}
-            dot={{ fill: config.color, r: 2, strokeWidth: 0 }}
-            activeDot={{ fill: config.color, r: 4, strokeWidth: 0 }}
+            fill={config.color}
+            radius={[4, 4, 0, 0]}
             name="rawWeight"
-            isAnimationActive={false}
           />
 
           {renderTrendLines(showTrends)}

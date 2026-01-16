@@ -1,7 +1,7 @@
 import { memo, useMemo } from "react";
 import {
   ComposedChart,
-  Line,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -104,7 +104,12 @@ export const MultiProviderLineChart = memo(
 
     return (
       <ResponsiveContainer width="100%" height={height}>
-        <ComposedChart data={chartData}>
+        <ComposedChart
+          data={chartData}
+          barGap={0}
+          barCategoryGap="20%"
+          syncId="health-dashboard"
+        >
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
           <XAxis
             dataKey="timestamp"
@@ -139,25 +144,17 @@ export const MultiProviderLineChart = memo(
             contentStyle={chartTooltipStyle}
           />
 
-          <Line
-            type="linear"
+          <Bar
             dataKey="garminValue"
-            stroke="transparent"
-            strokeWidth={0}
-            dot={{ fill: config.garminColor, r: 2, strokeWidth: 0 }}
-            activeDot={{ fill: config.garminColor, r: 4, strokeWidth: 0 }}
+            fill={config.garminColor}
+            radius={[4, 4, 0, 0]}
             name="garminValue"
-            isAnimationActive={false}
           />
-          <Line
-            type="linear"
+          <Bar
             dataKey="whoopValue"
-            stroke="transparent"
-            strokeWidth={0}
-            dot={{ fill: config.whoopColor, r: 2, strokeWidth: 0 }}
-            activeDot={{ fill: config.whoopColor, r: 4, strokeWidth: 0 }}
+            fill={config.whoopColor}
+            radius={[4, 4, 0, 0]}
             name="whoopValue"
-            isAnimationActive={false}
           />
 
           {renderTrendLines(showTrends)}

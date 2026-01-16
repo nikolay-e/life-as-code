@@ -596,6 +596,9 @@ class GarminTrainingStatusData(GarminBaseModel):
         None, description="Anaerobic training effect (1-5)"
     )
     endurance_score: float | None = Field(None, description="Endurance score (0-100)")
+    training_readiness_score: float | None = Field(
+        None, description="Training readiness score (0-100)"
+    )
     total_kilocalories: float | None = Field(
         None, description="Total daily kilocalories"
     )
@@ -662,6 +665,11 @@ class GarminTrainingStatusData(GarminBaseModel):
                 "enduranceScore",
                 "endurance_score",
                 "cardioScore",
+            ],
+            "training_readiness_score": [
+                "trainingReadinessScore",
+                "training_readiness_score",
+                "score",
             ],
             "total_kilocalories": [
                 "totalKilocalories",
@@ -737,9 +745,9 @@ class GarminTrainingStatusData(GarminBaseModel):
         except (ValueError, TypeError):
             return None
 
-    @field_validator("endurance_score", mode="before")
+    @field_validator("endurance_score", "training_readiness_score", mode="before")
     @classmethod
-    def validate_endurance_score(cls, v):
+    def validate_score_0_100(cls, v):
         if v is None:
             return None
         try:

@@ -1,6 +1,6 @@
 import { memo, useMemo } from "react";
 import {
-  Line,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -68,7 +68,7 @@ export const StressChart = memo(
 
     return (
       <ResponsiveContainer width="100%" height={height}>
-        <ComposedChart data={chartData}>
+        <ComposedChart data={chartData} syncId="health-dashboard">
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
           <XAxis
             dataKey="timestamp"
@@ -92,16 +92,11 @@ export const StressChart = memo(
             contentStyle={chartTooltipStyle}
           />
 
-          {/* Data points first (rendered below) */}
-          <Line
-            type="linear"
+          <Bar
             dataKey="value"
-            stroke="transparent"
-            strokeWidth={0}
-            dot={{ fill: config.color, r: 2, strokeWidth: 0 }}
-            activeDot={{ fill: config.color, r: 4, strokeWidth: 0 }}
+            fill={config.color}
+            radius={[4, 4, 0, 0]}
             name="value"
-            isAnimationActive={false}
           />
 
           {/* Trend lines on top */}

@@ -154,6 +154,7 @@ export interface GarminTrainingStatusData {
   primary_training_effect: number | null;
   anaerobic_training_effect: number | null;
   endurance_score: number | null;
+  training_readiness_score: number | null;
   total_kilocalories: number | null;
   active_kilocalories: number | null;
 }

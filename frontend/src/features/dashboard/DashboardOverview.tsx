@@ -14,7 +14,7 @@ import { SleepChart } from "../../components/charts/SleepChart";
 import { WeightChart } from "../../components/charts/WeightChart";
 import { HeartRateChart } from "../../components/charts/HeartRateChart";
 import { StepsChart } from "../../components/charts/StepsChart";
-import { WhoopRecoveryChart } from "../../components/charts/WhoopRecoveryChart";
+import { RecoveryChart } from "../../components/charts/RecoveryChart";
 import { StressChart } from "../../components/charts/StressChart";
 import { CaloriesChart } from "../../components/charts/CaloriesChart";
 import { ChartCard } from "../../components/charts/ChartCard";
@@ -346,13 +346,14 @@ export function DashboardOverview() {
         </ChartCard>
 
         <ChartCard
-          title="Whoop Recovery"
+          title="Recovery / Training Readiness"
           icon={Heart}
           iconColorClass="text-whoop"
           iconBgClass="bg-whoop-muted"
         >
-          <WhoopRecoveryChart
-            data={data?.whoop_recovery ?? []}
+          <RecoveryChart
+            whoopData={data?.whoop_recovery ?? []}
+            garminData={data?.garmin_training_status ?? []}
             showTrends
             bandwidthShort={bandwidthShort}
             bandwidthLong={bandwidthLong}

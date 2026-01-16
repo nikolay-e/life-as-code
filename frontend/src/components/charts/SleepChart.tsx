@@ -138,7 +138,7 @@ export const SleepChart = memo(
     if (showBreakdown) {
       return (
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={chartData}>
+          <BarChart data={chartData} syncId="health-dashboard">
             <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
             <XAxis
               dataKey="timestamp"
@@ -201,6 +201,7 @@ export const SleepChart = memo(
           data={chartDataWithTrends}
           barGap={0}
           barCategoryGap="20%"
+          syncId="health-dashboard"
         >
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
           <XAxis

@@ -562,6 +562,27 @@ class GarminAPIWrapper:
             except Exception:
                 pass
 
+            # Try to get training readiness score
+            try:
+                readiness = self.api.get_training_readiness(date_str)
+                if readiness:
+                    if isinstance(readiness, list) and len(readiness) > 0:
+                        morning_entry = next(
+                            (
+                                entry
+                                for entry in readiness
+                                if entry.get("inputContext") == "AFTER_WAKEUP_RESET"
+                            ),
+                            readiness[0],
+                        )
+                        combined_data["trainingReadinessScore"] = morning_entry.get(
+                            "score"
+                        )
+                    elif isinstance(readiness, dict):
+                        combined_data["trainingReadinessScore"] = readiness.get("score")
+            except Exception:
+                pass
+
             # Only return if we have at least some meaningful data
             meaningful_keys = [
                 "vo2MaxValue",
@@ -569,6 +590,7 @@ class GarminAPIWrapper:
                 "trainingLoad7Days",
                 "totalKilocalories",
                 "enduranceScore",
+                "trainingReadinessScore",
             ]
             if any(combined_data.get(k) is not None for k in meaningful_keys):
                 return combined_data
