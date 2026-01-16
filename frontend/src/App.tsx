@@ -27,6 +27,11 @@ const DataStatusPage = lazy(() =>
     default: m.DataStatusPage,
   })),
 );
+const TrainingsPage = lazy(() =>
+  import("./features/dashboard/TrainingsPage").then((m) => ({
+    default: m.TrainingsPage,
+  })),
+);
 const SettingsPage = lazy(() =>
   import("./pages/SettingsPage").then((m) => ({ default: m.SettingsPage })),
 );
@@ -52,6 +57,7 @@ export default function App() {
                 path="/dashboard/statistics"
                 element={<StatisticsPage />}
               />
+              <Route path="/dashboard/trainings" element={<TrainingsPage />} />
               <Route
                 path="/dashboard/data-status"
                 element={<DataStatusPage />}

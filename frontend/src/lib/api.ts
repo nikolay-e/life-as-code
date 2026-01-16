@@ -1,11 +1,13 @@
 import type {
   AuthResponse,
   CredentialsStatus,
+  GarminActivityData,
   HealthData,
   SyncStatus,
   User,
   UserThresholds,
   VersionInfo,
+  WorkoutExerciseDetail,
 } from "../types/api";
 
 const API_BASE = "/api";
@@ -81,6 +83,22 @@ export const api = {
   data: {
     getRange: (startDate: string, endDate: string): Promise<HealthData> =>
       request(`/data/range?start_date=${startDate}&end_date=${endDate}`),
+
+    getDetailedWorkouts: (
+      startDate: string,
+      endDate: string,
+    ): Promise<WorkoutExerciseDetail[]> =>
+      request(
+        `/data/workouts/detailed?start_date=${startDate}&end_date=${endDate}`,
+      ),
+
+    getGarminActivities: (
+      startDate: string,
+      endDate: string,
+    ): Promise<GarminActivityData[]> =>
+      request(
+        `/data/activities/garmin?start_date=${startDate}&end_date=${endDate}`,
+      ),
   },
 
   settings: {

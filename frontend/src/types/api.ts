@@ -28,6 +28,7 @@ export interface HealthData {
   whoop_workout: WhoopWorkoutData[];
   whoop_cycle: WhoopCycleData[];
   garmin_training_status: GarminTrainingStatusData[];
+  garmin_activity: GarminActivityData[];
 }
 
 export interface SleepData {
@@ -123,7 +124,7 @@ export interface WhoopSleepData {
 
 export interface WhoopWorkoutData {
   date: string;
-  start_time: string;
+  start_time: string | null;
   strain: number | null;
   avg_heart_rate: number | null;
   max_heart_rate: number | null;
@@ -189,4 +190,43 @@ export interface SyncStatus {
 export interface SyncResponse {
   message: string;
   success?: boolean;
+}
+
+export interface WorkoutSetDetail {
+  set_index: number;
+  weight_kg: number | null;
+  reps: number | null;
+  rpe: number | null;
+  set_type: string | null;
+}
+
+export interface WorkoutExerciseDetail {
+  date: string;
+  exercise: string;
+  sets: WorkoutSetDetail[];
+  total_volume: number;
+  total_sets: number;
+  avg_rpe: number | null;
+}
+
+export interface GarminActivityData {
+  activity_id: string;
+  date: string;
+  start_time: string | null;
+  activity_type: string | null;
+  activity_name: string | null;
+  duration_seconds: number | null;
+  distance_meters: number | null;
+  avg_heart_rate: number | null;
+  max_heart_rate: number | null;
+  calories: number | null;
+  avg_speed_mps: number | null;
+  max_speed_mps: number | null;
+  elevation_gain_meters: number | null;
+  elevation_loss_meters: number | null;
+  avg_power_watts: number | null;
+  max_power_watts: number | null;
+  training_effect_aerobic: number | null;
+  training_effect_anaerobic: number | null;
+  vo2_max_value: number | null;
 }

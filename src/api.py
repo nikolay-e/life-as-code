@@ -8,7 +8,12 @@ from flask import Blueprint, jsonify, request
 from flask_login import current_user, login_required, login_user, logout_user
 from sqlalchemy import select
 
-from data_loaders import get_workout_volume_data, load_data_for_user
+from data_loaders import (
+    get_detailed_workout_data,
+    get_garmin_activities_data,
+    get_workout_volume_data,
+    load_data_for_user,
+)
 from database import get_db_session_context
 from date_utils import parse_date_string
 from enums import DataSource, SyncStatus
@@ -162,6 +167,46 @@ def api_data_range():
                 result[key] = sanitize_for_json(df.to_dict(orient="records"))
 
     return jsonify(result)
+
+
+@api.route("/data/workouts/detailed", methods=["GET"])
+@login_required
+def api_workouts_detailed():
+    start_date = request.args.get("start_date")
+    end_date = request.args.get("end_date")
+
+    if not start_date or not end_date:
+        end_date = datetime.now().date()
+        start_date = end_date - timedelta(days=90)
+    else:
+        try:
+            start_date = parse_date_string(start_date)
+            end_date = parse_date_string(end_date)
+        except ValueError:
+            raise InvalidDateFormatError(f"{start_date} or {end_date}") from None
+
+    result = get_detailed_workout_data(start_date, end_date, current_user.id)
+    return jsonify(sanitize_for_json(result))
+
+
+@api.route("/data/activities/garmin", methods=["GET"])
+@login_required
+def api_garmin_activities():
+    start_date = request.args.get("start_date")
+    end_date = request.args.get("end_date")
+
+    if not start_date or not end_date:
+        end_date = datetime.now().date()
+        start_date = end_date - timedelta(days=90)
+    else:
+        try:
+            start_date = parse_date_string(start_date)
+            end_date = parse_date_string(end_date)
+        except ValueError:
+            raise InvalidDateFormatError(f"{start_date} or {end_date}") from None
+
+    result = get_garmin_activities_data(start_date, end_date, current_user.id)
+    return jsonify(sanitize_for_json(result))
 
 
 @api.route("/settings/thresholds", methods=["GET"])
@@ -527,6 +572,7 @@ def _handle_sync_request(
 
 @api.route("/sync/garmin", methods=["POST"])
 @login_required
+@limiter.limit("3 per hour")
 def api_sync_garmin():
     def get_sync_func():
         from pull_garmin_data import sync_garmin_data_for_user
@@ -538,6 +584,7 @@ def api_sync_garmin():
 
 @api.route("/sync/hevy", methods=["POST"])
 @login_required
+@limiter.limit("3 per hour")
 def api_sync_hevy():
     def get_sync_func():
         from pull_hevy_data import sync_hevy_data_for_user
@@ -549,6 +596,7 @@ def api_sync_hevy():
 
 @api.route("/sync/whoop", methods=["POST"])
 @login_required
+@limiter.limit("3 per hour")
 def api_sync_whoop():
     def get_sync_func():
         from pull_whoop_data import sync_whoop_data_for_user

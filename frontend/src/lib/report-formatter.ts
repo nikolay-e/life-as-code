@@ -1,5 +1,12 @@
 import { format, differenceInDays, parseISO } from "date-fns";
-import type { HealthData, WorkoutData } from "../types/api";
+import type {
+  HealthData,
+  WorkoutData,
+  WhoopWorkoutData,
+  GarminActivityData,
+} from "../types/api";
+import { formatDuration, formatPaceForReport } from "./formatters";
+import { WHOOP_MAX_STRAIN, DEFAULT_ACTIVITY_NAME } from "./constants";
 import {
   TREND_MODES,
   MODE_ORDER,
@@ -473,6 +480,233 @@ function formatClinicalMetrics(
   return lines;
 }
 
+function formatGarminActivities(
+  activities: GarminActivityData[],
+  now: Date,
+): string[] {
+  const lines: string[] = [];
+  lines.push(`## Garmin Activities (Last 30 Days)`);
+  lines.push(``);
+
+  const thirtyDaysAgo = new Date(now);
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const filtered = activities.filter((a) => {
+    const actDate = parseISO(a.date);
+    return actDate >= thirtyDaysAgo && actDate <= now;
+  });
+
+  if (filtered.length === 0) {
+    lines.push(`No Garmin activities recorded in the last 30 days.`);
+    return lines;
+  }
+
+  const sorted = [...filtered].sort((a, b) =>
+    (b.start_time ?? b.date).localeCompare(a.start_time ?? a.date),
+  );
+
+  for (const activity of sorted) {
+    const dateStr = format(parseISO(activity.date), "MMM d (EEE)");
+    const timeStr = activity.start_time
+      ? format(parseISO(activity.start_time), "HH:mm")
+      : "";
+    const name =
+      activity.activity_name ?? activity.activity_type ?? DEFAULT_ACTIVITY_NAME;
+
+    lines.push(`### ${dateStr}${timeStr ? ` at ${timeStr}` : ""}: ${name}`);
+
+    const details: string[] = [];
+
+    if (activity.duration_seconds !== null) {
+      details.push(`Duration: ${formatDuration(activity.duration_seconds)}`);
+    }
+
+    if (activity.distance_meters !== null && activity.distance_meters > 0) {
+      details.push(
+        `Distance: ${(activity.distance_meters / 1000).toFixed(2)} km`,
+      );
+    }
+
+    if (
+      activity.avg_speed_mps !== null &&
+      activity.avg_speed_mps > 0 &&
+      activity.distance_meters !== null &&
+      activity.distance_meters > 100
+    ) {
+      details.push(`Pace: ${formatPaceForReport(activity.avg_speed_mps)}`);
+    }
+
+    if (activity.avg_heart_rate !== null) {
+      details.push(`Avg HR: ${String(activity.avg_heart_rate)} bpm`);
+    }
+
+    if (activity.max_heart_rate !== null) {
+      details.push(`Max HR: ${String(activity.max_heart_rate)} bpm`);
+    }
+
+    if (activity.calories !== null) {
+      details.push(`Calories: ${String(activity.calories)} kcal`);
+    }
+
+    if (
+      activity.elevation_gain_meters !== null &&
+      activity.elevation_gain_meters > 0
+    ) {
+      details.push(
+        `Elevation Gain: ${String(Math.round(activity.elevation_gain_meters))} m`,
+      );
+    }
+
+    if (activity.avg_power_watts !== null) {
+      details.push(
+        `Avg Power: ${String(Math.round(activity.avg_power_watts))} W`,
+      );
+    }
+
+    if (activity.training_effect_aerobic !== null) {
+      details.push(
+        `Aerobic TE: ${activity.training_effect_aerobic.toFixed(1)}`,
+      );
+    }
+
+    if (activity.training_effect_anaerobic !== null) {
+      details.push(
+        `Anaerobic TE: ${activity.training_effect_anaerobic.toFixed(1)}`,
+      );
+    }
+
+    if (activity.vo2_max_value !== null) {
+      details.push(`VO2 Max: ${activity.vo2_max_value.toFixed(1)}`);
+    }
+
+    for (const detail of details) {
+      lines.push(`- ${detail}`);
+    }
+    lines.push(``);
+  }
+
+  return lines;
+}
+
+function formatWhoopWorkouts(
+  workouts: WhoopWorkoutData[],
+  now: Date,
+): string[] {
+  const lines: string[] = [];
+  lines.push(`## Whoop Workouts (Last 30 Days)`);
+  lines.push(``);
+
+  const thirtyDaysAgo = new Date(now);
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const filtered = workouts.filter((w) => {
+    const wDate = parseISO(w.date);
+    return wDate >= thirtyDaysAgo && wDate <= now;
+  });
+
+  if (filtered.length === 0) {
+    lines.push(`No Whoop workouts recorded in the last 30 days.`);
+    return lines;
+  }
+
+  const sorted = [...filtered].sort((a, b) =>
+    (b.start_time ?? b.date).localeCompare(a.start_time ?? a.date),
+  );
+
+  for (const workout of sorted) {
+    const dateStr = format(parseISO(workout.date), "MMM d (EEE)");
+    const timeStr = workout.start_time
+      ? format(parseISO(workout.start_time), "HH:mm")
+      : "N/A";
+    const name = workout.sport_name ?? DEFAULT_ACTIVITY_NAME;
+
+    lines.push(`### ${dateStr} at ${timeStr}: ${name}`);
+
+    const details: string[] = [];
+
+    if (workout.strain !== null) {
+      details.push(
+        `Strain: ${workout.strain.toFixed(1)} / ${String(WHOOP_MAX_STRAIN)}`,
+      );
+    }
+
+    if (workout.kilojoules !== null) {
+      const calories = Math.round(workout.kilojoules / 4.184);
+      details.push(
+        `Energy: ${String(calories)} kcal (${workout.kilojoules.toFixed(0)} kJ)`,
+      );
+    }
+
+    if (workout.avg_heart_rate !== null) {
+      details.push(`Avg HR: ${String(workout.avg_heart_rate)} bpm`);
+    }
+
+    if (workout.max_heart_rate !== null) {
+      details.push(`Max HR: ${String(workout.max_heart_rate)} bpm`);
+    }
+
+    if (workout.distance_meters !== null && workout.distance_meters > 0) {
+      details.push(
+        `Distance: ${(workout.distance_meters / 1000).toFixed(2)} km`,
+      );
+    }
+
+    if (
+      workout.altitude_gain_meters !== null &&
+      workout.altitude_gain_meters > 0
+    ) {
+      details.push(
+        `Elevation Gain: ${String(Math.round(workout.altitude_gain_meters))} m`,
+      );
+    }
+
+    for (const detail of details) {
+      lines.push(`- ${detail}`);
+    }
+    lines.push(``);
+  }
+
+  return lines;
+}
+
+function formatStrengthWorkoutsDetailed(
+  workouts: WorkoutData[],
+  now: Date,
+): string[] {
+  const lines: string[] = [];
+  lines.push(`## Strength Training (Hevy) (Last 30 Days)`);
+  lines.push(``);
+
+  const thirtyDaysAgo = new Date(now);
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const filtered = workouts.filter((w) => {
+    const wDate = parseISO(w.date);
+    return wDate >= thirtyDaysAgo && wDate <= now;
+  });
+
+  if (filtered.length === 0) {
+    lines.push(`No strength workouts recorded in the last 30 days.`);
+    return lines;
+  }
+
+  const sorted = [...filtered].sort((a, b) => b.date.localeCompare(a.date));
+
+  for (const workout of sorted) {
+    const dateStr = format(parseISO(workout.date), "MMM d (EEE)");
+    const volumeKg =
+      workout.total_volume !== null ? Math.round(workout.total_volume) : 0;
+    const sets = workout.total_sets ?? 0;
+
+    lines.push(
+      `### ${dateStr}: ${String(sets)} sets, ${String(volumeKg)} kg total volume`,
+    );
+    lines.push(``);
+  }
+
+  return lines;
+}
+
 function formatAnalysisDetails(
   modeConfig: { label: string; shortTerm: number; baseline: number },
   analysis: HealthAnalysis,
@@ -679,6 +913,22 @@ export function formatCombinedReport(data: HealthData | null): string {
   sections.push(``);
 
   sections.push(...formatLastWorkouts(data.workouts, now));
+  sections.push(``);
+
+  sections.push(`---`);
+  sections.push(`# Detailed Training Log`);
+  sections.push(``);
+
+  sections.push(...formatStrengthWorkoutsDetailed(data.workouts, now));
+  sections.push(``);
+
+  sections.push(...formatGarminActivities(data.garmin_activity, now));
+  sections.push(``);
+
+  sections.push(...formatWhoopWorkouts(data.whoop_workout, now));
+  sections.push(``);
+
+  sections.push(`---`);
   sections.push(``);
 
   sections.push(...formatAnalysisWindows(now));

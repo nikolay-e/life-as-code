@@ -758,3 +758,249 @@ class GarminTrainingStatusData(GarminBaseModel):
         if v is None:
             return None
         return str(v).strip()[:200]
+
+
+class GarminActivityData(GarminBaseModel):
+    """Pydantic model for Garmin activity data."""
+
+    activity_id: str | None = Field(None, description="Unique activity identifier")
+    start_time: datetime.datetime | None = Field(
+        None, description="Activity start time"
+    )
+    activity_type: str | None = Field(
+        None, description="Activity type (running, cycling, etc.)"
+    )
+    activity_name: str | None = Field(None, description="Activity name/title")
+    duration_seconds: int | None = Field(None, description="Duration in seconds")
+    distance_meters: float | None = Field(None, description="Distance in meters")
+    avg_heart_rate: int | None = Field(None, description="Average heart rate in BPM")
+    max_heart_rate: int | None = Field(None, description="Maximum heart rate in BPM")
+    calories: int | None = Field(None, description="Calories burned")
+    avg_speed_mps: float | None = Field(None, description="Average speed in m/s")
+    max_speed_mps: float | None = Field(None, description="Maximum speed in m/s")
+    elevation_gain_meters: float | None = Field(
+        None, description="Elevation gain in meters"
+    )
+    elevation_loss_meters: float | None = Field(
+        None, description="Elevation loss in meters"
+    )
+    avg_power_watts: float | None = Field(None, description="Average power in watts")
+    max_power_watts: float | None = Field(None, description="Maximum power in watts")
+    training_effect_aerobic: float | None = Field(
+        None, description="Aerobic training effect (0-5)"
+    )
+    training_effect_anaerobic: float | None = Field(
+        None, description="Anaerobic training effect (0-5)"
+    )
+    vo2_max_value: float | None = Field(None, description="VO2 Max value from activity")
+
+    @classmethod
+    def get_field_mappings(cls) -> dict[str, list[str]]:
+        return {
+            "activity_id": ["activityId", "activity_id", "id"],
+            "start_time": [
+                "startTimeLocal",
+                "startTimeGMT",
+                "start_time",
+                "beginTimestamp",
+            ],
+            "activity_type": [
+                "activityType",
+                "activity_type",
+                "sportTypeId",
+                "typeKey",
+            ],
+            "activity_name": ["activityName", "activity_name", "name"],
+            "duration_seconds": [
+                "duration",
+                "duration_seconds",
+                "elapsedDuration",
+                "movingDuration",
+            ],
+            "distance_meters": ["distance", "distance_meters", "totalDistance"],
+            "avg_heart_rate": [
+                "averageHR",
+                "avg_heart_rate",
+                "avgHeartRate",
+                "averageHeartRate",
+            ],
+            "max_heart_rate": [
+                "maxHR",
+                "max_heart_rate",
+                "maxHeartRate",
+                "maximumHeartRate",
+            ],
+            "calories": ["calories", "activeKilocalories", "kilocalories"],
+            "avg_speed_mps": ["averageSpeed", "avg_speed_mps", "avgSpeed"],
+            "max_speed_mps": ["maxSpeed", "max_speed_mps", "maximumSpeed"],
+            "elevation_gain_meters": [
+                "elevationGain",
+                "elevation_gain_meters",
+                "totalAscent",
+                "ascent",
+            ],
+            "elevation_loss_meters": [
+                "elevationLoss",
+                "elevation_loss_meters",
+                "totalDescent",
+                "descent",
+            ],
+            "avg_power_watts": ["avgPower", "avg_power_watts", "averagePower"],
+            "max_power_watts": ["maxPower", "max_power_watts", "maximumPower"],
+            "training_effect_aerobic": [
+                "aerobicTrainingEffect",
+                "training_effect_aerobic",
+                "trainingEffectLabel",
+            ],
+            "training_effect_anaerobic": [
+                "anaerobicTrainingEffect",
+                "training_effect_anaerobic",
+            ],
+            "vo2_max_value": ["vO2MaxValue", "vo2_max_value", "vo2Max"],
+        }
+
+    @field_validator("activity_id", mode="before")
+    @classmethod
+    def coerce_activity_id(cls, v):
+        if v is None:
+            return None
+        return str(v)
+
+    @field_validator("start_time", mode="before")
+    @classmethod
+    def parse_start_time(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, datetime.datetime):
+            return v
+        if isinstance(v, str):
+            try:
+                return datetime.datetime.fromisoformat(v.replace("Z", "+00:00"))
+            except ValueError:
+                pass
+            try:
+                return datetime.datetime.strptime(v, "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                pass
+        if isinstance(v, (int, float)):
+            try:
+                return datetime.datetime.fromtimestamp(v / 1000)
+            except (ValueError, OSError):
+                pass
+        return None
+
+    @field_validator("activity_type", mode="before")
+    @classmethod
+    def extract_activity_type(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, dict):
+            return v.get("typeKey") or v.get("typeId") or str(v)
+        return str(v).strip()[:100]
+
+    @field_validator("activity_name", mode="before")
+    @classmethod
+    def validate_activity_name(cls, v):
+        if v is None:
+            return None
+        return str(v).strip()[:200]
+
+    @field_validator("duration_seconds", mode="before")
+    @classmethod
+    def convert_duration(cls, v):
+        if v is None:
+            return None
+        try:
+            val = float(v)
+            if val < 0:
+                return None
+            return int(val)
+        except (ValueError, TypeError):
+            return None
+
+    @field_validator(
+        "distance_meters",
+        "avg_speed_mps",
+        "max_speed_mps",
+        "elevation_gain_meters",
+        "elevation_loss_meters",
+        mode="before",
+    )
+    @classmethod
+    def validate_positive_float(cls, v):
+        if v is None:
+            return None
+        try:
+            val = float(v)
+            if val < 0:
+                return None
+            return val
+        except (ValueError, TypeError):
+            return None
+
+    @field_validator("avg_heart_rate", "max_heart_rate", mode="before")
+    @classmethod
+    def validate_heart_rate(cls, v):
+        if v is None:
+            return None
+        try:
+            hr = int(float(v))
+            if hr < 20 or hr > 300:
+                return None
+            return hr
+        except (ValueError, TypeError):
+            return None
+
+    @field_validator("calories", mode="before")
+    @classmethod
+    def validate_calories(cls, v):
+        if v is None:
+            return None
+        try:
+            cal = int(float(v))
+            if cal < 0:
+                return None
+            return cal
+        except (ValueError, TypeError):
+            return None
+
+    @field_validator("avg_power_watts", "max_power_watts", mode="before")
+    @classmethod
+    def validate_power(cls, v):
+        if v is None:
+            return None
+        try:
+            val = float(v)
+            if val < 0 or val > 3000:
+                return None
+            return val
+        except (ValueError, TypeError):
+            return None
+
+    @field_validator(
+        "training_effect_aerobic", "training_effect_anaerobic", mode="before"
+    )
+    @classmethod
+    def validate_training_effect(cls, v):
+        if v is None:
+            return None
+        try:
+            val = float(v)
+            if val < 0 or val > 5:
+                return None
+            return val
+        except (ValueError, TypeError):
+            return None
+
+    @field_validator("vo2_max_value", mode="before")
+    @classmethod
+    def validate_vo2_max(cls, v):
+        if v is None:
+            return None
+        try:
+            val = float(v)
+            if val < 10 or val > 100:
+                return None
+            return val
+        except (ValueError, TypeError):
+            return None

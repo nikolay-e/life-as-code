@@ -84,6 +84,9 @@ class User(Base):
     garmin_training_status = relationship(
         "GarminTrainingStatus", back_populates="user", cascade="all, delete-orphan"
     )
+    garmin_activities = relationship(
+        "GarminActivity", back_populates="user", cascade="all, delete-orphan"
+    )
 
     def __repr__(self):
         return f"<User(username={self.username})>"
@@ -947,3 +950,73 @@ class GarminTrainingStatus(Base):
 
     def __repr__(self):
         return f"<GarminTrainingStatus(user_id={self.user_id}, date={self.date}, vo2_max={self.vo2_max}, fitness_age={self.fitness_age})>"
+
+
+class GarminActivity(Base):
+    __tablename__ = "garmin_activities"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    activity_id = Column(String(50), nullable=False)
+    date = Column(Date, nullable=False, index=True)
+    start_time = Column(DateTime, nullable=False)
+    activity_type = Column(String(100))
+    activity_name = Column(String(200))
+    duration_seconds = Column(Integer)
+    distance_meters = Column(Float)
+    avg_heart_rate = Column(Integer)
+    max_heart_rate = Column(Integer)
+    calories = Column(Integer)
+    avg_speed_mps = Column(Float)
+    max_speed_mps = Column(Float)
+    elevation_gain_meters = Column(Float)
+    elevation_loss_meters = Column(Float)
+    avg_power_watts = Column(Float)
+    max_power_watts = Column(Float)
+    training_effect_aerobic = Column(Float)
+    training_effect_anaerobic = Column(Float)
+    vo2_max_value = Column(Float)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    user = relationship("User", back_populates="garmin_activities")
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "activity_id", name="_user_garmin_activity_uc"),
+        Index(
+            "idx_garmin_activity_user_date",
+            "user_id",
+            "date",
+            postgresql_ops={"date": "DESC"},
+        ),
+        CheckConstraint(
+            "(duration_seconds >= 0) OR duration_seconds IS NULL",
+            name="valid_garmin_duration",
+        ),
+        CheckConstraint(
+            "(distance_meters >= 0) OR distance_meters IS NULL",
+            name="valid_garmin_distance",
+        ),
+        CheckConstraint(
+            "(avg_heart_rate >= 30 AND avg_heart_rate <= 250) OR avg_heart_rate IS NULL",
+            name="valid_garmin_activity_avg_hr",
+        ),
+        CheckConstraint(
+            "(max_heart_rate >= 40 AND max_heart_rate <= 250) OR max_heart_rate IS NULL",
+            name="valid_garmin_activity_max_hr",
+        ),
+        CheckConstraint(
+            "(calories >= 0) OR calories IS NULL",
+            name="valid_garmin_calories",
+        ),
+        CheckConstraint(
+            "(training_effect_aerobic >= 0 AND training_effect_aerobic <= 5) OR training_effect_aerobic IS NULL",
+            name="valid_garmin_te_aerobic",
+        ),
+        CheckConstraint(
+            "(training_effect_anaerobic >= 0 AND training_effect_anaerobic <= 5) OR training_effect_anaerobic IS NULL",
+            name="valid_garmin_te_anaerobic",
+        ),
+    )
+
+    def __repr__(self):
+        return f"<GarminActivity(user_id={self.user_id}, date={self.date}, type={self.activity_type}, duration={self.duration_seconds}s)>"

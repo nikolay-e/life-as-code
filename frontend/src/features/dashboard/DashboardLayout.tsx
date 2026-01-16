@@ -16,6 +16,7 @@ import {
   Copy,
   Check,
   Loader2,
+  Dumbbell,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { VersionInfo } from "../../components/ui/version-info";
@@ -30,6 +31,12 @@ const navItems = [
     to: "/dashboard/statistics",
     icon: TrendingUp,
     label: "Statistics",
+    end: false,
+  },
+  {
+    to: "/dashboard/trainings",
+    icon: Dumbbell,
+    label: "Trainings",
     end: false,
   },
   {

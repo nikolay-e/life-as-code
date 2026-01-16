@@ -14,6 +14,7 @@ from tenacity import (
 
 from enums import DataSource
 from garmin_schemas import (
+    GarminActivityData,
     GarminHeartRateData,
     GarminHRVData,
     GarminSleepData,
@@ -23,7 +24,16 @@ from garmin_schemas import (
     GarminWeightData,
 )
 from logging_config import get_logger
-from models import HRV, GarminTrainingStatus, HeartRate, Sleep, Steps, Stress, Weight
+from models import (
+    HRV,
+    GarminActivity,
+    GarminTrainingStatus,
+    HeartRate,
+    Sleep,
+    Steps,
+    Stress,
+    Weight,
+)
 from sync_manager import (
     ProviderCredentials,
     batch_sync_data,
@@ -168,6 +178,15 @@ def sync_garmin_data_for_user(
                 "parser_class": GarminTrainingStatusData,
                 "model_class": GarminTrainingStatus,
                 "unique_fields": ["date"],
+                "source": "garmin",
+                "api_args": {"date_range": dr},
+            },
+            {
+                "data_type": "activities",
+                "api_method": "get_activities_data",
+                "parser_class": GarminActivityData,
+                "model_class": GarminActivity,
+                "unique_fields": ["activity_id"],
                 "source": "garmin",
                 "api_args": {"date_range": dr},
             },
@@ -556,6 +575,62 @@ class GarminAPIWrapper:
             return None
 
         return self._fetch_daily(date_range, "training_status", fetch)
+
+    def get_activities_data(self, date_range: tuple) -> list[dict]:
+        """Get activities for date range using get_activities_by_date API."""
+        start_date, end_date = date_range
+        results: list[dict] = []
+
+        try:
+            start_str = start_date.strftime("%Y-%m-%d")
+            end_str = end_date.strftime("%Y-%m-%d")
+
+            activities = self.api.get_activities_by_date(start_str, end_str)
+            if not activities or not isinstance(activities, list):
+                return []
+
+            for activity in activities:
+                if not isinstance(activity, dict):
+                    continue
+
+                activity_data = dict(activity)
+
+                # Extract date from startTimeLocal or startTimeGMT
+                start_time_str = activity.get("startTimeLocal") or activity.get(
+                    "startTimeGMT"
+                )
+                if start_time_str:
+                    try:
+                        if isinstance(start_time_str, str):
+                            start_dt = datetime.datetime.fromisoformat(
+                                start_time_str.replace("Z", "+00:00")
+                            )
+                            activity_data["date"] = start_dt.date()
+                        elif isinstance(start_time_str, (int, float)):
+                            start_dt = datetime.datetime.fromtimestamp(
+                                start_time_str / 1000
+                            )
+                            activity_data["date"] = start_dt.date()
+                    except (ValueError, OSError):
+                        activity_data["date"] = start_date
+
+                results.append(activity_data)
+
+            logger.info(
+                "garmin_activities_fetched",
+                start_date=start_str,
+                end_date=end_str,
+                count=len(results),
+            )
+
+        except Exception as e:
+            logger.warning(
+                "garmin_activities_error",
+                error_type=type(e).__name__,
+                error=str(e),
+            )
+
+        return results
 
 
 if __name__ == "__main__":

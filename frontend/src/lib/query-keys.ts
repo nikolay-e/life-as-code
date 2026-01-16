@@ -3,6 +3,11 @@ export const healthKeys = {
   data: () => [...healthKeys.all, "data"] as const,
   dataRange: (start: string, end: string) =>
     [...healthKeys.data(), start, end] as const,
+  workouts: () => [...healthKeys.all, "workouts"] as const,
+  detailedWorkouts: (start: string, end: string) =>
+    [...healthKeys.workouts(), "detailed", start, end] as const,
+  garminActivities: (start: string, end: string) =>
+    [...healthKeys.all, "garmin", "activities", start, end] as const,
   sync: () => [...healthKeys.all, "sync"] as const,
   syncStatus: () => [...healthKeys.sync(), "status"] as const,
 };
