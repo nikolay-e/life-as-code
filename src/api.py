@@ -4,6 +4,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import pandas as pd
 from flask import Blueprint, jsonify, request
 from flask_login import current_user, login_required, login_user, logout_user
 from sqlalchemy import select
@@ -164,6 +165,10 @@ def api_data_range():
                     result[key] = sanitize_for_json(volume_df.to_dict(orient="records"))
             else:
                 df["date"] = df["date"].astype(str)
+                for col in df.select_dtypes(include=["datetime64[ns]"]).columns:
+                    df[col] = df[col].apply(
+                        lambda x: x.isoformat() if pd.notna(x) else None
+                    )
                 result[key] = sanitize_for_json(df.to_dict(orient="records"))
 
     return jsonify(result)
