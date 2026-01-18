@@ -114,7 +114,10 @@ export function DashboardLayout() {
 
   return (
     <div className="min-h-screen bg-muted/30">
-      <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-lg supports-[backdrop-filter]:bg-background/60">
+      <header
+        className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-lg supports-[backdrop-filter]:bg-background/60"
+        style={{ paddingTop: "env(safe-area-inset-top)" }}
+      >
         <div className="container flex h-16 items-center px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3 mr-8">
             <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-primary/10">
@@ -186,7 +189,10 @@ export function DashboardLayout() {
         </div>
       </main>
 
-      <footer className="border-t bg-background/50">
+      <footer
+        className="border-t bg-background/50"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
         <div className="container flex h-12 items-center justify-center px-4 sm:px-6 lg:px-8">
           <VersionInfo />
         </div>

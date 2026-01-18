@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* iOS Safe Area Support for PWA */
+html {
+  min-height: calc(100% + env(safe-area-inset-top));
+}
+
 @theme {
   /* Base colors */
   --color-background: hsl(0 0% 100%);
