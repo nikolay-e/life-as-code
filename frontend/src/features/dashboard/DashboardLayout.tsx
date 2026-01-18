@@ -85,14 +85,23 @@ export function DashboardLayout() {
       const today = new Date();
       const endDate = format(today, "yyyy-MM-dd");
       const startDate = format(subDays(today, MAX_BASELINE_DAYS), "yyyy-MM-dd");
+      const workoutsStartDate = format(subDays(today, 30), "yyyy-MM-dd");
 
-      const data = await queryClient.fetchQuery({
-        queryKey: healthKeys.dataRange(startDate, endDate),
-        queryFn: () => api.data.getRange(startDate, endDate),
-        staleTime: 60_000,
-      });
+      const [data, detailedWorkouts] = await Promise.all([
+        queryClient.fetchQuery({
+          queryKey: healthKeys.dataRange(startDate, endDate),
+          queryFn: () => api.data.getRange(startDate, endDate),
+          staleTime: 60_000,
+        }),
+        queryClient.fetchQuery({
+          queryKey: healthKeys.detailedWorkouts(workoutsStartDate, endDate),
+          queryFn: () =>
+            api.data.getDetailedWorkouts(workoutsStartDate, endDate),
+          staleTime: 60_000,
+        }),
+      ]);
 
-      const report = formatCombinedReport(data);
+      const report = formatCombinedReport(data, detailedWorkouts);
       if (!report) {
         toast.error("No data to copy");
         setCopyState("idle");

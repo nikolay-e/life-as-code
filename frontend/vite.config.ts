@@ -83,7 +83,7 @@ export default defineConfig({
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2,webmanifest,json}"],
         navigateFallback: "/index.html",
-        navigateFallbackDenylist: [/^\/api\//],
+        navigateFallbackDenylist: [/^\/api\//, /^\/whoop\//],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: false,
@@ -124,6 +124,10 @@ export default defineConfig({
     port: 3000,
     proxy: {
       "/api": {
+        target: "http://localhost:8080",
+        changeOrigin: true,
+      },
+      "/whoop": {
         target: "http://localhost:8080",
         changeOrigin: true,
       },

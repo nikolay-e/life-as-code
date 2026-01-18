@@ -4,6 +4,7 @@ import type {
   WorkoutData,
   WhoopWorkoutData,
   GarminActivityData,
+  WorkoutExerciseDetail,
 } from "../types/api";
 import { formatDuration, formatPaceForReport } from "./formatters";
 import { WHOOP_MAX_STRAIN, DEFAULT_ACTIVITY_NAME } from "./constants";
@@ -135,9 +136,9 @@ function formatDeltaWithYesterday(
   if (delta === null || yesterdayValue === null || yesterdayDate === null) {
     return "";
   }
-  const sign = delta >= 0 ? "▲" : "▼";
+  const deltaStr = `${delta >= 0 ? "+" : ""}${delta.toFixed(decimals)}${suffix}`;
   const dateStr = format(parseISO(yesterdayDate), "MMM d");
-  return ` (${sign} ${delta >= 0 ? "+" : ""}${delta.toFixed(decimals)}${suffix} vs ${dateStr}: ${yesterdayValue.toFixed(decimals)}${suffix})`;
+  return ` (diff: ${deltaStr} vs ${dateStr}: ${yesterdayValue.toFixed(decimals)}${suffix})`;
 }
 
 function formatTodayStatus(
@@ -226,24 +227,24 @@ function formatAlerts(
   lines.push(`## Alerts`);
   lines.push(``);
 
-  const riskIcon =
+  const riskStatus =
     illnessRisk.riskLevel === "high"
-      ? "🔴"
+      ? "[HIGH]"
       : illnessRisk.riskLevel === "moderate"
-        ? "🟡"
-        : "🟢";
+        ? "[MODERATE]"
+        : "[LOW]";
   lines.push(
-    `${riskIcon} Pre-Illness Risk: ${(illnessRisk.riskLevel ?? "N/A").toUpperCase()}`,
+    `${riskStatus} Pre-Illness Risk: ${(illnessRisk.riskLevel ?? "N/A").toUpperCase()}`,
   );
 
-  const decorIcon = decorrelationAlert.isDecorrelated ? "🟡" : "🟢";
+  const decorStatus = decorrelationAlert.isDecorrelated ? "[ALERT]" : "[OK]";
   lines.push(
-    `${decorIcon} HRV-RHR Decorrelation: ${decorrelationAlert.isDecorrelated ? "YES - monitor" : "No"}`,
+    `${decorStatus} HRV-RHR Decorrelation: ${decorrelationAlert.isDecorrelated ? "YES - monitor" : "No"}`,
   );
 
   if (illnessRisk.consecutiveDaysElevated > 0) {
     lines.push(
-      `⚠️ Consecutive Days Elevated: ${String(illnessRisk.consecutiveDaysElevated)}`,
+      `[WARNING] Consecutive Days Elevated: ${String(illnessRisk.consecutiveDaysElevated)}`,
     );
   }
 
@@ -376,7 +377,7 @@ function formatTrendsSummaryTable(
     const trendSlope = recentMetric.baseline.trendSlope;
     const trendStr =
       trendSlope !== null
-        ? `${trendSlope >= 0 ? "▲" : "▼"} ${trendSlope >= 0 ? "+" : ""}${trendSlope.toFixed(2)}/d`
+        ? `${trendSlope >= 0 ? "+" : ""}${trendSlope.toFixed(2)}/d`
         : "N/A";
 
     const pad = (s: string, len: number) => s.padEnd(len);
@@ -669,6 +670,132 @@ function formatWhoopWorkouts(
   return lines;
 }
 
+interface DailyStrengthWorkout {
+  date: string;
+  exercises: WorkoutExerciseDetail[];
+  totalVolume: number;
+  totalSets: number;
+}
+
+function groupWorkoutsByDate(
+  workouts: WorkoutExerciseDetail[],
+): DailyStrengthWorkout[] {
+  const byDate = new Map<string, WorkoutExerciseDetail[]>();
+
+  for (const w of workouts) {
+    const existing = byDate.get(w.date);
+    if (existing) {
+      existing.push(w);
+    } else {
+      byDate.set(w.date, [w]);
+    }
+  }
+
+  return Array.from(byDate.entries())
+    .map(([date, exercises]) => ({
+      date,
+      exercises,
+      totalVolume: exercises.reduce((sum, e) => sum + e.total_volume, 0),
+      totalSets: exercises.reduce((sum, e) => sum + e.total_sets, 0),
+    }))
+    .sort((a, b) => b.date.localeCompare(a.date));
+}
+
+function formatSetInfo(set: {
+  set_index: number;
+  weight_kg: number | null;
+  reps: number | null;
+  rpe: number | null;
+  set_type: string | null;
+}): string {
+  const parts: string[] = [];
+
+  const setNum = set.set_index + 1;
+  const typeLabel =
+    set.set_type && set.set_type !== "normal" ? ` (${set.set_type})` : "";
+  parts.push(`Set ${String(setNum)}${typeLabel}:`);
+
+  if (set.weight_kg !== null && set.weight_kg > 0) {
+    parts.push(`${set.weight_kg.toFixed(1)}kg`);
+  } else {
+    parts.push("bodyweight");
+  }
+
+  if (set.reps !== null) {
+    parts.push(`x ${String(set.reps)} reps`);
+  }
+
+  if (set.rpe !== null) {
+    parts.push(`@ RPE ${set.rpe.toFixed(1)}`);
+  }
+
+  return parts.join(" ");
+}
+
+function formatStrengthWorkoutsWithExercises(
+  detailedWorkouts: WorkoutExerciseDetail[] | null,
+  now: Date,
+): string[] {
+  const lines: string[] = [];
+  lines.push(`## Strength Training (Hevy) - Last 30 Days`);
+  lines.push(``);
+
+  if (!detailedWorkouts || detailedWorkouts.length === 0) {
+    lines.push(`No strength workouts recorded in the last 30 days.`);
+    return lines;
+  }
+
+  const thirtyDaysAgo = new Date(now);
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const filtered = detailedWorkouts.filter((w) => {
+    const wDate = parseISO(w.date);
+    return wDate >= thirtyDaysAgo && wDate <= now;
+  });
+
+  if (filtered.length === 0) {
+    lines.push(`No strength workouts recorded in the last 30 days.`);
+    return lines;
+  }
+
+  const grouped = groupWorkoutsByDate(filtered);
+
+  for (const day of grouped) {
+    const dateStr = format(parseISO(day.date), "MMM d (EEE)");
+    const volumeStr =
+      day.totalVolume >= 1000
+        ? `${(day.totalVolume / 1000).toFixed(1)}t`
+        : `${String(Math.round(day.totalVolume))}kg`;
+
+    lines.push(
+      `### ${dateStr} - ${String(day.exercises.length)} exercises, ${String(day.totalSets)} sets, ${volumeStr} total`,
+    );
+    lines.push(``);
+
+    for (const exercise of day.exercises) {
+      const exerciseVolumeStr =
+        exercise.total_volume >= 1000
+          ? `${(exercise.total_volume / 1000).toFixed(1)}t`
+          : `${String(Math.round(exercise.total_volume))}kg`;
+      const rpeStr =
+        exercise.avg_rpe !== null
+          ? `, avg RPE ${exercise.avg_rpe.toFixed(1)}`
+          : "";
+
+      lines.push(
+        `**${exercise.exercise}** (${String(exercise.total_sets)} sets, ${exerciseVolumeStr}${rpeStr})`,
+      );
+
+      for (const set of exercise.sets) {
+        lines.push(`  - ${formatSetInfo(set)}`);
+      }
+      lines.push(``);
+    }
+  }
+
+  return lines;
+}
+
 function formatStrengthWorkoutsDetailed(
   workouts: WorkoutData[],
   now: Date,
@@ -795,7 +922,10 @@ function formatLastDaysTable(lastDays: DayMetrics[]): string[] {
   return lines;
 }
 
-export function formatCombinedReport(data: HealthData | null): string {
+export function formatCombinedReport(
+  data: HealthData | null,
+  detailedWorkouts?: WorkoutExerciseDetail[] | null,
+): string {
   if (!data) return "";
 
   const now = new Date();
@@ -919,7 +1049,13 @@ export function formatCombinedReport(data: HealthData | null): string {
   sections.push(`# Detailed Training Log`);
   sections.push(``);
 
-  sections.push(...formatStrengthWorkoutsDetailed(data.workouts, now));
+  if (detailedWorkouts && detailedWorkouts.length > 0) {
+    sections.push(
+      ...formatStrengthWorkoutsWithExercises(detailedWorkouts, now),
+    );
+  } else {
+    sections.push(...formatStrengthWorkoutsDetailed(data.workouts, now));
+  }
   sections.push(``);
 
   sections.push(...formatGarminActivities(data.garmin_activity, now));

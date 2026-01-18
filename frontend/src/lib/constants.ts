@@ -19,5 +19,7 @@ export const ACTIVITY_COLORS = {
   strength: "text-blue-500",
   strengthBorder: "border-blue-500/30",
   cardio: "text-orange-500",
+  cardioBorder: "border-orange-500/30",
   activity: "text-green-500",
+  activityBorder: "border-green-500/30",
 } as const;
