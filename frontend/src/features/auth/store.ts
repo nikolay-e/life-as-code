@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { subscribeWithSelector } from "zustand/middleware";
 import { api, ApiError } from "../../lib/api";
 import type { User } from "../../types/api";
 
@@ -7,60 +8,76 @@ interface AuthState {
   isLoading: boolean;
   isInitialized: boolean;
   error: string | null;
+}
 
+interface AuthActions {
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   clearError: () => void;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+type AuthStore = AuthState & AuthActions;
+
+const initialState: AuthState = {
   user: null,
   isLoading: false,
   isInitialized: false,
   error: null,
+};
 
-  login: async (username: string, password: string) => {
-    set({ isLoading: true, error: null });
-    try {
-      const response = await api.auth.login(username, password);
-      set({
-        user: response.user,
-        isLoading: false,
-      });
-    } catch (error) {
-      const message =
-        error instanceof ApiError
-          ? error.message
-          : "Login failed. Please try again.";
-      set({ error: message, isLoading: false });
-      throw error;
-    }
-  },
+export const useAuthStore = create<AuthStore>()(
+  subscribeWithSelector((set) => ({
+    ...initialState,
 
-  logout: async () => {
-    set({ isLoading: true });
-    try {
-      await api.auth.logout();
-    } finally {
-      set({
-        user: null,
-        isLoading: false,
-      });
-    }
-  },
+    login: async (username: string, password: string) => {
+      set({ isLoading: true, error: null });
+      try {
+        const response = await api.auth.login(username, password);
+        set({
+          user: response.user,
+          isLoading: false,
+        });
+      } catch (error) {
+        const message =
+          error instanceof ApiError
+            ? error.message
+            : "Login failed. Please try again.";
+        set({ error: message, isLoading: false });
+        throw error;
+      }
+    },
 
-  checkAuth: async () => {
-    set({ isLoading: true });
-    try {
-      const response = await api.auth.me();
-      set({ user: response.user, isLoading: false, isInitialized: true });
-    } catch {
-      set({ user: null, isLoading: false, isInitialized: true });
-    }
-  },
+    logout: async () => {
+      set({ isLoading: true });
+      try {
+        await api.auth.logout();
+      } finally {
+        set({
+          user: null,
+          isLoading: false,
+        });
+      }
+    },
 
-  clearError: () => {
-    set({ error: null });
-  },
-}));
+    checkAuth: async () => {
+      set({ isLoading: true });
+      try {
+        const response = await api.auth.me();
+        set({ user: response.user, isLoading: false, isInitialized: true });
+      } catch {
+        set({ user: null, isLoading: false, isInitialized: true });
+      }
+    },
+
+    clearError: () => {
+      set({ error: null });
+    },
+  })),
+);
+
+export const useUser = () => useAuthStore((s) => s.user);
+export const useIsAuthenticated = () => useAuthStore((s) => s.user !== null);
+export const useIsLoading = () => useAuthStore((s) => s.isLoading);
+export const useIsInitialized = () => useAuthStore((s) => s.isInitialized);
+export const useAuthError = () => useAuthStore((s) => s.error);
