@@ -64,7 +64,7 @@ def get_version():
 
 
 @api.route("/auth/login", methods=["POST"])
-@limiter.limit("10 per minute")
+@limiter.limit("3000 per hour")
 def api_login():
     data = request.get_json()
     if not data:
@@ -577,7 +577,7 @@ def _handle_sync_request(
 
 @api.route("/sync/garmin", methods=["POST"])
 @login_required
-@limiter.limit("3 per hour")
+@limiter.limit("3000 per hour")
 def api_sync_garmin():
     def get_sync_func():
         from pull_garmin_data import sync_garmin_data_for_user
@@ -589,7 +589,7 @@ def api_sync_garmin():
 
 @api.route("/sync/hevy", methods=["POST"])
 @login_required
-@limiter.limit("3 per hour")
+@limiter.limit("3000 per hour")
 def api_sync_hevy():
     def get_sync_func():
         from pull_hevy_data import sync_hevy_data_for_user
@@ -601,7 +601,7 @@ def api_sync_hevy():
 
 @api.route("/sync/whoop", methods=["POST"])
 @login_required
-@limiter.limit("3 per hour")
+@limiter.limit("3000 per hour")
 def api_sync_whoop():
     def get_sync_func():
         from pull_whoop_data import sync_whoop_data_for_user

@@ -48,7 +48,7 @@ def register_routes(server, limiter):
     """Register Flask routes with the server."""
 
     @server.route("/login", methods=["GET", "POST"])
-    @limiter.limit("10 per minute")
+    @limiter.limit("3000 per hour")
     def login():
         form = LoginForm()
         if form.validate_on_submit():
@@ -145,7 +145,7 @@ def register_routes(server, limiter):
 
     @server.route("/logout")
     @login_required
-    @limiter.limit("5 per minute")
+    @limiter.limit("3000 per hour")
     def logout():
         logout_user()
         return redirect(url_for("login"))
