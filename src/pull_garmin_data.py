@@ -484,6 +484,13 @@ class GarminAPIWrapper:
             # Get training status (includes VO2 max and training load)
             try:
                 training_status = self.api.get_training_status(date_str)
+                logger.debug(
+                    "garmin_training_status_raw",
+                    date=date_str,
+                    response_type=type(training_status).__name__,
+                    is_dict=isinstance(training_status, dict),
+                    is_empty=not training_status,
+                )
                 if training_status and isinstance(training_status, dict):
                     acute_load_dto = self._extract_acute_training_load_dto(
                         training_status
@@ -536,8 +543,13 @@ class GarminAPIWrapper:
                     combined_data["anaerobicTrainingEffect"] = training_status.get(
                         "anaerobicTrainingEffect"
                     )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(
+                    "garmin_training_status_error",
+                    date=date_str,
+                    error=str(e),
+                    error_type=type(e).__name__,
+                )
 
             # Get user summary for calories
             try:
