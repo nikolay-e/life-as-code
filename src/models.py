@@ -360,15 +360,18 @@ class Stress(Base):
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     date = Column(Date, nullable=False, index=True)
-    avg_stress = Column(Float)  # Average stress level for the day
-    max_stress = Column(Float)  # Maximum stress level
-    stress_level = Column(String(20))  # low, medium, high
-    rest_stress = Column(Float)  # Stress during rest periods
-    activity_stress = Column(Float)  # Stress during activity
+    source = Column(String(50), nullable=False, default="garmin")
+    avg_stress = Column(Float)
+    max_stress = Column(Float)
+    stress_level = Column(String(20))
+    rest_stress = Column(Float)
+    activity_stress = Column(Float)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     __table_args__ = (
-        UniqueConstraint("user_id", "date", name="_user_stress_date_uc"),
+        UniqueConstraint(
+            "user_id", "date", "source", name="_user_stress_date_source_uc"
+        ),
         Index(
             "idx_stress_user_date", "user_id", "date", postgresql_ops={"date": "DESC"}
         ),

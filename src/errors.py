@@ -33,6 +33,7 @@ class ErrorCode(str, Enum):
     CREDENTIALS_NOT_FOUND = "credentials-not-found"
 
     DUPLICATE_ENTRY = "duplicate-entry"
+    SYNC_CONFLICT = "sync-conflict"
 
     RATE_LIMIT_EXCEEDED = "rate-limit-exceeded"
 
@@ -105,4 +106,77 @@ class InvalidCredentialsError(APIError):
             category=ErrorCategory.AUTHENTICATION,
             status=401,
             detail="Invalid username or password",
+        )
+
+
+class NotAuthenticatedError(APIError):
+    def __init__(self):
+        super().__init__(
+            code=ErrorCode.NOT_AUTHENTICATED,
+            category=ErrorCategory.AUTHENTICATION,
+            status=401,
+            detail="Not authenticated",
+        )
+
+
+class TokenExpiredError(APIError):
+    def __init__(self, detail: str = "Token has expired"):
+        super().__init__(
+            code=ErrorCode.TOKEN_EXPIRED,
+            category=ErrorCategory.AUTHENTICATION,
+            status=401,
+            detail=detail,
+        )
+
+
+class NotFoundError(APIError):
+    def __init__(self, resource: str, identifier: str | None = None):
+        detail = f"{resource} not found"
+        if identifier:
+            detail = f"{resource} '{identifier}' not found"
+        super().__init__(
+            code=ErrorCode.RESOURCE_NOT_FOUND,
+            category=ErrorCategory.NOT_FOUND,
+            status=404,
+            detail=detail,
+            extra=(
+                {"resource": resource, "identifier": identifier}
+                if identifier
+                else {"resource": resource}
+            ),
+        )
+
+
+class ConflictError(APIError):
+    def __init__(self, detail: str, **extra):
+        super().__init__(
+            code=ErrorCode.SYNC_CONFLICT,
+            category=ErrorCategory.CONFLICT,
+            status=409,
+            detail=detail,
+            extra=extra,
+        )
+
+
+class CredentialsNotFoundError(APIError):
+    def __init__(self, detail: str, provider: str | None = None):
+        extra = {"provider": provider} if provider else {}
+        super().__init__(
+            code=ErrorCode.CREDENTIALS_NOT_FOUND,
+            category=ErrorCategory.NOT_FOUND,
+            status=404,
+            detail=detail,
+            extra=extra,
+        )
+
+
+class CredentialsDecryptionError(APIError):
+    def __init__(self, detail: str, provider: str | None = None):
+        extra = {"provider": provider} if provider else {}
+        super().__init__(
+            code=ErrorCode.INTERNAL_ERROR,
+            category=ErrorCategory.INTERNAL,
+            status=500,
+            detail=detail,
+            extra=extra,
         )

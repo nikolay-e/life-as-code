@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from database import bulk_upsert_records, get_db_session_context
 from enums import DataSource, SyncStatus
+from errors import CredentialsDecryptionError, CredentialsNotFoundError
 from logging_config import get_logger
 from models import Base, DataSync
 from security import decrypt_data_for_user
@@ -45,36 +46,54 @@ def get_sync_date_range(
     return SyncDateRange(start_date=start_date, end_date=end_date, sync_type=sync_type)
 
 
-def get_provider_credentials(
-    user_id: int, provider: DataSource
-) -> ProviderCredentials | dict[str, str]:
-    try:
-        creds = get_user_credentials(user_id)
-        if not creds:
-            return {"error": f"No credentials found for user {user_id}"}
+def get_provider_credentials(user_id: int, provider: DataSource) -> ProviderCredentials:
+    creds = get_user_credentials(user_id)
+    if not creds:
+        raise CredentialsNotFoundError(
+            f"No credentials found for user {user_id}", provider=provider.value
+        )
 
-        if provider == DataSource.GARMIN:
-            if not creds.garmin_email:
-                return {"error": "No Garmin credentials found for user"}
+    provider_name = provider.value
+
+    if provider == DataSource.GARMIN:
+        if not creds.garmin_email:
+            raise CredentialsNotFoundError(
+                "No Garmin credentials found for user", provider=provider_name
+            )
+        try:
             return ProviderCredentials(
                 garmin_email=creds.garmin_email,
                 garmin_password=decrypt_data_for_user(
                     creds.encrypted_garmin_password, user_id
                 ),
             )
+        except Exception as e:
+            raise CredentialsDecryptionError(
+                f"Failed to decrypt Garmin credentials: {e}", provider=provider_name
+            ) from e
 
-        elif provider == DataSource.HEVY:
-            if not creds.encrypted_hevy_api_key:
-                return {"error": "No Hevy API key found for user"}
+    if provider == DataSource.HEVY:
+        if not creds.encrypted_hevy_api_key:
+            raise CredentialsNotFoundError(
+                "No Hevy API key found for user", provider=provider_name
+            )
+        try:
             return ProviderCredentials(
                 hevy_api_key=decrypt_data_for_user(
                     creds.encrypted_hevy_api_key, user_id
                 ),
             )
+        except Exception as e:
+            raise CredentialsDecryptionError(
+                f"Failed to decrypt Hevy credentials: {e}", provider=provider_name
+            ) from e
 
-        elif provider == DataSource.WHOOP:
-            if not creds.encrypted_whoop_access_token:
-                return {"error": "No Whoop credentials found for user"}
+    if provider == DataSource.WHOOP:
+        if not creds.encrypted_whoop_access_token:
+            raise CredentialsNotFoundError(
+                "No Whoop credentials found for user", provider=provider_name
+            )
+        try:
             return ProviderCredentials(
                 whoop_access_token=decrypt_data_for_user(
                     creds.encrypted_whoop_access_token, user_id
@@ -83,11 +102,14 @@ def get_provider_credentials(
                     creds.encrypted_whoop_refresh_token, user_id
                 ),
             )
+        except Exception as e:
+            raise CredentialsDecryptionError(
+                f"Failed to decrypt Whoop credentials: {e}", provider=provider_name
+            ) from e
 
-        return {"error": f"Unknown provider: {provider}"}
-
-    except Exception as e:
-        return {"error": f"Failed to get user credentials: {str(e)}"}
+    raise CredentialsNotFoundError(
+        f"Unknown provider: {provider}", provider=provider_name
+    )
 
 
 _sync_locks: dict[tuple[int, str], threading.Lock] = {}
@@ -168,64 +190,42 @@ class SyncResult:
         }
 
 
+class UpsertResult:
+    CREATED = "created"
+    UPDATED = "updated"
+    SKIPPED = "skipped"
+
+
 def upsert_data(
     db: Session,
     model_class: type[Base],
     data_instance: BaseModel | dict,
     unique_fields: list[str],
     user_id: int,
-    sync_result: SyncResult,
-) -> bool:
-    """
-    Generic upsert function for database models.
+) -> tuple[str, str | None]:
+    if isinstance(data_instance, BaseModel):
+        data_dict = data_instance.model_dump(exclude_none=True)
+    else:
+        data_dict = data_instance.copy()
 
-    Args:
-        db: Database session
-        model_class: SQLAlchemy model class
-        data_instance: Pydantic model or dict with data
-        unique_fields: List of field names that make the record unique
-        user_id: User ID for the record
-        sync_result: SyncResult object to track progress
+    data_dict["user_id"] = user_id
 
-    Returns:
-        bool: True if record was created, False if updated
-    """
-    try:
-        # Convert Pydantic model to dict if necessary
-        if isinstance(data_instance, BaseModel):
-            data_dict = data_instance.model_dump(exclude_none=True)
-        else:
-            data_dict = data_instance.copy()
+    query = select(model_class).where(model_class.user_id == user_id)
+    for field in unique_fields:
+        if field in data_dict:
+            query = query.where(getattr(model_class, field) == data_dict[field])
 
-        # Add user_id to the data
-        data_dict["user_id"] = user_id
+    existing = db.scalars(query).first()
 
-        # Build query to find existing record
-        query = select(model_class).where(model_class.user_id == user_id)
-        for field in unique_fields:
-            if field in data_dict:
-                query = query.where(getattr(model_class, field) == data_dict[field])
+    if existing:
+        for key, value in data_dict.items():
+            if hasattr(existing, key) and value is not None:
+                setattr(existing, key, value)
+        return UpsertResult.UPDATED, None
 
-        existing = db.scalars(query).first()
-
-        if existing:
-            # Update existing record
-            for key, value in data_dict.items():
-                if hasattr(existing, key) and value is not None:
-                    setattr(existing, key, value)
-            sync_result.records_updated += 1
-            return False
-        else:
-            # Create new record
-            new_record = model_class(**data_dict)
-            db.add(new_record)
-            sync_result.records_created += 1
-            return True
-
-    except Exception as e:
-        sync_result.add_error(f"Error upserting {model_class.__name__}: {str(e)}")
-        sync_result.records_skipped += 1
-        return False
+    new_record = model_class(**data_dict)
+    db.add(new_record)
+    return UpsertResult.CREATED, None
 
 
 def extract_and_parse(
@@ -312,8 +312,14 @@ def extract_and_parse(
         try:
             with get_db_session_context() as db:
                 update_sync_status(db, user_id, source, data_type, sync_result)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(
+                "sync_status_update_after_fatal_error",
+                user_id=user_id,
+                source=source,
+                data_type=data_type,
+                error=str(e),
+            )
 
     finally:
         lock.release()

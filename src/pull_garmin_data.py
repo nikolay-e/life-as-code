@@ -13,6 +13,7 @@ from tenacity import (
 )
 
 from enums import DataSource
+from errors import CredentialsDecryptionError, CredentialsNotFoundError
 from garmin_schemas import (
     GarminActivityData,
     GarminHeartRateData,
@@ -35,7 +36,6 @@ from models import (
     Weight,
 )
 from sync_manager import (
-    ProviderCredentials,
     batch_sync_data,
     get_provider_credentials,
     get_sync_date_range,
@@ -98,10 +98,11 @@ GARMIN_MAX_RETRIES = 3
 def sync_garmin_data_for_user(
     user_id: int, days: int = 90, full_sync: bool = False
 ) -> dict:
-    creds = get_provider_credentials(user_id, DataSource.GARMIN)
-    if isinstance(creds, dict):
-        return creds
-    assert isinstance(creds, ProviderCredentials)
+    try:
+        creds = get_provider_credentials(user_id, DataSource.GARMIN)
+    except (CredentialsNotFoundError, CredentialsDecryptionError) as e:
+        logger.error("garmin_credentials_error", user_id=user_id, error=str(e))
+        return {"error": str(e), "user_id": user_id}
 
     try:
         api = init_api(creds.garmin_email, creds.garmin_password, user_id)
@@ -361,8 +362,13 @@ class GarminAPIWrapper:
                     }
                     if result["totalSteps"] is not None:
                         return result
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(
+                    "garmin_user_summary_steps_error",
+                    date=date_str,
+                    error=str(e),
+                    error_type=type(e).__name__,
+                )
 
             # Fallback to get_steps_data and aggregate hourly buckets
             steps_data = self.api.get_steps_data(date_str)
@@ -617,8 +623,13 @@ class GarminAPIWrapper:
                     combined_data["enduranceScore"] = endurance.get(
                         "overallScore"
                     ) or endurance.get("enduranceScore")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(
+                    "garmin_endurance_score_error",
+                    date=date_str,
+                    error=str(e),
+                    error_type=type(e).__name__,
+                )
 
             # Try to get training readiness score
             try:
@@ -638,8 +649,13 @@ class GarminAPIWrapper:
                         )
                     elif isinstance(readiness, dict):
                         combined_data["trainingReadinessScore"] = readiness.get("score")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(
+                    "garmin_training_readiness_error",
+                    date=date_str,
+                    error=str(e),
+                    error_type=type(e).__name__,
+                )
 
             # Only return if we have at least some meaningful data
             meaningful_keys = [

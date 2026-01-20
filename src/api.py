@@ -20,8 +20,10 @@ from date_utils import parse_date_string
 from enums import DataSource, SyncStatus
 from errors import (
     APIError,
+    ConflictError,
     InvalidCredentialsError,
     InvalidDateFormatError,
+    NotAuthenticatedError,
     ValidationError,
 )
 from limiter import limiter
@@ -112,16 +114,16 @@ def api_logout():
 
 @api.route("/auth/me", methods=["GET"])
 def api_me():
-    if current_user.is_authenticated:
-        return jsonify(
-            {
-                "user": {
-                    "id": current_user.id,
-                    "username": current_user.username,
-                }
+    if not current_user.is_authenticated:
+        raise NotAuthenticatedError()
+    return jsonify(
+        {
+            "user": {
+                "id": current_user.id,
+                "username": current_user.username,
             }
-        )
-    return jsonify({"message": "Not authenticated"}), 401
+        }
+    )
 
 
 def sanitize_for_json(records: list[dict]) -> list[dict]:
@@ -539,11 +541,13 @@ def _handle_sync_request(
     source_name: str,
     sync_func_getter: Callable[[], Callable[..., dict[str, Any] | None]],
 ):
-    """Common handler for sync routes."""
     user_id = current_user.id
 
     if is_sync_in_progress(user_id, source):
-        return jsonify({"error": f"{source_name} sync already in progress"}), 409
+        raise ConflictError(
+            f"{source_name} sync already in progress",
+            source=source_name.lower(),
+        )
 
     days = request.args.get("days", type=int)
     full_sync = request.args.get("full", "").lower() == "true"

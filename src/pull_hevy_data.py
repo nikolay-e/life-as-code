@@ -13,11 +13,11 @@ from tenacity import (
 
 from date_utils import parse_iso_date
 from enums import DataSource, DataType
+from errors import CredentialsDecryptionError, CredentialsNotFoundError
 from http_client import RateLimitError
 from logging_config import get_logger
 from models import WorkoutSet
 from sync_manager import (
-    ProviderCredentials,
     extract_and_parse,
     get_provider_credentials,
     get_sync_date_range,
@@ -205,10 +205,11 @@ class HevyAPIClient:
 def sync_hevy_data_for_user(
     user_id: int, days: int = 90, full_sync: bool = False
 ) -> dict:
-    creds = get_provider_credentials(user_id, DataSource.HEVY)
-    if isinstance(creds, dict):
-        return creds
-    assert isinstance(creds, ProviderCredentials)
+    try:
+        creds = get_provider_credentials(user_id, DataSource.HEVY)
+    except (CredentialsNotFoundError, CredentialsDecryptionError) as e:
+        logger.error("hevy_credentials_error", user_id=user_id, error=str(e))
+        return {"error": str(e), "user_id": user_id}
 
     try:
         api_client = HevyAPIClient(creds.hevy_api_key)

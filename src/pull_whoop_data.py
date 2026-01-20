@@ -17,13 +17,14 @@ from tenacity import (
 from database import get_db_session_context
 from date_utils import parse_iso_date
 from enums import DataSource, DataType
+from errors import CredentialsDecryptionError, CredentialsNotFoundError
 from http_client import AuthenticationError, RateLimitError
 from logging_config import get_logger
 from models import UserCredentials, WhoopCycle, WhoopRecovery, WhoopSleep, WhoopWorkout
 from security import encrypt_data_for_user
 from sync_manager import (
-    ProviderCredentials,
     SyncResult,
+    UpsertResult,
     get_provider_credentials,
     get_sync_date_range,
     upsert_data,
@@ -394,6 +395,10 @@ def _sync_whoop_data_type(
         get_data = getattr(client, config.get_data_method)
         raw_data = get_data(start_date, end_date)
 
+        local_created = 0
+        local_updated = 0
+        local_skipped = 0
+
         with get_db_session_context() as db:
             for item in raw_data:
                 try:
@@ -405,7 +410,7 @@ def _sync_whoop_data_type(
                         parsed = config.parser_class.from_whoop_response(item)
 
                     if not parsed:
-                        sync_result.records_skipped += 1
+                        local_skipped += 1
                         continue
 
                     data_dict = {
@@ -414,22 +419,32 @@ def _sync_whoop_data_type(
                         **parsed.model_dump(),
                     }
 
-                    upsert_data(
+                    result, error = upsert_data(
                         db,
                         config.model_class,
                         data_dict,
                         config.unique_fields,
                         user_id,
-                        sync_result,
                     )
+                    if result == UpsertResult.CREATED:
+                        local_created += 1
+                    elif result == UpsertResult.UPDATED:
+                        local_updated += 1
+                    else:
+                        local_skipped += 1
+                        if error:
+                            sync_result.add_error(error)
 
                 except Exception as e:
                     sync_result.add_error(
                         f"Error processing {config.data_type}: {str(e)}"
                     )
-                    sync_result.records_skipped += 1
+                    local_skipped += 1
 
             db.commit()
+            sync_result.records_created = local_created
+            sync_result.records_updated = local_updated
+            sync_result.records_skipped = local_skipped
             sync_result.success = True
 
     except Exception as e:
@@ -441,10 +456,11 @@ def _sync_whoop_data_type(
 def sync_whoop_data_for_user(
     user_id: int, days: int = 90, full_sync: bool = False
 ) -> dict[str, Any]:
-    creds = get_provider_credentials(user_id, DataSource.WHOOP)
-    if isinstance(creds, dict):
-        return creds
-    assert isinstance(creds, ProviderCredentials)
+    try:
+        creds = get_provider_credentials(user_id, DataSource.WHOOP)
+    except (CredentialsNotFoundError, CredentialsDecryptionError) as e:
+        logger.error("whoop_credentials_error", user_id=user_id, error=str(e))
+        return {"error": str(e), "user_id": user_id}
 
     try:
         client = WhoopAPIClient(
@@ -499,10 +515,11 @@ def sync_whoop_data_for_user(
 
 
 def refresh_whoop_token_for_user(user_id: int) -> bool:
-    creds = get_provider_credentials(user_id, DataSource.WHOOP)
-    if isinstance(creds, dict):
+    try:
+        creds = get_provider_credentials(user_id, DataSource.WHOOP)
+    except (CredentialsNotFoundError, CredentialsDecryptionError) as e:
+        logger.error("whoop_credentials_error", user_id=user_id, error=str(e))
         return False
-    assert isinstance(creds, ProviderCredentials)
 
     try:
         client = WhoopAPIClient(

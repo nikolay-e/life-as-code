@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { api } from "../lib/api";
 import { format, subDays, differenceInDays, parseISO } from "date-fns";
 import { healthKeys, settingsKeys } from "../lib/query-keys";
@@ -8,7 +8,7 @@ import {
   SYNC_REFETCH_INTERVAL,
   DEFAULT_SYNC_DAYS,
 } from "../lib/constants";
-import type { SyncStatus } from "../types/api";
+import type { SyncStatus, CredentialsStatus } from "../types/api";
 
 export function useHealthData(
   days: number = 90,
@@ -77,6 +77,13 @@ function isSyncInProgress(
   );
 }
 
+function getCredentialsFingerprint(
+  credentials: CredentialsStatus | undefined,
+): string | null {
+  if (!credentials) return null;
+  return `${String(credentials.garmin_configured)}-${String(credentials.hevy_configured)}-${String(credentials.whoop_configured)}`;
+}
+
 export function useAutoSync() {
   const queryClient = useQueryClient();
   const [syncingProviders, setSyncingProviders] = useState<Set<SyncSource>>(
@@ -84,6 +91,7 @@ export function useAutoSync() {
   );
   const hasTriggeredRef = useRef(false);
   const syncInFlightRef = useRef<Set<SyncSource>>(new Set());
+  const prevCredentialsFingerprintRef = useRef<string | null>(null);
 
   const { data: syncStatus } = useSyncStatus();
   const { data: credentials } = useQuery({
@@ -91,11 +99,30 @@ export function useAutoSync() {
     queryFn: api.settings.getCredentials,
   });
 
+  const credentialsFingerprint = useMemo(
+    () => getCredentialsFingerprint(credentials),
+    [credentials],
+  );
+
+  useEffect(() => {
+    if (
+      credentialsFingerprint &&
+      prevCredentialsFingerprintRef.current !== null &&
+      prevCredentialsFingerprintRef.current !== credentialsFingerprint
+    ) {
+      hasTriggeredRef.current = false;
+    }
+    prevCredentialsFingerprintRef.current = credentialsFingerprint;
+  }, [credentialsFingerprint]);
+
   const triggerSync = useCallback(
     async (source: SyncSource, days: number) => {
       if (syncInFlightRef.current.has(source)) return;
       syncInFlightRef.current.add(source);
       setSyncingProviders((prev) => new Set(prev).add(source));
+
+      const syncEndDate = format(new Date(), "yyyy-MM-dd");
+      const syncStartDate = format(subDays(new Date(), days), "yyyy-MM-dd");
 
       try {
         const syncFnMap = {
@@ -109,8 +136,8 @@ export function useAutoSync() {
         void queryClient.invalidateQueries({
           queryKey: healthKeys.syncStatus(),
         });
-      } catch {
-        // Sync errors are handled by the backend
+      } catch (error) {
+        console.error(`Auto-sync failed for ${source}:`, error);
       } finally {
         syncInFlightRef.current.delete(source);
         setSyncingProviders((prev) => {
@@ -118,7 +145,20 @@ export function useAutoSync() {
           next.delete(source);
           return next;
         });
-        void queryClient.invalidateQueries({ queryKey: healthKeys.data() });
+        void queryClient.invalidateQueries({
+          predicate: (query) => {
+            const key = query.queryKey;
+            if (key[0] !== "health" || key[1] !== "data") return false;
+            if (key.length < 4) return true;
+            const [, , queryStart, queryEnd] = key as [
+              string,
+              string,
+              string,
+              string,
+            ];
+            return queryStart <= syncEndDate && queryEnd >= syncStartDate;
+          },
+        });
       }
     },
     [queryClient],
