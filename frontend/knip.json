@@ -12,7 +12,10 @@
     "src/hooks/useSettings.ts",
     "src/lib/health-metrics.ts",
     "src/lib/data-fusion.ts",
-    "src/lib/metrics/**"
+    "src/lib/metrics/**",
+    "src/lib/error-mapping.ts",
+    "src/lib/logger.ts",
+    "src/features/auth/store.ts"
   ],
   "ignoreExportsUsedInFile": true
 }

@@ -35,7 +35,7 @@ function isValidLogLevel(level: unknown): level is LogLevel {
 
 function detectEnvironment(): { isDev: boolean; logLevel: LogLevel } {
   const env = import.meta.env;
-  const isDev = env.DEV === true || env.MODE === "development";
+  const isDev = env.DEV || env.MODE === "development";
   const envLevel: unknown = env.VITE_LOG_LEVEL;
   if (isValidLogLevel(envLevel)) {
     return { isDev, logLevel: envLevel };
