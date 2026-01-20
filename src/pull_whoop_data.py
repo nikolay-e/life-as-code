@@ -498,6 +498,22 @@ def sync_whoop_data_for_user(
         return {"error": str(e), "user_id": user_id}
 
 
+def refresh_whoop_token_for_user(user_id: int) -> bool:
+    creds = get_provider_credentials(user_id, DataSource.WHOOP)
+    if isinstance(creds, dict):
+        return False
+    assert isinstance(creds, ProviderCredentials)
+
+    try:
+        client = WhoopAPIClient(
+            creds.whoop_access_token, creds.whoop_refresh_token, user_id
+        )
+        return client._refresh_access_token()
+    except Exception as e:
+        logger.error("whoop_token_refresh_failed", user_id=user_id, error=str(e))
+        return False
+
+
 if __name__ == "__main__":
     import sys
 

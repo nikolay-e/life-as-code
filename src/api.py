@@ -27,6 +27,7 @@ from errors import (
 from limiter import limiter
 from logging_config import get_logger
 from models import DataSync, User, UserSettings
+from pull_whoop_data import refresh_whoop_token_for_user
 from routes import UserModel
 from security import verify_password
 from settings import get_settings
@@ -360,11 +361,20 @@ def api_get_credentials():
 
     whoop_has_token = bool(creds and creds.encrypted_whoop_access_token)
     whoop_token_expired = False
+
     if whoop_has_token and creds.whoop_token_expires_at:
         expires_at = creds.whoop_token_expires_at
         if expires_at.tzinfo is None:
             expires_at = expires_at.replace(tzinfo=UTC)
         whoop_token_expired = expires_at < datetime.now(UTC)
+
+        if whoop_token_expired and creds.encrypted_whoop_refresh_token:
+            logger.info("whoop_token_expired_refreshing", user_id=current_user.id)
+            if refresh_whoop_token_for_user(current_user.id):
+                whoop_token_expired = False
+                logger.info(
+                    "whoop_token_refreshed_proactively", user_id=current_user.id
+                )
 
     return jsonify(
         {
