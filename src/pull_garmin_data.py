@@ -512,11 +512,7 @@ class GarminAPIWrapper:
                         ),
                         has_keys=list(training_status.keys())[:15],
                     )
-                    combined_data["vo2MaxValue"] = training_status.get("vo2MaxValue")
-                    combined_data["vo2MaxPreciseValue"] = training_status.get(
-                        "vo2MaxPreciseValue"
-                    )
-                    combined_data["fitnessAge"] = training_status.get("fitnessAge")
+                    # Training status only - vo2Max and fitnessAge come from separate APIs
                     combined_data["trainingStatusLabel"] = training_status.get(
                         "trainingStatusLabel"
                     )
@@ -551,6 +547,51 @@ class GarminAPIWrapper:
                     error_type=type(e).__name__,
                 )
 
+            # Get max metrics (VO2 max)
+            try:
+                max_metrics = self.api.get_max_metrics(date_str)
+                if max_metrics and isinstance(max_metrics, dict):
+                    generic = max_metrics.get("generic")
+                    if generic and isinstance(generic, dict):
+                        combined_data["vo2MaxValue"] = self._safe_float(
+                            generic.get("vo2MaxValue")
+                        )
+                        combined_data["vo2MaxPreciseValue"] = self._safe_float(
+                            generic.get("vo2MaxPreciseValue")
+                        )
+                    logger.debug(
+                        "garmin_max_metrics_response",
+                        date=date_str,
+                        vo2_max=combined_data.get("vo2MaxValue"),
+                    )
+            except Exception as e:
+                logger.warning(
+                    "garmin_max_metrics_error",
+                    date=date_str,
+                    error=str(e),
+                    error_type=type(e).__name__,
+                )
+
+            # Get fitness age
+            try:
+                fitnessage = self.api.get_fitnessage_data(date_str)
+                if fitnessage and isinstance(fitnessage, dict):
+                    combined_data["fitnessAge"] = self._safe_int(
+                        fitnessage.get("fitnessAge")
+                    )
+                    logger.debug(
+                        "garmin_fitnessage_response",
+                        date=date_str,
+                        fitness_age=combined_data.get("fitnessAge"),
+                    )
+            except Exception as e:
+                logger.warning(
+                    "garmin_fitnessage_error",
+                    date=date_str,
+                    error=str(e),
+                    error_type=type(e).__name__,
+                )
+
             # Get user summary for calories
             try:
                 summary = self.api.get_user_summary(date_str)
@@ -561,8 +602,13 @@ class GarminAPIWrapper:
                     combined_data["activeKilocalories"] = self._safe_float(
                         summary.get("activeKilocalories")
                     )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(
+                    "garmin_user_summary_error",
+                    date=date_str,
+                    error=str(e),
+                    error_type=type(e).__name__,
+                )
 
             # Try to get endurance score
             try:
