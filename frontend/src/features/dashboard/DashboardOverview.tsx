@@ -15,7 +15,7 @@ import { WeightChart } from "../../components/charts/WeightChart";
 import { HeartRateChart } from "../../components/charts/HeartRateChart";
 import { StepsChart } from "../../components/charts/StepsChart";
 import { RecoveryChart } from "../../components/charts/RecoveryChart";
-import { StressChart } from "../../components/charts/StressChart";
+import { TrainingLoadChart } from "../../components/charts/TrainingLoadChart";
 import { CaloriesChart } from "../../components/charts/CaloriesChart";
 import { ChartCard } from "../../components/charts/ChartCard";
 import { format, subDays, differenceInDays, parseISO } from "date-fns";
@@ -23,7 +23,7 @@ import {
   Activity,
   RefreshCw,
   Heart,
-  Brain,
+  Zap,
   Calendar,
   Moon,
   Scale,
@@ -362,16 +362,14 @@ export function DashboardOverview() {
         </ChartCard>
 
         <ChartCard
-          title="Stress Levels"
-          icon={Brain}
-          iconColorClass="text-stress"
-          iconBgClass="bg-stress-muted"
+          title="Training Load"
+          icon={Zap}
+          iconColorClass="text-training"
+          iconBgClass="bg-training-muted"
         >
-          <StressChart
-            data={data?.stress ?? []}
-            showTrends
-            bandwidthShort={bandwidthShort}
-            bandwidthLong={bandwidthLong}
+          <TrainingLoadChart
+            whoopData={data?.whoop_cycle ?? []}
+            garminData={data?.garmin_training_status ?? []}
             dateRange={dateRange}
           />
         </ChartCard>
