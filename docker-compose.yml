@@ -46,6 +46,38 @@ services:
         condition: service_started
     restart: unless-stopped
 
+  scheduler:
+    build:
+      context: .
+      args:
+        - VERSION=${VERSION:-dev}
+        - BUILD_DATE=${BUILD_DATE:-$(date -u +"%Y-%m-%dT%H:%M:%SZ")}
+        - VCS_REF=${VCS_REF:-unknown}
+    command: ["python", "src/scheduler.py"]
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-life_as_code_user}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-life_as_code_db}
+      - SECRET_KEY=${SECRET_KEY}
+      - FERNET_KEY=${FERNET_KEY}
+      - GARMIN_EMAIL=${GARMIN_EMAIL:-}
+      - GARMIN_PASSWORD=${GARMIN_PASSWORD:-}
+      - HEVY_API_KEY=${HEVY_API_KEY:-}
+      - WHOOP_CLIENT_ID=${WHOOP_CLIENT_ID:-}
+      - WHOOP_CLIENT_SECRET=${WHOOP_CLIENT_SECRET:-}
+      - SYNC_INTERVAL_HOURS=${SYNC_INTERVAL_HOURS:-4}
+      - SYNC_DAYS=${SYNC_DAYS:-7}
+      - PYTHONUNBUFFERED=1
+      - TZ=UTC
+      - LOG_FORMAT=${LOG_FORMAT:-json}
+    volumes:
+      - ./.garminconnect:/app/.garminconnect
+      - ./logs:/app/logs
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+    restart: unless-stopped
+
   frontend:
     build:
       context: ./frontend

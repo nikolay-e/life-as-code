@@ -133,6 +133,49 @@ def is_sync_in_progress(user_id: int, source: str) -> bool:
     return True
 
 
+def is_sync_recently_active(user_id: int, source: str, stale_minutes: int = 30) -> bool:
+    try:
+        with get_db_session_context() as db:
+            syncs = db.scalars(
+                select(DataSync).where(
+                    DataSync.user_id == user_id,
+                    DataSync.source == source,
+                    DataSync.status == SyncStatus.IN_PROGRESS,
+                )
+            ).all()
+
+            if not syncs:
+                return False
+
+            cutoff = datetime.datetime.utcnow() - datetime.timedelta(
+                minutes=stale_minutes
+            )
+
+            for sync in syncs:
+                if sync.last_sync_timestamp and sync.last_sync_timestamp > cutoff:
+                    return True
+
+                sync.status = SyncStatus.ERROR
+                sync.error_message = "Orphaned sync reset by scheduler"
+                logger.warning(
+                    "sync_orphaned_reset",
+                    user_id=user_id,
+                    source=source,
+                    data_type=sync.data_type,
+                )
+
+            return False
+
+    except Exception as e:
+        logger.error(
+            "is_sync_recently_active_error",
+            user_id=user_id,
+            source=source,
+            error=str(e),
+        )
+        return True
+
+
 class SyncResult:
     def __init__(self, source: str, data_type: str, user_id: int):
         self.source = source
@@ -339,6 +382,7 @@ def _set_sync_in_progress(db: Session, user_id: int, source: str, data_type: str
 
         if existing_sync:
             existing_sync.status = SyncStatus.IN_PROGRESS
+            existing_sync.last_sync_timestamp = datetime.datetime.utcnow()
             existing_sync.error_message = None
         else:
             new_sync = DataSync(
@@ -346,6 +390,7 @@ def _set_sync_in_progress(db: Session, user_id: int, source: str, data_type: str
                 source=source,
                 data_type=data_type,
                 status=SyncStatus.IN_PROGRESS,
+                last_sync_timestamp=datetime.datetime.utcnow(),
             )
             db.add(new_sync)
 
