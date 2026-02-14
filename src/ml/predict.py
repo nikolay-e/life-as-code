@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import structlog
 import torch
-from chronos import ChronosPipeline
+from chronos import BaseChronosPipeline, ChronosBoltPipeline
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -14,8 +14,27 @@ from models import Prediction
 logger = structlog.get_logger()
 
 
+BOLT_P10_IDX = 0
+BOLT_P50_IDX = 4
+BOLT_P90_IDX = 8
+
+
+def _extract_quantiles(forecast: torch.Tensor, pipeline, horizon_idx: int):
+    if isinstance(pipeline, ChronosBoltPipeline):
+        quantiles = forecast.numpy()[0]
+        p10 = float(quantiles[BOLT_P10_IDX, horizon_idx])
+        p50 = float(quantiles[BOLT_P50_IDX, horizon_idx])
+        p90 = float(quantiles[BOLT_P90_IDX, horizon_idx])
+    else:
+        samples = forecast.numpy()[0]
+        p10 = float(np.percentile(samples[:, horizon_idx], 10))
+        p50 = float(np.percentile(samples[:, horizon_idx], 50))
+        p90 = float(np.percentile(samples[:, horizon_idx], 90))
+    return p10, p50, p90
+
+
 def generate_forecasts(
-    pipeline: ChronosPipeline,
+    pipeline: BaseChronosPipeline,
     series_by_metric: dict[str, pd.DataFrame],
     config: MLConfig,
     user_id: int,
@@ -37,23 +56,20 @@ def generate_forecasts(
         context = torch.tensor(df["value"].values, dtype=torch.float32).unsqueeze(0)
         max_horizon = max(config.forecast_horizons)
 
-        forecast = pipeline.predict(
-            context,
-            max_horizon,
-            num_samples=100,
-        )
+        predict_kwargs = {"prediction_length": max_horizon}
+        if not isinstance(pipeline, ChronosBoltPipeline):
+            predict_kwargs["num_samples"] = 100
 
-        samples = forecast.numpy()[0]
+        forecast = pipeline.predict(context, **predict_kwargs)
+
         records = []
+        forecast_len = forecast.shape[-1]
 
         for horizon in config.forecast_horizons:
-            if horizon > samples.shape[0]:
+            if horizon > forecast_len:
                 continue
 
-            horizon_samples = samples[horizon - 1, :]
-            p10 = float(np.percentile(horizon_samples, 10))
-            p50 = float(np.percentile(horizon_samples, 50))
-            p90 = float(np.percentile(horizon_samples, 90))
+            p10, p50, p90 = _extract_quantiles(forecast, pipeline, horizon - 1)
 
             records.append(
                 {

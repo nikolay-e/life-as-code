@@ -3,7 +3,7 @@ from pathlib import Path
 import joblib
 import structlog
 import torch
-from chronos import ChronosPipeline
+from chronos import BaseChronosPipeline
 from sklearn.ensemble import IsolationForest
 
 from ml.config import MLConfig
@@ -11,8 +11,8 @@ from ml.config import MLConfig
 logger = structlog.get_logger()
 
 
-def load_chronos(config: MLConfig) -> ChronosPipeline:
-    pipeline = ChronosPipeline.from_pretrained(
+def load_chronos(config: MLConfig) -> BaseChronosPipeline:
+    pipeline = BaseChronosPipeline.from_pretrained(
         config.chronos_base_model,
         device_map="cpu",
         torch_dtype=torch.float32,
@@ -21,15 +21,14 @@ def load_chronos(config: MLConfig) -> ChronosPipeline:
     return pipeline
 
 
-def save_chronos(pipeline: ChronosPipeline, path: Path) -> None:
+def save_chronos(pipeline: BaseChronosPipeline, path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
-    pipeline.model.save_pretrained(path)
-    pipeline.tokenizer.save_pretrained(path)
+    pipeline.inner_model.save_pretrained(path)
     logger.info("chronos_saved", path=str(path))
 
 
-def load_chronos_from_disk(path: Path) -> ChronosPipeline:
-    pipeline = ChronosPipeline.from_pretrained(
+def load_chronos_from_disk(path: Path) -> BaseChronosPipeline:
+    pipeline = BaseChronosPipeline.from_pretrained(
         str(path),
         device_map="cpu",
         torch_dtype=torch.float32,
