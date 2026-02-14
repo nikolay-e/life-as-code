@@ -14,8 +14,11 @@ secrets.json
 *.xls
 response.json
 directory_tree.yaml
+# Personal health data exports (keep scripts tracked)
+data/*
+!data/scripts/
+
 # Ignore json data files but not config files
-data/*.json
 exports/*.json
 
 # HealthKit import/extraction utilities (temporary scripts)
