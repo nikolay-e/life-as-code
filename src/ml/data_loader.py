@@ -52,6 +52,7 @@ def load_metric_series(db: Session, user_id: int, metric: str) -> pd.DataFrame:
 
     df = pd.DataFrame(rows, columns=["date", "value"])
     df["date"] = pd.to_datetime(df["date"])
+    df["value"] = pd.to_numeric(df["value"], errors="coerce")
     df = df.set_index("date").asfreq("D")
     df["value"] = df["value"].interpolate(method="linear", limit=3)
     return df.dropna()
