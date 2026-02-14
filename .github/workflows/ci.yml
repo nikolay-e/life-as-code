@@ -14,6 +14,8 @@ env:
   REGISTRY: ghcr.io
   BACKEND_IMAGE: ghcr.io/${{ github.repository }}/backend
   FRONTEND_IMAGE: ghcr.io/${{ github.repository }}/frontend
+  ML_IMAGE: ghcr.io/${{ github.repository }}/ml
+  BOT_IMAGE: ghcr.io/${{ github.repository }}/bot
 
 jobs:
   precommit:
@@ -96,6 +98,117 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
+          target: web
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            BUILD_DATE=${{ steps.meta.outputs.build_date }}
+            VCS_REF=${{ github.sha }}
+
+  build-ml:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        env:
+          GIT_REF: ${{ github.ref }}
+          GIT_REF_NAME: ${{ github.ref_name }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          SHA_VERSION="main-${GIT_SHA:0:7}"
+          BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          TAGS="${{ env.ML_IMAGE }}:${SHA_VERSION},${{ env.ML_IMAGE }}:latest"
+          if [[ "$GIT_REF" == refs/tags/v* ]]; then
+            TAGS="${TAGS},${{ env.ML_IMAGE }}:${GIT_REF_NAME}"
+          fi
+          {
+            echo "build_date=$BUILD_DATE"
+            echo "tags=$TAGS"
+            echo "version=$SHA_VERSION"
+          } >> "$GITHUB_OUTPUT"
+          echo "Building ML with tags: $TAGS"
+
+      - name: Build and push ML image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          target: ml
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            BUILD_DATE=${{ steps.meta.outputs.build_date }}
+            VCS_REF=${{ github.sha }}
+
+  build-bot:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        env:
+          GIT_REF: ${{ github.ref }}
+          GIT_REF_NAME: ${{ github.ref_name }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          SHA_VERSION="main-${GIT_SHA:0:7}"
+          BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          TAGS="${{ env.BOT_IMAGE }}:${SHA_VERSION},${{ env.BOT_IMAGE }}:latest"
+          if [[ "$GIT_REF" == refs/tags/v* ]]; then
+            TAGS="${TAGS},${{ env.BOT_IMAGE }}:${GIT_REF_NAME}"
+          fi
+          {
+            echo "build_date=$BUILD_DATE"
+            echo "tags=$TAGS"
+            echo "version=$SHA_VERSION"
+          } >> "$GITHUB_OUTPUT"
+          echo "Building Bot with tags: $TAGS"
+
+      - name: Build and push Bot image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          target: bot
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha
