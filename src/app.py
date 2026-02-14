@@ -59,7 +59,7 @@ server.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16MB max request size
 server.config["SESSION_COOKIE_SECURE"] = os.getenv("FLASK_ENV") == "production"
 server.config["SESSION_COOKIE_HTTPONLY"] = True
 server.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-server.config["PERMANENT_SESSION_LIFETIME"] = 1800  # 30 minutes
+server.config["PERMANENT_SESSION_LIFETIME"] = 7200  # 2 hours
 
 # Initialize Flask-Migrate for database migrations
 init_migrate(server)
@@ -101,6 +101,21 @@ login_manager = LoginManager()
 login_manager.init_app(server)
 login_manager.login_view = "login"
 login_manager.login_message = "Please log in to access the dashboard."
+
+
+@login_manager.unauthorized_handler
+def handle_unauthorized():
+    if request.path.startswith("/api/"):
+        return _create_problem_response(
+            error_type="not-authenticated",
+            title="Not Authenticated",
+            status=401,
+            detail="Session expired or not authenticated",
+        )
+    from flask import redirect, url_for
+
+    return redirect(url_for("login"))
+
 
 # Initialize Flask-Limiter for rate limiting
 limiter.init_app(server)

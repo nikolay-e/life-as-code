@@ -37,10 +37,10 @@ function getSourcePriority(source: string): number {
 
 interface AppleHealthData {
   weight: Map<string, number[]>;
-  steps: Map<string, number>;
-  distance: Map<string, number>;
-  activeEnergy: Map<string, number>;
-  basalEnergy: Map<string, number>;
+  steps: Map<string, Map<string, number>>;
+  distance: Map<string, Map<string, number>>;
+  activeEnergy: Map<string, Map<string, number>>;
+  basalEnergy: Map<string, Map<string, number>>;
   hrv: Map<string, number[]>;
   rhr: Map<string, number[]>;
   sleepRecords: SleepRecord[];
@@ -76,7 +76,7 @@ function parseAppleDate(dateStr: string): Date | null {
 }
 
 function getDateString(date: Date): string {
-  return date.toISOString().split("T")[0];
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function getSleepStage(value: string): SleepStage {
@@ -98,10 +98,10 @@ function getSleepStage(value: string): SleepStage {
 export async function parseAppleHealthExport(xmlPath: string): Promise<AppleHealthData> {
   const data: AppleHealthData = {
     weight: new Map(),
-    steps: new Map(),
-    distance: new Map(),
-    activeEnergy: new Map(),
-    basalEnergy: new Map(),
+    steps: new Map(),       // date -> source -> total
+    distance: new Map(),    // date -> source -> total
+    activeEnergy: new Map(),// date -> source -> total
+    basalEnergy: new Map(), // date -> source -> total
     hrv: new Map(),
     rhr: new Map(),
     sleepRecords: [],
@@ -149,7 +149,10 @@ export async function parseAppleHealthExport(xmlPath: string): Promise<AppleHeal
         case HK_TYPES.STEP_COUNT: {
           const steps = Number.parseInt(value, 10);
           if (steps > 0) {
-            data.steps.set(dateKey, (data.steps.get(dateKey) || 0) + steps);
+            const src = sourceName || "Unknown";
+            if (!data.steps.has(dateKey)) data.steps.set(dateKey, new Map());
+            const m = data.steps.get(dateKey)!;
+            m.set(src, (m.get(src) || 0) + steps);
           }
           break;
         }
@@ -159,7 +162,10 @@ export async function parseAppleHealthExport(xmlPath: string): Promise<AppleHeal
           if (unit === "km") meters *= 1000;
           else if (unit === "mi") meters *= 1609.34;
           if (meters > 0) {
-            data.distance.set(dateKey, (data.distance.get(dateKey) || 0) + meters);
+            const src = sourceName || "Unknown";
+            if (!data.distance.has(dateKey)) data.distance.set(dateKey, new Map());
+            const m = data.distance.get(dateKey)!;
+            m.set(src, (m.get(src) || 0) + meters);
           }
           break;
         }
@@ -168,7 +174,10 @@ export async function parseAppleHealthExport(xmlPath: string): Promise<AppleHeal
           let kcal = Number.parseFloat(value);
           if (unit === "kJ") kcal /= 4.184;
           if (kcal > 0) {
-            data.activeEnergy.set(dateKey, (data.activeEnergy.get(dateKey) || 0) + kcal);
+            const src = sourceName || "Unknown";
+            if (!data.activeEnergy.has(dateKey)) data.activeEnergy.set(dateKey, new Map());
+            const m = data.activeEnergy.get(dateKey)!;
+            m.set(src, (m.get(src) || 0) + kcal);
           }
           break;
         }
@@ -177,7 +186,10 @@ export async function parseAppleHealthExport(xmlPath: string): Promise<AppleHeal
           let kcal = Number.parseFloat(value);
           if (unit === "kJ") kcal /= 4.184;
           if (kcal > 0) {
-            data.basalEnergy.set(dateKey, (data.basalEnergy.get(dateKey) || 0) + kcal);
+            const src = sourceName || "Unknown";
+            if (!data.basalEnergy.has(dateKey)) data.basalEnergy.set(dateKey, new Map());
+            const m = data.basalEnergy.get(dateKey)!;
+            m.set(src, (m.get(src) || 0) + kcal);
           }
           break;
         }
@@ -297,6 +309,15 @@ function aggregateSleepData(
   return byDate;
 }
 
+function maxAcrossSources(sourceMap: Map<string, number> | undefined): number {
+  if (!sourceMap || sourceMap.size === 0) return 0;
+  let max = 0;
+  for (const val of sourceMap.values()) {
+    if (val > max) max = val;
+  }
+  return max;
+}
+
 export function aggregateAppleHealthData(data: AppleHealthData): {
   daily: DailyAggregated[];
   sleep: Map<string, SleepData>;
@@ -318,10 +339,10 @@ export function aggregateAppleHealthData(data: AppleHealthData): {
   ]);
 
   for (const date of allDates) {
-    const steps = data.steps.get(date) || 0;
-    const distance = data.distance.get(date) || 0;
-    const activeEnergy = data.activeEnergy.get(date) || 0;
-    const basalEnergy = data.basalEnergy.get(date) || 0;
+    const steps = maxAcrossSources(data.steps.get(date));
+    const distance = maxAcrossSources(data.distance.get(date));
+    const activeEnergy = maxAcrossSources(data.activeEnergy.get(date));
+    const basalEnergy = maxAcrossSources(data.basalEnergy.get(date));
     const totalCalories = Math.round(activeEnergy + basalEnergy);
 
     const weightValues = data.weight.get(date);

@@ -17,7 +17,8 @@ export function nanosToDate(nanos: number): Date {
 }
 
 export function nanosToDateString(nanos: number): string {
-  return nanosToDate(nanos).toISOString().split("T")[0];
+  const d = nanosToDate(nanos);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 export function durationNanosToMinutes(startNanos: number, endNanos: number): number {
@@ -32,7 +33,8 @@ export function parseDurationString(duration: string): number {
 
 // Parse ISO timestamp to date string
 export function isoToDateString(iso: string): string {
-  return new Date(iso).toISOString().split("T")[0];
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 // Safe number parsing

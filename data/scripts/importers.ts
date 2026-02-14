@@ -58,6 +58,7 @@ export async function upsertSteps(
   }
 
   try {
+    await client.query("SAVEPOINT sp");
     const query = `
       INSERT INTO steps (user_id, date, source, total_steps, total_distance, active_minutes, created_at)
       VALUES ($1, $2, $3, $4, $5, $6, NOW())
@@ -83,7 +84,9 @@ export async function upsertSteps(
       result.updated++;
     }
     result.processed++;
+    await client.query("RELEASE SAVEPOINT sp");
   } catch (error) {
+    await client.query("ROLLBACK TO SAVEPOINT sp");
     result.errors.push(`Steps ${data.date}: ${(error as Error).message}`);
   }
 }
@@ -102,6 +105,7 @@ export async function upsertHeartRate(
   }
 
   try {
+    await client.query("SAVEPOINT sp");
     const restingHr = Math.round(data.minHeartRate ?? data.avgHeartRate);
     const maxHr = data.maxHeartRate ? Math.round(data.maxHeartRate) : null;
     const avgHr = Math.round(data.avgHeartRate);
@@ -124,7 +128,9 @@ export async function upsertHeartRate(
       result.updated++;
     }
     result.processed++;
+    await client.query("RELEASE SAVEPOINT sp");
   } catch (error) {
+    await client.query("ROLLBACK TO SAVEPOINT sp");
     result.errors.push(`HeartRate ${data.date}: ${(error as Error).message}`);
   }
 }
@@ -145,6 +151,7 @@ export async function upsertWeight(
   }
 
   try {
+    await client.query("SAVEPOINT sp");
     const query = `
       INSERT INTO weight (user_id, date, source, weight_kg, body_fat_pct, created_at)
       VALUES ($1, $2, $3, $4, $5, NOW())
@@ -162,7 +169,9 @@ export async function upsertWeight(
       result.updated++;
     }
     result.processed++;
+    await client.query("RELEASE SAVEPOINT sp");
   } catch (error) {
+    await client.query("ROLLBACK TO SAVEPOINT sp");
     result.errors.push(`Weight ${date}: ${(error as Error).message}`);
   }
 }
@@ -183,7 +192,7 @@ export async function upsertEnergy(
   }
 
   try {
-    // Insert if no data exists, otherwise take the maximum value
+    await client.query("SAVEPOINT sp");
     const query = `
       INSERT INTO energy (user_id, date, source, active_energy, created_at)
       VALUES ($1, $2, $3, $4, NOW())
@@ -200,7 +209,9 @@ export async function upsertEnergy(
       result.updated++;
     }
     result.processed++;
+    await client.query("RELEASE SAVEPOINT sp");
   } catch (error) {
+    await client.query("ROLLBACK TO SAVEPOINT sp");
     result.errors.push(`Energy ${data.date}: ${(error as Error).message}`);
   }
 }
@@ -219,6 +230,7 @@ export async function upsertSleep(
   }
 
   try {
+    await client.query("SAVEPOINT sp");
     const query = `
       INSERT INTO sleep (
         user_id, date, source,
@@ -261,7 +273,9 @@ export async function upsertSleep(
       result.updated++;
     }
     result.processed++;
+    await client.query("RELEASE SAVEPOINT sp");
   } catch (error) {
+    await client.query("ROLLBACK TO SAVEPOINT sp");
     result.errors.push(`Sleep ${data.date}: ${(error as Error).message}`);
   }
 }

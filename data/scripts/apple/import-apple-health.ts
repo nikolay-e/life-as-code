@@ -77,6 +77,7 @@ async function importHRVData(
     await withTransaction(pool!, async (client) => {
       for (const [date, hrv] of batch) {
         try {
+          await client.query("SAVEPOINT sp");
           const query = `
             INSERT INTO hrv (user_id, date, source, hrv_avg, created_at)
             VALUES ($1, $2, $3, $4, NOW())
@@ -93,7 +94,9 @@ async function importHRVData(
             result.updated++;
           }
           result.processed++;
+          await client.query("RELEASE SAVEPOINT sp");
         } catch (error) {
+          await client.query("ROLLBACK TO SAVEPOINT sp");
           result.errors.push(`HRV ${date}: ${(error as Error).message}`);
         }
       }
@@ -128,6 +131,7 @@ async function importRHRData(
     await withTransaction(pool!, async (client) => {
       for (const [date, rhr] of batch) {
         try {
+          await client.query("SAVEPOINT sp");
           const query = `
             INSERT INTO heart_rate (user_id, date, source, resting_hr, created_at)
             VALUES ($1, $2, $3, $4, NOW())
@@ -144,7 +148,9 @@ async function importRHRData(
             result.updated++;
           }
           result.processed++;
+          await client.query("RELEASE SAVEPOINT sp");
         } catch (error) {
+          await client.query("ROLLBACK TO SAVEPOINT sp");
           result.errors.push(`RHR ${date}: ${(error as Error).message}`);
         }
       }
@@ -172,10 +178,6 @@ async function main(): Promise<void> {
     console.error("Example: DATABASE_URL=postgresql://user:pass@localhost:5432/life_as_code"); // pragma: allowlist secret
     process.exit(1);
   }
-
-  const pool: pg.Pool | null = options.dryRun
-    ? null
-    : new Pool({ connectionString: databaseUrl });
 
   const baseDir = join(process.cwd(), "..", "apple");
   let xmlPath = join(baseDir, options.exportPath);
@@ -215,6 +217,7 @@ async function main(): Promise<void> {
   }
 
   const results: ImportResult[] = [];
+  let pool: pg.Pool | null = null;
 
   try {
     console.log("═══ Parsing Apple Health Export ═══");
@@ -227,6 +230,17 @@ async function main(): Promise<void> {
     console.log(`  HRV records: ${aggregated.hrv.size}`);
     console.log(`  RHR records: ${aggregated.rhr.size}`);
     console.log("");
+
+    pool = options.dryRun
+      ? null
+      : new Pool({
+          connectionString: databaseUrl,
+          keepAlive: true,
+          keepAliveInitialDelayMillis: 5000,
+          max: 3,
+          idleTimeoutMillis: 0,
+          connectionTimeoutMillis: 10000,
+        });
 
     console.log("═══ Importing Daily Metrics ═══");
     const dailyResult = await importDailyMetrics(pool, options.userId, aggregated.daily, options.dryRun, "apple_health");
