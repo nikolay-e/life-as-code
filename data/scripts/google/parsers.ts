@@ -310,7 +310,7 @@ export function parseSleepSegments(dataDir: string): Map<string, SleepData> {
       : null;
 
     const minSpO2 = data.spo2Values.length > 0
-      ? Math.min(...data.spo2Values)
+      ? data.spo2Values.reduce((a, b) => Math.min(a, b), Infinity)
       : null;
 
     const respiratoryRate = data.respirationValues.length > 0

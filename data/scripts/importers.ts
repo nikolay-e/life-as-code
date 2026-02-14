@@ -184,8 +184,6 @@ export async function upsertEnergy(
   result: ImportResult,
   source: string = "garmin"
 ): Promise<void> {
-  // Always insert energy data - 0 calories is valid (rest day)
-  // Only skip if there's truly no activity data at all for this day
   if (data.totalCalories === 0 && data.totalSteps === 0 && data.totalDistance === 0) {
     result.skipped++;
     return;

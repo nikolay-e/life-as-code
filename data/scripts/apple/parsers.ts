@@ -399,7 +399,7 @@ export function aggregateAppleHealthData(data: AppleHealthData): {
 
   for (const [date, values] of data.rhr) {
     if (values.length > 0) {
-      const min = Math.min(...values);
+      const min = values.reduce((a, b) => Math.min(a, b), Infinity);
       rhrByDate.set(date, Math.round(min));
     }
   }

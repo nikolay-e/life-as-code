@@ -92,6 +92,9 @@ if check_db_connection():
     init_db()
     logger.info("Database ready")
     _cleanup_orphaned_syncs()
+    from database import engine
+
+    engine.dispose()
 else:
     logger.error("Database connection failed")
     exit(1)
