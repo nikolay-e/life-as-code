@@ -113,7 +113,7 @@ repos:
     hooks:
       - id: semgrep
         name: semgrep (AST-based security & policy)
-        additional_dependencies: ['setuptools']
+        additional_dependencies: ['setuptools<71']
         args:
           [
             "--config=p/security-audit",

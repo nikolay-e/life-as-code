@@ -142,7 +142,7 @@ def sync_garmin_data_for_user(
                 "api_method": "get_stress_data",
                 "parser_class": GarminStressData,
                 "model_class": Stress,
-                "unique_fields": ["date"],
+                "unique_fields": ["date", "source"],
                 "source": "garmin",
                 "api_args": {"date_range": dr},
             },
