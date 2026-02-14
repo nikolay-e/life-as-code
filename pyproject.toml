@@ -78,6 +78,23 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+ml = [
+    "chronos-forecasting>=2.1.0",
+    "torch>=2.2,<3",
+    "transformers>=4.40",
+    "scikit-learn>=1.5",
+    "scipy>=1.12",
+    "numpy>=1.26",
+]
+agent = [
+    "anthropic>=0.40",
+]
+bot = [
+    "python-telegram-bot[job-scheduler]>=21.0",
+]
+all = [
+    "life-as-code[ml,agent,bot]",
+]
 dev = [
     "pre-commit>=3.5.0",
     "black>=24.1.0",

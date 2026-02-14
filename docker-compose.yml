@@ -2,6 +2,7 @@ services:
   web:
     build:
       context: .
+      target: web
       args:
         - VERSION=${VERSION:-dev}
         - BUILD_DATE=${BUILD_DATE:-$(date -u +"%Y-%m-%dT%H:%M:%SZ")}
@@ -49,6 +50,7 @@ services:
   scheduler:
     build:
       context: .
+      target: web
       args:
         - VERSION=${VERSION:-dev}
         - BUILD_DATE=${BUILD_DATE:-$(date -u +"%Y-%m-%dT%H:%M:%SZ")}
@@ -106,6 +108,71 @@ services:
       retries: 5
     restart: unless-stopped
 
+  ml:
+    build:
+      context: .
+      target: ml
+      args:
+        - VERSION=${VERSION:-dev}
+        - BUILD_DATE=${BUILD_DATE:-$(date -u +"%Y-%m-%dT%H:%M:%SZ")}
+        - VCS_REF=${VCS_REF:-unknown}
+    command: >
+      sh -c "
+        echo '=== Initial training ===' &&
+        python -m ml.run --user-id 1 --train &&
+        echo '=== Daily loop ===' &&
+        while true; do
+          python -m ml.run --user-id 1;
+          sleep 86400;
+        done
+      "
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-life_as_code_user}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-life_as_code_db}
+      - SECRET_KEY=${SECRET_KEY}
+      - FERNET_KEY=${FERNET_KEY}
+      - PYTHONUNBUFFERED=1
+      - TZ=UTC
+    volumes:
+      - ml-models:/app/models
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  bot:
+    build:
+      context: .
+      target: bot
+      args:
+        - VERSION=${VERSION:-dev}
+        - BUILD_DATE=${BUILD_DATE:-$(date -u +"%Y-%m-%dT%H:%M:%SZ")}
+        - VCS_REF=${VCS_REF:-unknown}
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-life_as_code_user}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-life_as_code_db}
+      - SECRET_KEY=${SECRET_KEY}
+      - FERNET_KEY=${FERNET_KEY}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_ALLOWED_USERS=${TELEGRAM_ALLOWED_USERS:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - PYTHONUNBUFFERED=1
+      - TZ=UTC
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
   redis:
     image: redis:7-alpine
     command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
@@ -121,3 +188,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  ml-models:

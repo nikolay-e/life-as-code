@@ -14,6 +14,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
+from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import declarative_base, relationship, validates
 
 from enums import DataSource, SyncStatus, SyncWindow, SyncWindowStatus
@@ -86,6 +87,12 @@ class User(Base):
     )
     garmin_activities = relationship(
         "GarminActivity", back_populates="user", cascade="all, delete-orphan"
+    )
+    predictions = relationship(
+        "Prediction", back_populates="user", cascade="all, delete-orphan"
+    )
+    anomalies = relationship(
+        "Anomaly", back_populates="user", cascade="all, delete-orphan"
     )
 
     def __repr__(self):
@@ -1028,3 +1035,66 @@ class GarminActivity(Base):
 
     def __repr__(self):
         return f"<GarminActivity(user_id={self.user_id}, date={self.date}, type={self.activity_type}, duration={self.duration_seconds}s)>"
+
+
+class Prediction(Base):
+    __tablename__ = "predictions"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    metric = Column(String(50), nullable=False)
+    target_date = Column(Date, nullable=False)
+    horizon_days = Column(Integer, nullable=False)
+    p10 = Column(Float)
+    p50 = Column(Float)
+    p90 = Column(Float)
+    model_version = Column(String(100))
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    user = relationship("User", back_populates="predictions")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "metric",
+            "target_date",
+            "horizon_days",
+            name="_user_prediction_uc",
+        ),
+        Index("idx_prediction_user_metric", "user_id", "metric", "target_date"),
+        CheckConstraint("horizon_days > 0", name="valid_horizon_days"),
+    )
+
+    def __repr__(self):
+        return f"<Prediction(user_id={self.user_id}, metric={self.metric}, date={self.target_date}, p50={self.p50})>"
+
+
+class Anomaly(Base):
+    __tablename__ = "anomalies"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    date = Column(Date, nullable=False, index=True)
+    anomaly_score = Column(Float, nullable=False)
+    contributing_factors = Column(JSON)
+    model_version = Column(String(100))
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    user = relationship("User", back_populates="anomalies")
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "date", name="_user_anomaly_date_uc"),
+        Index(
+            "idx_anomaly_user_date",
+            "user_id",
+            "date",
+            postgresql_ops={"date": "DESC"},
+        ),
+        CheckConstraint(
+            "anomaly_score >= 0 AND anomaly_score <= 1",
+            name="valid_anomaly_score",
+        ),
+    )
+
+    def __repr__(self):
+        return f"<Anomaly(user_id={self.user_id}, date={self.date}, score={self.anomaly_score})>"
