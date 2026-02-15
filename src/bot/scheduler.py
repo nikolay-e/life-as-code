@@ -27,7 +27,7 @@ def schedule_push_notifications(app: Application, config: BotConfig):
 
     job_queue.run_daily(
         _push_daily_briefing,
-        time=time(hour=7, minute=0, tzinfo=tz),
+        time=time(hour=12, minute=0, tzinfo=tz),
         data={"chat_id": chat_id, "user_id": config.db_user_id},
         name="daily_briefing",
     )
