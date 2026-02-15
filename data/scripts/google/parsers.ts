@@ -172,24 +172,30 @@ export function loadFitDataFile(filePath: string): FitDataFile | null {
 }
 
 // Sleep segment aggregation by day
-interface SleepSegment {
-  sleepType: number;
-  startNanos: number;
-  endNanos: number;
-  durationMinutes: number;
+const STAGE_PRIORITY: Record<number, number> = {
+  [SleepStageCode.DEEP]: 5,
+  [SleepStageCode.REM]: 4,
+  [SleepStageCode.LIGHT]: 3,
+  [SleepStageCode.SLEEP]: 2,
+  [SleepStageCode.AWAKE]: 1,
+};
+
+function nanosToMinuteTs(nanos: number): number {
+  return Math.floor(nanos / 1_000_000 / 60_000);
+}
+
+function minuteTsToDateString(minuteTs: number): string {
+  const d = new Date(minuteTs * 60_000);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 export function parseSleepSegments(dataDir: string): Map<string, SleepData> {
-  const sleepByDate = new Map<string, {
-    segments: SleepSegment[];
-    spo2Values: number[];
-    respirationValues: number[];
-  }>();
-
-  // Find all sleep segment files
   const files = readdirSync(dataDir).filter(f =>
     f.includes("sleep.segment") && f.endsWith(".json")
   );
+
+  const timeline = new Map<number, number>();
+  const sleepDates = new Set<string>();
 
   for (const file of files) {
     const filePath = join(dataDir, file);
@@ -200,33 +206,31 @@ export function parseSleepSegments(dataDir: string): Map<string, SleepData> {
       if (point.dataTypeName !== "com.google.sleep.segment") continue;
 
       const sleepType = point.fitValue?.[0]?.value?.intVal;
-      if (sleepType === undefined) continue;
+      if (sleepType === undefined || STAGE_PRIORITY[sleepType] === undefined) continue;
 
-      // Validate time range
       if (point.endTimeNanos <= point.startTimeNanos) continue;
 
       const durationMinutes = durationNanosToMinutes(point.startTimeNanos, point.endTimeNanos);
-
-      // Skip unreasonably long segments (> 24 hours)
       if (durationMinutes > 24 * 60) continue;
 
-      // Use end time date for grouping (sleep ends on that day)
-      const date = nanosToDateString(point.endTimeNanos);
+      const startMinute = nanosToMinuteTs(point.startTimeNanos);
+      const endMinute = nanosToMinuteTs(point.endTimeNanos);
 
-      if (!sleepByDate.has(date)) {
-        sleepByDate.set(date, { segments: [], spo2Values: [], respirationValues: [] });
+      for (let m = startMinute; m < endMinute; m++) {
+        const existing = timeline.get(m);
+        if (existing === undefined || STAGE_PRIORITY[sleepType] > STAGE_PRIORITY[existing]) {
+          timeline.set(m, sleepType);
+        }
       }
 
-      sleepByDate.get(date)!.segments.push({
-        sleepType,
-        startNanos: point.startTimeNanos,
-        endNanos: point.endTimeNanos,
-        durationMinutes,
-      });
+      sleepDates.add(nanosToDateString(point.endTimeNanos));
     }
   }
 
-  // Load SpO2 and respiration data
+  // Load SpO2 and respiration data keyed by date
+  const spo2ByDate = new Map<string, number[]>();
+  const respirationByDate = new Map<string, number[]>();
+
   const spo2Files = readdirSync(dataDir).filter(f =>
     f.includes("oxygen_saturation") && f.endsWith(".json")
   );
@@ -241,8 +245,9 @@ export function parseSleepSegments(dataDir: string): Map<string, SleepData> {
       if (spo2 === undefined || spo2 < 50 || spo2 > 100) continue;
 
       const date = nanosToDateString(point.endTimeNanos);
-      if (sleepByDate.has(date)) {
-        sleepByDate.get(date)!.spo2Values.push(spo2);
+      if (sleepDates.has(date)) {
+        if (!spo2ByDate.has(date)) spo2ByDate.set(date, []);
+        spo2ByDate.get(date)!.push(spo2);
       }
     }
   }
@@ -261,70 +266,71 @@ export function parseSleepSegments(dataDir: string): Map<string, SleepData> {
       if (rate === undefined || rate < 5 || rate > 50) continue;
 
       const date = nanosToDateString(point.endTimeNanos);
-      if (sleepByDate.has(date)) {
-        sleepByDate.get(date)!.respirationValues.push(rate);
+      if (sleepDates.has(date)) {
+        if (!respirationByDate.has(date)) respirationByDate.set(date, []);
+        respirationByDate.get(date)!.push(rate);
       }
     }
   }
 
-  // Aggregate into SleepData
-  const result = new Map<string, SleepData>();
+  // Aggregate timeline minutes by date
+  const byDate = new Map<string, { deep: number; light: number; rem: number; awake: number }>();
 
-  for (const [date, data] of sleepByDate) {
-    let totalSleep = 0;
-    let deepSleep = 0;
-    let lightSleep = 0;
-    let remSleep = 0;
-    let awake = 0;
+  for (const [minuteTs, stage] of timeline) {
+    const date = minuteTsToDateString(minuteTs);
 
-    for (const seg of data.segments) {
-      switch (seg.sleepType) {
-        case SleepStageCode.AWAKE:
-          awake += seg.durationMinutes;
-          break;
-        case SleepStageCode.LIGHT:
-          lightSleep += seg.durationMinutes;
-          totalSleep += seg.durationMinutes;
-          break;
-        case SleepStageCode.DEEP:
-          deepSleep += seg.durationMinutes;
-          totalSleep += seg.durationMinutes;
-          break;
-        case SleepStageCode.REM:
-          remSleep += seg.durationMinutes;
-          totalSleep += seg.durationMinutes;
-          break;
-        case SleepStageCode.SLEEP:
-          // Generic sleep - count as light
-          lightSleep += seg.durationMinutes;
-          totalSleep += seg.durationMinutes;
-          break;
-      }
+    if (!byDate.has(date)) {
+      byDate.set(date, { deep: 0, light: 0, rem: 0, awake: 0 });
     }
 
-    // Skip days with no actual sleep data
+    const day = byDate.get(date)!;
+    switch (stage) {
+      case SleepStageCode.AWAKE:
+        day.awake++;
+        break;
+      case SleepStageCode.DEEP:
+        day.deep++;
+        break;
+      case SleepStageCode.REM:
+        day.rem++;
+        break;
+      case SleepStageCode.LIGHT:
+      case SleepStageCode.SLEEP:
+        day.light++;
+        break;
+    }
+  }
+
+  const result = new Map<string, SleepData>();
+
+  for (const [date, counts] of byDate) {
+    const totalSleep = counts.deep + counts.light + counts.rem;
+
     if (totalSleep < 30) continue;
 
-    const avgSpO2 = data.spo2Values.length > 0
-      ? data.spo2Values.reduce((a, b) => a + b, 0) / data.spo2Values.length
+    const spo2Values = spo2ByDate.get(date) ?? [];
+    const respirationValues = respirationByDate.get(date) ?? [];
+
+    const avgSpO2 = spo2Values.length > 0
+      ? spo2Values.reduce((a, b) => a + b, 0) / spo2Values.length
       : null;
 
-    const minSpO2 = data.spo2Values.length > 0
-      ? data.spo2Values.reduce((a, b) => Math.min(a, b), Infinity)
+    const minSpO2 = spo2Values.length > 0
+      ? spo2Values.reduce((a, b) => Math.min(a, b), Infinity)
       : null;
 
-    const respiratoryRate = data.respirationValues.length > 0
-      ? data.respirationValues.reduce((a, b) => a + b, 0) / data.respirationValues.length
+    const respiratoryRate = respirationValues.length > 0
+      ? respirationValues.reduce((a, b) => a + b, 0) / respirationValues.length
       : null;
 
     result.set(date, {
       date,
-      totalSleepMinutes: Math.round(totalSleep),
-      deepSleepMinutes: Math.round(deepSleep),
-      lightSleepMinutes: Math.round(lightSleep),
-      remSleepMinutes: Math.round(remSleep),
-      awakeMinutes: Math.round(awake),
-      sleepScore: null, // Google Fit doesn't provide sleep score
+      totalSleepMinutes: totalSleep,
+      deepSleepMinutes: counts.deep,
+      lightSleepMinutes: counts.light,
+      remSleepMinutes: counts.rem,
+      awakeMinutes: counts.awake,
+      sleepScore: null,
       avgSpO2,
       minSpO2,
       respiratoryRate,
