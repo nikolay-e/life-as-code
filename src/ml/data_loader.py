@@ -86,7 +86,7 @@ def load_anomaly_features(
         df[col] = pd.to_numeric(df[col], errors="coerce")
 
     numeric_cols = df.select_dtypes(include="number").columns
-    df[numeric_cols] = df[numeric_cols].replace(0, pd.NA)
+    df[numeric_cols] = df[numeric_cols].replace(0, float("nan"))
     df[numeric_cols] = df[numeric_cols].interpolate(method="linear", limit=3)
 
     return df.dropna()
