@@ -75,9 +75,12 @@ Structure:
 6. Day-over-day changes (only deltas >= 10%)
 7. ML forecasts: if ml_insights.has_active_forecasts, mention where p50 predictions diverge from current trends
 8. ML anomalies: if ml_insights.has_recent_ml_anomalies, note the Isolation Forest detection with its contributing factors
-9. One actionable recommendation for today
+9. Today's plan — be specific and time-aware (use current_datetime):
+   a) What workout to do today (type, intensity, duration) based on ACWR, recovery, HRV. If rest day — say so and why.
+   b) Step target for today (concrete number) considering weekly average vs goal and how many steps are already logged today.
+   c) What to do RIGHT NOW at this specific time of day (morning/afternoon/evening). Be practical: walk, stretch, nap, train, wind down, etc.
 
-Keep it under 250 words. Plain text, no markdown, no emojis.
+Keep it under 300 words. Plain text, no markdown, no emojis.
 
 Data:
 {context_json}"""
