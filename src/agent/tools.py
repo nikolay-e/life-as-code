@@ -3,6 +3,7 @@ from datetime import date
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from analytics.date_utils import local_today
 from database import get_db_session_context
 from models import (
     HRV,
@@ -220,7 +221,7 @@ def _handle_get_predictions(user_id: int, params: dict) -> dict:
         query = db.query(Prediction).filter(
             Prediction.user_id == user_id,
             Prediction.metric == metric,
-            Prediction.target_date >= date.today(),
+            Prediction.target_date >= local_today(),
         )
 
         if "horizon_days" in params:

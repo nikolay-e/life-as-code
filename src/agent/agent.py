@@ -1,9 +1,11 @@
 import json
+from datetime import date, datetime
 from typing import Any
 
 import anthropic
 import structlog
 
+from agent.api_client import create_with_retry
 from agent.config import AgentConfig
 from agent.context import build_daily_context, build_weekly_context
 from agent.prompts import (
@@ -17,6 +19,17 @@ from agent.tools import TOOLS, execute_tool
 logger = structlog.get_logger()
 
 
+def _serialize_context(ctx: dict | list) -> str:
+    def _strict_default(obj: object) -> object:
+        if isinstance(obj, (date, datetime)):
+            return obj.isoformat()
+        if hasattr(obj, "model_dump"):
+            return obj.model_dump(exclude_none=True)
+        raise TypeError(f"Cannot serialize {type(obj).__name__}: {obj!r}")
+
+    return json.dumps(ctx, default=_strict_default, ensure_ascii=False)
+
+
 class HealthAgent:
     def __init__(self, config: AgentConfig | None = None):
         self.config = config or AgentConfig()
@@ -24,7 +37,8 @@ class HealthAgent:
 
     def daily_briefing(self, user_id: int) -> str:
         ctx = build_daily_context(user_id)
-        response = self.client.messages.create(
+        response = create_with_retry(
+            self.client,
             model=self.config.model,
             max_tokens=self.config.max_tokens,
             system=SYSTEM_PROMPT,
@@ -32,7 +46,8 @@ class HealthAgent:
                 {
                     "role": "user",
                     "content": DAILY_BRIEFING_PROMPT.format(
-                        context_json=json.dumps(ctx, default=str, ensure_ascii=False)
+                        current_datetime=ctx.get("current_datetime", ""),
+                        context_json=_serialize_context(ctx),
                     ),
                 }
             ],
@@ -41,7 +56,8 @@ class HealthAgent:
 
     def weekly_report(self, user_id: int) -> str:
         ctx = build_weekly_context(user_id)
-        response = self.client.messages.create(
+        response = create_with_retry(
+            self.client,
             model=self.config.model,
             max_tokens=self.config.max_tokens * 2,
             system=SYSTEM_PROMPT,
@@ -49,7 +65,8 @@ class HealthAgent:
                 {
                     "role": "user",
                     "content": WEEKLY_REPORT_PROMPT.format(
-                        context_json=json.dumps(ctx, default=str, ensure_ascii=False)
+                        current_datetime=ctx.get("current_datetime", ""),
+                        context_json=_serialize_context(ctx),
                     ),
                 }
             ],
@@ -57,8 +74,9 @@ class HealthAgent:
         return str(response.content[0].text)
 
     def explain_anomaly(self, user_id: int, anomaly: dict) -> str:
-        ctx = build_daily_context(user_id, target_date=anomaly["date"])
-        response = self.client.messages.create(
+        ctx = build_daily_context(user_id, target_date=anomaly.get("date"))
+        response = create_with_retry(
+            self.client,
             model=self.config.model,
             max_tokens=512,
             system=SYSTEM_PROMPT,
@@ -66,11 +84,12 @@ class HealthAgent:
                 {
                     "role": "user",
                     "content": ANOMALY_ALERT_PROMPT.format(
-                        date=anomaly["date"],
-                        score=anomaly["anomaly_score"],
-                        factors=json.dumps(anomaly["contributing_factors"]),
-                        recent_context=json.dumps(ctx["today"], default=str),
-                        workouts=json.dumps(ctx["recent_workouts"], default=str),
+                        current_datetime=ctx.get("current_datetime", ""),
+                        date=anomaly.get("date", ""),
+                        score=anomaly.get("anomaly_score", ""),
+                        factors=json.dumps(anomaly.get("contributing_factors", {})),
+                        recent_context=_serialize_context(ctx.get("recent_days", [])),
+                        workouts=_serialize_context(ctx.get("recent_workouts", [])),
                     ),
                 }
             ],
@@ -84,14 +103,15 @@ class HealthAgent:
                 "role": "user",
                 "content": (
                     f"Context (today's data): "
-                    f"{json.dumps(ctx, default=str, ensure_ascii=False)}"
+                    f"{_serialize_context(ctx)}"
                     f"\n\nQuestion: {question}"
                 ),
             }
         ]
 
         for _ in range(10):
-            response = self.client.messages.create(
+            response = create_with_retry(
+                self.client,
                 model=self.config.model,
                 max_tokens=self.config.max_tokens,
                 system=SYSTEM_PROMPT,
@@ -113,7 +133,11 @@ class HealthAgent:
                         {
                             "type": "tool_result",
                             "tool_use_id": block.id,
-                            "content": json.dumps(result, default=str),
+                            "content": (
+                                _serialize_context(result)
+                                if isinstance(result, dict)
+                                else json.dumps(result)
+                            ),
                         }
                     )
 

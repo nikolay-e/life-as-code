@@ -94,6 +94,12 @@ class User(Base):
     anomalies = relationship(
         "Anomaly", back_populates="user", cascade="all, delete-orphan"
     )
+    health_snapshots = relationship(
+        "HealthSnapshot", back_populates="user", cascade="all, delete-orphan"
+    )
+    clinical_alert_events = relationship(
+        "ClinicalAlertEvent", back_populates="user", cascade="all, delete-orphan"
+    )
 
     def __repr__(self):
         return f"<User(username={self.username})>"
@@ -1098,3 +1104,69 @@ class Anomaly(Base):
 
     def __repr__(self):
         return f"<Anomaly(user_id={self.user_id}, date={self.date}, score={self.anomaly_score})>"
+
+
+class HealthSnapshot(Base):
+    __tablename__ = "health_snapshots"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    date = Column(Date, nullable=False)
+    mode = Column(String(20), nullable=False, default="recent")
+    snapshot_json = Column(JSON, nullable=False)
+    health_score = Column(Float)
+    computed_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+
+    user = relationship("User", back_populates="health_snapshots")
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "date", "mode", name="_user_snapshot_date_mode_uc"),
+        Index(
+            "idx_snapshot_user_date",
+            "user_id",
+            "date",
+            postgresql_ops={"date": "DESC"},
+        ),
+        CheckConstraint(
+            "mode IN ('recent', 'quarter', 'year', 'all')",
+            name="valid_snapshot_mode",
+        ),
+    )
+
+    def __repr__(self):
+        return f"<HealthSnapshot(user_id={self.user_id}, date={self.date}, mode={self.mode}, score={self.health_score})>"
+
+
+class ClinicalAlertEvent(Base):
+    __tablename__ = "clinical_alert_events"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    alert_type = Column(String(50), nullable=False)
+    severity = Column(String(20), nullable=False, default="warning")
+    status = Column(String(20), nullable=False, default="open")
+    details_json = Column(JSON)
+    first_detected_at = Column(
+        DateTime, nullable=False, default=datetime.datetime.utcnow
+    )
+    last_detected_at = Column(
+        DateTime, nullable=False, default=datetime.datetime.utcnow
+    )
+    acknowledged_at = Column(DateTime)
+    resolved_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    user = relationship("User", back_populates="clinical_alert_events")
+
+    __table_args__ = (
+        Index("idx_alert_user_status", "user_id", "status"),
+        Index("idx_alert_user_type", "user_id", "alert_type"),
+        CheckConstraint(
+            "severity IN ('info', 'warning', 'alert', 'critical')",
+            name="valid_alert_severity",
+        ),
+        CheckConstraint(
+            "status IN ('open', 'acknowledged', 'resolved')",
+            name="valid_alert_status",
+        ),
+    )

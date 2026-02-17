@@ -96,6 +96,15 @@ def sync_all_users():
                     source=source,
                 )
 
+        if not shutdown_requested:
+            try:
+                from analytics.pipeline import on_data_sync_complete
+
+                with get_db_session_context() as db:
+                    on_data_sync_complete(db, user_id)
+            except Exception:
+                logger.exception("scheduler_recompute_error", user_id=user_id)
+
 
 def main():
     signal.signal(signal.SIGTERM, handle_shutdown)

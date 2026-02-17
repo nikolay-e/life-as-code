@@ -9,6 +9,8 @@ from flask import Blueprint, jsonify, request
 from flask_login import current_user, login_required, login_user, logout_user
 from sqlalchemy import select
 
+from analytics import TrendMode
+from analytics.pipeline import get_or_compute_snapshot
 from data_loaders import (
     get_detailed_workout_data,
     get_garmin_activities_data,
@@ -134,6 +136,24 @@ def sanitize_for_json(records: list[dict]) -> list[dict]:
             if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
                 record[key] = None
     return records
+
+
+@api.route("/analytics", methods=["GET"])
+@login_required
+def api_analytics():
+    mode_str = request.args.get("mode", "recent")
+    try:
+        mode = TrendMode(mode_str)
+    except ValueError:
+        raise ValidationError(
+            f"Invalid mode '{mode_str}'. Valid: recent, quarter, year, all",
+            field="mode",
+            provided_value=mode_str,
+        ) from None
+
+    with get_db_session_context() as db:
+        analysis = get_or_compute_snapshot(db, current_user.id, mode=mode)
+        return jsonify(analysis.model_dump(exclude_none=True))
 
 
 @api.route("/data/range", methods=["GET"])
