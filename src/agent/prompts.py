@@ -53,6 +53,12 @@ z-score interpretation:
 
 When comparing to averages, use percentage change and plain language.
 Never say "consult a doctor" unless something is genuinely alarming.
+
+Formatting rules:
+- NO emojis ever. Use plain text only.
+- NO markdown formatting (no **, no *, no ```, no ---, no headers, no bullet markers).
+- Use plain line breaks and indentation for structure.
+- Separate sections with a blank line, not horizontal rules.
 Respond in Russian."""
 
 
@@ -61,7 +67,7 @@ DAILY_BRIEFING_PROMPT = """Current time: {current_datetime}
 Generate a concise morning health briefing based on the data below.
 
 Structure:
-1. One-line overall status (emoji + Health Score verdict: z > 0.5 = great, 0 to 0.5 = ok, -0.5 to 0 = subpar, < -0.5 = concerning). Mention recovery_core and training_load sub-scores if divergent. If data_confidence < 0.5, note limited data.
+1. One-line overall status (Health Score verdict: z > 0.5 = great, 0 to 0.5 = ok, -0.5 to 0 = subpar, < -0.5 = concerning). Mention recovery_core and training_load sub-scores if divergent. If data_confidence < 0.5, note limited data.
 2. Key z-score deviations from health_score.notable_contributors (pre-filtered, mention all)
 3. If clinical_alerts.any_alert is true — explain the alert type and severity. Check active_clinical_alerts for persistence (how long alert has been open)
 4. If illness_risk.risk_level is "moderate" or "high" — warn about it
@@ -71,7 +77,7 @@ Structure:
 8. ML anomalies: if ml_insights.has_recent_ml_anomalies, note the Isolation Forest detection with its contributing factors
 9. One actionable recommendation for today
 
-Keep it under 250 words. Telegram format (markdown).
+Keep it under 250 words. Plain text, no markdown, no emojis.
 
 Data:
 {context_json}"""
@@ -94,7 +100,7 @@ Structure:
 10. Top insight the user probably didn't notice (correlations, decorrelation, illness risk pattern, forecast-reality gap)
 11. One goal for next week
 
-Keep it under 400 words. Telegram format (markdown).
+Keep it under 400 words. Plain text, no markdown, no emojis.
 
 Data:
 {context_json}"""
