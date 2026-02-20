@@ -10,8 +10,10 @@ from telegram.ext import (
     filters,
 )
 
+from agent.conversation import ConversationStore
 from bot.commands import (
     cmd_anomalies,
+    cmd_clear,
     cmd_forecast,
     cmd_start,
     cmd_status,
@@ -45,12 +47,14 @@ def create_bot(config: BotConfig | None = None) -> Application:
 
     app = Application.builder().token(config.token).build()
     app.bot_data["config"] = config
+    app.bot_data["conversations"] = ConversationStore()
 
     app.add_handler(CommandHandler("start", auth_required(cmd_start)))
     app.add_handler(CommandHandler("status", auth_required(cmd_status)))
     app.add_handler(CommandHandler("week", auth_required(cmd_week)))
     app.add_handler(CommandHandler("forecast", auth_required(cmd_forecast)))
     app.add_handler(CommandHandler("anomalies", auth_required(cmd_anomalies)))
+    app.add_handler(CommandHandler("clear", auth_required(cmd_clear)))
 
     app.add_handler(
         MessageHandler(

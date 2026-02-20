@@ -4,6 +4,7 @@ from datetime import date
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from agent.conversation import ConversationStore
 from bot.config import BotConfig
 from bot.formatters import (
     format_forecast_table,
@@ -23,17 +24,17 @@ def _get_agent():
 
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await send_markdown_safe(
-        update.message.reply_text,
-        "*Life-as-Code Health Bot*\n\n"
-        "/status — утренний брифинг\n"
-        "/week — недельный отчёт\n"
-        "/forecast — прогнозы (вес, HRV, сон)\n"
-        "/anomalies — последние аномалии\n\n"
+    await update.message.reply_text(
+        "Life-as-Code Health Bot\n\n"
+        "/status -- утренний брифинг\n"
+        "/week -- недельный отчет\n"
+        "/forecast -- прогнозы (вес, HRV, сон)\n"
+        "/anomalies -- последние аномалии\n"
+        "/clear -- очистить историю диалога\n\n"
         "Или просто напиши вопрос:\n"
-        "_Как мой сон за последний месяц?_\n"
-        "_Почему HRV упал вчера?_\n"
-        "_Сравни январь и февраль по шагам_",
+        "Как мой сон за последний месяц?\n"
+        "Почему HRV упал вчера?\n"
+        "Сравни январь и февраль по шагам",
     )
 
 
@@ -139,13 +140,22 @@ async def cmd_anomalies(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_markdown_safe(update.message.reply_text, truncate_for_telegram(text))
 
 
+async def cmd_clear(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    store: ConversationStore = context.bot_data["conversations"]
+    store.clear(update.effective_chat.id)
+    await update.message.reply_text("История диалога очищена.")
+
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     config: BotConfig = context.bot_data["config"]
+    store: ConversationStore = context.bot_data["conversations"]
+    chat_id = update.effective_chat.id
+
     await update.message.reply_chat_action("typing")
     try:
         agent = _get_agent()
-        question = update.message.text
-        answer = agent.ask(config.db_user_id, question)
+        conversation = store.get(chat_id)
+        answer = agent.chat(config.db_user_id, update.message.text, conversation)
         await send_markdown_safe(
             update.message.reply_text, truncate_for_telegram(answer)
         )

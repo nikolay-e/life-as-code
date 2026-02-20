@@ -90,6 +90,35 @@ def build_weekly_context(user_id: int, end_date: date | None = None) -> dict:
         }
 
 
+def build_chat_context(user_id: int) -> str:
+    ctx = build_daily_context(user_id)
+
+    parts = [f"Time: {ctx.get('current_datetime', 'unknown')}"]
+
+    hs = ctx.get("health_score", {})
+    if hs:
+        parts.append(
+            f"Health Score: overall={hs.get('overall', '?')}, "
+            f"recovery={hs.get('recovery_core', '?')}, "
+            f"training={hs.get('training_load', '?')}, "
+            f"confidence={hs.get('data_confidence', '?')}"
+        )
+
+    alerts = ctx.get("active_clinical_alerts")
+    if alerts:
+        parts.append(f"Active alerts: {alerts}")
+
+    illness = ctx.get("illness_risk", {})
+    if illness.get("risk_level") in ("moderate", "high"):
+        parts.append(f"Illness risk: {illness['risk_level']}")
+
+    overreaching = ctx.get("overreaching", {})
+    if overreaching.get("risk_level") in ("high", "critical"):
+        parts.append(f"Overreaching: {overreaching['risk_level']}")
+
+    return "\n".join(parts)
+
+
 def _get_recent_workouts(db: Session, user_id: int, d: date, days: int) -> list[dict]:
     start = d - timedelta(days=days)
     rows = (
