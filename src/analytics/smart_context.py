@@ -134,6 +134,11 @@ def build_smart_context(analysis: HealthAnalysis, max_anomalies: int = 3) -> dic
 
     ctx["day_completeness"] = analysis.day_completeness
 
+    if analysis.data_source_summary:
+        ctx["data_source_summary"] = [
+            s.model_dump(exclude_none=True) for s in analysis.data_source_summary
+        ]
+
     return ctx
 
 

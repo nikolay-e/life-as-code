@@ -6,6 +6,7 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
+from .constants import TREND_MODES
 from .date_utils import local_today
 from .service import compute_health_analysis
 from .types import HealthAnalysis, TrendMode
@@ -79,8 +80,13 @@ def get_cached_snapshot(
         return None
 
     try:
+        config = TREND_MODES[mode]
         return HealthAnalysis.model_validate(  # type: ignore[no-any-return]
-            {**existing.snapshot_json, "mode": mode.value, "mode_config": {}}
+            {
+                **existing.snapshot_json,
+                "mode": mode.value,
+                "mode_config": config.model_dump(),
+            }
         )
     except Exception:
         logger.warning(

@@ -272,10 +272,10 @@ def detect_anomalies(
             if d.value is None:
                 continue
             raw_z = (d.value - bl.mean) / bl.std
-            z = -raw_z if invert else raw_z
-            if not both_directions and z < 0:
+            directional_z = -raw_z if invert else raw_z
+            if not both_directions and directional_z < 0:
                 continue
-            abs_z = abs(z)
+            abs_z = abs(raw_z)
             if abs_z >= ANOMALY_THRESHOLDS["warning"]:
                 if abs_z >= ANOMALY_THRESHOLDS["critical"]:
                     severity = "critical"
@@ -288,7 +288,7 @@ def detect_anomalies(
                         date=d.date,
                         metric=display_name,
                         value=d.value,
-                        z_score=z,
+                        z_score=raw_z,
                         severity=severity,
                     )
                 )
