@@ -213,7 +213,7 @@ export interface WorkoutExerciseDetail {
 export interface HRVAdvancedMetrics {
   ln_rmssd_current: number | null;
   ln_rmssd_mean_7d: number | null;
-  ln_rmssd_cv_7d: number | null;
+  ln_rmssd_sd_7d: number | null;
   hrv_rhr_rolling_r_14d: number | null;
   hrv_rhr_rolling_r_60d: number | null;
   divergence_rate: number | null;

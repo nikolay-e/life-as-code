@@ -347,12 +347,152 @@ export function StatisticsPage() {
     useShiftedZScore,
   } = modeConfig;
   const { data, isLoading, error } = useHealthData(MAX_BASELINE_DAYS, true);
-  const { data: analyticsData } = useAnalytics(mode);
+  const {
+    data: analyticsData,
+    isLoading: analyticsLoading,
+    error: analyticsError,
+  } = useAnalytics(mode);
   const advancedInsights = analyticsData?.advanced_insights;
 
   const baselineOptions = useMemo(
     () => getBaselineOptions(mode, modeConfig),
     [mode, modeConfig],
+  );
+
+  const computedMetrics = useMemo(
+    () =>
+      data
+        ? computeAllMetrics(
+            data,
+            baselineDays,
+            shortTermDays,
+            trendWindow,
+            baselineOptions,
+          )
+        : null,
+    [data, baselineDays, shortTermDays, trendWindow, baselineOptions],
+  );
+
+  const healthAnalysis = useMemo(
+    () =>
+      data && computedMetrics
+        ? computeHealthAnalysis(
+            data,
+            computedMetrics,
+            modeConfig,
+            baselineOptions,
+          )
+        : null,
+    [data, computedMetrics, modeConfig, baselineOptions],
+  );
+
+  const hrvData = computedMetrics?.hrv.raw;
+  const rhrData = computedMetrics?.rhr.raw;
+  const sleepDataRaw = computedMetrics?.sleep.raw;
+  const strainData = computedMetrics?.strain.raw;
+  const weightDataRaw = computedMetrics?.weight.raw;
+  const stressData = computedMetrics?.stress.raw;
+
+  const clinicalAlerts = useMemo(
+    () =>
+      rhrData && hrvData && weightDataRaw && strainData
+        ? calculateClinicalAlerts(
+            rhrData,
+            hrvData,
+            weightDataRaw,
+            strainData,
+            baselineDays,
+          )
+        : null,
+    [rhrData, hrvData, weightDataRaw, strainData, baselineDays],
+  );
+
+  const overreachingMetrics = useMemo(
+    () =>
+      hrvData && rhrData && sleepDataRaw && strainData
+        ? calculateOverreachingMetrics(
+            hrvData,
+            rhrData,
+            sleepDataRaw,
+            strainData,
+            baselineDays,
+            shortTermDays,
+          )
+        : null,
+    [hrvData, rhrData, sleepDataRaw, strainData, baselineDays, shortTermDays],
+  );
+
+  const correlationMetrics = useMemo(
+    () =>
+      hrvData && rhrData && sleepDataRaw && strainData
+        ? calculateCorrelationMetrics(
+            hrvData,
+            rhrData,
+            sleepDataRaw,
+            strainData,
+            baselineDays,
+          )
+        : null,
+    [hrvData, rhrData, sleepDataRaw, strainData, baselineDays],
+  );
+
+  const anomalyMetrics = useMemo(
+    () =>
+      hrvData && rhrData && sleepDataRaw && stressData
+        ? detectAnomalies(
+            hrvData,
+            rhrData,
+            sleepDataRaw,
+            stressData,
+            baselineDays,
+            shortTermDays,
+          )
+        : null,
+    [hrvData, rhrData, sleepDataRaw, stressData, baselineDays, shortTermDays],
+  );
+
+  const velocityMetrics = useMemo(
+    () =>
+      hrvData && rhrData && weightDataRaw && sleepDataRaw
+        ? calculateVelocityMetrics(
+            hrvData,
+            rhrData,
+            weightDataRaw,
+            sleepDataRaw,
+            shortTermDays,
+          )
+        : null,
+    [hrvData, rhrData, weightDataRaw, sleepDataRaw, shortTermDays],
+  );
+
+  const recoveryCapacity = useMemo(
+    () =>
+      hrvData && strainData
+        ? calculateRecoveryCapacity(hrvData, strainData, baselineDays)
+        : null,
+    [hrvData, strainData, baselineDays],
+  );
+
+  const illnessRisk = useMemo(
+    () =>
+      hrvData && rhrData && sleepDataRaw
+        ? calculateIllnessRiskSignal(
+            hrvData,
+            rhrData,
+            sleepDataRaw,
+            baselineDays,
+            3,
+          )
+        : null,
+    [hrvData, rhrData, sleepDataRaw, baselineDays],
+  );
+
+  const decorrelationAlert = useMemo(
+    () =>
+      hrvData && rhrData
+        ? calculateDecorrelationAlert(hrvData, rhrData, 14, baselineDays)
+        : null,
+    [hrvData, rhrData, baselineDays],
   );
 
   if (error) {
@@ -361,7 +501,7 @@ export function StatisticsPage() {
     );
   }
 
-  if (isLoading || !data) {
+  if (isLoading || !data || !healthAnalysis || !computedMetrics) {
     return (
       <div className="space-y-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -380,21 +520,6 @@ export function StatisticsPage() {
     );
   }
 
-  const computedMetrics = computeAllMetrics(
-    data,
-    baselineDays,
-    shortTermDays,
-    trendWindow,
-    baselineOptions,
-  );
-
-  const healthAnalysis = computeHealthAnalysis(
-    data,
-    computedMetrics,
-    modeConfig,
-    baselineOptions,
-  );
-
   const {
     healthScore,
     recoveryMetrics,
@@ -404,77 +529,6 @@ export function StatisticsPage() {
     dayCompleteness,
     dataSourceSummary,
   } = healthAnalysis;
-
-  // Calculate advanced metrics
-  const hrvData = computedMetrics.hrv.raw;
-  const rhrData = computedMetrics.rhr.raw;
-  const sleepDataRaw = computedMetrics.sleep.raw;
-  const strainData = computedMetrics.strain.raw;
-  const weightDataRaw = computedMetrics.weight.raw;
-  const stressData = computedMetrics.stress.raw;
-
-  const clinicalAlerts = calculateClinicalAlerts(
-    rhrData,
-    hrvData,
-    weightDataRaw,
-    strainData,
-    baselineDays,
-  );
-
-  const overreachingMetrics = calculateOverreachingMetrics(
-    hrvData,
-    rhrData,
-    sleepDataRaw,
-    strainData,
-    baselineDays,
-    shortTermDays,
-  );
-
-  const correlationMetrics = calculateCorrelationMetrics(
-    hrvData,
-    rhrData,
-    sleepDataRaw,
-    strainData,
-    baselineDays,
-  );
-
-  const anomalyMetrics = detectAnomalies(
-    hrvData,
-    rhrData,
-    sleepDataRaw,
-    stressData,
-    baselineDays,
-    shortTermDays,
-  );
-
-  const velocityMetrics = calculateVelocityMetrics(
-    hrvData,
-    rhrData,
-    weightDataRaw,
-    sleepDataRaw,
-    shortTermDays,
-  );
-
-  const recoveryCapacity = calculateRecoveryCapacity(
-    hrvData,
-    strainData,
-    baselineDays,
-  );
-
-  const illnessRisk = calculateIllnessRiskSignal(
-    hrvData,
-    rhrData,
-    sleepDataRaw,
-    baselineDays,
-    3,
-  );
-
-  const decorrelationAlert = calculateDecorrelationAlert(
-    hrvData,
-    rhrData,
-    14,
-    baselineDays,
-  );
 
   return (
     <div className="space-y-8">
@@ -1585,6 +1639,27 @@ export function StatisticsPage() {
       )}
 
       {/* Advanced Insights (from backend analytics) */}
+      {analyticsError && (
+        <Card className="border-destructive">
+          <CardContent className="pt-6">
+            <p className="text-sm text-destructive">
+              Failed to load advanced insights:{" "}
+              {analyticsError instanceof Error
+                ? analyticsError.message
+                : "Unknown error"}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+      {analyticsLoading && !advancedInsights && (
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">
+              Loading advanced insights...
+            </p>
+          </CardContent>
+        </Card>
+      )}
       {advancedInsights && (
         <>
           <div>
@@ -1622,27 +1697,26 @@ export function StatisticsPage() {
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">
-                        CV (7d)
+                        SD (7d)
                       </span>
                       <span
                         className={cn(
                           "font-mono text-sm",
-                          advancedInsights.hrv_advanced.ln_rmssd_cv_7d !==
+                          advancedInsights.hrv_advanced.ln_rmssd_sd_7d !==
                             null &&
-                            advancedInsights.hrv_advanced.ln_rmssd_cv_7d < 5
+                            advancedInsights.hrv_advanced.ln_rmssd_sd_7d < 0.1
                             ? "text-green-500"
-                            : advancedInsights.hrv_advanced.ln_rmssd_cv_7d !==
+                            : advancedInsights.hrv_advanced.ln_rmssd_sd_7d !==
                                   null &&
-                                advancedInsights.hrv_advanced.ln_rmssd_cv_7d >
-                                  10
+                                advancedInsights.hrv_advanced.ln_rmssd_sd_7d >
+                                  0.15
                               ? "text-red-500"
                               : "",
                         )}
                       >
-                        {advancedInsights.hrv_advanced.ln_rmssd_cv_7d?.toFixed(
-                          1,
+                        {advancedInsights.hrv_advanced.ln_rmssd_sd_7d?.toFixed(
+                          3,
                         ) ?? "—"}
-                        %
                       </span>
                     </div>
                     <div className="pt-2 border-t text-xs text-muted-foreground">

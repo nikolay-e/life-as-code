@@ -285,7 +285,7 @@ class MLInsights(BaseModel):
 class HRVAdvancedMetrics(BaseModel):
     ln_rmssd_current: float | None
     ln_rmssd_mean_7d: float | None
-    ln_rmssd_cv_7d: float | None
+    ln_rmssd_sd_7d: float | None
     hrv_rhr_rolling_r_14d: float | None
     hrv_rhr_rolling_r_60d: float | None
     divergence_rate: float | None

@@ -81,10 +81,7 @@ def calculate_hrv_advanced(
 
     ln_current = ln_short[-1] if ln_short else None
     ln_mean_7d = mean_or_none(ln_short)
-    ln_cv_7d: float | None = None
-    if ln_mean_7d and len(ln_short) >= 3 and ln_mean_7d != 0:
-        ln_std = calculate_std(ln_short)
-        ln_cv_7d = (ln_std / abs(ln_mean_7d)) * 100
+    ln_sd_7d = calculate_std(ln_short) if len(ln_short) >= 3 else None
 
     rhr_map = _build_day_map(rhr_data, baseline_window, "mean", ref_date)
 
@@ -108,7 +105,7 @@ def calculate_hrv_advanced(
     return HRVAdvancedMetrics(
         ln_rmssd_current=ln_current,
         ln_rmssd_mean_7d=ln_mean_7d,
-        ln_rmssd_cv_7d=ln_cv_7d,
+        ln_rmssd_sd_7d=ln_sd_7d,
         hrv_rhr_rolling_r_14d=r_14d,
         hrv_rhr_rolling_r_60d=r_60d,
         divergence_rate=divergence_rate,
@@ -579,9 +576,15 @@ def calculate_allostatic_load(
 
     metric_stats: dict[str, tuple[float, float]] = {}
     for metric, day_map in available.items():
-        vals = list(day_map.values())
-        if len(vals) >= 7:
-            metric_stats[metric] = (sum(vals) / len(vals), calculate_std(vals))
+        sorted_vals = [v for _, v in sorted(day_map.items())]
+        if len(sorted_vals) < 14:
+            continue
+        baseline_end = len(sorted_vals) // 2
+        baseline_vals = sorted_vals[:baseline_end]
+        metric_stats[metric] = (
+            sum(baseline_vals) / len(baseline_vals),
+            calculate_std(baseline_vals),
+        )
 
     if not metric_stats:
         return AllostaticLoadMetrics(composite_score=None, breach_rates={}, trend=None)

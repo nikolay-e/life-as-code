@@ -245,6 +245,24 @@ class GarminAPIWrapper:
         self.api = api
         self.start_date = start_date
         self.end_date = end_date
+        self._summary_cache: dict[str, dict | None] = {}
+
+    def _get_cached_summary(self, date_str: str) -> dict | None:
+        if date_str not in self._summary_cache:
+            try:
+                result = self.api.get_user_summary(date_str)
+                self._summary_cache[date_str] = (
+                    result if result and isinstance(result, dict) else None
+                )
+            except Exception as e:
+                logger.warning(
+                    "garmin_user_summary_error",
+                    date=date_str,
+                    error=str(e),
+                    error_type=type(e).__name__,
+                )
+                self._summary_cache[date_str] = None
+        return self._summary_cache[date_str]
 
     def _fetch_daily(
         self,
@@ -347,40 +365,27 @@ class GarminAPIWrapper:
         """Get steps data for date range. Uses get_user_summary with fallback to hourly buckets."""
 
         def fetch(date_str: str, current_date: datetime.date) -> dict | None:
-            # Try get_user_summary first for comprehensive daily stats
-            try:
-                summary = self.api.get_user_summary(date_str)
-                if summary and isinstance(summary, dict):
-                    result = {
-                        "date": current_date,
-                        "totalSteps": self._safe_int(summary.get("totalSteps")),
-                        "totalDistance": self._safe_float(
-                            summary.get("totalDistanceMeters")
-                        ),
-                        "stepGoal": self._safe_int(summary.get("dailyStepGoal")),
-                        "activeMinutes": (
-                            self._safe_int(
-                                summary.get("vigorousIntensityMinutes", 0) or 0
-                            )
-                            or 0
-                        )
-                        + (
-                            self._safe_int(
-                                summary.get("moderateIntensityMinutes", 0) or 0
-                            )
-                            or 0
-                        ),
-                        "floorsClimbed": self._safe_int(summary.get("floorsAscended")),
-                    }
-                    if result["totalSteps"] is not None:
-                        return result
-            except Exception as e:
-                logger.warning(
-                    "garmin_user_summary_steps_error",
-                    date=date_str,
-                    error=str(e),
-                    error_type=type(e).__name__,
-                )
+            summary = self._get_cached_summary(date_str)
+            if summary:
+                result = {
+                    "date": current_date,
+                    "totalSteps": self._safe_int(summary.get("totalSteps")),
+                    "totalDistance": self._safe_float(
+                        summary.get("totalDistanceMeters")
+                    ),
+                    "stepGoal": self._safe_int(summary.get("dailyStepGoal")),
+                    "activeMinutes": (
+                        self._safe_int(summary.get("vigorousIntensityMinutes", 0) or 0)
+                        or 0
+                    )
+                    + (
+                        self._safe_int(summary.get("moderateIntensityMinutes", 0) or 0)
+                        or 0
+                    ),
+                    "floorsClimbed": self._safe_int(summary.get("floorsAscended")),
+                }
+                if result["totalSteps"] is not None:
+                    return result
 
             # Fallback to get_steps_data and aggregate hourly buckets
             steps_data = self.api.get_steps_data(date_str)
@@ -495,8 +500,8 @@ class GarminAPIWrapper:
 
     def get_energy_data(self, date_range: tuple) -> list[dict]:
         def fetch(date_str: str, current_date: datetime.date) -> dict | None:
-            summary = self.api.get_user_summary(date_str)
-            if not summary or not isinstance(summary, dict):
+            summary = self._get_cached_summary(date_str)
+            if not summary:
                 return None
 
             active = self._safe_float(summary.get("activeKilocalories"))
@@ -641,22 +646,13 @@ class GarminAPIWrapper:
                     error_type=type(e).__name__,
                 )
 
-            # Get user summary for calories
-            try:
-                summary = self.api.get_user_summary(date_str)
-                if summary and isinstance(summary, dict):
-                    combined_data["totalKilocalories"] = self._safe_float(
-                        summary.get("totalKilocalories")
-                    )
-                    combined_data["activeKilocalories"] = self._safe_float(
-                        summary.get("activeKilocalories")
-                    )
-            except Exception as e:
-                logger.warning(
-                    "garmin_user_summary_error",
-                    date=date_str,
-                    error=str(e),
-                    error_type=type(e).__name__,
+            summary = self._get_cached_summary(date_str)
+            if summary:
+                combined_data["totalKilocalories"] = self._safe_float(
+                    summary.get("totalKilocalories")
+                )
+                combined_data["activeKilocalories"] = self._safe_float(
+                    summary.get("activeKilocalories")
                 )
 
             # Try to get endurance score
