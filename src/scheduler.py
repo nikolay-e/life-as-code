@@ -12,7 +12,18 @@ from sync_manager import is_sync_recently_active
 configure_logging()
 logger = get_logger("scheduler")
 
-SYNC_INTERVAL_HOURS = int(os.getenv("SYNC_INTERVAL_HOURS", "4"))
+
+def _resolve_sync_interval_minutes() -> int:
+    minutes_env = os.getenv("SYNC_INTERVAL_MINUTES")
+    if minutes_env:
+        return int(minutes_env)
+    hours_env = os.getenv("SYNC_INTERVAL_HOURS")
+    if hours_env:
+        return int(hours_env) * 60
+    return 5
+
+
+SYNC_INTERVAL_MINUTES = _resolve_sync_interval_minutes()
 SYNC_DAYS = int(os.getenv("SYNC_DAYS", "7"))
 INITIAL_DELAY_SECONDS = 60
 SOURCES = [DataSource.GARMIN.value, DataSource.HEVY.value, DataSource.WHOOP.value]
@@ -112,7 +123,7 @@ def main():
 
     logger.info(
         "scheduler_starting",
-        interval_hours=SYNC_INTERVAL_HOURS,
+        interval_minutes=SYNC_INTERVAL_MINUTES,
         sync_days=SYNC_DAYS,
     )
 
@@ -128,8 +139,8 @@ def main():
             logger.exception("scheduler_cycle_error")
 
         if not shutdown_requested:
-            sleep_seconds = SYNC_INTERVAL_HOURS * 3600
-            logger.info("scheduler_sleeping", hours=SYNC_INTERVAL_HOURS)
+            sleep_seconds = SYNC_INTERVAL_MINUTES * 60
+            logger.info("scheduler_sleeping", minutes=SYNC_INTERVAL_MINUTES)
             interruptible_sleep(sleep_seconds)
 
     logger.info("scheduler_stopped")
