@@ -148,13 +148,15 @@ def load_raw_health_data(
             date=row.date.isoformat(),
             value=round(
                 row.total_sleep_minutes
-                / (row.total_sleep_minutes + (row.awake_minutes or 0))
+                / (row.total_sleep_minutes + row.awake_minutes)
                 * 100,
                 1,
             ),
         )
         for row in garmin_sleep
-        if row.total_sleep_minutes and row.total_sleep_minutes > 0
+        if row.total_sleep_minutes
+        and row.total_sleep_minutes > 0
+        and row.awake_minutes is not None
     ]
     raw.respiratory_rate_garmin = _to_points(garmin_sleep, "respiratory_rate")
 
