@@ -29,21 +29,6 @@ from .types import (
 )
 
 DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-RMSSD_AGE_MEDIANS = [
-    (20, 42),
-    (25, 40),
-    (30, 37),
-    (35, 35),
-    (40, 32),
-    (45, 29),
-    (50, 26),
-    (55, 24),
-    (60, 22),
-    (65, 20),
-    (70, 18),
-    (75, 16),
-    (80, 14),
-]
 
 
 def _build_day_map(
@@ -160,7 +145,7 @@ def calculate_sleep_quality(
     ]
 
     deep_pcts, rem_pcts = [], []
-    for dk, total in sleep_map.items():
+    for dk, total in sorted(sleep_map.items()):
         if total and total > 0:
             deep_v = deep_map.get(dk)
             rem_v = rem_map.get(dk)
@@ -439,21 +424,44 @@ def calculate_hrv_residual(
     y_vals = [r[0] for r in rows]
     y_mean = sum(y_vals) / n
 
-    feat_means = [0.0] * k
-    for _, feat_row in rows:
-        for j in range(k):
-            feat_means[j] += feat_row[j]
-    feat_means = [m / n for m in feat_means]
+    x_matrix = [[1.0] + r[1] for r in rows]
+    kk = k + 1
 
-    betas = [0.0] * k
-    for j in range(k):
-        num = sum(
-            (rows[i][1][j] - feat_means[j]) * (rows[i][0] - y_mean) for i in range(n)
-        )
-        den = sum((rows[i][1][j] - feat_means[j]) ** 2 for i in range(n))
-        betas[j] = num / den if den > 0 else 0.0
+    xtx = [[0.0] * kk for _ in range(kk)]
+    xty = [0.0] * kk
+    for i in range(n):
+        for j in range(kk):
+            xty[j] += x_matrix[i][j] * y_vals[i]
+            for m in range(j, kk):
+                xtx[j][m] += x_matrix[i][j] * x_matrix[i][m]
+    for j in range(kk):
+        for m in range(j):
+            xtx[j][m] = xtx[m][j]
 
-    intercept = y_mean - sum(betas[j] * feat_means[j] for j in range(k))
+    aug = [xtx[j][:] + [xty[j]] for j in range(kk)]
+    for col in range(kk):
+        max_row = max(range(col, kk), key=lambda r: abs(aug[r][col]))
+        aug[col], aug[max_row] = aug[max_row], aug[col]
+        pivot = aug[col][col]
+        if abs(pivot) < 1e-12:
+            return HRVResidualMetrics(
+                predicted=None,
+                actual=None,
+                residual=None,
+                residual_z=None,
+                r_squared=None,
+                model_features=available_features,
+            )
+        for j in range(col, kk + 1):
+            aug[col][j] /= pivot
+        for row in range(kk):
+            if row != col:
+                factor = aug[row][col]
+                for j in range(col, kk + 1):
+                    aug[row][j] -= factor * aug[col][j]
+    coeffs = [aug[j][kk] for j in range(kk)]
+    intercept = coeffs[0]
+    betas = coeffs[1:]
 
     predictions = [
         intercept + sum(betas[j] * rows[i][1][j] for j in range(k)) for i in range(n)
