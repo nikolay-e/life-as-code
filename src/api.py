@@ -155,7 +155,10 @@ def api_analytics():
 
     with get_db_session_context() as db:
         analysis = get_or_compute_snapshot(db, current_user.id, mode=mode)
-        return jsonify(analysis.model_dump(exclude_none=True))
+        result = analysis.model_dump(exclude_none=True)
+        if analysis.advanced_insights is not None:
+            result["advanced_insights"] = analysis.advanced_insights.model_dump()
+        return jsonify(result)
 
 
 @api.route("/data/range", methods=["GET"])
