@@ -7,7 +7,7 @@ from datetime import date
 from sqlalchemy.orm import Session
 
 from .constants import TREND_MODES
-from .date_utils import local_today
+from .date_utils import local_today, utcnow
 from .service import compute_health_analysis
 from .types import HealthAnalysis, TrendMode
 
@@ -40,7 +40,7 @@ def compute_and_store_snapshot(
         existing.health_score = (
             analysis.health_score.overall if analysis.health_score else None
         )
-        existing.computed_at = datetime.datetime.utcnow()
+        existing.computed_at = utcnow()
     else:
         snapshot = HealthSnapshot(
             user_id=user_id,
@@ -67,7 +67,7 @@ def get_cached_snapshot(
     from models import HealthSnapshot
 
     snapshot_date = target_date or local_today()
-    cutoff = datetime.datetime.utcnow() - datetime.timedelta(minutes=max_age_minutes)
+    cutoff = utcnow() - datetime.timedelta(minutes=max_age_minutes)
 
     existing = (
         db.query(HealthSnapshot)

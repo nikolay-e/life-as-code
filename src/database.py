@@ -1,4 +1,3 @@
-import datetime
 import os
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -7,6 +6,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, scoped_session, sessionmaker
 
+from date_utils import utcnow
 from logging_config import get_logger, init_db_event_logging, init_slow_query_logging
 
 logger = get_logger(__name__)
@@ -171,7 +171,7 @@ def bulk_upsert_records(
                     if include_source:
                         data_dict["source"] = source
                     if "created_at" not in data_dict:
-                        data_dict["created_at"] = datetime.datetime.utcnow()
+                        data_dict["created_at"] = utcnow()
 
                     all_keys.update(data_dict.keys())
                     processed_records.append(data_dict)
@@ -204,6 +204,7 @@ def bulk_upsert_records(
 
             db.execute(stmt)
             result["created"] = len(processed_records)
+            result["updated"] = 0
 
         logger.info(
             "bulk_upsert_completed",

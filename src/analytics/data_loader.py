@@ -190,7 +190,15 @@ def load_raw_health_data(
     )
     raw.energy = _best_per_date(
         [
-            (r.date, r.source, (r.active_energy or 0) + (r.basal_energy or 0))
+            (
+                r.date,
+                r.source,
+                (
+                    (r.active_energy or 0) + (r.basal_energy or 0)
+                    if r.active_energy is not None or r.basal_energy is not None
+                    else None
+                ),
+            )
             for r in energy_rows
         ]
     )

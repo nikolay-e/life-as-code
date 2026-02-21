@@ -18,7 +18,7 @@ from data_loaders import (
     load_data_for_user,
 )
 from database import get_db_session_context
-from date_utils import parse_date_string
+from date_utils import parse_date_string, utcnow
 from enums import DataSource, SyncStatus
 from errors import (
     APIError,
@@ -130,11 +130,13 @@ def api_me():
 
 def sanitize_for_json(records: list[dict]) -> list[dict]:
     import math
+    import numbers
 
     for record in records:
         for key, value in record.items():
-            if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
-                record[key] = None
+            if isinstance(value, numbers.Real) and not isinstance(value, (int, bool)):
+                if math.isnan(value) or math.isinf(value):
+                    record[key] = None
     return records
 
 
@@ -299,53 +301,25 @@ def api_save_thresholds():
         raise ValidationError("Request body is required")
 
     validated = {}
-    if "hrv_good_threshold" in data:
-        validated["hrv_good_threshold"] = int(
-            _validate_threshold(
-                data["hrv_good_threshold"], "hrv_good_threshold", 0, 500
-            )
-        )
-    if "hrv_moderate_threshold" in data:
-        validated["hrv_moderate_threshold"] = int(
-            _validate_threshold(
-                data["hrv_moderate_threshold"], "hrv_moderate_threshold", 0, 500
-            )
-        )
-    if "deep_sleep_good_threshold" in data:
-        validated["deep_sleep_good_threshold"] = int(
-            _validate_threshold(
-                data["deep_sleep_good_threshold"], "deep_sleep_good_threshold", 0, 500
-            )
-        )
-    if "deep_sleep_moderate_threshold" in data:
-        validated["deep_sleep_moderate_threshold"] = int(
-            _validate_threshold(
-                data["deep_sleep_moderate_threshold"],
-                "deep_sleep_moderate_threshold",
-                0,
-                500,
-            )
-        )
-    if "total_sleep_good_threshold" in data:
-        validated["total_sleep_good_threshold"] = _validate_threshold(
-            data["total_sleep_good_threshold"], "total_sleep_good_threshold", 0, 24
-        )
-    if "total_sleep_moderate_threshold" in data:
-        validated["total_sleep_moderate_threshold"] = _validate_threshold(
-            data["total_sleep_moderate_threshold"],
-            "total_sleep_moderate_threshold",
-            0,
-            24,
-        )
-    if "training_high_volume_threshold" in data:
-        validated["training_high_volume_threshold"] = int(
-            _validate_threshold(
-                data["training_high_volume_threshold"],
-                "training_high_volume_threshold",
-                0,
-                100000,
-            )
-        )
+
+    int_thresholds = {
+        "hrv_good_threshold": (0, 500),
+        "hrv_moderate_threshold": (0, 500),
+        "deep_sleep_good_threshold": (0, 500),
+        "deep_sleep_moderate_threshold": (0, 500),
+        "training_high_volume_threshold": (0, 100000),
+    }
+    for key, (min_val, max_val) in int_thresholds.items():
+        if key in data and data[key] is not None:
+            validated[key] = int(_validate_threshold(data[key], key, min_val, max_val))
+
+    float_thresholds = {
+        "total_sleep_good_threshold": (0, 24),
+        "total_sleep_moderate_threshold": (0, 24),
+    }
+    for key, (min_val, max_val) in float_thresholds.items():
+        if key in data and data[key] is not None:
+            validated[key] = _validate_threshold(data[key], key, min_val, max_val)
 
     with get_db_session_context() as db:
         settings = db.scalars(
@@ -457,7 +431,7 @@ def _update_data_sync(
                 )
             ).first()
 
-            now = datetime.utcnow()
+            now = utcnow()
             records_synced = result.get("total_records_created", 0) + result.get(
                 "total_records_updated", 0
             )

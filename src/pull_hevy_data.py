@@ -1,5 +1,4 @@
 import datetime
-import time
 
 import requests
 from dotenv import load_dotenv
@@ -11,7 +10,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from date_utils import parse_iso_date
+from date_utils import parse_iso_date, utcnow
 from enums import DataSource, DataType
 from errors import CredentialsDecryptionError, CredentialsNotFoundError
 from http_client import RateLimitError
@@ -126,7 +125,6 @@ class HevyAPIClient:
 
             if response.status_code == 429:
                 logger.warning("hevy_rate_limited", wait_seconds=RATE_LIMIT_WAIT)
-                time.sleep(RATE_LIMIT_WAIT)
                 raise RateLimitError(RATE_LIMIT_WAIT)
 
             return response
@@ -237,7 +235,7 @@ def sync_hevy_data_for_user(
 
         summary = {
             "user_id": user_id,
-            "sync_date": datetime.datetime.utcnow().isoformat(),
+            "sync_date": utcnow().isoformat(),
             "sync_type": date_range.sync_type,
             "source": "hevy",
             "data_type": "workouts",

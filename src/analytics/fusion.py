@@ -258,7 +258,7 @@ def fuse_strain(
         return blended_merge(
             garmin_atl, whoop_strain, "strain", normalized_garmin, ref_date=ref_date
         )
-    return blended_merge([], whoop_strain, "strain", ref_date=ref_date)
+    return blended_merge(garmin_atl, whoop_strain, "strain", ref_date=ref_date)
 
 
 def fuse_calories(

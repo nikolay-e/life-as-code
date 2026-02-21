@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, time, timedelta
+from datetime import time, timedelta
 from functools import partial
 
 from telegram.ext import Application
@@ -7,6 +7,7 @@ from telegram.ext import Application
 from bot.config import BotConfig
 from bot.formatters import send_markdown_safe
 from database import get_db_session_context
+from date_utils import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +76,7 @@ async def _push_anomaly_alert(context):
             )
 
             if not new_alerts:
-                cutoff = datetime.utcnow() - timedelta(hours=24)
+                cutoff = utcnow() - timedelta(hours=24)
                 resolved = (
                     db.query(ClinicalAlertEvent)
                     .filter_by(user_id=data["user_id"], status="resolved")
@@ -118,7 +119,7 @@ async def _push_anomaly_alert(context):
                 )
                 await send_markdown_safe(send, text)
 
-            cutoff = datetime.utcnow() - timedelta(hours=24)
+            cutoff = utcnow() - timedelta(hours=24)
             resolved = (
                 db.query(ClinicalAlertEvent)
                 .filter_by(user_id=data["user_id"], status="resolved")

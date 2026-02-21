@@ -12,6 +12,7 @@ from tenacity import (
     wait_exponential,
 )
 
+from date_utils import utcnow
 from enums import DataSource
 from errors import CredentialsDecryptionError, CredentialsNotFoundError
 from garmin_schemas import (
@@ -198,7 +199,7 @@ def sync_garmin_data_for_user(
 
         summary = {
             "user_id": user_id,
-            "sync_date": datetime.datetime.utcnow().isoformat(),
+            "sync_date": utcnow().isoformat(),
             "sync_type": date_range.sync_type,
             "date_range": {
                 "start": date_range.start_date.isoformat(),
@@ -708,7 +709,7 @@ class GarminAPIWrapper:
                             )
                             activity_data["date"] = start_dt.date()
                     except (ValueError, OSError):
-                        activity_data["date"] = start_date
+                        continue
 
                 results.append(activity_data)
 

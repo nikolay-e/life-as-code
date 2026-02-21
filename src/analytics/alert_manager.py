@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import datetime
 import logging
 from collections.abc import Callable
 
 from sqlalchemy.orm import Session
 
+from .date_utils import utcnow
 from .types import HealthAnalysis
 
 logger = logging.getLogger(__name__)
@@ -76,7 +76,7 @@ def _check_illness_risk(analysis: HealthAnalysis) -> dict | None:
 def process_alerts(db: Session, user_id: int, analysis: HealthAnalysis) -> list[dict]:
     from models import ClinicalAlertEvent
 
-    now = datetime.datetime.utcnow()
+    now = utcnow()
     fired_types: set[str] = set()
     new_alerts: list[dict] = []
 
@@ -164,7 +164,7 @@ def acknowledge_alert(db: Session, alert_id: int) -> bool:
     if not alert or alert.status != "open":
         return False
     alert.status = "acknowledged"
-    alert.acknowledged_at = datetime.datetime.utcnow()
+    alert.acknowledged_at = utcnow()
     db.flush()
     return True
 

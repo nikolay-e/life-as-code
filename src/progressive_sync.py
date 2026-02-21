@@ -7,6 +7,7 @@ from typing import Any, cast
 from sqlalchemy import select
 
 from database import get_db_session_context
+from date_utils import utcnow
 from enums import DataSource, SyncWindow, SyncWindowStatus
 from logging_config import get_logger
 from models import SyncProgress
@@ -47,7 +48,7 @@ def should_start_sync(user_id: int, source: str) -> bool:
             return False
 
         if progress.last_sync_started_at:
-            elapsed = datetime.datetime.utcnow() - progress.last_sync_started_at
+            elapsed = utcnow() - progress.last_sync_started_at
             if elapsed < timedelta(minutes=MIN_SYNC_INTERVAL_MINUTES):
                 return False
 
@@ -148,13 +149,13 @@ def update_sync_progress(
 
         progress.current_window = window
         progress.window_status = status
-        progress.updated_at = datetime.datetime.utcnow()
+        progress.updated_at = utcnow()
 
         if status == SyncWindowStatus.IN_PROGRESS.value:
-            progress.last_sync_started_at = datetime.datetime.utcnow()
+            progress.last_sync_started_at = utcnow()
             progress.error_message = None
         elif status == SyncWindowStatus.COMPLETED.value:
-            progress.last_sync_completed_at = datetime.datetime.utcnow()
+            progress.last_sync_completed_at = utcnow()
             progress.mark_window_completed(window, datetime.date.today())
             if oldest_date:
                 if (

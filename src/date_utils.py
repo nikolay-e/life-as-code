@@ -1,6 +1,10 @@
 import datetime
 
 
+def utcnow() -> datetime.datetime:
+    return datetime.datetime.now(datetime.UTC).replace(tzinfo=None)
+
+
 def parse_iso_datetime(iso_string: str) -> datetime.datetime:
     return datetime.datetime.fromisoformat(iso_string.replace("Z", "+00:00"))
 

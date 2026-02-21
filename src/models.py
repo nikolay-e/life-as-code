@@ -17,6 +17,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import declarative_base, relationship, validates
 
+from date_utils import utcnow
 from enums import DataSource, SyncStatus, SyncWindow, SyncWindowStatus
 
 Base: Any = declarative_base()
@@ -29,7 +30,7 @@ class User(Base):
     username = Column(String(80), unique=True, nullable=False, index=True)
     password_hash = Column(String(200), nullable=False)
     encryption_key_sealed = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     # Relationships
     credentials = relationship(
@@ -116,10 +117,8 @@ class UserCredentials(Base):
     encrypted_whoop_access_token = Column(String(1000))  # Encrypted
     encrypted_whoop_refresh_token = Column(String(1000))  # Encrypted
     whoop_token_expires_at = Column(DateTime)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    updated_at = Column(
-        DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow
-    )
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     # Relationships
     user = relationship("User", back_populates="credentials")
@@ -149,10 +148,8 @@ class UserSettings(Base):
     # Training volume thresholds (in kg)
     training_high_volume_threshold = Column(Integer, default=5000)
 
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    updated_at = Column(
-        DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow
-    )
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     # Relationships
     user = relationship("User", back_populates="settings")
@@ -183,7 +180,7 @@ class Sleep(Base):
     spo2_avg = Column(Float)
     spo2_min = Column(Float)
     respiratory_rate = Column(Float)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     # Relationships
     user = relationship("User", back_populates="sleep_data")
@@ -245,7 +242,7 @@ class HRV(Base):
     baseline_low_ms = Column(Float)
     baseline_high_ms = Column(Float)
     feedback_phrase = Column(String(200))
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     # Relationships
     user = relationship("User", back_populates="hrv_data")
@@ -284,7 +281,7 @@ class Weight(Base):
     muscle_mass_kg = Column(Float)
     bone_mass_kg = Column(Float)
     water_pct = Column(Float)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     # Relationships
     user = relationship("User", back_populates="weight_data")
@@ -334,7 +331,7 @@ class HeartRate(Base):
     resting_hr = Column(Integer)
     max_hr = Column(Integer)
     avg_hr = Column(Integer)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     # Relationships
     user = relationship("User", back_populates="heart_rate_data")
@@ -379,7 +376,7 @@ class Stress(Base):
     stress_level = Column(String(20))
     rest_stress = Column(Float)
     activity_stress = Column(Float)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     __table_args__ = (
         UniqueConstraint(
@@ -428,7 +425,7 @@ class Energy(Base):
     source = Column(String(50), nullable=False, default="garmin")
     active_energy = Column(Float, default=0)
     basal_energy = Column(Float, default=0)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     user = relationship("User", back_populates="energy_data")
 
@@ -476,7 +473,7 @@ class Steps(Base):
     step_goal = Column(Integer, default=10000)
     active_minutes = Column(Integer, default=0)
     floors_climbed = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     user = relationship("User", back_populates="steps")
 
@@ -535,7 +532,7 @@ class WorkoutSet(Base):
     set_type = Column(String(50))  # normal, warmup, failure, etc.
     duration_seconds = Column(Integer)
     distance_meters = Column(Float)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     # Relationships
     user = relationship("User", back_populates="workout_sets")
@@ -572,7 +569,7 @@ class DataSync(Base):
     source = Column(String(50), nullable=False)  # 'garmin', 'hevy', 'whoop'
     data_type = Column(String(50), nullable=False)  # 'sleep', 'hrv', 'workouts'
     last_sync_date = Column(Date)
-    last_sync_timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+    last_sync_timestamp = Column(DateTime, default=utcnow)
     records_synced = Column(Integer, default=0)
     status = Column(String(20), default="success")  # 'success', 'error', 'partial'
     error_message = Column(Text)
@@ -622,10 +619,8 @@ class SyncProgress(Base):
     last_sync_started_at = Column(DateTime)
     last_sync_completed_at = Column(DateTime)
     error_message = Column(Text)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    updated_at = Column(
-        DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow
-    )
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     user = relationship("User", back_populates="sync_progress")
 
@@ -720,7 +715,7 @@ class WhoopRecovery(Base):
     spo2_percentage = Column(Float)
     skin_temp_celsius = Column(Float)
     user_calibrating = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     user = relationship("User", back_populates="whoop_recoveries")
 
@@ -769,7 +764,7 @@ class WhoopSleep(Base):
     rem_sleep_minutes = Column(Integer)
     awake_minutes = Column(Integer)
     respiratory_rate = Column(Float)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     user = relationship("User", back_populates="whoop_sleeps")
 
@@ -821,7 +816,7 @@ class WhoopWorkout(Base):
     distance_meters = Column(Float)
     altitude_gain_meters = Column(Float)
     sport_name = Column(String(100))
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     user = relationship("User", back_populates="whoop_workouts")
 
@@ -870,7 +865,7 @@ class WhoopCycle(Base):
     kilojoules = Column(Float)
     avg_heart_rate = Column(Integer)
     max_heart_rate = Column(Integer)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     user = relationship("User", back_populates="whoop_cycles")
 
@@ -923,7 +918,7 @@ class GarminTrainingStatus(Base):
     training_readiness_score = Column(Float)
     total_kilocalories = Column(Float)
     active_kilocalories = Column(Float)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     user = relationship("User", back_populates="garmin_training_status")
 
@@ -997,7 +992,7 @@ class GarminActivity(Base):
     training_effect_aerobic = Column(Float)
     training_effect_anaerobic = Column(Float)
     vo2_max_value = Column(Float)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     user = relationship("User", back_populates="garmin_activities")
 
@@ -1055,7 +1050,7 @@ class Prediction(Base):
     p50 = Column(Float)
     p90 = Column(Float)
     model_version = Column(String(100))
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     user = relationship("User", back_populates="predictions")
 
@@ -1084,7 +1079,7 @@ class Anomaly(Base):
     anomaly_score = Column(Float, nullable=False)
     contributing_factors = Column(JSON)
     model_version = Column(String(100))
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     user = relationship("User", back_populates="anomalies")
 
@@ -1115,7 +1110,7 @@ class HealthSnapshot(Base):
     mode = Column(String(20), nullable=False, default="recent")
     snapshot_json = Column(JSON, nullable=False)
     health_score = Column(Float)
-    computed_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    computed_at = Column(DateTime, nullable=False, default=utcnow)
 
     user = relationship("User", back_populates="health_snapshots")
 
@@ -1146,15 +1141,11 @@ class ClinicalAlertEvent(Base):
     severity = Column(String(20), nullable=False, default="warning")
     status = Column(String(20), nullable=False, default="open")
     details_json = Column(JSON)
-    first_detected_at = Column(
-        DateTime, nullable=False, default=datetime.datetime.utcnow
-    )
-    last_detected_at = Column(
-        DateTime, nullable=False, default=datetime.datetime.utcnow
-    )
+    first_detected_at = Column(DateTime, nullable=False, default=utcnow)
+    last_detected_at = Column(DateTime, nullable=False, default=utcnow)
     acknowledged_at = Column(DateTime)
     resolved_at = Column(DateTime)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     user = relationship("User", back_populates="clinical_alert_events")
 

@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from database import bulk_upsert_records, get_db_session_context
+from date_utils import utcnow
 from enums import DataSource, SyncStatus
 from errors import CredentialsDecryptionError, CredentialsNotFoundError
 from logging_config import get_logger
@@ -147,9 +148,7 @@ def is_sync_recently_active(user_id: int, source: str, stale_minutes: int = 30) 
             if not syncs:
                 return False
 
-            cutoff = datetime.datetime.utcnow() - datetime.timedelta(
-                minutes=stale_minutes
-            )
+            cutoff = utcnow() - datetime.timedelta(minutes=stale_minutes)
 
             for sync in syncs:
                 if sync.last_sync_timestamp and sync.last_sync_timestamp > cutoff:
@@ -186,7 +185,7 @@ class SyncResult:
         self.records_updated = 0
         self.records_skipped = 0
         self.errors: list[str] = []
-        self.start_time = datetime.datetime.utcnow()
+        self.start_time = utcnow()
         self.end_time: datetime.datetime | None = None
         self.success = False
 
@@ -199,7 +198,7 @@ class SyncResult:
 
     def finish(self, success: bool = True):
         """Mark the sync as finished."""
-        self.end_time = datetime.datetime.utcnow()
+        self.end_time = utcnow()
         self.success = success
 
         status = "completed" if success else "failed"
@@ -382,7 +381,7 @@ def _set_sync_in_progress(db: Session, user_id: int, source: str, data_type: str
 
         if existing_sync:
             existing_sync.status = SyncStatus.IN_PROGRESS
-            existing_sync.last_sync_timestamp = datetime.datetime.utcnow()
+            existing_sync.last_sync_timestamp = utcnow()
             existing_sync.error_message = None
         else:
             new_sync = DataSync(
@@ -390,7 +389,7 @@ def _set_sync_in_progress(db: Session, user_id: int, source: str, data_type: str
                 source=source,
                 data_type=data_type,
                 status=SyncStatus.IN_PROGRESS,
-                last_sync_timestamp=datetime.datetime.utcnow(),
+                last_sync_timestamp=utcnow(),
             )
             db.add(new_sync)
 
@@ -415,7 +414,7 @@ def update_sync_status(
             "; ".join(sync_result.errors[:3]) if sync_result.errors else None
         )
 
-        sync_timestamp = sync_result.end_time or datetime.datetime.utcnow()
+        sync_timestamp = sync_result.end_time or utcnow()
         sync_date = sync_timestamp.date()
 
         if existing_sync:

@@ -11,6 +11,7 @@ from wtforms import PasswordField, StringField, SubmitField
 from wtforms.validators import DataRequired
 
 from database import get_db_session_context
+from date_utils import utcnow
 from logging_config import get_logger
 from models import User, UserCredentials
 from security import encrypt_data_for_user, verify_password
@@ -280,19 +281,17 @@ def register_routes(server, limiter):
 
                 creds.encrypted_whoop_access_token = encrypted_token
                 creds.encrypted_whoop_refresh_token = encrypted_refresh
-                creds.whoop_token_expires_at = (
-                    datetime.datetime.utcnow()
-                    + datetime.timedelta(seconds=tokens.get("expires_in", 3600))
+                creds.whoop_token_expires_at = utcnow() + datetime.timedelta(
+                    seconds=tokens.get("expires_in", 3600)
                 )
 
-                db.flush()
                 db.commit()
                 logger.info("whoop_credentials_saved")
 
             flash("Whoop account connected successfully!")
             return redirect("/dashboard/settings")
 
-        except Exception:
+        except (requests.RequestException, KeyError, ValueError):
             logger.exception("whoop_connection_error")
             flash("Error connecting Whoop. Please try again.")
             return redirect("/dashboard/settings")

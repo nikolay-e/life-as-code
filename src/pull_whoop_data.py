@@ -15,7 +15,7 @@ from tenacity import (
 )
 
 from database import get_db_session_context
-from date_utils import parse_iso_date
+from date_utils import parse_iso_date, utcnow
 from enums import DataSource, DataType
 from errors import CredentialsDecryptionError, CredentialsNotFoundError
 from http_client import AuthenticationError, RateLimitError
@@ -101,9 +101,8 @@ class WhoopAPIClient:
                         creds.encrypted_whoop_refresh_token = encrypt_data_for_user(
                             self.refresh_token, self.user_id
                         )
-                        creds.whoop_token_expires_at = (
-                            datetime.datetime.utcnow()
-                            + datetime.timedelta(seconds=tokens.get("expires_in", 3600))
+                        creds.whoop_token_expires_at = utcnow() + datetime.timedelta(
+                            seconds=tokens.get("expires_in", 3600)
                         )
                         db.commit()
 
@@ -153,7 +152,6 @@ class WhoopAPIClient:
             if response.status_code == 429:
                 retry_after = int(response.headers.get("Retry-After", 60))
                 logger.warning("whoop_rate_limited", retry_after=retry_after)
-                time.sleep(retry_after)
                 raise RateLimitError(retry_after)
 
             if response.status_code == 200:
@@ -486,7 +484,7 @@ def sync_whoop_data_for_user(
 
         summary = {
             "user_id": user_id,
-            "sync_date": datetime.datetime.utcnow().isoformat(),
+            "sync_date": utcnow().isoformat(),
             "sync_type": date_range.sync_type,
             "date_range": {
                 "start": start_date.isoformat() if start_date else "all",
