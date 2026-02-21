@@ -89,6 +89,9 @@ class User(Base):
     garmin_activities = relationship(
         "GarminActivity", back_populates="user", cascade="all, delete-orphan"
     )
+    garmin_race_predictions = relationship(
+        "GarminRacePrediction", back_populates="user", cascade="all, delete-orphan"
+    )
     predictions = relationship(
         "Prediction", back_populates="user", cascade="all, delete-orphan"
     )
@@ -331,6 +334,11 @@ class HeartRate(Base):
     resting_hr = Column(Integer)
     max_hr = Column(Integer)
     avg_hr = Column(Integer)
+    spo2_avg = Column(Float)
+    spo2_min = Column(Float)
+    waking_respiratory_rate = Column(Float)
+    lowest_respiratory_rate = Column(Float)
+    highest_respiratory_rate = Column(Float)
     created_at = Column(DateTime, default=utcnow)
 
     # Relationships
@@ -357,6 +365,26 @@ class HeartRate(Base):
         CheckConstraint(
             "(avg_hr >= 30 AND avg_hr <= 220) OR avg_hr IS NULL",
             name="valid_avg_hr_range",
+        ),
+        CheckConstraint(
+            "(spo2_avg >= 50 AND spo2_avg <= 100) OR spo2_avg IS NULL",
+            name="valid_hr_spo2_avg_range",
+        ),
+        CheckConstraint(
+            "(spo2_min >= 50 AND spo2_min <= 100) OR spo2_min IS NULL",
+            name="valid_hr_spo2_min_range",
+        ),
+        CheckConstraint(
+            "(waking_respiratory_rate >= 5 AND waking_respiratory_rate <= 50) OR waking_respiratory_rate IS NULL",
+            name="valid_waking_resp_rate_range",
+        ),
+        CheckConstraint(
+            "(lowest_respiratory_rate >= 5 AND lowest_respiratory_rate <= 50) OR lowest_respiratory_rate IS NULL",
+            name="valid_lowest_resp_rate_range",
+        ),
+        CheckConstraint(
+            "(highest_respiratory_rate >= 5 AND highest_respiratory_rate <= 50) OR highest_respiratory_rate IS NULL",
+            name="valid_highest_resp_rate_range",
         ),
     )
 
@@ -764,6 +792,13 @@ class WhoopSleep(Base):
     rem_sleep_minutes = Column(Integer)
     awake_minutes = Column(Integer)
     respiratory_rate = Column(Float)
+    sleep_need_baseline_minutes = Column(Integer)
+    sleep_need_debt_minutes = Column(Integer)
+    sleep_need_strain_minutes = Column(Integer)
+    sleep_need_nap_minutes = Column(Integer)
+    sleep_cycle_count = Column(Integer)
+    disturbance_count = Column(Integer)
+    no_data_minutes = Column(Integer)
     created_at = Column(DateTime, default=utcnow)
 
     user = relationship("User", back_populates="whoop_sleeps")
@@ -816,6 +851,15 @@ class WhoopWorkout(Base):
     distance_meters = Column(Float)
     altitude_gain_meters = Column(Float)
     sport_name = Column(String(100))
+    end_time = Column(DateTime)
+    percent_recorded = Column(Float)
+    altitude_change_meters = Column(Float)
+    zone_zero_millis = Column(Integer)
+    zone_one_millis = Column(Integer)
+    zone_two_millis = Column(Integer)
+    zone_three_millis = Column(Integer)
+    zone_four_millis = Column(Integer)
+    zone_five_millis = Column(Integer)
     created_at = Column(DateTime, default=utcnow)
 
     user = relationship("User", back_populates="whoop_workouts")
@@ -992,6 +1036,11 @@ class GarminActivity(Base):
     training_effect_aerobic = Column(Float)
     training_effect_anaerobic = Column(Float)
     vo2_max_value = Column(Float)
+    hr_zone_one_seconds = Column(Integer)
+    hr_zone_two_seconds = Column(Integer)
+    hr_zone_three_seconds = Column(Integer)
+    hr_zone_four_seconds = Column(Integer)
+    hr_zone_five_seconds = Column(Integer)
     created_at = Column(DateTime, default=utcnow)
 
     user = relationship("User", back_populates="garmin_activities")
@@ -1036,6 +1085,55 @@ class GarminActivity(Base):
 
     def __repr__(self):
         return f"<GarminActivity(user_id={self.user_id}, date={self.date}, type={self.activity_type}, duration={self.duration_seconds}s)>"
+
+
+class GarminRacePrediction(Base):
+    __tablename__ = "garmin_race_predictions"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    date = Column(Date, nullable=False, index=True)
+    prediction_5k_seconds = Column(Integer)
+    prediction_10k_seconds = Column(Integer)
+    prediction_half_marathon_seconds = Column(Integer)
+    prediction_marathon_seconds = Column(Integer)
+    vo2_max_value = Column(Float)
+    created_at = Column(DateTime, default=utcnow)
+
+    user = relationship("User", back_populates="garmin_race_predictions")
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "date", name="_user_garmin_race_pred_date_uc"),
+        Index(
+            "idx_garmin_race_pred_user_date",
+            "user_id",
+            "date",
+            postgresql_ops={"date": "DESC"},
+        ),
+        CheckConstraint(
+            "(prediction_5k_seconds > 0) OR prediction_5k_seconds IS NULL",
+            name="valid_pred_5k",
+        ),
+        CheckConstraint(
+            "(prediction_10k_seconds > 0) OR prediction_10k_seconds IS NULL",
+            name="valid_pred_10k",
+        ),
+        CheckConstraint(
+            "(prediction_half_marathon_seconds > 0) OR prediction_half_marathon_seconds IS NULL",
+            name="valid_pred_half",
+        ),
+        CheckConstraint(
+            "(prediction_marathon_seconds > 0) OR prediction_marathon_seconds IS NULL",
+            name="valid_pred_marathon",
+        ),
+        CheckConstraint(
+            "(vo2_max_value >= 10 AND vo2_max_value <= 100) OR vo2_max_value IS NULL",
+            name="valid_race_pred_vo2_max",
+        ),
+    )
+
+    def __repr__(self):
+        return f"<GarminRacePrediction(user_id={self.user_id}, date={self.date})>"
 
 
 class Prediction(Base):

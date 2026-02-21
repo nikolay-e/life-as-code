@@ -29,6 +29,7 @@ export interface HealthData {
   whoop_cycle: WhoopCycleData[];
   garmin_training_status: GarminTrainingStatusData[];
   garmin_activity: GarminActivityData[];
+  garmin_race_prediction: GarminRacePredictionData[];
 }
 
 export interface SleepData {
@@ -69,6 +70,11 @@ export interface HeartRateData {
   resting_hr: number | null;
   max_hr: number | null;
   avg_hr: number | null;
+  spo2_avg: number | null;
+  spo2_min: number | null;
+  waking_respiratory_rate: number | null;
+  lowest_respiratory_rate: number | null;
+  highest_respiratory_rate: number | null;
 }
 
 export interface StressData {
@@ -120,11 +126,19 @@ export interface WhoopSleepData {
   rem_sleep_minutes: number | null;
   awake_minutes: number | null;
   respiratory_rate: number | null;
+  sleep_need_baseline_minutes: number | null;
+  sleep_need_debt_minutes: number | null;
+  sleep_need_strain_minutes: number | null;
+  sleep_need_nap_minutes: number | null;
+  sleep_cycle_count: number | null;
+  disturbance_count: number | null;
+  no_data_minutes: number | null;
 }
 
 export interface WhoopWorkoutData {
   date: string;
   start_time: string | null;
+  end_time: string | null;
   strain: number | null;
   avg_heart_rate: number | null;
   max_heart_rate: number | null;
@@ -132,6 +146,14 @@ export interface WhoopWorkoutData {
   distance_meters: number | null;
   altitude_gain_meters: number | null;
   sport_name: string | null;
+  percent_recorded: number | null;
+  altitude_change_meters: number | null;
+  zone_zero_millis: number | null;
+  zone_one_millis: number | null;
+  zone_two_millis: number | null;
+  zone_three_millis: number | null;
+  zone_four_millis: number | null;
+  zone_five_millis: number | null;
 }
 
 export interface WhoopCycleData {
@@ -334,5 +356,19 @@ export interface GarminActivityData {
   max_power_watts: number | null;
   training_effect_aerobic: number | null;
   training_effect_anaerobic: number | null;
+  vo2_max_value: number | null;
+  hr_zone_one_seconds: number | null;
+  hr_zone_two_seconds: number | null;
+  hr_zone_three_seconds: number | null;
+  hr_zone_four_seconds: number | null;
+  hr_zone_five_seconds: number | null;
+}
+
+export interface GarminRacePredictionData {
+  date: string;
+  prediction_5k_seconds: number | null;
+  prediction_10k_seconds: number | null;
+  prediction_half_marathon_seconds: number | null;
+  prediction_marathon_seconds: number | null;
   vo2_max_value: number | null;
 }

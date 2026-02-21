@@ -20,6 +20,7 @@ from garmin_schemas import (
     GarminEnergyData,
     GarminHeartRateData,
     GarminHRVData,
+    GarminRacePredictionData,
     GarminSleepData,
     GarminStepsData,
     GarminStressData,
@@ -31,6 +32,7 @@ from models import (
     HRV,
     Energy,
     GarminActivity,
+    GarminRacePrediction,
     GarminTrainingStatus,
     HeartRate,
     Sleep,
@@ -202,6 +204,15 @@ def sync_garmin_data_for_user(
                 "unique_fields": ["activity_id"],
                 "source": "garmin",
                 "api_args": {"date_range": dr},
+            },
+            {
+                "data_type": "race_predictions",
+                "api_method": "get_race_predictions_data",
+                "parser_class": GarminRacePredictionData,
+                "model_class": GarminRacePrediction,
+                "unique_fields": ["date"],
+                "source": "garmin",
+                "api_args": {},
             },
         ]
 
@@ -477,15 +488,40 @@ class GarminAPIWrapper:
         return self._fetch_daily(date_range, "weight", fetch)
 
     def get_heart_rates_data(self, date_range: tuple) -> list[dict]:
-        """Get heart rate data for date range."""
-
         def fetch(date_str: str, current_date: datetime.date) -> dict | None:
             hr_data = self.api.get_heart_rates(date_str)
-            if hr_data:
-                result = dict(hr_data)
-                result["date"] = current_date
-                return result
-            return None
+            if not hr_data:
+                return None
+
+            result = dict(hr_data)
+            result["date"] = current_date
+
+            try:
+                time.sleep(GARMIN_API_RATE_LIMIT_DELAY)
+                spo2_data = self.api.get_spo2_data(date_str)
+                if spo2_data and isinstance(spo2_data, dict):
+                    result["averageSpO2"] = spo2_data.get("averageSpO2")
+                    result["lowestSpO2"] = spo2_data.get("lowestSpO2")
+            except Exception as e:
+                logger.debug("garmin_spo2_error", date=date_str, error=str(e))
+
+            try:
+                time.sleep(GARMIN_API_RATE_LIMIT_DELAY)
+                resp_data = self.api.get_respiration_data(date_str)
+                if resp_data and isinstance(resp_data, dict):
+                    result["avgWakingRespirationValue"] = resp_data.get(
+                        "avgWakingRespirationValue"
+                    )
+                    result["lowestRespirationValue"] = resp_data.get(
+                        "lowestRespirationValue"
+                    )
+                    result["highestRespirationValue"] = resp_data.get(
+                        "highestRespirationValue"
+                    )
+            except Exception as e:
+                logger.debug("garmin_respiration_error", date=date_str, error=str(e))
+
+            return result
 
         return self._fetch_daily(date_range, "heart_rate", fetch)
 
@@ -711,8 +747,37 @@ class GarminAPIWrapper:
 
         return self._fetch_daily(date_range, "training_status", fetch)
 
+    def _fetch_hr_zones_for_activity(self, activity_id: str) -> dict[str, int | None]:
+        try:
+            hr_zones = self.api.get_activity_hr_in_timezones(activity_id)
+            if not hr_zones or not isinstance(hr_zones, list):
+                return {}
+
+            zone_map: dict[str, int | None] = {}
+            for zone in hr_zones:
+                if not isinstance(zone, dict):
+                    continue
+                zone_number = zone.get("zoneNumber")
+                secs = zone.get("secsInZone")
+                if zone_number is not None and secs is not None:
+                    key = f"hr_zone_{self._zone_number_to_name(zone_number)}_seconds"
+                    if key.startswith("hr_zone_") and not key.startswith("hr_zone__"):
+                        zone_map[key] = int(secs)
+            return zone_map
+        except Exception as e:
+            logger.debug(
+                "garmin_hr_zones_error",
+                activity_id=activity_id,
+                error=str(e),
+            )
+            return {}
+
+    @staticmethod
+    def _zone_number_to_name(zone_number: int) -> str:
+        names = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five"}
+        return names.get(zone_number, "")
+
     def get_activities_data(self, date_range: tuple) -> list[dict]:
-        """Get activities for date range using get_activities_by_date API."""
         start_date, end_date = date_range
         results: list[dict] = []
 
@@ -730,7 +795,6 @@ class GarminAPIWrapper:
 
                 activity_data = dict(activity)
 
-                # Extract date from startTimeLocal or startTimeGMT
                 start_time_str = activity.get("startTimeLocal") or activity.get(
                     "startTimeGMT"
                 )
@@ -749,6 +813,12 @@ class GarminAPIWrapper:
                     except (ValueError, OSError):
                         continue
 
+                activity_id = activity.get("activityId")
+                if activity_id:
+                    time.sleep(GARMIN_API_RATE_LIMIT_DELAY)
+                    zone_data = self._fetch_hr_zones_for_activity(str(activity_id))
+                    activity_data.update(zone_data)
+
                 results.append(activity_data)
 
             logger.info(
@@ -766,6 +836,71 @@ class GarminAPIWrapper:
             )
 
         return results
+
+    def get_race_predictions_data(self) -> list[dict]:
+        try:
+            predictions = self.api.get_race_predictions()
+            if not predictions or not isinstance(predictions, dict):
+                return []
+
+            today = datetime.date.today()
+            result: dict[str, Any] = {"date": today}
+
+            for vo2_key in ("overallVO2Max", "vo2MaxValue", "vo2Max"):
+                val = predictions.get(vo2_key)
+                if val is not None:
+                    result["vo2MaxValue"] = self._safe_float(val)
+                    break
+
+            distance_key_map = {
+                5000: "prediction_5k_seconds",
+                10000: "prediction_10k_seconds",
+                21097: "prediction_half_marathon_seconds",
+                21098: "prediction_half_marathon_seconds",
+                42195: "prediction_marathon_seconds",
+            }
+
+            for list_key in ("raceTimes", "racePredictions"):
+                race_list = predictions.get(list_key, [])
+                if not isinstance(race_list, list):
+                    continue
+                for race in race_list:
+                    if not isinstance(race, dict):
+                        continue
+                    raw_distance = race.get("distance") or race.get(
+                        "racePredictionDistance"
+                    )
+                    distance = int(raw_distance) if raw_distance is not None else None
+                    time_secs = race.get("time") or race.get("racePredictionTime")
+                    if (
+                        distance is not None
+                        and distance in distance_key_map
+                        and time_secs is not None
+                    ):
+                        result[distance_key_map[distance]] = self._safe_int(time_secs)
+
+            meaningful_keys = [
+                "prediction_5k_seconds",
+                "prediction_10k_seconds",
+                "prediction_half_marathon_seconds",
+                "prediction_marathon_seconds",
+            ]
+            if any(result.get(k) is not None for k in meaningful_keys):
+                logger.info(
+                    "garmin_race_predictions_fetched",
+                    keys=list(result.keys()),
+                )
+                return [result]
+
+            return []
+
+        except Exception as e:
+            logger.warning(
+                "garmin_race_predictions_error",
+                error_type=type(e).__name__,
+                error=str(e),
+            )
+            return []
 
 
 if __name__ == "__main__":

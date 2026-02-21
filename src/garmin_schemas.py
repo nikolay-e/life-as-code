@@ -546,6 +546,11 @@ class GarminHeartRateData(GarminBaseModel):
     resting_hr: int | None = Field(None, description="Resting heart rate in BPM")
     max_hr: int | None = Field(None, description="Maximum heart rate in BPM")
     avg_hr: int | None = Field(None, description="Average heart rate in BPM")
+    spo2_avg: float | None = Field(None)
+    spo2_min: float | None = Field(None)
+    waking_respiratory_rate: float | None = Field(None)
+    lowest_respiratory_rate: float | None = Field(None)
+    highest_respiratory_rate: float | None = Field(None)
 
     @classmethod
     def get_field_mappings(cls) -> dict[str, list[str]]:
@@ -559,20 +564,63 @@ class GarminHeartRateData(GarminBaseModel):
             ],
             "max_hr": ["maxHeartRate", "max_hr", "maximumHR", "maxHR"],
             "avg_hr": ["averageHeartRate", "avg_hr", "avgHR", "meanHR"],
+            "spo2_avg": ["averageSpO2", "spo2_avg"],
+            "spo2_min": ["lowestSpO2", "spo2_min"],
+            "waking_respiratory_rate": [
+                "avgWakingRespirationValue",
+                "waking_respiratory_rate",
+            ],
+            "lowest_respiratory_rate": [
+                "lowestRespirationValue",
+                "lowest_respiratory_rate",
+            ],
+            "highest_respiratory_rate": [
+                "highestRespirationValue",
+                "highest_respiratory_rate",
+            ],
         }
 
     @field_validator("resting_hr", "max_hr", "avg_hr", mode="before")
     @classmethod
     def validate_heart_rate(cls, v):
-        """Validate and convert heart rate values to int within valid range."""
         if v is None:
             return None
         try:
             hr = int(float(v))
-            # Valid heart rate range: 20-300 BPM
             if hr < 20 or hr > 300:
                 return None
             return hr
+        except (ValueError, TypeError):
+            return None
+
+    @field_validator("spo2_avg", "spo2_min", mode="before")
+    @classmethod
+    def validate_spo2(cls, v):
+        if v is None:
+            return None
+        try:
+            val = float(v)
+            if val < 50 or val > 100:
+                return None
+            return val
+        except (ValueError, TypeError):
+            return None
+
+    @field_validator(
+        "waking_respiratory_rate",
+        "lowest_respiratory_rate",
+        "highest_respiratory_rate",
+        mode="before",
+    )
+    @classmethod
+    def validate_respiratory_rate(cls, v):
+        if v is None:
+            return None
+        try:
+            val = float(v)
+            if val < 5 or val > 50:
+                return None
+            return val
         except (ValueError, TypeError):
             return None
 
@@ -826,6 +874,11 @@ class GarminActivityData(GarminBaseModel):
         None, description="Anaerobic training effect (0-5)"
     )
     vo2_max_value: float | None = Field(None, description="VO2 Max value from activity")
+    hr_zone_one_seconds: int | None = Field(None)
+    hr_zone_two_seconds: int | None = Field(None)
+    hr_zone_three_seconds: int | None = Field(None)
+    hr_zone_four_seconds: int | None = Field(None)
+    hr_zone_five_seconds: int | None = Field(None)
 
     @classmethod
     def get_field_mappings(cls) -> dict[str, list[str]]:
@@ -890,6 +943,11 @@ class GarminActivityData(GarminBaseModel):
                 "training_effect_anaerobic",
             ],
             "vo2_max_value": ["vO2MaxValue", "vo2_max_value", "vo2Max"],
+            "hr_zone_one_seconds": ["hr_zone_one_seconds"],
+            "hr_zone_two_seconds": ["hr_zone_two_seconds"],
+            "hr_zone_three_seconds": ["hr_zone_three_seconds"],
+            "hr_zone_four_seconds": ["hr_zone_four_seconds"],
+            "hr_zone_five_seconds": ["hr_zone_five_seconds"],
         }
 
     @field_validator("activity_id", mode="before")
@@ -1020,6 +1078,76 @@ class GarminActivityData(GarminBaseModel):
         try:
             val = float(v)
             if val < 0 or val > 5:
+                return None
+            return val
+        except (ValueError, TypeError):
+            return None
+
+    @field_validator(
+        "hr_zone_one_seconds",
+        "hr_zone_two_seconds",
+        "hr_zone_three_seconds",
+        "hr_zone_four_seconds",
+        "hr_zone_five_seconds",
+        mode="before",
+    )
+    @classmethod
+    def validate_hr_zone(cls, v):
+        if v is None:
+            return None
+        try:
+            val = int(float(v))
+            if val < 0:
+                return None
+            return val
+        except (ValueError, TypeError):
+            return None
+
+    @field_validator("vo2_max_value", mode="before")
+    @classmethod
+    def validate_vo2_max(cls, v):
+        if v is None:
+            return None
+        try:
+            val = float(v)
+            if val < 10 or val > 100:
+                return None
+            return val
+        except (ValueError, TypeError):
+            return None
+
+
+class GarminRacePredictionData(GarminBaseModel):
+    prediction_5k_seconds: int | None = Field(None)
+    prediction_10k_seconds: int | None = Field(None)
+    prediction_half_marathon_seconds: int | None = Field(None)
+    prediction_marathon_seconds: int | None = Field(None)
+    vo2_max_value: float | None = Field(None)
+
+    @classmethod
+    def get_field_mappings(cls) -> dict[str, list[str]]:
+        return {
+            "prediction_5k_seconds": ["prediction_5k_seconds"],
+            "prediction_10k_seconds": ["prediction_10k_seconds"],
+            "prediction_half_marathon_seconds": ["prediction_half_marathon_seconds"],
+            "prediction_marathon_seconds": ["prediction_marathon_seconds"],
+            "vo2_max_value": ["vo2MaxValue", "vo2_max_value", "vo2Max"],
+        }
+
+    @field_validator(
+        "prediction_5k_seconds",
+        "prediction_10k_seconds",
+        "prediction_half_marathon_seconds",
+        "prediction_marathon_seconds",
+        mode="before",
+    )
+    @classmethod
+    def validate_prediction_seconds(cls, v):
+        if v is None:
+            return None
+        try:
+            val = int(float(v))
+            if val <= 0:
                 return None
             return val
         except (ValueError, TypeError):

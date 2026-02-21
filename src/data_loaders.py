@@ -10,6 +10,7 @@ from models import (
     HRV,
     Energy,
     GarminActivity,
+    GarminRacePrediction,
     GarminTrainingStatus,
     HeartRate,
     Sleep,
@@ -45,6 +46,7 @@ def load_data_for_user(start_date, end_date, user_id):
         (WhoopCycle, "whoop_cycle"),
         (GarminTrainingStatus, "garmin_training_status"),
         (GarminActivity, "garmin_activity"),
+        (GarminRacePrediction, "garmin_race_prediction"),
     ]
 
     with read_engine.connect() as conn:
@@ -193,6 +195,31 @@ def get_garmin_activities_data(start_date, end_date, user_id):
             ),
             "vo2_max_value": (
                 float(row["vo2_max_value"]) if pd.notna(row["vo2_max_value"]) else None
+            ),
+            "hr_zone_one_seconds": (
+                int(row["hr_zone_one_seconds"])
+                if pd.notna(row["hr_zone_one_seconds"])
+                else None
+            ),
+            "hr_zone_two_seconds": (
+                int(row["hr_zone_two_seconds"])
+                if pd.notna(row["hr_zone_two_seconds"])
+                else None
+            ),
+            "hr_zone_three_seconds": (
+                int(row["hr_zone_three_seconds"])
+                if pd.notna(row["hr_zone_three_seconds"])
+                else None
+            ),
+            "hr_zone_four_seconds": (
+                int(row["hr_zone_four_seconds"])
+                if pd.notna(row["hr_zone_four_seconds"])
+                else None
+            ),
+            "hr_zone_five_seconds": (
+                int(row["hr_zone_five_seconds"])
+                if pd.notna(row["hr_zone_five_seconds"])
+                else None
             ),
         }
         result.append(activity)

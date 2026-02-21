@@ -10,7 +10,7 @@ import {
 } from "../../components/ui/card";
 import { LoadingState } from "../../components/ui/loading-state";
 import { ErrorCard } from "../../components/ui/error-card";
-import { Dumbbell, Calendar, Flame, Activity } from "lucide-react";
+import { Dumbbell, Calendar, Flame, Activity, Heart } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import type {
   WorkoutExerciseDetail,
@@ -168,6 +168,99 @@ function StrengthWorkoutInline({
   );
 }
 
+const WHOOP_ZONE_COLORS = [
+  "bg-gray-400",
+  "bg-blue-400",
+  "bg-green-400",
+  "bg-yellow-400",
+  "bg-orange-400",
+  "bg-red-500",
+] as const;
+
+const GARMIN_ZONE_COLORS = [
+  "bg-blue-400",
+  "bg-green-400",
+  "bg-yellow-400",
+  "bg-orange-400",
+  "bg-red-500",
+] as const;
+
+interface HRZoneEntry {
+  label: string;
+  seconds: number;
+  color: string;
+}
+
+function HRZoneBar({ zones }: { zones: HRZoneEntry[] }) {
+  const nonZero = zones.filter((z) => z.seconds > 0);
+  if (nonZero.length === 0) return null;
+
+  const totalSeconds = nonZero.reduce((sum, z) => sum + z.seconds, 0);
+  if (totalSeconds === 0) return null;
+
+  return (
+    <div className="mt-2 space-y-1">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Heart className="h-3 w-3" />
+        <span>HR Zones</span>
+      </div>
+      <div className="flex h-3 rounded-full overflow-hidden">
+        {nonZero.map((z) => {
+          const pct = (z.seconds / totalSeconds) * 100;
+          if (pct < 0.5) return null;
+          return (
+            <div
+              key={z.label}
+              className={`${z.color} transition-all`}
+              style={{ width: `${String(pct)}%` }}
+              title={`${z.label}: ${String(Math.round(z.seconds / 60))}m (${pct.toFixed(0)}%)`}
+            />
+          );
+        })}
+      </div>
+      <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+        {nonZero.map((z) => (
+          <span key={z.label} className="flex items-center gap-1">
+            <span className={`inline-block w-2 h-2 rounded-full ${z.color}`} />
+            {z.label}: {String(Math.round(z.seconds / 60))}m
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function buildWhoopZones(workout: WhoopWorkoutData): HRZoneEntry[] {
+  const millis = [
+    workout.zone_zero_millis,
+    workout.zone_one_millis,
+    workout.zone_two_millis,
+    workout.zone_three_millis,
+    workout.zone_four_millis,
+    workout.zone_five_millis,
+  ];
+  return millis.map((m, i) => ({
+    label: `Zone ${String(i)}`,
+    seconds: (m ?? 0) / 1000,
+    color: WHOOP_ZONE_COLORS[i],
+  }));
+}
+
+function buildGarminZones(activity: GarminActivityData): HRZoneEntry[] {
+  const secs = [
+    activity.hr_zone_one_seconds,
+    activity.hr_zone_two_seconds,
+    activity.hr_zone_three_seconds,
+    activity.hr_zone_four_seconds,
+    activity.hr_zone_five_seconds,
+  ];
+  return secs.map((s, i) => ({
+    label: `Zone ${String(i + 1)}`,
+    seconds: s ?? 0,
+    color: GARMIN_ZONE_COLORS[i],
+  }));
+}
+
 function WhoopWorkoutInline({ workout }: { workout: WhoopWorkoutData }) {
   const startTime = workout.start_time
     ? format(parseISO(workout.start_time), "h:mm a")
@@ -179,8 +272,23 @@ function WhoopWorkoutInline({ workout }: { workout: WhoopWorkoutData }) {
       ? (workout.distance_meters / 1000).toFixed(2)
       : null;
 
+  let durationStr: string | null = null;
+  if (workout.start_time && workout.end_time) {
+    const durationSec = Math.round(
+      (new Date(workout.end_time).getTime() -
+        new Date(workout.start_time).getTime()) /
+        1000,
+    );
+    if (durationSec > 0) {
+      durationStr = formatDuration(durationSec);
+    }
+  }
+
   const details: string[] = [];
 
+  if (durationStr !== null) {
+    details.push(durationStr);
+  }
   if (workout.strain !== null) {
     details.push(
       `Strain ${workout.strain.toFixed(1)}/${String(WHOOP_MAX_STRAIN)}`,
@@ -194,6 +302,9 @@ function WhoopWorkoutInline({ workout }: { workout: WhoopWorkoutData }) {
   }
   if (distanceKm !== null) {
     details.push(`${distanceKm} km`);
+  }
+  if (workout.percent_recorded !== null && workout.percent_recorded < 100) {
+    details.push(`${workout.percent_recorded.toFixed(0)}% recorded`);
   }
 
   return (
@@ -211,6 +322,7 @@ function WhoopWorkoutInline({ workout }: { workout: WhoopWorkoutData }) {
       <p className="text-sm text-muted-foreground mt-1">
         {details.join(" · ")}
       </p>
+      <HRZoneBar zones={buildWhoopZones(workout)} />
     </div>
   );
 }
@@ -272,6 +384,7 @@ function GarminActivityInline({ activity }: { activity: GarminActivityData }) {
       <p className="text-sm text-muted-foreground mt-1">
         {details.join(" · ")}
       </p>
+      <HRZoneBar zones={buildGarminZones(activity)} />
     </div>
   );
 }
