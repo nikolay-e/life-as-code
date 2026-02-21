@@ -68,18 +68,25 @@ class WhoopSleepParser(BaseModel):
     rem_sleep_minutes: int | None = Field(None, description="REM sleep in minutes")
     awake_minutes: int | None = Field(None, description="Awake time in minutes")
     respiratory_rate: float | None = Field(None, description="Respiratory rate")
+    sleep_need_baseline_minutes: int | None = Field(None)
+    sleep_need_debt_minutes: int | None = Field(None)
+    sleep_need_strain_minutes: int | None = Field(None)
+    sleep_need_nap_minutes: int | None = Field(None)
+    sleep_cycle_count: int | None = Field(None)
+    disturbance_count: int | None = Field(None)
+    no_data_minutes: int | None = Field(None)
 
     @classmethod
     def from_whoop_response(
         cls, data: dict[str, Any], date: datetime.date
     ) -> Optional["WhoopSleepParser"]:
-        """Parse Whoop API sleep response."""
         if not data:
             return None
 
         try:
             score_data = data.get("score", {})
             stage_summary = score_data.get("stage_summary", {})
+            sleep_needed = score_data.get("sleep_needed", {})
 
             def millis_to_minutes(millis):
                 return int(millis / 1000 / 60) if millis is not None else None
@@ -110,6 +117,23 @@ class WhoopSleepParser(BaseModel):
                     stage_summary.get("total_awake_time_milli")
                 ),
                 respiratory_rate=score_data.get("respiratory_rate"),
+                sleep_need_baseline_minutes=millis_to_minutes(
+                    sleep_needed.get("baseline_milli")
+                ),
+                sleep_need_debt_minutes=millis_to_minutes(
+                    sleep_needed.get("need_from_sleep_debt_milli")
+                ),
+                sleep_need_strain_minutes=millis_to_minutes(
+                    sleep_needed.get("need_from_recent_strain_milli")
+                ),
+                sleep_need_nap_minutes=millis_to_minutes(
+                    sleep_needed.get("need_from_recent_nap_milli")
+                ),
+                sleep_cycle_count=stage_summary.get("sleep_cycle_count"),
+                disturbance_count=stage_summary.get("disturbance_count"),
+                no_data_minutes=millis_to_minutes(
+                    stage_summary.get("total_no_data_time_milli")
+                ),
             )
         except Exception as e:
             logger.error("whoop_sleep_parse_error", error=str(e))
@@ -129,17 +153,26 @@ class WhoopWorkoutParser(BaseModel):
         None, description="Altitude gain in meters"
     )
     sport_name: str | None = Field(None, description="Sport/activity name")
+    end_time: datetime.datetime | None = Field(None)
+    percent_recorded: float | None = Field(None)
+    altitude_change_meters: float | None = Field(None)
+    zone_zero_millis: int | None = Field(None)
+    zone_one_millis: int | None = Field(None)
+    zone_two_millis: int | None = Field(None)
+    zone_three_millis: int | None = Field(None)
+    zone_four_millis: int | None = Field(None)
+    zone_five_millis: int | None = Field(None)
 
     @classmethod
     def from_whoop_response(
         cls, data: dict[str, Any]
     ) -> Optional["WhoopWorkoutParser"]:
-        """Parse Whoop API v2 workout response."""
         if not data:
             return None
 
         try:
             score_data = data.get("score", {})
+            zone_durations = score_data.get("zone_duration", {})
 
             start_str = data.get("start")
             start_time = parse_iso_datetime(start_str) if start_str else None
@@ -147,8 +180,12 @@ class WhoopWorkoutParser(BaseModel):
             if not start_time:
                 return None
 
+            end_str = data.get("end")
+            end_time = parse_iso_datetime(end_str) if end_str else None
+
             return cls(
                 start_time=start_time,
+                end_time=end_time,
                 strain=score_data.get("strain"),
                 avg_heart_rate=score_data.get("average_heart_rate"),
                 max_heart_rate=score_data.get("max_heart_rate"),
@@ -156,6 +193,14 @@ class WhoopWorkoutParser(BaseModel):
                 distance_meters=score_data.get("distance_meter"),
                 altitude_gain_meters=score_data.get("altitude_gain_meter"),
                 sport_name=data.get("sport_name"),
+                percent_recorded=score_data.get("percent_recorded"),
+                altitude_change_meters=score_data.get("altitude_change_meter"),
+                zone_zero_millis=zone_durations.get("zone_zero_milli"),
+                zone_one_millis=zone_durations.get("zone_one_milli"),
+                zone_two_millis=zone_durations.get("zone_two_milli"),
+                zone_three_millis=zone_durations.get("zone_three_milli"),
+                zone_four_millis=zone_durations.get("zone_four_milli"),
+                zone_five_millis=zone_durations.get("zone_five_milli"),
             )
         except Exception as e:
             logger.error("whoop_workout_parse_error", error=str(e))
