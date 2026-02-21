@@ -143,7 +143,7 @@ def calculate_sleep_quality(
 
     deep_pcts, rem_pcts = [], []
     for dk, total in sorted(sleep_map.items()):
-        if total and total > 0:
+        if total and total > 0 and to_day_date(dk) >= short_start:
             deep_v = deep_map.get(dk)
             rem_v = rem_map.get(dk)
             if deep_v is not None:
@@ -151,8 +151,8 @@ def calculate_sleep_quality(
             if rem_v is not None:
                 rem_pcts.append(rem_v / total * 100)
 
-    deep_pct = mean_or_none(deep_pcts[-short_window:]) if deep_pcts else None
-    rem_pct = mean_or_none(rem_pcts[-short_window:]) if rem_pcts else None
+    deep_pct = mean_or_none(deep_pcts) if deep_pcts else None
+    rem_pct = mean_or_none(rem_pcts) if rem_pcts else None
 
     eff_vals = [
         v for dk, v in sorted(eff_map.items()) if to_day_date(dk) >= short_start
@@ -278,7 +278,7 @@ def calculate_fitness_metrics(
         y_mean = sum(vo2_vals) / n
         num = sum((i - x_mean) * (vo2_vals[i] - y_mean) for i in range(n))
         den = sum((i - x_mean) ** 2 for i in range(n))
-        vo2_trend = num / den if den > 0 else None
+        vo2_trend = num / den * 7 if den > 0 else None
 
     return FitnessMetrics(
         days_since_last_workout=days_since,
