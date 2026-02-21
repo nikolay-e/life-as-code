@@ -19,12 +19,15 @@ import {
 import { cn } from "../../lib/utils";
 import { getLatestSyncDate, getLastSyncForSource } from "../../lib/sync-utils";
 
+type DataCadence = "daily" | "sporadic";
+
 interface DataSourceStatus {
   name: string;
   provider: string;
   count: number;
   latestDate: string | null;
   oldestDate: string | null;
+  cadence: DataCadence;
 }
 
 export function DataStatusPage() {
@@ -47,9 +50,17 @@ export function DataStatusPage() {
     items: Array<{ date: string }> | undefined,
     name: string,
     provider: string,
+    cadence: DataCadence = "daily",
   ): DataSourceStatus => {
     if (!items || items.length === 0) {
-      return { name, provider, count: 0, latestDate: null, oldestDate: null };
+      return {
+        name,
+        provider,
+        count: 0,
+        latestDate: null,
+        oldestDate: null,
+        cadence,
+      };
     }
     const sorted = [...items].sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
@@ -60,6 +71,7 @@ export function DataStatusPage() {
       count: items.length,
       latestDate: sorted[0].date,
       oldestDate: sorted[sorted.length - 1].date,
+      cadence,
     };
   };
 
@@ -76,12 +88,30 @@ export function DataStatusPage() {
       "Training Status",
       "Garmin",
     ),
-    getDataSourceStatus(data?.workouts, "Workouts", "Hevy"),
+    getDataSourceStatus(data?.workouts, "Workouts", "Hevy", "sporadic"),
     getDataSourceStatus(data?.whoop_recovery, "Whoop Recovery", "Whoop"),
     getDataSourceStatus(data?.whoop_sleep, "Whoop Sleep", "Whoop"),
-    getDataSourceStatus(data?.whoop_workout, "Whoop Workouts", "Whoop"),
+    getDataSourceStatus(
+      data?.whoop_workout,
+      "Whoop Workouts",
+      "Whoop",
+      "sporadic",
+    ),
     getDataSourceStatus(data?.whoop_cycle, "Whoop Cycles", "Whoop"),
   ];
+
+  const getSporadicSourceSyncProvider = (
+    status: DataSourceStatus,
+  ): string | null => {
+    const providerToSource: Record<string, string> = {
+      Hevy: "hevy",
+      Whoop: "whoop",
+      Garmin: "garmin",
+      Health: "garmin",
+    };
+    const source = providerToSource[status.provider];
+    return source ? getLastSyncForSource(syncStatus, source) : null;
+  };
 
   const getStatusInfo = (status: DataSourceStatus) => {
     if (status.count === 0) {
@@ -112,6 +142,33 @@ export function DataStatusPage() {
           bgClass: "bg-warning/10",
           label: `${String(daysSinceUpdate)}d ago`,
         };
+      }
+
+      if (status.cadence === "sporadic") {
+        const lastSync = getSporadicSourceSyncProvider(status);
+        if (lastSync) {
+          const daysSinceSync = differenceInDays(
+            new Date(),
+            parseISO(lastSync),
+          );
+          if (daysSinceSync <= 7) {
+            return {
+              icon: CheckCircle,
+              colorClass: "text-success",
+              bgClass: "bg-success/10",
+              label: "Up to date",
+            };
+          }
+        }
+
+        if (daysSinceUpdate <= 30) {
+          return {
+            icon: Clock,
+            colorClass: "text-warning",
+            bgClass: "bg-warning/10",
+            label: `${String(daysSinceUpdate)}d ago`,
+          };
+        }
       }
     }
     return {

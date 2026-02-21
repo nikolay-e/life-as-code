@@ -282,6 +282,106 @@ class MLInsights(BaseModel):
     has_recent_ml_anomalies: bool
 
 
+class HRVAdvancedMetrics(BaseModel):
+    ln_rmssd_current: float | None
+    ln_rmssd_mean_7d: float | None
+    ln_rmssd_cv_7d: float | None
+    hrv_rhr_rolling_r_14d: float | None
+    hrv_rhr_rolling_r_60d: float | None
+    divergence_rate: float | None
+
+
+class SleepQualityMetrics(BaseModel):
+    deep_sleep_pct: float | None
+    rem_sleep_pct: float | None
+    efficiency: float | None
+    fragmentation_index: float | None
+    sleep_hrv_responsiveness: float | None
+    sleep_hrv_p_value: float | None
+    consistency_score: float | None
+
+
+class FitnessMetrics(BaseModel):
+    days_since_last_workout: int | None
+    training_frequency_7d: int
+    training_frequency_30d: int
+    ctl: float | None
+    atl: float | None
+    tsb: float | None
+    monotony: float | None
+    strain_index: float | None
+    detraining_score: float | None
+    vo2_max_current: float | None
+    vo2_max_trend: float | None
+
+
+class LagCorrelationPair(BaseModel):
+    metric_a: str
+    metric_b: str
+    lag_days: int
+    correlation: float | None
+    p_value: float | None
+    sample_size: int
+
+
+class LagCorrelationMetrics(BaseModel):
+    pairs: list[LagCorrelationPair]
+    strongest_positive: LagCorrelationPair | None
+    strongest_negative: LagCorrelationPair | None
+
+
+class HRVResidualMetrics(BaseModel):
+    predicted: float | None
+    actual: float | None
+    residual: float | None
+    residual_z: float | None
+    r_squared: float | None
+    model_features: list[str]
+
+
+class DayOfWeekProfile(BaseModel):
+    day: int
+    day_name: str
+    mean: float | None
+    count: int
+
+
+class WeekdayWeekendSplit(BaseModel):
+    weekday_mean: float | None
+    weekend_mean: float | None
+    delta: float | None
+
+
+class CrossDomainMetrics(BaseModel):
+    weight_hrv_coupling: float | None
+    weight_hrv_p_value: float | None
+    weekday_weekend: dict[str, WeekdayWeekendSplit]
+    day_of_week_profiles: dict[str, list[DayOfWeekProfile]]
+    hrv_residual: HRVResidualMetrics
+
+
+class AllostaticLoadMetrics(BaseModel):
+    composite_score: float | None
+    breach_rates: dict[str, float]
+    trend: float | None
+
+
+class RecoveryEnhancedMetrics(BaseModel):
+    recovery_debt: float | None
+    strain_recovery_mismatch_7d: float | None
+    recovery_half_life_days: float | None
+
+
+class AdvancedInsights(BaseModel):
+    hrv_advanced: HRVAdvancedMetrics
+    sleep_quality: SleepQualityMetrics
+    fitness: FitnessMetrics
+    lag_correlations: LagCorrelationMetrics
+    cross_domain: CrossDomainMetrics
+    allostatic_load: AllostaticLoadMetrics
+    recovery_enhanced: RecoveryEnhancedMetrics
+
+
 class UnifiedMetricPoint(BaseModel):
     date: str
     value: float | None
@@ -328,6 +428,7 @@ class HealthAnalysis(BaseModel):
     recent_days: list[DayMetrics]
     day_completeness: float
     data_source_summary: list[DataSourceSummary]
+    advanced_insights: AdvancedInsights | None = None
     ml_insights: MLInsights | None = None
     mode: TrendMode
     mode_config: TrendModeConfig

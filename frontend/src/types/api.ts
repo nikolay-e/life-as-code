@@ -210,6 +210,111 @@ export interface WorkoutExerciseDetail {
   avg_rpe: number | null;
 }
 
+export interface HRVAdvancedMetrics {
+  ln_rmssd_current: number | null;
+  ln_rmssd_mean_7d: number | null;
+  ln_rmssd_cv_7d: number | null;
+  hrv_rhr_rolling_r_14d: number | null;
+  hrv_rhr_rolling_r_60d: number | null;
+  divergence_rate: number | null;
+}
+
+export interface SleepQualityMetrics {
+  deep_sleep_pct: number | null;
+  rem_sleep_pct: number | null;
+  efficiency: number | null;
+  fragmentation_index: number | null;
+  sleep_hrv_responsiveness: number | null;
+  sleep_hrv_p_value: number | null;
+  consistency_score: number | null;
+}
+
+export interface FitnessMetrics {
+  days_since_last_workout: number | null;
+  training_frequency_7d: number;
+  training_frequency_30d: number;
+  ctl: number | null;
+  atl: number | null;
+  tsb: number | null;
+  monotony: number | null;
+  strain_index: number | null;
+  detraining_score: number | null;
+  vo2_max_current: number | null;
+  vo2_max_trend: number | null;
+}
+
+export interface LagCorrelationPair {
+  metric_a: string;
+  metric_b: string;
+  lag_days: number;
+  correlation: number | null;
+  p_value: number | null;
+  sample_size: number;
+}
+
+export interface LagCorrelationMetrics {
+  pairs: LagCorrelationPair[];
+  strongest_positive: LagCorrelationPair | null;
+  strongest_negative: LagCorrelationPair | null;
+}
+
+export interface HRVResidualMetrics {
+  predicted: number | null;
+  actual: number | null;
+  residual: number | null;
+  residual_z: number | null;
+  r_squared: number | null;
+  model_features: string[];
+}
+
+export interface DayOfWeekProfile {
+  day: number;
+  day_name: string;
+  mean: number | null;
+  count: number;
+}
+
+export interface WeekdayWeekendSplit {
+  weekday_mean: number | null;
+  weekend_mean: number | null;
+  delta: number | null;
+}
+
+export interface CrossDomainMetrics {
+  weight_hrv_coupling: number | null;
+  weight_hrv_p_value: number | null;
+  weekday_weekend: Record<string, WeekdayWeekendSplit>;
+  day_of_week_profiles: Record<string, DayOfWeekProfile[]>;
+  hrv_residual: HRVResidualMetrics;
+}
+
+export interface AllostaticLoadMetrics {
+  composite_score: number | null;
+  breach_rates: Record<string, number>;
+  trend: number | null;
+}
+
+export interface RecoveryEnhancedMetrics {
+  recovery_debt: number | null;
+  strain_recovery_mismatch_7d: number | null;
+  recovery_half_life_days: number | null;
+}
+
+export interface AdvancedInsights {
+  hrv_advanced: HRVAdvancedMetrics;
+  sleep_quality: SleepQualityMetrics;
+  fitness: FitnessMetrics;
+  lag_correlations: LagCorrelationMetrics;
+  cross_domain: CrossDomainMetrics;
+  allostatic_load: AllostaticLoadMetrics;
+  recovery_enhanced: RecoveryEnhancedMetrics;
+}
+
+export interface AnalyticsResponse {
+  advanced_insights?: AdvancedInsights;
+  mode: string;
+}
+
 export interface GarminActivityData {
   activity_id: string;
   date: string;

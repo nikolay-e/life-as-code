@@ -4,6 +4,7 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
+from .advanced import calculate_advanced_insights
 from .clinical import (
     calculate_clinical_alerts,
     calculate_decorrelation_alert,
@@ -345,6 +346,31 @@ def _compute_health_analysis_impl(
         ref_date=target_date,
     )
 
+    sleep_deep = raw.sleep_deep_garmin or raw.sleep_deep_whoop
+    sleep_rem = raw.sleep_rem_garmin or raw.sleep_rem_whoop
+    sleep_awake = raw.sleep_awake_count_garmin
+    sleep_eff = raw.sleep_efficiency_garmin or raw.sleep_efficiency_whoop
+
+    advanced_insights = calculate_advanced_insights(
+        hrv_data=hrv_data,
+        rhr_data=rhr_data,
+        sleep_data=sleep_data,
+        sleep_deep=sleep_deep,
+        sleep_rem=sleep_rem,
+        sleep_awake_count=sleep_awake,
+        sleep_efficiency=sleep_eff,
+        strain_data=strain_data,
+        stress_data=stress_data,
+        steps_data=steps_data,
+        weight_data=weight_data,
+        recovery_data=recovery_data,
+        workout_dates=raw.workout_dates,
+        vo2_max_data=raw.vo2_max,
+        short_window=config.short_term,
+        baseline_window=config.baseline,
+        ref_date=target_date,
+    )
+
     ml_insights = load_ml_insights(db, user_id, ref_date=target_date)
 
     return HealthAnalysis(
@@ -365,6 +391,7 @@ def _compute_health_analysis_impl(
         anomalies=anomalies,
         day_over_day=day_over_day,
         recent_days=recent_days,
+        advanced_insights=advanced_insights,
         day_completeness=calculate_day_completeness(ref_date=target_date),
         data_source_summary=data_source_summary,
         ml_insights=ml_insights,

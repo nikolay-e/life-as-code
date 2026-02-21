@@ -768,6 +768,31 @@ class GarminTrainingStatusData(GarminBaseModel):
         return str(v).strip()[:200]
 
 
+class GarminEnergyData(GarminBaseModel):
+    active_energy: float | None = Field(None)
+    basal_energy: float | None = Field(None)
+
+    @classmethod
+    def get_field_mappings(cls) -> dict[str, list[str]]:
+        return {
+            "active_energy": ["activeKilocalories", "active_energy", "activeCalories"],
+            "basal_energy": ["bmrKilocalories", "basal_energy", "basalCalories"],
+        }
+
+    @field_validator("active_energy", "basal_energy", mode="before")
+    @classmethod
+    def validate_energy(cls, v):
+        if v is None:
+            return None
+        try:
+            val = float(v)
+            if val < 0:
+                return 0.0
+            return val
+        except (ValueError, TypeError):
+            return None
+
+
 class GarminActivityData(GarminBaseModel):
     """Pydantic model for Garmin activity data."""
 

@@ -33,6 +33,18 @@ class RawHealthData:
     strain_garmin: list[DataPoint] = field(default_factory=list)
     calories_garmin: list[DataPoint] = field(default_factory=list)
     calories_whoop: list[DataPoint] = field(default_factory=list)
+    sleep_deep_garmin: list[DataPoint] = field(default_factory=list)
+    sleep_rem_garmin: list[DataPoint] = field(default_factory=list)
+    sleep_awake_count_garmin: list[DataPoint] = field(default_factory=list)
+    sleep_efficiency_garmin: list[DataPoint] = field(default_factory=list)
+    respiratory_rate_garmin: list[DataPoint] = field(default_factory=list)
+    sleep_deep_whoop: list[DataPoint] = field(default_factory=list)
+    sleep_rem_whoop: list[DataPoint] = field(default_factory=list)
+    sleep_efficiency_whoop: list[DataPoint] = field(default_factory=list)
+    respiratory_rate_whoop: list[DataPoint] = field(default_factory=list)
+    workout_dates: list[DataPoint] = field(default_factory=list)
+    vo2_max: list[DataPoint] = field(default_factory=list)
+    training_readiness: list[DataPoint] = field(default_factory=list)
 
 
 SOURCE_PRIORITY = {"garmin": 1, "whoop": 2, "apple_health": 3, "google": 4}
@@ -82,6 +94,7 @@ def load_raw_health_data(
         WhoopCycle,
         WhoopRecovery,
         WhoopSleep,
+        WorkoutSet,
     )
 
     anchor = ref_date or local_today()
@@ -127,6 +140,23 @@ def load_raw_health_data(
         .all()
     )
     raw.sleep_garmin = _to_points(garmin_sleep, "total_sleep_minutes")
+    raw.sleep_deep_garmin = _to_points(garmin_sleep, "deep_minutes")
+    raw.sleep_rem_garmin = _to_points(garmin_sleep, "rem_minutes")
+    raw.sleep_awake_count_garmin = _to_points(garmin_sleep, "awake_count")
+    raw.sleep_efficiency_garmin = [
+        DataPoint(
+            date=row.date.isoformat(),
+            value=round(
+                row.total_sleep_minutes
+                / (row.total_sleep_minutes + (row.awake_minutes or 0))
+                * 100,
+                1,
+            ),
+        )
+        for row in garmin_sleep
+        if row.total_sleep_minutes and row.total_sleep_minutes > 0
+    ]
+    raw.respiratory_rate_garmin = _to_points(garmin_sleep, "respiratory_rate")
 
     whoop_sleep = (
         db.query(WhoopSleep)
@@ -139,6 +169,10 @@ def load_raw_health_data(
         .all()
     )
     raw.sleep_whoop = _to_points(whoop_sleep, "total_sleep_duration_minutes")
+    raw.sleep_deep_whoop = _to_points(whoop_sleep, "deep_sleep_minutes")
+    raw.sleep_rem_whoop = _to_points(whoop_sleep, "rem_sleep_minutes")
+    raw.sleep_efficiency_whoop = _to_points(whoop_sleep, "sleep_efficiency_percentage")
+    raw.respiratory_rate_whoop = _to_points(whoop_sleep, "respiratory_rate")
 
     garmin_hr = (
         db.query(HeartRate)
@@ -232,6 +266,23 @@ def load_raw_health_data(
     )
     raw.strain_garmin = _to_points(garmin_training, "acute_training_load")
     raw.calories_garmin = _to_points(garmin_training, "total_kilocalories")
+    raw.vo2_max = _to_points(garmin_training, "vo2_max")
+    raw.training_readiness = _to_points(garmin_training, "training_readiness_score")
+
+    workout_dates_raw = (
+        db.query(WorkoutSet.date)
+        .filter(
+            WorkoutSet.user_id == user_id,
+            WorkoutSet.date >= cutoff,
+            WorkoutSet.date <= anchor,
+        )
+        .distinct()
+        .order_by(WorkoutSet.date)
+        .all()
+    )
+    raw.workout_dates = [
+        DataPoint(date=row.date.isoformat(), value=1.0) for row in workout_dates_raw
+    ]
 
     return raw
 

@@ -17,6 +17,7 @@ from enums import DataSource
 from errors import CredentialsDecryptionError, CredentialsNotFoundError
 from garmin_schemas import (
     GarminActivityData,
+    GarminEnergyData,
     GarminHeartRateData,
     GarminHRVData,
     GarminSleepData,
@@ -28,6 +29,7 @@ from garmin_schemas import (
 from logging_config import get_logger
 from models import (
     HRV,
+    Energy,
     GarminActivity,
     GarminTrainingStatus,
     HeartRate,
@@ -170,6 +172,15 @@ def sync_garmin_data_for_user(
                 "api_method": "get_heart_rates_data",
                 "parser_class": GarminHeartRateData,
                 "model_class": HeartRate,
+                "unique_fields": ["date", "source"],
+                "source": "garmin",
+                "api_args": {"date_range": dr},
+            },
+            {
+                "data_type": "energy",
+                "api_method": "get_energy_data",
+                "parser_class": GarminEnergyData,
+                "model_class": Energy,
                 "unique_fields": ["date", "source"],
                 "source": "garmin",
                 "api_args": {"date_range": dr},
@@ -481,6 +492,37 @@ class GarminAPIWrapper:
             return int(value)
         except (ValueError, TypeError):
             return None
+
+    def get_energy_data(self, date_range: tuple) -> list[dict]:
+        def fetch(date_str: str, current_date: datetime.date) -> dict | None:
+            summary = self.api.get_user_summary(date_str)
+            if not summary or not isinstance(summary, dict):
+                return None
+
+            active = self._safe_float(summary.get("activeKilocalories"))
+            total = self._safe_float(summary.get("totalKilocalories"))
+            bmr = self._safe_float(summary.get("bmrKilocalories"))
+
+            if active is None and total is None:
+                return None
+
+            basal = (
+                bmr
+                if bmr is not None
+                else (
+                    (total - active)
+                    if total is not None and active is not None
+                    else None
+                )
+            )
+
+            return {
+                "date": current_date,
+                "activeKilocalories": active,
+                "bmrKilocalories": basal,
+            }
+
+        return self._fetch_daily(date_range, "energy", fetch)
 
     def get_training_status_data(self, date_range: tuple) -> list[dict]:
         """Get training status, VO2Max, fitness age, and related metrics from multiple endpoints."""

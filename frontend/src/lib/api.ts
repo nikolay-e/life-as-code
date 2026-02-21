@@ -1,4 +1,5 @@
 import type {
+  AnalyticsResponse,
   AuthResponse,
   CredentialsStatus,
   GarminActivityData,
@@ -99,6 +100,11 @@ export const api = {
       request(
         `/data/activities/garmin?start_date=${startDate}&end_date=${endDate}`,
       ),
+  },
+
+  analytics: {
+    get: (mode: string = "recent"): Promise<AnalyticsResponse> =>
+      request(`/analytics?mode=${mode}`),
   },
 
   settings: {
