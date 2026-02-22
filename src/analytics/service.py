@@ -222,6 +222,7 @@ def _compute_health_analysis_impl(
         strain_q,
         fused_inputs,
         calories_data,
+        weight_data,
         config.baseline,
         config.short_term,
         config.trend_window,

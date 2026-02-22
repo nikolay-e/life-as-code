@@ -4,6 +4,7 @@ import math
 from collections import defaultdict
 from datetime import date, timedelta
 
+from .constants import MIN_LAG_SAMPLE_SIZE
 from .date_utils import filter_by_window, local_today, to_day_date, to_day_key
 from .series import get_window_values, to_daily_series
 from .stats import (
@@ -40,6 +41,16 @@ def _build_day_map(
     daily = to_daily_series(data, method)
     filtered = filter_by_window(daily, window_days, ref_date=ref_date)
     return {to_day_key(d.date): d.value for d in filtered if d.value is not None}
+
+
+def _ema_smooth(values: list[float], span: int = 7) -> list[float]:
+    if not values:
+        return []
+    alpha = 2.0 / (span + 1)
+    result = [values[0]]
+    for v in values[1:]:
+        result.append(alpha * v + (1 - alpha) * result[-1])
+    return result
 
 
 def _aligned_pairs(
@@ -322,6 +333,8 @@ def calculate_lag_correlations(
             continue
         for lag in range(1, max_lag + 1):
             xs, ys = _aligned_pairs(map_a, map_b, lag)
+            if len(xs) < MIN_LAG_SAMPLE_SIZE:
+                continue
             corr, p_val = pearson_correlation_with_pvalue(xs, ys)
             results.append(
                 LagCorrelationPair(
@@ -626,15 +639,22 @@ def calculate_allostatic_load(
             score = daily_breach_counts.get(dk, 0) / n_measured * 100
             daily_scores.append((dk, score))
 
-    recent_scores = [s for dk, s in daily_scores if (today - to_day_date(dk)).days < 30]
-    composite = mean_or_none(recent_scores)
+    raw_scores = [s for _, s in daily_scores]
+    smoothed_scores = (
+        _ema_smooth(raw_scores, span=7) if len(raw_scores) >= 3 else raw_scores
+    )
+
+    recent_smoothed = [
+        s
+        for (dk, _), s in zip(daily_scores, smoothed_scores, strict=False)
+        if (today - to_day_date(dk)).days < 30
+    ]
+    composite = mean_or_none(recent_smoothed)
 
     trend: float | None = None
-    if len(daily_scores) >= 14:
-        recent_14 = [s for _, s in daily_scores[-14:]]
-        prev_14 = (
-            [s for _, s in daily_scores[-28:-14]] if len(daily_scores) >= 28 else []
-        )
+    if len(smoothed_scores) >= 14:
+        recent_14 = smoothed_scores[-14:]
+        prev_14 = smoothed_scores[-28:-14] if len(smoothed_scores) >= 28 else []
         recent_mean = mean_or_none(recent_14)
         prev_mean = mean_or_none(prev_14)
         if recent_mean is not None and prev_mean is not None:

@@ -492,6 +492,7 @@ export function computeHealthAnalysis(
     scoreStrainQuality,
     fusedInputs,
     fusedCaloriesData,
+    weightData,
     modeConfig.baseline,
     modeConfig.shortTerm,
     modeConfig.trendWindow,

@@ -997,10 +997,19 @@ export interface HealthScore {
   };
 }
 
+const Z_SCORE_CLAMP = 3.0;
 const CONFIDENCE_THRESHOLD = 0.6;
 
 function capConfidence(conf: number): number {
   return Math.max(0, Math.min(1, conf));
+}
+
+function clampZ(
+  z: number | null,
+  limit: number = Z_SCORE_CLAMP,
+): number | null {
+  if (z === null) return null;
+  return Math.max(-limit, Math.min(limit, z));
 }
 
 export interface FusedZScoreInput {
@@ -1029,6 +1038,7 @@ export function calculateHealthScore(
     calories?: FusedZScoreInput;
   },
   caloriesData?: DataPoint[],
+  weightData?: DataPoint[],
   baselineWindow: number = 30,
   shortTermWindow: number = 7,
   trendWindow: number = 7,
@@ -1040,6 +1050,9 @@ export function calculateHealthScore(
 
   const strainCheck = shouldUseTodayMetric(strainData, "strain");
   const adjustedStrainData = strainCheck.adjustedData;
+
+  const stressCheck = shouldUseTodayMetric(stressData, "stress");
+  const adjustedStressData = stressCheck.adjustedData;
 
   const caloriesCheck = caloriesData
     ? shouldUseTodayMetric(caloriesData, "calories")
@@ -1071,7 +1084,7 @@ export function calculateHealthScore(
     options,
   );
   const stressBaseline = calculateBaselineMetrics(
-    stressData,
+    adjustedStressData,
     baselineWindow,
     shortTermWindow,
     "stress",
@@ -1105,6 +1118,17 @@ export function calculateHealthScore(
           options,
         )
       : null;
+  const weightBaseline =
+    weightData && weightData.length > 0
+      ? calculateBaselineMetrics(
+          weightData,
+          baselineWindow,
+          shortTermWindow,
+          "weight",
+          trendWindow,
+          options,
+        )
+      : null;
 
   const hrvConf = capConfidence(
     fusedInputs?.hrv?.confidence ?? hrvQuality?.confidence ?? 1,
@@ -1122,6 +1146,9 @@ export function calculateHealthScore(
     fusedInputs?.calories?.confidence ??
       (caloriesBaseline !== null && caloriesBaseline.zScore !== null ? 0.7 : 0),
   );
+  const weightConf = capConfidence(
+    weightBaseline !== null && weightBaseline.zScore !== null ? 0.8 : 0,
+  );
 
   // For Mid/Long modes, use shiftedZScore (period vs baseline) instead of point z-score
   // This makes HealthScore less "jumpy" from day-to-day noise
@@ -1133,34 +1160,49 @@ export function calculateHealthScore(
     return useShiftedZScore ? baseline.shiftedZScore : baseline.zScore;
   };
 
-  const rawZHRV = selectZScore(hrvBaseline, fusedInputs?.hrv?.zScore);
-  const rawZRHR = selectZScore(rhrBaseline, fusedInputs?.rhr?.zScore);
-  const rawZSleep = selectZScore(sleepBaseline, fusedInputs?.sleep?.zScore);
-  const rawZStress = useShiftedZScore
-    ? stressBaseline.shiftedZScore
-    : stressBaseline.zScore;
-  const rawZSteps = useShiftedZScore
-    ? stepsBaseline.shiftedZScore
-    : stepsBaseline.zScore;
-  const rawZLoad = useShiftedZScore
-    ? strainBaseline.shiftedZScore
-    : strainBaseline.zScore;
-  const rawZCalories = selectZScore(
-    caloriesBaseline ?? {
-      mean: 0,
-      std: 0,
-      median: 0,
-      cv: 0,
-      currentValue: null,
-      zScore: null,
-      shiftedZScore: null,
-      percentChange: null,
-      trendSlope: null,
-      shortTermMean: null,
-      longTermMean: null,
-    },
-    fusedInputs?.calories?.zScore,
+  const rawZHRV = clampZ(selectZScore(hrvBaseline, fusedInputs?.hrv?.zScore));
+  const rawZRHR = clampZ(selectZScore(rhrBaseline, fusedInputs?.rhr?.zScore));
+  const rawZSleep = clampZ(
+    selectZScore(sleepBaseline, fusedInputs?.sleep?.zScore),
   );
+  const rawZStress = clampZ(
+    useShiftedZScore ? stressBaseline.shiftedZScore : stressBaseline.zScore,
+  );
+  const rawZSteps = clampZ(
+    useShiftedZScore ? stepsBaseline.shiftedZScore : stepsBaseline.zScore,
+  );
+  const rawZLoad = clampZ(
+    useShiftedZScore ? strainBaseline.shiftedZScore : strainBaseline.zScore,
+  );
+  const rawZCalories = clampZ(
+    selectZScore(
+      caloriesBaseline ?? {
+        mean: 0,
+        std: 0,
+        median: 0,
+        cv: 0,
+        currentValue: null,
+        zScore: null,
+        shiftedZScore: null,
+        percentChange: null,
+        trendSlope: null,
+        shortTermMean: null,
+        longTermMean: null,
+      },
+      fusedInputs?.calories?.zScore,
+    ),
+  );
+  const rawWeightZ =
+    weightBaseline !== null ? selectZScore(weightBaseline) : null;
+  const rawZWeight = clampZ(rawWeightZ);
+
+  function weightGoodness(z: number): number {
+    return z > 0 ? -0.6 * z : -0.3 * z;
+  }
+
+  function caloriesGoodness(z: number): number {
+    return z >= 0 ? -0.3 * Math.max(0, z - 0.5) : 0.4 * z;
+  }
 
   const zHRV = rawZHRV;
   const zRHR = rawZRHR !== null ? -rawZRHR : null;
@@ -1168,10 +1210,12 @@ export function calculateHealthScore(
   const zStress = rawZStress !== null ? -rawZStress : null;
   const zSteps = rawZSteps;
   const zLoad = rawZLoad !== null ? -Math.abs(rawZLoad) : null;
-  const zCalories = rawZCalories !== null ? -Math.abs(rawZCalories) : null;
+  const zCalories =
+    rawZCalories !== null ? caloriesGoodness(rawZCalories) : null;
+  const zWeight = rawZWeight !== null ? weightGoodness(rawZWeight) : null;
 
   const coreWeights = { hrv: 0.35, rhr: 0.25, sleep: 0.25, stress: 0.15 };
-  const supportWeights = { steps: 0.5, calories: 0.5 };
+  const supportWeights = { steps: 0.35, calories: 0.35, weight: 0.3 };
 
   const hrvGated = hrvConf < CONFIDENCE_THRESHOLD;
   const rhrGated = rhrConf < CONFIDENCE_THRESHOLD;
@@ -1180,30 +1224,24 @@ export function calculateHealthScore(
   const stepsGated = stepsConf < CONFIDENCE_THRESHOLD;
   const strainGated = strainConf < CONFIDENCE_THRESHOLD;
   const caloriesGated = caloriesConf < CONFIDENCE_THRESHOLD;
+  const weightGated = weightConf < CONFIDENCE_THRESHOLD;
 
   let recoveryCore: number | null = null;
   let coreSum = 0;
   let coreWeightSum = 0;
 
-  if (zHRV !== null && !hrvGated) {
-    const effectiveWeight = coreWeights.hrv * hrvConf;
-    coreSum += zHRV * effectiveWeight;
-    coreWeightSum += effectiveWeight;
-  }
-  if (zRHR !== null && !rhrGated) {
-    const effectiveWeight = coreWeights.rhr * rhrConf;
-    coreSum += zRHR * effectiveWeight;
-    coreWeightSum += effectiveWeight;
-  }
-  if (zSleep !== null && !sleepGated) {
-    const effectiveWeight = coreWeights.sleep * sleepConf;
-    coreSum += zSleep * effectiveWeight;
-    coreWeightSum += effectiveWeight;
-  }
-  if (zStress !== null && !stressGated) {
-    const effectiveWeight = coreWeights.stress * stressConf;
-    coreSum += zStress * effectiveWeight;
-    coreWeightSum += effectiveWeight;
+  const coreEntries: [number | null, boolean, number, number][] = [
+    [zHRV, hrvGated, coreWeights.hrv, hrvConf],
+    [zRHR, rhrGated, coreWeights.rhr, rhrConf],
+    [zSleep, sleepGated, coreWeights.sleep, sleepConf],
+    [zStress, stressGated, coreWeights.stress, stressConf],
+  ];
+  for (const [z, gated, w, conf] of coreEntries) {
+    if (z !== null && !gated) {
+      const effectiveWeight = w * conf;
+      coreSum += z * effectiveWeight;
+      coreWeightSum += effectiveWeight;
+    }
   }
 
   if (coreWeightSum > 0) {
@@ -1214,15 +1252,17 @@ export function calculateHealthScore(
   let supportSum = 0;
   let supportWeightSum = 0;
 
-  if (zSteps !== null && !stepsGated) {
-    const effectiveWeight = supportWeights.steps * stepsConf;
-    supportSum += zSteps * effectiveWeight;
-    supportWeightSum += effectiveWeight;
-  }
-  if (zCalories !== null && !caloriesGated) {
-    const effectiveWeight = supportWeights.calories * caloriesConf;
-    supportSum += zCalories * effectiveWeight;
-    supportWeightSum += effectiveWeight;
+  const supportEntries: [number | null, boolean, number, number][] = [
+    [zSteps, stepsGated, supportWeights.steps, stepsConf],
+    [zCalories, caloriesGated, supportWeights.calories, caloriesConf],
+    [zWeight, weightGated, supportWeights.weight, weightConf],
+  ];
+  for (const [z, gated, w, conf] of supportEntries) {
+    if (z !== null && !gated) {
+      const effectiveWeight = w * conf;
+      supportSum += z * effectiveWeight;
+      supportWeightSum += effectiveWeight;
+    }
   }
 
   if (supportWeightSum === 0 && zLoad !== null && !strainGated) {
@@ -1330,6 +1370,20 @@ export function calculateHealthScore(
       isGated: caloriesGated,
       gateReason: gateReason(caloriesConf, caloriesGated),
       source: fusedInputs?.calories?.source,
+    },
+    {
+      name: "Weight",
+      rawZScore: rawZWeight,
+      goodnessZScore: zWeight,
+      weight: supportWeights.weight,
+      contribution:
+        zWeight !== null && !weightGated
+          ? zWeight * supportWeights.weight * weightConf
+          : null,
+      confidence: weightConf,
+      isGated: weightGated,
+      gateReason: gateReason(weightConf, weightGated),
+      source: "garmin" as const,
     },
   ];
 
@@ -1628,8 +1682,10 @@ export interface CorrelationMetrics {
   sampleSize: number;
 }
 
+const MIN_LAG_SAMPLE_SIZE = 30;
+
 function calculatePearsonCorrelation(x: number[], y: number[]): number | null {
-  if (x.length !== y.length || x.length < 7) return null;
+  if (x.length !== y.length || x.length < MIN_LAG_SAMPLE_SIZE) return null;
 
   const n = x.length;
   const xMean = meanOrNull(x) ?? 0;

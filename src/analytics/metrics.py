@@ -842,7 +842,14 @@ def calculate_energy_balance(
 # HEALTH SCORE
 # ============================================
 
+Z_SCORE_CLAMP = 3.0
 STRAIN_OPTIMAL_Z = 0.3
+
+
+def _clamp_z(z: float | None, limit: float = Z_SCORE_CLAMP) -> float | None:
+    if z is None:
+        return None
+    return max(-limit, min(limit, z))
 
 
 def _strain_goodness(z: float) -> float:
@@ -853,12 +860,15 @@ def _strain_goodness(z: float) -> float:
 
 
 def _calories_goodness(raw_z: float) -> float:
-    abs_z = abs(raw_z)
-    if abs_z <= 0.5:
-        return 0.1
-    if abs_z <= 1.5:
-        return 0.0
-    return -0.3 * (abs_z - 1.5)
+    if raw_z >= 0:
+        return -0.3 * max(0.0, raw_z - 0.5)
+    return 0.4 * raw_z
+
+
+def _weight_goodness(raw_z: float) -> float:
+    if raw_z > 0:
+        return -0.6 * raw_z
+    return -0.3 * raw_z
 
 
 def _confidence_gate(conf: float, threshold: float = 0.6, width: float = 0.15) -> float:
@@ -885,6 +895,7 @@ def calculate_health_score(
     strain_quality: DataQuality | None = None,
     fused_inputs: dict[str, FusedZScoreInput] | None = None,
     calories_data: list[DataPoint] | None = None,
+    weight_data: list[DataPoint] | None = None,
     baseline_window: int = 30,
     short_term_window: int = 7,
     trend_window: int = 7,
@@ -897,6 +908,9 @@ def calculate_health_score(
     )
     _, adjusted_strain, _ = should_use_today_metric(
         strain_data, "strain", ref_date=ref_date
+    )
+    _, adjusted_stress, _ = should_use_today_metric(
+        stress_data, "stress", ref_date=ref_date
     )
     if calories_data:
         _, adjusted_calories, _ = should_use_today_metric(
@@ -933,7 +947,7 @@ def calculate_health_score(
         ref_date=ref_date,
     )
     bl_stress = calculate_baseline_metrics(
-        stress_data,
+        adjusted_stress,
         baseline_window,
         short_term_window,
         "stress",
@@ -972,6 +986,19 @@ def calculate_health_score(
         if adjusted_calories
         else None
     )
+    bl_weight = (
+        calculate_baseline_metrics(
+            weight_data,
+            baseline_window,
+            short_term_window,
+            "weight",
+            trend_window,
+            options,
+            ref_date=ref_date,
+        )
+        if weight_data
+        else None
+    )
 
     fi = fused_inputs or {}
     hrv_conf = _cap_confidence(
@@ -1008,17 +1035,21 @@ def calculate_health_score(
         if cal_fi
         else (0.7 if bl_calories and bl_calories.z_score is not None else 0)
     )
+    weight_conf = _cap_confidence(
+        0.8 if bl_weight and bl_weight.z_score is not None else 0
+    )
 
     def select_z(bl: BaselineMetrics) -> float | None:
         return bl.shifted_z_score if use_shifted_z_score else bl.z_score
 
-    raw_z_hrv = select_z(bl_hrv)
-    raw_z_rhr = select_z(bl_rhr)
-    raw_z_sleep = select_z(bl_sleep)
-    raw_z_stress = select_z(bl_stress)
-    raw_z_steps = select_z(bl_steps)
-    raw_z_load = select_z(bl_strain)
-    raw_z_cal = select_z(bl_calories) if bl_calories else None
+    raw_z_hrv = _clamp_z(select_z(bl_hrv))
+    raw_z_rhr = _clamp_z(select_z(bl_rhr))
+    raw_z_sleep = _clamp_z(select_z(bl_sleep))
+    raw_z_stress = _clamp_z(select_z(bl_stress))
+    raw_z_steps = _clamp_z(select_z(bl_steps))
+    raw_z_load = _clamp_z(select_z(bl_strain))
+    raw_z_cal = _clamp_z(select_z(bl_calories) if bl_calories else None)
+    raw_z_weight = _clamp_z(select_z(bl_weight) if bl_weight else None)
 
     z_hrv = raw_z_hrv
     z_rhr = -raw_z_rhr if raw_z_rhr is not None else None
@@ -1027,9 +1058,10 @@ def calculate_health_score(
     z_steps = raw_z_steps
     z_load = _strain_goodness(raw_z_load) if raw_z_load is not None else None
     z_cal = _calories_goodness(raw_z_cal) if raw_z_cal is not None else None
+    z_weight = _weight_goodness(raw_z_weight) if raw_z_weight is not None else None
 
     core_weights = {"hrv": 0.35, "rhr": 0.25, "sleep": 0.25, "stress": 0.15}
-    support_weights = {"steps": 0.5, "calories": 0.5}
+    support_weights = {"steps": 0.35, "calories": 0.35, "weight": 0.30}
     total_core_weight = sum(core_weights.values())
     total_support_weight = sum(support_weights.values())
     min_core_metrics = 2
@@ -1041,6 +1073,7 @@ def calculate_health_score(
     steps_gate = _confidence_gate(steps_conf)
     strain_gate = _confidence_gate(strain_conf)
     cal_gate = _confidence_gate(calories_conf)
+    weight_gate = _confidence_gate(weight_conf)
 
     recovery_core: float | None = None
     core_sum = 0.0
@@ -1058,34 +1091,42 @@ def calculate_health_score(
             core_sum += z * ew
             core_weight_sum += ew
     if core_available >= min_core_metrics and core_weight_sum > 0:
-        recovery_core = core_sum / total_core_weight
+        recovery_core = core_sum / core_weight_sum
 
     behavior_support: float | None = None
     support_sum = 0.0
     support_weight_sum = 0.0
-    if z_steps is not None:
-        ew = support_weights["steps"] * steps_gate
-        support_sum += z_steps * ew
-        support_weight_sum += ew
-    if z_cal is not None:
-        ew = support_weights["calories"] * cal_gate
-        support_sum += z_cal * ew
-        support_weight_sum += ew
+    for z, gate, w_key in [
+        (z_steps, steps_gate, "steps"),
+        (z_cal, cal_gate, "calories"),
+        (z_weight, weight_gate, "weight"),
+    ]:
+        if z is not None:
+            ew = support_weights[w_key] * gate
+            support_sum += z * ew
+            support_weight_sum += ew
     if support_weight_sum > 0:
-        behavior_support = support_sum / total_support_weight
+        behavior_support = support_sum / support_weight_sum
 
     training_load: float | None = None
     if z_load is not None and strain_gate > 0.1:
         training_load = z_load
 
     overall: float | None = None
+    recovery_weight = 0.6
+    training_weight = 0.2
+    support_weight = 0.2
+    if training_load is None:
+        recovery_weight = 0.75
+        support_weight = 0.25
+
     scored_parts: list[tuple[float, float]] = []
     if recovery_core is not None:
-        scored_parts.append((recovery_core, 0.6))
+        scored_parts.append((recovery_core, recovery_weight))
     if training_load is not None:
-        scored_parts.append((training_load, 0.2))
+        scored_parts.append((training_load, training_weight))
     if behavior_support is not None:
-        scored_parts.append((behavior_support, 0.2))
+        scored_parts.append((behavior_support, support_weight))
     if scored_parts:
         total_w = sum(w for _, w in scored_parts)
         overall = sum(s * w for s, w in scored_parts) / total_w
@@ -1192,6 +1233,21 @@ def calculate_health_score(
             gate_factor=cal_gate,
             gate_reason=_gate_reason(calories_conf, cal_gate),
             source=fi["calories"].source if "calories" in fi else None,
+        ),
+        HealthScoreContributor(
+            name="Weight",
+            raw_z_score=raw_z_weight,
+            goodness_z_score=z_weight,
+            weight=support_weights["weight"],
+            contribution=(
+                z_weight * support_weights["weight"] * weight_gate
+                if z_weight is not None
+                else None
+            ),
+            confidence=weight_conf,
+            gate_factor=weight_gate,
+            gate_reason=_gate_reason(weight_conf, weight_gate),
+            source="garmin",
         ),
     ]
 
