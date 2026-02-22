@@ -1420,8 +1420,8 @@ export function calculateClinicalAlerts(
   let acuteHRVDrop = false;
 
   if (sortedHRV.length >= 2) {
-    const latest = sortedHRV[sortedHRV.length - 1].value!;
-    const previous = sortedHRV[sortedHRV.length - 2].value!;
+    const latest = sortedHRV[sortedHRV.length - 1].value ?? 0;
+    const previous = sortedHRV[sortedHRV.length - 2].value ?? 0;
     if (previous > 0) {
       hrvDropPercent = (previous - latest) / previous;
       acuteHRVDrop = hrvDropPercent > HRV_DROP_THRESHOLD;
@@ -1441,8 +1441,8 @@ export function calculateClinicalAlerts(
   let progressiveWeightLoss = false;
 
   if (sortedWeight.length >= 2) {
-    const earliest = sortedWeight[0].value!;
-    const latest = sortedWeight[sortedWeight.length - 1].value!;
+    const earliest = sortedWeight[0].value ?? 0;
+    const latest = sortedWeight[sortedWeight.length - 1].value ?? 0;
     if (earliest > 0) {
       weightLossPercent = (earliest - latest) / earliest;
       progressiveWeightLoss = weightLossPercent > WEIGHT_LOSS_THRESHOLD;
@@ -1666,24 +1666,24 @@ export function calculateCorrelationMetrics(
   const dailyStrain = toDailySeries(strainData, "max");
 
   const hrvMap = new Map(
-    filterDataByWindow(dailyHRV, windowDays)
-      .filter((d) => d.value !== null)
-      .map((d) => [toLocalDayKey(d.date), d.value!]),
+    filterDataByWindow(dailyHRV, windowDays).flatMap((d) =>
+      d.value !== null ? [[toLocalDayKey(d.date), d.value] as const] : [],
+    ),
   );
   const rhrMap = new Map(
-    filterDataByWindow(dailyRHR, windowDays)
-      .filter((d) => d.value !== null)
-      .map((d) => [toLocalDayKey(d.date), d.value!]),
+    filterDataByWindow(dailyRHR, windowDays).flatMap((d) =>
+      d.value !== null ? [[toLocalDayKey(d.date), d.value] as const] : [],
+    ),
   );
   const sleepMap = new Map(
-    filterDataByWindow(dailySleep, windowDays)
-      .filter((d) => d.value !== null)
-      .map((d) => [toLocalDayKey(d.date), d.value!]),
+    filterDataByWindow(dailySleep, windowDays).flatMap((d) =>
+      d.value !== null ? [[toLocalDayKey(d.date), d.value] as const] : [],
+    ),
   );
   const strainMap = new Map(
-    filterDataByWindow(dailyStrain, windowDays)
-      .filter((d) => d.value !== null)
-      .map((d) => [toLocalDayKey(d.date), d.value!]),
+    filterDataByWindow(dailyStrain, windowDays).flatMap((d) =>
+      d.value !== null ? [[toLocalDayKey(d.date), d.value] as const] : [],
+    ),
   );
 
   // 1. HRV↔RHR correlation (same day) - should be negative
@@ -1902,7 +1902,7 @@ export function calculateVelocityMetrics(
 
     const points = recent.map((d) => ({
       x: toDayNumber(d.date),
-      y: d.value!,
+      y: d.value ?? 0,
     }));
 
     const xMean = meanOrNull(points.map((p) => p.x)) ?? 0;
@@ -1936,6 +1936,14 @@ export function calculateVelocityMetrics(
     return isGood ? "improving" : "declining";
   };
 
+  const interpretWeightVelocity = (
+    velocity: number | null,
+  ): "gaining" | "losing" | "stable" | null => {
+    if (velocity === null) return null;
+    if (Math.abs(velocity) < VELOCITY_SIGNIFICANCE.weight) return "stable";
+    return velocity > 0 ? "gaining" : "losing";
+  };
+
   return {
     hrvVelocity,
     rhrVelocity,
@@ -1944,14 +1952,7 @@ export function calculateVelocityMetrics(
     interpretation: {
       hrv: interpretVelocity(hrvVelocity, VELOCITY_SIGNIFICANCE.hrv),
       rhr: interpretVelocity(rhrVelocity, VELOCITY_SIGNIFICANCE.rhr, true), // Lower RHR is better
-      weight:
-        weightVelocity === null
-          ? null
-          : Math.abs(weightVelocity) < VELOCITY_SIGNIFICANCE.weight
-            ? "stable"
-            : weightVelocity > 0
-              ? "gaining"
-              : "losing",
+      weight: interpretWeightVelocity(weightVelocity),
       sleep: interpretVelocity(sleepVelocity, VELOCITY_SIGNIFICANCE.sleep),
     },
   };
@@ -2006,14 +2007,14 @@ export function calculateRecoveryCapacity(
   const dailyStrain = toDailySeries(strainData, "max");
 
   const hrvMap = new Map(
-    dailyHRV
-      .filter((d) => d.value !== null)
-      .map((d) => [toLocalDayKey(d.date), d.value!]),
+    dailyHRV.flatMap((d) =>
+      d.value !== null ? [[toLocalDayKey(d.date), d.value] as const] : [],
+    ),
   );
   const strainMap = new Map(
-    dailyStrain
-      .filter((d) => d.value !== null)
-      .map((d) => [toLocalDayKey(d.date), d.value!]),
+    dailyStrain.flatMap((d) =>
+      d.value !== null ? [[toLocalDayKey(d.date), d.value] as const] : [],
+    ),
   );
 
   const sortedStrainDates = Array.from(strainMap.keys()).sort();
@@ -2023,7 +2024,8 @@ export function calculateRecoveryCapacity(
   let highStrainEvents = 0;
 
   for (const date of sortedStrainDates) {
-    const strain = strainMap.get(date)!;
+    const strain = strainMap.get(date);
+    if (strain === undefined) continue;
     const strainZ = (strain - strainBaseline.mean) / strainBaseline.std;
 
     if (strainZ > HIGH_STRAIN_Z_THRESHOLD) {
@@ -2125,30 +2127,30 @@ export function calculateIllnessRiskSignal(
   const recentRHR = filterDataByWindow(dailyRHR, lookbackDays);
   const recentSleep = filterDataByWindow(dailySleep, lookbackDays);
 
-  const hrvValues = recentHRV
-    .filter((d) => d.value !== null)
-    .map((d) => d.value!);
-  const rhrValues = recentRHR
-    .filter((d) => d.value !== null)
-    .map((d) => d.value!);
-  const sleepValues = recentSleep
-    .filter((d) => d.value !== null)
-    .map((d) => d.value!);
+  const hrvValues = recentHRV.flatMap((d) =>
+    d.value !== null ? [d.value] : [],
+  );
+  const rhrValues = recentRHR.flatMap((d) =>
+    d.value !== null ? [d.value] : [],
+  );
+  const sleepValues = recentSleep.flatMap((d) =>
+    d.value !== null ? [d.value] : [],
+  );
 
   let hrvDrop: number | null = null;
   let rhrRise: number | null = null;
   let sleepDrop: number | null = null;
 
   if (hrvValues.length > 0 && hrvBaseline.std > MIN_STD_THRESHOLD) {
-    const avgHRV = meanOrNull(hrvValues)!;
+    const avgHRV = meanOrNull(hrvValues) ?? 0;
     hrvDrop = Math.max(0, -(avgHRV - hrvBaseline.mean) / hrvBaseline.std);
   }
   if (rhrValues.length > 0 && rhrBaseline.std > MIN_STD_THRESHOLD) {
-    const avgRHR = meanOrNull(rhrValues)!;
+    const avgRHR = meanOrNull(rhrValues) ?? 0;
     rhrRise = Math.max(0, (avgRHR - rhrBaseline.mean) / rhrBaseline.std);
   }
   if (sleepValues.length > 0 && sleepBaseline.std > MIN_STD_THRESHOLD) {
-    const avgSleep = meanOrNull(sleepValues)!;
+    const avgSleep = meanOrNull(sleepValues) ?? 0;
     sleepDrop = Math.max(
       0,
       -(avgSleep - sleepBaseline.mean) / sleepBaseline.std,
@@ -2167,14 +2169,14 @@ export function calculateIllnessRiskSignal(
   const sortedDates = Array.from(allDates).sort().reverse();
 
   const hrvMap = new Map(
-    recentHRV
-      .filter((d) => d.value !== null)
-      .map((d) => [toLocalDayKey(d.date), d.value!]),
+    recentHRV.flatMap((d) =>
+      d.value !== null ? [[toLocalDayKey(d.date), d.value] as const] : [],
+    ),
   );
   const rhrMap = new Map(
-    recentRHR
-      .filter((d) => d.value !== null)
-      .map((d) => [toLocalDayKey(d.date), d.value!]),
+    recentRHR.flatMap((d) =>
+      d.value !== null ? [[toLocalDayKey(d.date), d.value] as const] : [],
+    ),
   );
 
   for (const date of sortedDates) {

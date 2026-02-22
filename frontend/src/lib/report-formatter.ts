@@ -34,6 +34,28 @@ function formatNum(v: number | null, decimals = 1): string {
   return v !== null ? v.toFixed(decimals) : "N/A";
 }
 
+function getRiskStatus(riskLevel: string | null): string {
+  if (riskLevel === "high") return "[HIGH]";
+  if (riskLevel === "moderate") return "[MODERATE]";
+  return "[LOW]";
+}
+
+function getImbalanceStatus(imbalance: number | null): string {
+  if (imbalance === null) return "N/A";
+  if (imbalance < -1) return "RECOVERED";
+  if (imbalance < 0) return "BALANCED";
+  if (imbalance < 1) return "MILD STRAIN";
+  return "STRAINED";
+}
+
+function getAcwrStatus(acwr: number | null): string {
+  if (acwr === null) return "N/A";
+  if (acwr < 0.8) return "DETRAINING";
+  if (acwr <= 1.3) return "OPTIMAL";
+  if (acwr <= 1.5) return "CAUTION";
+  return "INJURY RISK";
+}
+
 function formatMinutes(mins: number | null): string {
   if (mins === null) return "N/A";
   if (mins < 0) return "0m";
@@ -228,12 +250,7 @@ function formatAlerts(
   lines.push(`## Alerts`);
   lines.push(``);
 
-  const riskStatus =
-    illnessRisk.riskLevel === "high"
-      ? "[HIGH]"
-      : illnessRisk.riskLevel === "moderate"
-        ? "[MODERATE]"
-        : "[LOW]";
+  const riskStatus = getRiskStatus(illnessRisk.riskLevel);
   lines.push(
     `${riskStatus} Pre-Illness Risk: ${(illnessRisk.riskLevel ?? "N/A").toUpperCase()}`,
   );
@@ -262,29 +279,11 @@ function formatReadiness(
   lines.push(``);
 
   const imbalance = recoveryMetrics.hrvRhrImbalance;
-  const imbalanceStatus =
-    imbalance !== null
-      ? imbalance < -1
-        ? "RECOVERED"
-        : imbalance < 0
-          ? "BALANCED"
-          : imbalance < 1
-            ? "MILD STRAIN"
-            : "STRAINED"
-      : "N/A";
+  const imbalanceStatus = getImbalanceStatus(imbalance);
   lines.push(`HRV-RHR Imbalance: ${formatNum(imbalance)} (${imbalanceStatus})`);
 
   const acwr = activityMetrics.acwr;
-  const acwrStatus =
-    acwr !== null
-      ? acwr < 0.8
-        ? "DETRAINING"
-        : acwr <= 1.3
-          ? "OPTIMAL"
-          : acwr <= 1.5
-            ? "CAUTION"
-            : "INJURY RISK"
-      : "N/A";
+  const acwrStatus = getAcwrStatus(acwr);
   lines.push(`ACWR: ${formatNum(acwr)} (${acwrStatus})`);
 
   const recommendation = getReadinessRecommendation(

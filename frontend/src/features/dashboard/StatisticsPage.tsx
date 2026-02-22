@@ -67,6 +67,7 @@ import {
   Dumbbell,
   Beaker,
   BarChart3,
+  Loader2,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
@@ -130,6 +131,47 @@ function getStressTrendColor(value: number | null): string {
   if (value > 5) return "text-red-500";
   if (value < -5) return "text-green-500";
   return "text-blue-500";
+}
+
+function getCorrelationColor(value: number | null): string {
+  if (value === null) return "text-muted-foreground";
+  if (value < -0.3) return "text-green-500";
+  if (value > 0) return "text-red-500";
+  return "text-muted-foreground";
+}
+
+function getHrvSdColor(value: number | null): string {
+  if (value === null) return "";
+  if (value < 0.1) return "text-green-500";
+  if (value > 0.15) return "text-red-500";
+  return "";
+}
+
+function getTsbColor(value: number | null): string {
+  if (value === null) return "";
+  if (value > 0) return "text-green-500";
+  if (value < -10) return "text-red-500";
+  return "";
+}
+
+function getAllostaticScoreColor(value: number | null): string {
+  if (value === null) return "text-yellow-500";
+  if (value < 20) return "text-green-500";
+  if (value > 40) return "text-red-500";
+  return "text-yellow-500";
+}
+
+function getDysregulationRateColor(rate: number): string {
+  if (rate > 0.3) return "text-red-500";
+  if (rate > 0.15) return "text-yellow-500";
+  return "text-green-500";
+}
+
+function getCrossCorrelationColor(value: number | null): string {
+  if (value === null) return "";
+  if (value > 0.3) return "text-green-500";
+  if (value < -0.3) return "text-red-500";
+  return "";
 }
 
 interface DataQualityBadgeProps {
@@ -346,10 +388,14 @@ export function StatisticsPage() {
     trendWindow,
     useShiftedZScore,
   } = modeConfig;
-  const { data, isLoading, error } = useHealthData(MAX_BASELINE_DAYS, true);
+  const { data, isLoading, isFetching, error } = useHealthData(
+    MAX_BASELINE_DAYS,
+    true,
+  );
   const {
     data: analyticsData,
     isLoading: analyticsLoading,
+    isFetching: analyticsFetching,
     error: analyticsError,
   } = useAnalytics(mode);
   const advancedInsights = analyticsData?.advanced_insights;
@@ -541,7 +587,12 @@ export function StatisticsPage() {
             Personal baseline deviations and trends
           </p>
         </div>
-        <ModeSelector mode={mode} setMode={setMode} />
+        <div className="flex items-center gap-3">
+          {(isFetching || analyticsFetching) && (
+            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+          )}
+          <ModeSelector mode={mode} setMode={setMode} />
+        </div>
       </div>
 
       <Card className="border-2">
@@ -1248,13 +1299,7 @@ export function StatisticsPage() {
                   <span
                     className={cn(
                       "font-mono text-sm",
-                      correlationMetrics.hrvRhrCorrelation !== null &&
-                        correlationMetrics.hrvRhrCorrelation < -0.3
-                        ? "text-green-500"
-                        : correlationMetrics.hrvRhrCorrelation !== null &&
-                            correlationMetrics.hrvRhrCorrelation > 0
-                          ? "text-red-500"
-                          : "text-muted-foreground",
+                      getCorrelationColor(correlationMetrics.hrvRhrCorrelation),
                     )}
                   >
                     {correlationMetrics.hrvRhrCorrelation !== null
@@ -1729,16 +1774,9 @@ export function StatisticsPage() {
                       <span
                         className={cn(
                           "font-mono text-sm",
-                          advancedInsights.hrv_advanced.ln_rmssd_sd_7d !==
-                            null &&
-                            advancedInsights.hrv_advanced.ln_rmssd_sd_7d < 0.1
-                            ? "text-green-500"
-                            : advancedInsights.hrv_advanced.ln_rmssd_sd_7d !==
-                                  null &&
-                                advancedInsights.hrv_advanced.ln_rmssd_sd_7d >
-                                  0.15
-                              ? "text-red-500"
-                              : "",
+                          getHrvSdColor(
+                            advancedInsights.hrv_advanced.ln_rmssd_sd_7d,
+                          ),
                         )}
                       >
                         {advancedInsights.hrv_advanced.ln_rmssd_sd_7d?.toFixed(
@@ -1920,13 +1958,7 @@ export function StatisticsPage() {
                         {advancedInsights.fitness.atl?.toFixed(1) ?? "—"} /{" "}
                         <span
                           className={cn(
-                            advancedInsights.fitness.tsb !== null &&
-                              advancedInsights.fitness.tsb > 0
-                              ? "text-green-500"
-                              : advancedInsights.fitness.tsb !== null &&
-                                  advancedInsights.fitness.tsb < -10
-                                ? "text-red-500"
-                                : "",
+                            getTsbColor(advancedInsights.fitness.tsb),
                           )}
                         >
                           {advancedInsights.fitness.tsb?.toFixed(1) ?? "—"}
@@ -1987,17 +2019,9 @@ export function StatisticsPage() {
                       <span
                         className={cn(
                           "text-2xl font-bold",
-                          advancedInsights.allostatic_load.composite_score !==
-                            null &&
-                            advancedInsights.allostatic_load.composite_score <
-                              20
-                            ? "text-green-500"
-                            : advancedInsights.allostatic_load
-                                  .composite_score !== null &&
-                                advancedInsights.allostatic_load
-                                  .composite_score > 40
-                              ? "text-red-500"
-                              : "text-yellow-500",
+                          getAllostaticScoreColor(
+                            advancedInsights.allostatic_load.composite_score,
+                          ),
                         )}
                       >
                         {advancedInsights.allostatic_load.composite_score?.toFixed(
@@ -2021,11 +2045,7 @@ export function StatisticsPage() {
                         <span
                           className={cn(
                             "font-mono",
-                            rate > 0.3
-                              ? "text-red-500"
-                              : rate > 0.15
-                                ? "text-yellow-500"
-                                : "text-green-500",
+                            getDysregulationRateColor(rate),
                           )}
                         >
                           {(rate * 100).toFixed(0)}%
@@ -2234,13 +2254,7 @@ export function StatisticsPage() {
                           <span
                             className={cn(
                               "font-mono font-medium",
-                              pair.correlation !== null &&
-                                pair.correlation > 0.3
-                                ? "text-green-500"
-                                : pair.correlation !== null &&
-                                    pair.correlation < -0.3
-                                  ? "text-red-500"
-                                  : "",
+                              getCrossCorrelationColor(pair.correlation),
                             )}
                           >
                             {pair.correlation?.toFixed(2) ?? "—"}

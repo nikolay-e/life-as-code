@@ -1,11 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { format, subDays } from "date-fns";
 import { healthKeys } from "../lib/query-keys";
-import {
-  HEALTH_DATA_STALE_TIME,
-  SYNC_REFETCH_INTERVAL,
-} from "../lib/constants";
+import { HEALTH_DATA_STALE_TIME } from "../lib/constants";
 
 export function useDetailedWorkouts(days: number = 90) {
   const today = new Date();
@@ -16,7 +13,7 @@ export function useDetailedWorkouts(days: number = 90) {
     queryKey: healthKeys.detailedWorkouts(startDate, endDate),
     queryFn: () => api.data.getDetailedWorkouts(startDate, endDate),
     staleTime: HEALTH_DATA_STALE_TIME,
-    refetchInterval: SYNC_REFETCH_INTERVAL,
     refetchOnWindowFocus: true,
+    placeholderData: keepPreviousData,
   });
 }

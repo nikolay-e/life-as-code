@@ -2,9 +2,11 @@ import { cn } from "../../lib/utils";
 
 type Environment = "production" | "staging" | "development";
 
-const environment = (import.meta.env.VITE_APP_ENVIRONMENT ||
-  "development") as Environment;
-const version = import.meta.env.VITE_APP_VERSION || "dev";
+const environment: Environment =
+  (import.meta.env.VITE_APP_ENVIRONMENT as Environment | undefined) ??
+  "development";
+const version: string =
+  (import.meta.env.VITE_APP_VERSION as string | undefined) ?? "dev";
 
 const envStyles: Record<Environment, string> = {
   production: "bg-green-600 text-white",

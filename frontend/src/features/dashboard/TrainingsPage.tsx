@@ -10,7 +10,14 @@ import {
 } from "../../components/ui/card";
 import { LoadingState } from "../../components/ui/loading-state";
 import { ErrorCard } from "../../components/ui/error-card";
-import { Dumbbell, Calendar, Flame, Activity, Heart } from "lucide-react";
+import {
+  Dumbbell,
+  Calendar,
+  Flame,
+  Activity,
+  Heart,
+  Loader2,
+} from "lucide-react";
 import { format, parseISO } from "date-fns";
 import type {
   WorkoutExerciseDetail,
@@ -431,8 +438,14 @@ function DailyTrainingCard({ day }: { day: DailyTrainings }) {
 export function TrainingsPage() {
   const [periodDays, setPeriodDays] = useState<PeriodDays>(30);
 
-  const { data: workouts, isLoading, error } = useDetailedWorkouts(periodDays);
-  const { data: healthData } = useHealthData(periodDays);
+  const {
+    data: workouts,
+    isLoading,
+    isFetching,
+    error,
+  } = useDetailedWorkouts(periodDays);
+  const { data: healthData, isFetching: healthFetching } =
+    useHealthData(periodDays);
 
   const dailyTrainings = useMemo(() => {
     return groupAllTrainingsByDate(
@@ -458,7 +471,9 @@ export function TrainingsPage() {
               Detailed workout log from Hevy, Garmin, and Whoop
             </p>
           </div>
-          <PeriodSelector period={periodDays} setPeriod={setPeriodDays} />
+          <div className="flex items-center gap-3">
+            <PeriodSelector period={periodDays} setPeriod={setPeriodDays} />
+          </div>
         </div>
         <LoadingState message="Loading workouts..." />
       </div>
@@ -474,7 +489,12 @@ export function TrainingsPage() {
             Detailed workout log from Hevy, Garmin, and Whoop
           </p>
         </div>
-        <PeriodSelector period={periodDays} setPeriod={setPeriodDays} />
+        <div className="flex items-center gap-3">
+          {(isFetching || healthFetching) && (
+            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+          )}
+          <PeriodSelector period={periodDays} setPeriod={setPeriodDays} />
+        </div>
       </div>
 
       {dailyTrainings.length > 0 ? (

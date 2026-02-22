@@ -29,6 +29,7 @@ import {
   Scale,
   Footprints,
   Flame,
+  Loader2,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -118,7 +119,10 @@ export function DashboardOverview() {
     [startDate, endDate],
   );
 
-  const { data, isLoading, error } = useHealthDataRange(startDate, endDate);
+  const { data, isLoading, isFetching, error } = useHealthDataRange(
+    startDate,
+    endDate,
+  );
   const { data: syncStatus } = useSyncStatus();
   const { isSyncing } = useAutoSync();
 
@@ -238,14 +242,20 @@ export function DashboardOverview() {
               </div>
             );
           }
-          return lastSync ? (
+          return (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <RefreshCw className="h-3.5 w-3.5" />
-              <span>
-                Last sync: {format(new Date(toTimeMs(lastSync)), "PPp")}
-              </span>
+              {isFetching ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+              ) : (
+                lastSync && <RefreshCw className="h-3.5 w-3.5" />
+              )}
+              {lastSync && (
+                <span>
+                  Last sync: {format(new Date(toTimeMs(lastSync)), "PPp")}
+                </span>
+              )}
             </div>
-          ) : null;
+          );
         })()}
       </div>
 

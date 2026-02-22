@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, Suspense } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -19,6 +19,7 @@ import {
   Dumbbell,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { Spinner } from "../../components/ui/spinner";
 import { VersionInfo } from "../../components/ui/version-info";
 import { formatCombinedReport } from "../../lib/report-formatter";
 import { MAX_BASELINE_DAYS } from "../../lib/metrics";
@@ -204,9 +205,15 @@ export function DashboardLayout() {
       </header>
 
       <main className="container py-8 px-4 sm:px-6 lg:px-8">
-        <div className="animate-fade-in">
+        <Suspense
+          fallback={
+            <div className="flex items-center justify-center h-96">
+              <Spinner size="lg" />
+            </div>
+          }
+        >
           <Outlet />
-        </div>
+        </Suspense>
       </main>
 
       <footer

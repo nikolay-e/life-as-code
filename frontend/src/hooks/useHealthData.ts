@@ -1,4 +1,8 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useQuery,
+  useQueryClient,
+  keepPreviousData,
+} from "@tanstack/react-query";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { api } from "../lib/api";
 import { format, subDays, differenceInDays, parseISO } from "date-fns";
@@ -24,8 +28,8 @@ export function useHealthData(
     queryKey: healthKeys.dataRange(startDate, endDate),
     queryFn: () => api.data.getRange(startDate, endDate),
     staleTime: HEALTH_DATA_STALE_TIME,
-    refetchInterval: SYNC_REFETCH_INTERVAL,
     refetchOnWindowFocus: true,
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -34,8 +38,8 @@ export function useHealthDataRange(startDate: string, endDate: string) {
     queryKey: healthKeys.dataRange(startDate, endDate),
     queryFn: () => api.data.getRange(startDate, endDate),
     staleTime: HEALTH_DATA_STALE_TIME,
-    refetchInterval: SYNC_REFETCH_INTERVAL,
     refetchOnWindowFocus: true,
+    placeholderData: keepPreviousData,
   });
 }
 
