@@ -193,10 +193,22 @@ def should_use_today_metric(
     today_entry = next((d for d in data if to_day_key(d.date) == today_str), None)
     has_today = today_entry is not None and today_entry.value is not None
 
-    if not has_today:
+    if not has_today or today_entry is None:
         return False, data, f"No {metric_type} data for {today_str}"
 
     if completeness >= threshold:
+        steps_min_threshold = STEP_FLOOR_FALLBACK * 0.15
+        if (
+            metric_type == "steps"
+            and today_entry.value is not None
+            and today_entry.value < steps_min_threshold
+        ):
+            filtered = [d for d in data if to_day_key(d.date) != today_str]
+            return (
+                False,
+                filtered,
+                f"Steps {today_entry.value} below minimum threshold ({steps_min_threshold})",
+            )
         return True, data, f"Day {round(completeness * 100)}% complete"
 
     filtered = [d for d in data if to_day_key(d.date) != today_str]
@@ -1007,10 +1019,12 @@ def calculate_health_score(
         if adjusted_calories
         else None
     )
+    WEIGHT_MIN_BASELINE = 180
+    weight_baseline_window = max(baseline_window, WEIGHT_MIN_BASELINE)
     bl_weight = (
         calculate_baseline_metrics(
             weight_data,
-            baseline_window,
+            weight_baseline_window,
             short_term_window,
             "weight",
             trend_window,

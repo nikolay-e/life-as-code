@@ -178,6 +178,19 @@ export function shouldUseTodayMetric(
   }
 
   if (completeness >= threshold) {
+    const STEPS_MIN_THRESHOLD = STEP_FLOOR_FALLBACK * 0.15;
+    if (
+      metricType === "steps" &&
+      todayEntry.value !== null &&
+      todayEntry.value < STEPS_MIN_THRESHOLD
+    ) {
+      const filteredData = data.filter((d) => toLocalDayKey(d.date) !== today);
+      return {
+        useToday: false,
+        adjustedData: filteredData,
+        reason: `Steps ${String(todayEntry.value)} below minimum threshold (${String(STEPS_MIN_THRESHOLD)})`,
+      };
+    }
     return {
       useToday: true,
       adjustedData: data,
@@ -1149,11 +1162,13 @@ export function calculateHealthScore(
           options,
         )
       : null;
+  const WEIGHT_MIN_BASELINE = 180;
+  const weightBaselineWindow = Math.max(baselineWindow, WEIGHT_MIN_BASELINE);
   const weightBaseline =
     weightData && weightData.length > 0
       ? calculateBaselineMetrics(
           weightData,
-          baselineWindow,
+          weightBaselineWindow,
           shortTermWindow,
           "weight",
           trendWindow,
@@ -1766,10 +1781,15 @@ export interface CorrelationMetrics {
   sampleSize: number;
 }
 
+const MIN_CORRELATION_PAIRS = 7;
 const MIN_LAG_SAMPLE_SIZE = 30;
 
-function calculatePearsonCorrelation(x: number[], y: number[]): number | null {
-  if (x.length !== y.length || x.length < MIN_LAG_SAMPLE_SIZE) return null;
+function calculatePearsonCorrelation(
+  x: number[],
+  y: number[],
+  minSamples: number = MIN_LAG_SAMPLE_SIZE,
+): number | null {
+  if (x.length !== y.length || x.length < minSamples) return null;
 
   const n = x.length;
   const xMean = meanOrNull(x) ?? 0;
@@ -1837,6 +1857,7 @@ export function calculateCorrelationMetrics(
   const hrvRhrCorrelation = calculatePearsonCorrelation(
     hrvRhrPairs.map((p) => p.hrv),
     hrvRhrPairs.map((p) => p.rhr),
+    MIN_CORRELATION_PAIRS,
   );
 
   // 2. Sleep→HRV lag correlation (sleep today → HRV tomorrow)

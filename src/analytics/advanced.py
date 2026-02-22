@@ -655,11 +655,11 @@ def calculate_allostatic_load(
     composite = mean_or_none(recent_smoothed)
 
     trend: float | None = None
-    if len(smoothed_scores) >= 14:
-        recent_14 = smoothed_scores[-14:]
-        prev_14 = smoothed_scores[-28:-14] if len(smoothed_scores) >= 28 else []
-        recent_mean = mean_or_none(recent_14)
-        prev_mean = mean_or_none(prev_14)
+    if len(smoothed_scores) >= 28:
+        recent_28 = smoothed_scores[-28:]
+        prev_28 = smoothed_scores[-56:-28] if len(smoothed_scores) >= 56 else []
+        recent_mean = mean_or_none(recent_28)
+        prev_mean = mean_or_none(prev_28)
         if recent_mean is not None and prev_mean is not None:
             trend = recent_mean - prev_mean
 
