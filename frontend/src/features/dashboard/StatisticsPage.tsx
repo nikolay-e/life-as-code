@@ -605,14 +605,22 @@ export function StatisticsPage() {
             <div>
               <CardTitle>Health Status Score</CardTitle>
               <CardDescription>
-                Composite: recovery core (60%) + training load (20%) + behavior
-                (20%)
+                {healthScore.trainingLoad !== null
+                  ? "Composite: recovery core (60%) + training load (20%) + behavior (20%)"
+                  : "Composite: recovery core (75%) + behavior support (25%)"}
               </CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          <div
+            className={cn(
+              "grid gap-6 md:grid-cols-2",
+              healthScore.trainingLoad !== null
+                ? "lg:grid-cols-4"
+                : "lg:grid-cols-3",
+            )}
+          >
             <div className="text-center">
               <p className="text-sm text-muted-foreground mb-1">Overall</p>
               <p
@@ -652,26 +660,24 @@ export function StatisticsPage() {
                 HRV + RHR + Sleep + Stress
               </p>
             </div>
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground mb-1">
-                Training Load
-              </p>
-              <p
-                className={cn(
-                  "text-3xl font-bold",
-                  healthScore.trainingLoad !== null
-                    ? getHealthScoreColor(healthScore.trainingLoad)
-                    : "text-muted-foreground",
-                )}
-              >
-                {healthScore.trainingLoad !== null
-                  ? healthScore.trainingLoad.toFixed(2)
-                  : "—"}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Strain optimality
-              </p>
-            </div>
+            {healthScore.trainingLoad !== null && (
+              <div className="text-center">
+                <p className="text-sm text-muted-foreground mb-1">
+                  Training Load
+                </p>
+                <p
+                  className={cn(
+                    "text-3xl font-bold",
+                    getHealthScoreColor(healthScore.trainingLoad),
+                  )}
+                >
+                  {healthScore.trainingLoad.toFixed(2)}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Strain optimality
+                </p>
+              </div>
+            )}
             <div className="text-center">
               <p className="text-sm text-muted-foreground mb-1">
                 Behavior Support
