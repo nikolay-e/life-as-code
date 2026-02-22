@@ -413,9 +413,10 @@ function formatHealthScoreSummary(analysis: HealthAnalysis): string[] {
   lines.push(`## Health Score`);
   lines.push(``);
   lines.push(`Overall: ${formatNum(healthScore.overall, 2)}`);
-  lines.push(`Recovery Core (70%): ${formatNum(healthScore.recoveryCore, 2)}`);
+  lines.push(`Recovery Core (60%): ${formatNum(healthScore.recoveryCore, 2)}`);
+  lines.push(`Training Load (20%): ${formatNum(healthScore.trainingLoad, 2)}`);
   lines.push(
-    `Behavior Support (30%): ${formatNum(healthScore.behaviorSupport, 2)}`,
+    `Behavior Support (20%): ${formatNum(healthScore.behaviorSupport, 2)}`,
   );
   lines.push(``);
 

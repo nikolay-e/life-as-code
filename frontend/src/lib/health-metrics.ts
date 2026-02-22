@@ -256,6 +256,7 @@ export interface BaselineMetrics {
   trendSlope: number | null;
   shortTermMean: number | null;
   longTermMean: number | null;
+  longTermPercentile: number | null;
 }
 
 export interface BaselineOptions {
@@ -283,7 +284,7 @@ export function calculateBaselineMetrics(
       ? filterDataByWindowRange(
           daily,
           baselineWindow + excludeDays,
-          excludeDays,
+          excludeDays - 1,
         )
       : filterDataByWindow(daily, baselineWindow);
 
@@ -313,6 +314,7 @@ export function calculateBaselineMetrics(
       trendSlope: null,
       shortTermMean: null,
       longTermMean: null,
+      longTermPercentile: null,
     };
   }
 
@@ -418,6 +420,19 @@ export function calculateBaselineMetrics(
     }
   }
 
+  const allValues = sortedDaily
+    .filter((d): d is typeof d & { value: number } => d.value !== null)
+    .map((d) => d.value)
+    .sort((a, b) => a - b);
+  let longTermPercentile: number | null = null;
+  if (allValues.length >= 30) {
+    const anchorValue = shortTermMean ?? currentValue;
+    if (anchorValue !== null) {
+      const below = allValues.filter((v) => v <= anchorValue).length;
+      longTermPercentile = (below / allValues.length) * 100;
+    }
+  }
+
   return {
     mean,
     std,
@@ -430,6 +445,7 @@ export function calculateBaselineMetrics(
     trendSlope,
     shortTermMean,
     longTermMean: mean,
+    longTermPercentile,
   };
 }
 
@@ -979,6 +995,7 @@ export function calculateEnergyBalance(
 export interface HealthScore {
   overall: number | null;
   recoveryCore: number | null;
+  trainingLoad: number | null;
   behaviorSupport: number | null;
   contributors: {
     name: string;
@@ -987,18 +1004,23 @@ export interface HealthScore {
     weight: number;
     contribution: number | null;
     confidence: number;
+    gateFactor: number;
     isGated: boolean;
     gateReason: string;
     source?: DataProvider;
+    longTermPercentile: number | null;
   }[];
   stepsStatus: {
     useToday: boolean;
     reason: string;
   };
+  dataConfidence: number | null;
 }
 
 const Z_SCORE_CLAMP = 3.0;
 const CONFIDENCE_THRESHOLD = 0.6;
+const STRAIN_OPTIMAL_Z = 0.3;
+const MIN_CORE_METRICS = 2;
 
 function capConfidence(conf: number): number {
   return Math.max(0, Math.min(1, conf));
@@ -1010,6 +1032,15 @@ function clampZ(
 ): number | null {
   if (z === null) return null;
   return Math.max(-limit, Math.min(limit, z));
+}
+
+function confidenceGate(
+  conf: number,
+  threshold: number = CONFIDENCE_THRESHOLD,
+  width: number = 0.15,
+): number {
+  const x = (conf - threshold) / width;
+  return 1 / (1 + Math.exp(-5 * x));
 }
 
 export interface FusedZScoreInput {
@@ -1188,6 +1219,7 @@ export function calculateHealthScore(
         trendSlope: null,
         shortTermMean: null,
         longTermMean: null,
+        longTermPercentile: null,
       },
       fusedInputs?.calories?.zScore,
     ),
@@ -1204,12 +1236,27 @@ export function calculateHealthScore(
     return z >= 0 ? -0.3 * Math.max(0, z - 0.5) : 0.4 * z;
   }
 
+  function stepsRecoveryCap(zSteps: number, zHrv: number | null): number {
+    if (zHrv === null || zSteps <= 0) return zSteps;
+    if (zHrv >= -0.5) return zSteps;
+    if (zHrv >= -1.0) return 0.7 * zSteps;
+    if (zHrv >= -1.5) return 0.4 * zSteps;
+    return 0.2 * zSteps;
+  }
+
+  function strainGoodness(z: number): number {
+    const deviation = Math.abs(z - STRAIN_OPTIMAL_Z);
+    if (deviation <= 0.5) return 0.3 * (1.0 - deviation / 0.5);
+    return -(deviation - 0.5);
+  }
+
   const zHRV = rawZHRV;
   const zRHR = rawZRHR !== null ? -rawZRHR : null;
   const zSleep = rawZSleep;
   const zStress = rawZStress !== null ? -rawZStress : null;
-  const zSteps = rawZSteps;
-  const zLoad = rawZLoad !== null ? -Math.abs(rawZLoad) : null;
+  const zSteps =
+    rawZSteps !== null ? stepsRecoveryCap(rawZSteps, rawZHRV) : null;
+  const zLoad = rawZLoad !== null ? strainGoodness(rawZLoad) : null;
   const zCalories =
     rawZCalories !== null ? caloriesGoodness(rawZCalories) : null;
   const zWeight = rawZWeight !== null ? weightGoodness(rawZWeight) : null;
@@ -1217,34 +1264,36 @@ export function calculateHealthScore(
   const coreWeights = { hrv: 0.35, rhr: 0.25, sleep: 0.25, stress: 0.15 };
   const supportWeights = { steps: 0.35, calories: 0.35, weight: 0.3 };
 
-  const hrvGated = hrvConf < CONFIDENCE_THRESHOLD;
-  const rhrGated = rhrConf < CONFIDENCE_THRESHOLD;
-  const sleepGated = sleepConf < CONFIDENCE_THRESHOLD;
-  const stressGated = stressConf < CONFIDENCE_THRESHOLD;
-  const stepsGated = stepsConf < CONFIDENCE_THRESHOLD;
-  const strainGated = strainConf < CONFIDENCE_THRESHOLD;
-  const caloriesGated = caloriesConf < CONFIDENCE_THRESHOLD;
-  const weightGated = weightConf < CONFIDENCE_THRESHOLD;
+  const hrvGate = confidenceGate(hrvConf);
+  const rhrGate = confidenceGate(rhrConf);
+  const sleepGate = confidenceGate(sleepConf);
+  const stressGate = confidenceGate(stressConf);
+  const stepsGate = confidenceGate(stepsConf);
+  const strainGate = confidenceGate(strainConf);
+  const calGate = confidenceGate(caloriesConf);
+  const weightGate = confidenceGate(weightConf);
 
   let recoveryCore: number | null = null;
   let coreSum = 0;
   let coreWeightSum = 0;
+  let coreAvailable = 0;
 
-  const coreEntries: [number | null, boolean, number, number][] = [
-    [zHRV, hrvGated, coreWeights.hrv, hrvConf],
-    [zRHR, rhrGated, coreWeights.rhr, rhrConf],
-    [zSleep, sleepGated, coreWeights.sleep, sleepConf],
-    [zStress, stressGated, coreWeights.stress, stressConf],
+  const coreEntries: [number | null, number, number][] = [
+    [zHRV, hrvGate, coreWeights.hrv],
+    [zRHR, rhrGate, coreWeights.rhr],
+    [zSleep, sleepGate, coreWeights.sleep],
+    [zStress, stressGate, coreWeights.stress],
   ];
-  for (const [z, gated, w, conf] of coreEntries) {
-    if (z !== null && !gated) {
-      const effectiveWeight = w * conf;
-      coreSum += z * effectiveWeight;
-      coreWeightSum += effectiveWeight;
+  for (const [z, gate, w] of coreEntries) {
+    if (z !== null) {
+      coreAvailable++;
+      const ew = w * gate;
+      coreSum += z * ew;
+      coreWeightSum += ew;
     }
   }
 
-  if (coreWeightSum > 0) {
+  if (coreAvailable >= MIN_CORE_METRICS && coreWeightSum > 0) {
     recoveryCore = coreSum / coreWeightSum;
   }
 
@@ -1252,40 +1301,68 @@ export function calculateHealthScore(
   let supportSum = 0;
   let supportWeightSum = 0;
 
-  const supportEntries: [number | null, boolean, number, number][] = [
-    [zSteps, stepsGated, supportWeights.steps, stepsConf],
-    [zCalories, caloriesGated, supportWeights.calories, caloriesConf],
-    [zWeight, weightGated, supportWeights.weight, weightConf],
+  const supportEntries: [number | null, number, number][] = [
+    [zSteps, stepsGate, supportWeights.steps],
+    [zCalories, calGate, supportWeights.calories],
+    [zWeight, weightGate, supportWeights.weight],
   ];
-  for (const [z, gated, w, conf] of supportEntries) {
-    if (z !== null && !gated) {
-      const effectiveWeight = w * conf;
-      supportSum += z * effectiveWeight;
-      supportWeightSum += effectiveWeight;
+  for (const [z, gate, w] of supportEntries) {
+    if (z !== null) {
+      const ew = w * gate;
+      supportSum += z * ew;
+      supportWeightSum += ew;
     }
-  }
-
-  if (supportWeightSum === 0 && zLoad !== null && !strainGated) {
-    supportSum = zLoad * strainConf;
-    supportWeightSum = strainConf;
   }
 
   if (supportWeightSum > 0) {
     behaviorSupport = supportSum / supportWeightSum;
   }
 
-  let overall: number | null = null;
-  if (recoveryCore !== null && behaviorSupport !== null) {
-    overall = 0.7 * recoveryCore + 0.3 * behaviorSupport;
-  } else if (recoveryCore !== null) {
-    overall = recoveryCore;
-  } else if (behaviorSupport !== null) {
-    overall = behaviorSupport;
+  let trainingLoad: number | null = null;
+  if (zLoad !== null && strainGate > 0.1) {
+    trainingLoad = zLoad;
   }
 
-  function gateReason(conf: number, gated: boolean): string {
-    if (!gated) return "";
-    return `Conf ${(conf * 100).toFixed(0)}% < ${(CONFIDENCE_THRESHOLD * 100).toFixed(0)}%`;
+  let overall: number | null = null;
+  let recoveryWeight = 0.6;
+  const trainingWeight = 0.2;
+  let supportWeight = 0.2;
+  if (trainingLoad === null) {
+    recoveryWeight = 0.75;
+    supportWeight = 0.25;
+  }
+
+  const scoredParts: [number, number][] = [];
+  if (recoveryCore !== null) {
+    scoredParts.push([recoveryCore, recoveryWeight]);
+  }
+  if (trainingLoad !== null) {
+    scoredParts.push([trainingLoad, trainingWeight]);
+  }
+  if (behaviorSupport !== null) {
+    scoredParts.push([behaviorSupport, supportWeight]);
+  }
+  if (scoredParts.length > 0) {
+    const totalW = scoredParts.reduce((sum, [, w]) => sum + w, 0);
+    overall = scoredParts.reduce((sum, [s, w]) => sum + s * w, 0) / totalW;
+  }
+
+  const totalPossibleWeight =
+    coreWeights.hrv +
+    coreWeights.rhr +
+    coreWeights.sleep +
+    coreWeights.stress +
+    supportWeights.steps +
+    supportWeights.calories +
+    supportWeights.weight;
+  const dataConfidence =
+    totalPossibleWeight > 0
+      ? (coreWeightSum + supportWeightSum) / totalPossibleWeight
+      : null;
+
+  function gateReason(gate: number, conf: number): string {
+    if (gate >= 0.5) return "";
+    return `Conf ${(conf * 100).toFixed(0)}%, gate ${gate.toFixed(2)}`;
   }
 
   const contributors = [
@@ -1294,24 +1371,26 @@ export function calculateHealthScore(
       rawZScore: rawZHRV,
       goodnessZScore: zHRV,
       weight: coreWeights.hrv,
-      contribution:
-        zHRV !== null && !hrvGated ? zHRV * coreWeights.hrv * hrvConf : null,
+      contribution: zHRV !== null ? zHRV * coreWeights.hrv * hrvGate : null,
       confidence: hrvConf,
-      isGated: hrvGated,
-      gateReason: gateReason(hrvConf, hrvGated),
+      gateFactor: hrvGate,
+      isGated: hrvGate < 0.1,
+      gateReason: gateReason(hrvGate, hrvConf),
       source: fusedInputs?.hrv?.source,
+      longTermPercentile: hrvBaseline.longTermPercentile,
     },
     {
       name: "Resting HR",
       rawZScore: rawZRHR,
       goodnessZScore: zRHR,
       weight: coreWeights.rhr,
-      contribution:
-        zRHR !== null && !rhrGated ? zRHR * coreWeights.rhr * rhrConf : null,
+      contribution: zRHR !== null ? zRHR * coreWeights.rhr * rhrGate : null,
       confidence: rhrConf,
-      isGated: rhrGated,
-      gateReason: gateReason(rhrConf, rhrGated),
+      gateFactor: rhrGate,
+      isGated: rhrGate < 0.1,
+      gateReason: gateReason(rhrGate, rhrConf),
       source: fusedInputs?.rhr?.source,
+      longTermPercentile: rhrBaseline.longTermPercentile,
     },
     {
       name: "Sleep",
@@ -1319,13 +1398,13 @@ export function calculateHealthScore(
       goodnessZScore: zSleep,
       weight: coreWeights.sleep,
       contribution:
-        zSleep !== null && !sleepGated
-          ? zSleep * coreWeights.sleep * sleepConf
-          : null,
+        zSleep !== null ? zSleep * coreWeights.sleep * sleepGate : null,
       confidence: sleepConf,
-      isGated: sleepGated,
-      gateReason: gateReason(sleepConf, sleepGated),
+      gateFactor: sleepGate,
+      isGated: sleepGate < 0.1,
+      gateReason: gateReason(sleepGate, sleepConf),
       source: fusedInputs?.sleep?.source,
+      longTermPercentile: sleepBaseline.longTermPercentile,
     },
     {
       name: "Stress",
@@ -1333,13 +1412,13 @@ export function calculateHealthScore(
       goodnessZScore: zStress,
       weight: coreWeights.stress,
       contribution:
-        zStress !== null && !stressGated
-          ? zStress * coreWeights.stress * stressConf
-          : null,
+        zStress !== null ? zStress * coreWeights.stress * stressGate : null,
       confidence: stressConf,
-      isGated: stressGated,
-      gateReason: gateReason(stressConf, stressGated),
+      gateFactor: stressGate,
+      isGated: stressGate < 0.1,
+      gateReason: gateReason(stressGate, stressConf),
       source: "garmin" as const,
+      longTermPercentile: stressBaseline.longTermPercentile,
     },
     {
       name: "Steps",
@@ -1347,15 +1426,14 @@ export function calculateHealthScore(
       goodnessZScore: zSteps,
       weight: supportWeights.steps,
       contribution:
-        zSteps !== null && !stepsGated
-          ? zSteps * supportWeights.steps * stepsConf
-          : null,
+        zSteps !== null ? zSteps * supportWeights.steps * stepsGate : null,
       confidence: stepsConf,
-      isGated: stepsGated,
-      gateReason: stepsGated
-        ? gateReason(stepsConf, stepsGated)
-        : stepsCheck.reason,
+      gateFactor: stepsGate,
+      isGated: stepsGate < 0.1,
+      gateReason:
+        stepsGate < 0.5 ? gateReason(stepsGate, stepsConf) : stepsCheck.reason,
       source: "garmin" as const,
+      longTermPercentile: stepsBaseline.longTermPercentile,
     },
     {
       name: "Calories",
@@ -1363,13 +1441,15 @@ export function calculateHealthScore(
       goodnessZScore: zCalories,
       weight: supportWeights.calories,
       contribution:
-        zCalories !== null && !caloriesGated
-          ? zCalories * supportWeights.calories * caloriesConf
+        zCalories !== null
+          ? zCalories * supportWeights.calories * calGate
           : null,
       confidence: caloriesConf,
-      isGated: caloriesGated,
-      gateReason: gateReason(caloriesConf, caloriesGated),
+      gateFactor: calGate,
+      isGated: calGate < 0.1,
+      gateReason: gateReason(calGate, caloriesConf),
       source: fusedInputs?.calories?.source,
+      longTermPercentile: caloriesBaseline?.longTermPercentile ?? null,
     },
     {
       name: "Weight",
@@ -1377,25 +1457,27 @@ export function calculateHealthScore(
       goodnessZScore: zWeight,
       weight: supportWeights.weight,
       contribution:
-        zWeight !== null && !weightGated
-          ? zWeight * supportWeights.weight * weightConf
-          : null,
+        zWeight !== null ? zWeight * supportWeights.weight * weightGate : null,
       confidence: weightConf,
-      isGated: weightGated,
-      gateReason: gateReason(weightConf, weightGated),
+      gateFactor: weightGate,
+      isGated: weightGate < 0.1,
+      gateReason: gateReason(weightGate, weightConf),
       source: "garmin" as const,
+      longTermPercentile: weightBaseline?.longTermPercentile ?? null,
     },
   ];
 
   return {
     overall,
     recoveryCore,
+    trainingLoad,
     behaviorSupport,
     contributors,
     stepsStatus: {
       useToday: stepsCheck.useToday,
       reason: stepsCheck.reason,
     },
+    dataConfidence,
   };
 }
 
@@ -1554,9 +1636,9 @@ export interface OverreachingMetrics {
 }
 
 const OVERREACHING_THRESHOLDS = {
-  low: 1.0,
-  moderate: 2.0,
-  high: 3.0,
+  low: 0.33,
+  moderate: 0.55,
+  high: 0.75,
 };
 
 export function calculateOverreachingMetrics(
@@ -1623,31 +1705,33 @@ export function calculateOverreachingMetrics(
     }
   }
 
-  // Combined score: weighted sum of components
   const weights = { strain: 0.3, hrv: 0.3, sleep: 0.25, rhr: 0.15 };
+  const totalWeight =
+    weights.strain + weights.hrv + weights.sleep + weights.rhr;
   let score: number | null = null;
-  let totalWeight = 0;
   let weightedSum = 0;
+  let available = 0;
 
   if (strainComponent !== null) {
     weightedSum += strainComponent * weights.strain;
-    totalWeight += weights.strain;
+    available++;
   }
   if (hrvComponent !== null) {
     weightedSum += hrvComponent * weights.hrv;
-    totalWeight += weights.hrv;
+    available++;
   }
   if (sleepComponent !== null) {
     weightedSum += sleepComponent * weights.sleep;
-    totalWeight += weights.sleep;
+    available++;
   }
   if (rhrComponent !== null) {
     weightedSum += rhrComponent * weights.rhr;
-    totalWeight += weights.rhr;
+    available++;
   }
 
-  if (totalWeight > 0) {
-    score = weightedSum / totalWeight;
+  if (available >= 2) {
+    const rawScore = weightedSum / totalWeight;
+    score = Math.min(1.0, rawScore / 3.0);
   }
 
   let riskLevel: "low" | "moderate" | "high" | "critical" | null = null;

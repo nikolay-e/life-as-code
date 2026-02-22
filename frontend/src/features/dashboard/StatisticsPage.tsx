@@ -27,6 +27,7 @@ import {
   type DataQuality,
   type BaselineMetrics,
 } from "../../lib/health-metrics";
+import { toLocalDayDate } from "../../lib/health/date";
 import { PROVIDER_CONFIGS } from "../../lib/providers";
 import {
   METRIC_REGISTRY,
@@ -604,14 +605,14 @@ export function StatisticsPage() {
             <div>
               <CardTitle>Health Status Score</CardTitle>
               <CardDescription>
-                Composite score based on recovery core (70%) + behavior support
-                (30%)
+                Composite: recovery core (60%) + training load (20%) + behavior
+                (20%)
               </CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-6 md:grid-cols-3">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             <div className="text-center">
               <p className="text-sm text-muted-foreground mb-1">Overall</p>
               <p
@@ -653,6 +654,26 @@ export function StatisticsPage() {
             </div>
             <div className="text-center">
               <p className="text-sm text-muted-foreground mb-1">
+                Training Load
+              </p>
+              <p
+                className={cn(
+                  "text-3xl font-bold",
+                  healthScore.trainingLoad !== null
+                    ? getHealthScoreColor(healthScore.trainingLoad)
+                    : "text-muted-foreground",
+                )}
+              >
+                {healthScore.trainingLoad !== null
+                  ? healthScore.trainingLoad.toFixed(2)
+                  : "—"}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Strain optimality
+              </p>
+            </div>
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground mb-1">
                 Behavior Support
               </p>
               <p
@@ -666,7 +687,7 @@ export function StatisticsPage() {
                   : "—"}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                Steps + Load Balance
+                Steps + Calories + Weight
               </p>
             </div>
           </div>
@@ -716,6 +737,11 @@ export function StatisticsPage() {
                   >
                     conf: {(c.confidence * 100).toFixed(0)}%
                   </p>
+                  {c.longTermPercentile !== null && (
+                    <p className="text-[10px] text-muted-foreground/50">
+                      P{c.longTermPercentile.toFixed(0)} all-time
+                    </p>
+                  )}
                   {c.isGated && (
                     <p className="text-[10px] text-red-400">{c.gateReason}</p>
                   )}
@@ -2160,6 +2186,20 @@ export function StatisticsPage() {
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-muted-foreground">
                           Actual
+                          {advancedInsights.cross_domain.hrv_residual
+                            .actual_date && (
+                            <span className="text-[10px] ml-1 text-muted-foreground/60">
+                              (
+                              {toLocalDayDate(
+                                advancedInsights.cross_domain.hrv_residual
+                                  .actual_date,
+                              ).toLocaleDateString("en-US", {
+                                month: "short",
+                                day: "numeric",
+                              })}
+                              )
+                            </span>
+                          )}
                         </span>
                         <span className="font-mono text-sm">
                           {advancedInsights.cross_domain.hrv_residual.actual?.toFixed(

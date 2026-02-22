@@ -283,6 +283,7 @@ export interface LagCorrelationMetrics {
 export interface HRVResidualMetrics {
   predicted: number | null;
   actual: number | null;
+  actual_date: string | null;
   residual: number | null;
   residual_z: number | null;
   r_squared: number | null;

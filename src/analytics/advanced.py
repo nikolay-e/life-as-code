@@ -401,6 +401,7 @@ def calculate_hrv_residual(
     today_str = today.isoformat()
     latest_hrv: float | None = None
     latest_features: list[float] | None = None
+    latest_date: str | None = None
 
     for dk in sorted(hrv_map.keys()):
         hrv_v = hrv_map[dk]
@@ -418,6 +419,7 @@ def calculate_hrv_residual(
         if dk <= today_str:
             latest_hrv = hrv_v
             latest_features = feature_vals
+            latest_date = dk
 
     if len(rows) < 14 or latest_features is None or latest_hrv is None:
         return HRVResidualMetrics(
@@ -491,6 +493,7 @@ def calculate_hrv_residual(
     return HRVResidualMetrics(
         predicted=predicted_latest,
         actual=latest_hrv,
+        actual_date=latest_date,
         residual=residual,
         residual_z=residual_z,
         r_squared=r_squared,

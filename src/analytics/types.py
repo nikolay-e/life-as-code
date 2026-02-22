@@ -50,6 +50,7 @@ class BaselineMetrics(BaseModel):
     trend_slope: float | None
     short_term_mean: float | None
     long_term_mean: float | None
+    long_term_percentile: float | None = None
 
 
 class BaselineOptions(BaseModel):
@@ -130,6 +131,7 @@ class HealthScoreContributor(BaseModel):
     gate_factor: float = 1.0
     gate_reason: str = ""
     source: DataProvider | None = None
+    long_term_percentile: float | None = None
 
     @property
     def is_gated(self) -> bool:
@@ -333,6 +335,7 @@ class LagCorrelationMetrics(BaseModel):
 class HRVResidualMetrics(BaseModel):
     predicted: float | None
     actual: float | None
+    actual_date: str | None = None
     residual: float | None
     residual_z: float | None
     r_squared: float | None

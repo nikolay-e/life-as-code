@@ -461,6 +461,14 @@ def _calculate_baseline_metrics_impl(
             prev_median = calculate_median(prev_trend_values)
             trend_slope = (current_median - prev_median) / trend_window
 
+    all_values = sorted(d.value for d in sorted_daily if d.value is not None)
+    long_term_percentile: float | None = None
+    if all_values and len(all_values) >= 30:
+        anchor_value = short_term_mean if short_term_mean is not None else current_value
+        if anchor_value is not None:
+            below = sum(1 for v in all_values if v <= anchor_value)
+            long_term_percentile = below / len(all_values) * 100
+
     return BaselineMetrics(
         mean=mean,
         std=std,
@@ -473,6 +481,7 @@ def _calculate_baseline_metrics_impl(
         trend_slope=trend_slope,
         short_term_mean=short_term_mean,
         long_term_mean=mean,
+        long_term_percentile=long_term_percentile,
     )
 
 
@@ -871,6 +880,18 @@ def _weight_goodness(raw_z: float) -> float:
     return -0.3 * raw_z
 
 
+def _steps_recovery_cap(z_steps: float, z_hrv: float | None) -> float:
+    if z_hrv is None or z_steps <= 0:
+        return z_steps
+    if z_hrv >= -0.5:
+        return z_steps
+    if z_hrv >= -1.0:
+        return 0.7 * z_steps
+    if z_hrv >= -1.5:
+        return 0.4 * z_steps
+    return 0.2 * z_steps
+
+
 def _confidence_gate(conf: float, threshold: float = 0.6, width: float = 0.15) -> float:
     x = (conf - threshold) / width
     return 1.0 / (1.0 + math.exp(-5 * x))
@@ -1055,7 +1076,9 @@ def calculate_health_score(
     z_rhr = -raw_z_rhr if raw_z_rhr is not None else None
     z_sleep = raw_z_sleep
     z_stress = -raw_z_stress if raw_z_stress is not None else None
-    z_steps = raw_z_steps
+    z_steps = (
+        _steps_recovery_cap(raw_z_steps, raw_z_hrv) if raw_z_steps is not None else None
+    )
     z_load = _strain_goodness(raw_z_load) if raw_z_load is not None else None
     z_cal = _calories_goodness(raw_z_cal) if raw_z_cal is not None else None
     z_weight = _weight_goodness(raw_z_weight) if raw_z_weight is not None else None
@@ -1156,6 +1179,7 @@ def calculate_health_score(
             gate_factor=hrv_gate,
             gate_reason=_gate_reason(hrv_conf, hrv_gate),
             source=fi["hrv"].source if "hrv" in fi else None,
+            long_term_percentile=bl_hrv.long_term_percentile,
         ),
         HealthScoreContributor(
             name="Resting HR",
@@ -1169,6 +1193,7 @@ def calculate_health_score(
             gate_factor=rhr_gate,
             gate_reason=_gate_reason(rhr_conf, rhr_gate),
             source=fi["rhr"].source if "rhr" in fi else None,
+            long_term_percentile=bl_rhr.long_term_percentile,
         ),
         HealthScoreContributor(
             name="Sleep",
@@ -1184,6 +1209,7 @@ def calculate_health_score(
             gate_factor=sleep_gate,
             gate_reason=_gate_reason(sleep_conf, sleep_gate),
             source=fi["sleep"].source if "sleep" in fi else None,
+            long_term_percentile=bl_sleep.long_term_percentile,
         ),
         HealthScoreContributor(
             name="Stress",
@@ -1199,6 +1225,7 @@ def calculate_health_score(
             gate_factor=stress_gate,
             gate_reason=_gate_reason(stress_conf, stress_gate),
             source="garmin",
+            long_term_percentile=bl_stress.long_term_percentile,
         ),
         HealthScoreContributor(
             name="Steps",
@@ -1218,6 +1245,7 @@ def calculate_health_score(
                 else steps_reason
             ),
             source="garmin",
+            long_term_percentile=bl_steps.long_term_percentile,
         ),
         HealthScoreContributor(
             name="Calories",
@@ -1233,6 +1261,9 @@ def calculate_health_score(
             gate_factor=cal_gate,
             gate_reason=_gate_reason(calories_conf, cal_gate),
             source=fi["calories"].source if "calories" in fi else None,
+            long_term_percentile=(
+                bl_calories.long_term_percentile if bl_calories else None
+            ),
         ),
         HealthScoreContributor(
             name="Weight",
@@ -1248,6 +1279,9 @@ def calculate_health_score(
             gate_factor=weight_gate,
             gate_reason=_gate_reason(weight_conf, weight_gate),
             source="garmin",
+            long_term_percentile=(
+                bl_weight.long_term_percentile if bl_weight else None
+            ),
         ),
     ]
 
