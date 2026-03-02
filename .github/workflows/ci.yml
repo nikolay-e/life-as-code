@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
-    tags: ['v*']
+    tags: ["v*"]
   pull_request:
 
 concurrency:
@@ -30,13 +30,13 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "3.11"
-          cache: 'pip'
+          cache: "pip"
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
+          cache: "npm"
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install Python dependencies
@@ -100,6 +100,7 @@ jobs:
           file: ./Dockerfile
           target: web
           push: true
+          provenance: false
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -161,6 +162,7 @@ jobs:
           file: ./Dockerfile
           target: ml
           push: true
+          provenance: false
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -216,6 +218,7 @@ jobs:
           file: ./Dockerfile
           target: bot
           push: true
+          provenance: false
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -277,6 +280,7 @@ jobs:
           context: ./frontend
           file: ./frontend/Dockerfile
           push: true
+          provenance: false
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
