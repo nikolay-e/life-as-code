@@ -1,3 +1,4 @@
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -6,6 +7,7 @@ from pathlib import Path
 class MLConfig:
     model_dir: Path = Path("/app/models")
     chronos_base_model: str = "amazon/chronos-bolt-base"
+    device: str = field(default_factory=lambda: os.environ.get("DEVICE", "cpu"))
     forecast_horizons: list[int] = field(default_factory=lambda: [1, 7, 14])
     metrics: list[str] = field(
         default_factory=lambda: ["weight", "hrv", "rhr", "sleep_total", "steps"]

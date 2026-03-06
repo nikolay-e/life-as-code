@@ -42,7 +42,7 @@ def run_pipeline(user_id: int, do_train: bool = False) -> None:
             chronos_pipeline = load_chronos(config)
             save_chronos(chronos_pipeline, chronos_path)
         else:
-            chronos_pipeline = load_chronos_from_disk(chronos_path)
+            chronos_pipeline = load_chronos_from_disk(chronos_path, config)
 
         n_forecasts = generate_forecasts(
             chronos_pipeline,

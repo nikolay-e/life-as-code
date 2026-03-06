@@ -23,6 +23,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 # --- ML Builder Stage ---
 FROM builder AS ml-builder
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cu121
 RUN pip install --no-cache-dir '.[ml]'
 
 # --- Bot Builder Stage ---

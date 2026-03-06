@@ -21,12 +21,12 @@ BOLT_P90_IDX = 8
 
 def _extract_quantiles(forecast: torch.Tensor, pipeline, horizon_idx: int):
     if isinstance(pipeline, ChronosBoltPipeline):
-        quantiles = forecast.numpy()[0]
+        quantiles = forecast.cpu().numpy()[0]
         p10 = float(quantiles[BOLT_P10_IDX, horizon_idx])
         p50 = float(quantiles[BOLT_P50_IDX, horizon_idx])
         p90 = float(quantiles[BOLT_P90_IDX, horizon_idx])
     else:
-        samples = forecast.numpy()[0]
+        samples = forecast.cpu().numpy()[0]
         p10 = float(np.percentile(samples[:, horizon_idx], 10))
         p50 = float(np.percentile(samples[:, horizon_idx], 50))
         p90 = float(np.percentile(samples[:, horizon_idx], 90))

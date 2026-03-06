@@ -14,10 +14,12 @@ logger = structlog.get_logger()
 def load_chronos(config: MLConfig) -> BaseChronosPipeline:
     pipeline = BaseChronosPipeline.from_pretrained(
         config.chronos_base_model,
-        device_map="cpu",
+        device_map=config.device,
         torch_dtype=torch.float32,
     )
-    logger.info("chronos_model_loaded", model=config.chronos_base_model)
+    logger.info(
+        "chronos_model_loaded", model=config.chronos_base_model, device=config.device
+    )
     return pipeline
 
 
@@ -27,13 +29,13 @@ def save_chronos(pipeline: BaseChronosPipeline, path: Path) -> None:
     logger.info("chronos_saved", path=str(path))
 
 
-def load_chronos_from_disk(path: Path) -> BaseChronosPipeline:
+def load_chronos_from_disk(path: Path, config: MLConfig) -> BaseChronosPipeline:
     pipeline = BaseChronosPipeline.from_pretrained(
         str(path),
-        device_map="cpu",
+        device_map=config.device,
         torch_dtype=torch.float32,
     )
-    logger.info("chronos_loaded_from_disk", path=str(path))
+    logger.info("chronos_loaded_from_disk", path=str(path), device=config.device)
     return pipeline
 
 
