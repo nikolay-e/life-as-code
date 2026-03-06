@@ -94,7 +94,7 @@ jobs:
           echo "Building backend with tags: $TAGS (version: $VERSION)"
 
       - name: Build and push backend image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./Dockerfile
@@ -156,7 +156,7 @@ jobs:
           echo "Building ML with tags: $TAGS"
 
       - name: Build and push ML image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./Dockerfile
@@ -212,7 +212,7 @@ jobs:
           echo "Building Bot with tags: $TAGS"
 
       - name: Build and push Bot image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./Dockerfile
@@ -275,7 +275,7 @@ jobs:
           echo "Building frontend with tags: $TAGS (version: $VERSION, env: $APP_ENVIRONMENT)"
 
       - name: Build and push frontend image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./frontend
           file: ./frontend/Dockerfile
