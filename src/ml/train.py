@@ -15,7 +15,7 @@ def load_chronos(config: MLConfig) -> BaseChronosPipeline:
     pipeline = BaseChronosPipeline.from_pretrained(
         config.chronos_base_model,
         device_map=config.device,
-        torch_dtype=torch.float32,
+        dtype=torch.float32,
     )
     logger.info(
         "chronos_model_loaded", model=config.chronos_base_model, device=config.device
@@ -33,7 +33,7 @@ def load_chronos_from_disk(path: Path, config: MLConfig) -> BaseChronosPipeline:
     pipeline = BaseChronosPipeline.from_pretrained(
         str(path),
         device_map=config.device,
-        torch_dtype=torch.float32,
+        dtype=torch.float32,
     )
     logger.info("chronos_loaded_from_disk", path=str(path), device=config.device)
     return pipeline
