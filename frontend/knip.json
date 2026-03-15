@@ -1,0 +1,21 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "src/main.tsx",
+    "src/App.tsx",
+    "src/features/**/*.tsx",
+    "src/pages/**/*.tsx"
+  ],
+  "project": ["src/**/*.{ts,tsx}"],
+  "ignore": [
+    "src/types/**",
+    "src/hooks/useSettings.ts",
+    "src/lib/health-metrics.ts",
+    "src/lib/data-fusion.ts",
+    "src/lib/metrics/**",
+    "src/lib/error-mapping.ts",
+    "src/lib/logger.ts",
+    "src/features/auth/store.ts"
+  ],
+  "ignoreExportsUsedInFile": true
+}

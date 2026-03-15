@@ -1,0 +1,142 @@
+# Environment variables and secrets
+.env
+.env.local
+.env.production
+.env.staging
+*.key
+*.pem
+config.json
+secrets.json
+
+# Personal data files
+*.csv
+*.xlsx
+*.xls
+response.json
+directory_tree.yaml
+# Personal health data exports (keep scripts tracked)
+data/*
+!data/scripts/
+
+# Ignore json data files but not config files
+exports/*.json
+
+# HealthKit import/extraction utilities (temporary scripts)
+extract_*_xml.py
+import_healthkit_*_csv.py
+import_*_csv.py
+import_healthkit_xml.py
+analyze_xml_schema.py
+analyze_correlations.py
+batch_import_*.sh
+
+# Generated reports and dashboards
+reports/
+/dashboard/
+
+# Frontend build artifacts (but not source)
+frontend/dist/
+frontend/node_modules/
+
+# Activity and workout files
+*.fit
+*.gpx
+*.tcx
+*.zip
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+/lib/
+/lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+env/
+venv/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+pip-log.txt
+pip-delete-this-directory.txt
+.*_cache
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# pyenv
+.python-version
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+log/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Garmin authentication tokens
+.garminconnect/
+~/.garminconnect
+oauth1_token.json
+oauth2_token.json
+
+# API keys and tokens
+hevy_api_key.txt
+*.token
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Cache directories
+.cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Package managers
+node_modules/
+yarn.lock
+
+.treemapper/

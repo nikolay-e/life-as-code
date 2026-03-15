@@ -1,0 +1,3 @@
+[submodule "vendor/python-garminconnect"]
+	path = vendor/python-garminconnect
+	url = https://github.com/cyberjunky/python-garminconnect.git

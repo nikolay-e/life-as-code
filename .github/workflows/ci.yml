@@ -1,0 +1,291 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  REGISTRY: ghcr.io
+  BACKEND_IMAGE: ghcr.io/${{ github.repository }}/backend
+  FRONTEND_IMAGE: ghcr.io/${{ github.repository }}/frontend
+  ML_IMAGE: ghcr.io/${{ github.repository }}/ml
+  BOT_IMAGE: ghcr.io/${{ github.repository }}/bot
+
+jobs:
+  precommit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Python dependencies
+        run: pip install .[dev]
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run pre-commit
+        run: pre-commit run --all-files
+
+  build-backend:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        env:
+          GIT_REF: ${{ github.ref }}
+          GIT_REF_NAME: ${{ github.ref_name }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          SHA_VERSION="main-${GIT_SHA:0:7}"
+          BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          TAGS="${{ env.BACKEND_IMAGE }}:${SHA_VERSION},${{ env.BACKEND_IMAGE }}:latest"
+          VERSION="$SHA_VERSION"
+          if [[ "$GIT_REF" == refs/tags/v* ]]; then
+            TAGS="${TAGS},${{ env.BACKEND_IMAGE }}:${GIT_REF_NAME}"
+            VERSION="$GIT_REF_NAME"
+          fi
+          {
+            echo "version=$VERSION"
+            echo "build_date=$BUILD_DATE"
+            echo "tags=$TAGS"
+          } >> "$GITHUB_OUTPUT"
+          echo "Building backend with tags: $TAGS (version: $VERSION)"
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile
+          target: web
+          push: true
+          provenance: false
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            BUILD_DATE=${{ steps.meta.outputs.build_date }}
+            VCS_REF=${{ github.sha }}
+
+  build-ml:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache
+          sudo docker system prune -af
+          df -h /
+
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        env:
+          GIT_REF: ${{ github.ref }}
+          GIT_REF_NAME: ${{ github.ref_name }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          SHA_VERSION="main-${GIT_SHA:0:7}"
+          BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          TAGS="${{ env.ML_IMAGE }}:${SHA_VERSION},${{ env.ML_IMAGE }}:latest"
+          if [[ "$GIT_REF" == refs/tags/v* ]]; then
+            TAGS="${TAGS},${{ env.ML_IMAGE }}:${GIT_REF_NAME}"
+          fi
+          {
+            echo "build_date=$BUILD_DATE"
+            echo "tags=$TAGS"
+            echo "version=$SHA_VERSION"
+          } >> "$GITHUB_OUTPUT"
+          echo "Building ML with tags: $TAGS"
+
+      - name: Build and push ML image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile
+          target: ml
+          push: true
+          provenance: false
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            BUILD_DATE=${{ steps.meta.outputs.build_date }}
+            VCS_REF=${{ github.sha }}
+
+  build-bot:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        env:
+          GIT_REF: ${{ github.ref }}
+          GIT_REF_NAME: ${{ github.ref_name }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          SHA_VERSION="main-${GIT_SHA:0:7}"
+          BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          TAGS="${{ env.BOT_IMAGE }}:${SHA_VERSION},${{ env.BOT_IMAGE }}:latest"
+          if [[ "$GIT_REF" == refs/tags/v* ]]; then
+            TAGS="${TAGS},${{ env.BOT_IMAGE }}:${GIT_REF_NAME}"
+          fi
+          {
+            echo "build_date=$BUILD_DATE"
+            echo "tags=$TAGS"
+            echo "version=$SHA_VERSION"
+          } >> "$GITHUB_OUTPUT"
+          echo "Building Bot with tags: $TAGS"
+
+      - name: Build and push Bot image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile
+          target: bot
+          push: true
+          provenance: false
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            BUILD_DATE=${{ steps.meta.outputs.build_date }}
+            VCS_REF=${{ github.sha }}
+
+  build-frontend:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        env:
+          GIT_REF: ${{ github.ref }}
+          GIT_REF_NAME: ${{ github.ref_name }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          SHA_VERSION="main-${GIT_SHA:0:7}"
+          BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          TAGS="${{ env.FRONTEND_IMAGE }}:${SHA_VERSION},${{ env.FRONTEND_IMAGE }}:latest"
+          VERSION="$SHA_VERSION"
+          APP_ENVIRONMENT="staging"
+          if [[ "$GIT_REF" == refs/tags/v* ]]; then
+            TAGS="${TAGS},${{ env.FRONTEND_IMAGE }}:${GIT_REF_NAME}"
+            VERSION="$GIT_REF_NAME"
+            APP_ENVIRONMENT="production"
+          fi
+          {
+            echo "version=$VERSION"
+            echo "build_date=$BUILD_DATE"
+            echo "tags=$TAGS"
+            echo "app_environment=$APP_ENVIRONMENT"
+          } >> "$GITHUB_OUTPUT"
+          echo "Building frontend with tags: $TAGS (version: $VERSION, env: $APP_ENVIRONMENT)"
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          provenance: false
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VITE_APP_VERSION=${{ steps.meta.outputs.version }}
+            VITE_APP_ENVIRONMENT=${{ steps.meta.outputs.app_environment }}
+            VITE_BUILD_DATE=${{ steps.meta.outputs.build_date }}
+            VITE_COMMIT_SHA=${{ github.sha }}

@@ -1,0 +1,119 @@
+# Version control
+.git/
+.gitignore
+.gitattributes
+.github/
+.gitleaksignore
+.gitlint
+
+# Secrets and credentials
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+*id_rsa*
+*id_ed25519*
+credentials.json
+secrets.json
+.secrets.baseline
+.netrc
+.npmrc
+.yarnrc
+.age-key.txt
+.garminconnect/
+
+# Cloud credentials
+.aws/
+.gcloud/
+.azure/
+
+# Private directory
+private/
+
+# Shell history
+.bash_history
+.zsh_history
+.sh_history
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+export_*
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+.pytype/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/coverage/
+
+# IDE and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Claude AI tools
+.claude/
+
+# Documentation
+*.md
+!README.md
+
+# Data files (mounted as volumes)
+data/
+*.csv
+correlation_*.html
+daily_briefing_*.txt
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+
+# CI/CD
+.pre-commit-config.yaml
+.markdownlint.yaml
+renovate.json
+
+# Docker (prevent recursive inclusion)
+Dockerfile*
+.dockerignore
+docker-compose*.yml
+
+# Nested node_modules
+data/google/scripts/node_modules/
+
+# Tree mapper output
+tree.tmp
+directory_tree.yaml
+
+# Makefile
+Makefile

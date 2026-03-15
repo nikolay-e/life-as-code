@@ -1,0 +1,371 @@
+minimum_pre_commit_version: '3.5.0'
+default_stages: [pre-commit]
+default_language_version:
+  python: python3.12
+  node: system
+
+fail_fast: false
+
+repos:
+  - repo: https://github.com/nikolay-e/pre-commit-hooks
+    rev: v2.1.0
+    hooks:
+      - id: shift-commit-time
+        stages: [post-commit]
+
+  # ============================================================================
+  # BASIC FILE QUALITY CHECKS (baseline hygiene)
+  # ============================================================================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        exclude: ^helm/
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: check-json
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+      - id: check-case-conflict
+      - id: check-docstring-first
+      - id: check-ast
+      - id: debug-statements
+      - id: fix-byte-order-marker
+      - id: detect-private-key
+
+  # ============================================================================
+  # GITHUB ACTIONS VALIDATION
+  # ============================================================================
+  - repo: https://github.com/python-jsonschema/check-jsonschema
+    rev: 0.35.0
+    hooks:
+      - id: check-github-workflows
+        name: Validate GitHub workflows
+        args: ['--verbose']
+      - id: check-dependabot
+        name: Validate Dependabot config
+
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.8
+    hooks:
+      - id: actionlint
+        name: Lint GitHub Actions
+
+  # ============================================================================
+  # PYTHON FORMATTING (Order: isort → black to avoid conflicts)
+  # ============================================================================
+  - repo: https://github.com/pycqa/isort
+    rev: 7.0.0
+    hooks:
+      - id: isort
+        args: ['--profile', 'black']
+        files: ^src/
+
+  - repo: https://github.com/psf/black
+    rev: 25.1.0
+    hooks:
+      - id: black
+        language_version: python3
+        files: ^src/
+
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v3.21.1
+    hooks:
+      - id: pyupgrade
+        name: pyupgrade (auto-upgrade Python syntax)
+        args: ['--py312-plus']
+        files: ^src/.*\.py$
+
+  # ============================================================================
+  # STATIC TYPING
+  # ============================================================================
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.18.2
+    hooks:
+      - id: mypy
+        name: mypy (strict mode)
+        args: ['--ignore-missing-imports']
+        additional_dependencies:
+          - types-requests
+          - types-PyYAML
+          - structlog
+          - flask
+          - sqlalchemy
+        files: ^src/
+
+  # ============================================================================
+  # LINTING (Ruff for speed + correctness)
+  # ============================================================================
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.0
+    hooks:
+      - id: ruff
+        name: ruff (correctness-focused checks)
+        args: ["--fix", "--exit-non-zero-on-fix"]
+        files: ^src/
+      - id: ruff-format
+        name: ruff-format (Python formatting)
+        files: ^src/
+
+  # ============================================================================
+  # PYTHON SECURITY
+  # ============================================================================
+  - repo: https://github.com/returntocorp/semgrep
+    rev: v1.99.0
+    hooks:
+      - id: semgrep
+        name: semgrep (AST-based security & policy)
+        additional_dependencies: ['setuptools<71']
+        args:
+          [
+            "--config=p/security-audit",
+            "--config=p/python",
+            "--config=p/javascript",
+            "--config=p/typescript",
+            "--config=p/react",
+            "--error",
+            "--skip-unknown-extensions",
+            "--metrics=off",
+          ]
+        files: ^(src/|frontend/src/)
+        exclude: /tests/
+
+  - repo: https://github.com/PyCQA/pylint
+    rev: v4.0.1
+    hooks:
+      - id: pylint
+        name: pylint (duplicate code detection)
+        args:
+          [
+            "--disable=all",
+            "--enable=duplicate-code",
+            "--min-similarity-lines=20",
+            "--ignore-comments=yes",
+            "--ignore-docstrings=yes",
+            "--ignore-imports=yes",
+          ]
+        files: ^src/
+
+  # ============================================================================
+  # DEAD CODE DETECTION
+  # ============================================================================
+  - repo: https://github.com/jendrikseipp/vulture
+    rev: v2.14
+    hooks:
+      - id: vulture
+        name: vulture (dead code)
+        args:
+          - 'src'
+          - 'vulture_whitelist.py'
+          - '--min-confidence'
+          - '80'
+          - '--exclude'
+          - '__pycache__'
+        pass_filenames: false
+        files: ^src/.*\.py$
+
+  # ============================================================================
+  # PYTHON DEPENDENCY SECURITY
+  # ============================================================================
+  - repo: https://github.com/trailofbits/pip-audit
+    rev: v2.9.0
+    hooks:
+      - id: pip-audit
+        name: pip-audit (CVE detection)
+        args: ['--skip-editable', '--ignore-vuln', 'GHSA-6vgw-5pg2-w6jp']
+        files: ^(pyproject\.toml|requirements.*\.txt)$
+
+  # ============================================================================
+  # SECRET DETECTION
+  # ============================================================================
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.29.0
+    hooks:
+      - id: gitleaks
+        name: Scan for secrets (gitleaks)
+
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        name: Detect secrets (baseline-based)
+        args: ['--baseline', '.secrets.baseline']
+        exclude: ^(frontend/package-lock\.json)$
+
+  # ============================================================================
+  # FRONTEND (React/TypeScript)
+  # ============================================================================
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v4.0.0-alpha.8
+    hooks:
+      - id: prettier
+        name: prettier (frontend formatting)
+        files: ^frontend/.*\.(js|jsx|ts|tsx|json|css|md)$
+        exclude: ^frontend/(node_modules|dist)/
+        args: ['--write']
+
+  - repo: local
+    hooks:
+      - id: frontend-typecheck
+        name: TypeScript type check (frontend)
+        entry: bash -c 'cd frontend && npm run type-check'
+        language: system
+        files: ^frontend/.*\.(ts|tsx)$
+        pass_filenames: false
+
+      - id: frontend-lint
+        name: ESLint (frontend)
+        entry: bash -c 'cd frontend && npm run lint'
+        language: system
+        files: ^frontend/.*\.(ts|tsx)$
+        pass_filenames: false
+
+      - id: frontend-knip
+        name: Dead code detection (knip)
+        entry: bash -c 'cd frontend && npx knip --no-progress'
+        language: system
+        files: ^frontend/.*\.(ts|tsx)$
+        pass_filenames: false
+
+      - id: circular-deps
+        name: Circular dependency detection (madge)
+        entry: bash -c 'cd frontend && npx madge --circular --extensions ts,tsx --ts-config tsconfig.json src/'
+        language: system
+        files: ^frontend/.*\.(ts|tsx)$
+        pass_filenames: false
+
+      - id: sort-package-json
+        name: Sort package.json files
+        entry: bash -c 'cd frontend && npx sort-package-json package.json'
+        language: system
+        files: ^frontend/package\.json$
+        pass_filenames: false
+
+      - id: jscpd
+        name: Copy-paste detection (jscpd)
+        entry: bash -c 'cd frontend && npx jscpd --min-lines 6 --min-tokens 50 --threshold 4 src/'
+        language: system
+        files: ^frontend/.*\.(ts|tsx)$
+        pass_filenames: false
+
+      - id: type-coverage
+        name: Type coverage check (>=80%)
+        entry: bash -c 'cd frontend && npx type-coverage --at-least 80 --ignore-catch || true'
+        language: system
+        files: ^frontend/.*\.(ts|tsx)$
+        pass_filenames: false
+
+      - id: npm-audit
+        name: npm audit (security check)
+        entry: bash -c 'cd frontend && npm audit --audit-level=high --production'
+        language: system
+        files: ^frontend/package(-lock)?\.json$
+        pass_filenames: false
+
+  # ============================================================================
+  # CSS LINTING
+  # ============================================================================
+  - repo: https://github.com/thibaudcolas/pre-commit-stylelint
+    rev: v16.25.0
+    hooks:
+      - id: stylelint
+        name: Lint CSS files
+        args: ['--fix', '--config', 'frontend/.stylelintrc.json']
+        files: ^frontend/.*\.css$
+        additional_dependencies:
+          - stylelint@16.12.0
+          - stylelint-config-recommended@13.0.0
+
+  # ============================================================================
+  # SHELL SCRIPTS
+  # ============================================================================
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: v3.12.0-2
+    hooks:
+      - id: shfmt
+        name: Format shell scripts
+        args: ['-i', '2', '-ci', '-w']
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+        name: Lint shell scripts
+        args: ['--exclude=SC2034,SC2155']
+
+  # ============================================================================
+  # DOCKER & INFRASTRUCTURE
+  # ============================================================================
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.14.0
+    hooks:
+      - id: hadolint-docker
+        name: Lint Dockerfiles
+        args:
+          - '--ignore=DL3008'
+          - '--ignore=DL3018'
+          - '--ignore=DL3013'
+          - '--ignore=DL3059'
+
+  - repo: local
+    hooks:
+      - id: docker-compose-check
+        name: Docker Compose config validation
+        entry: bash -c 'docker compose config -q'
+        language: system
+        files: ^docker-compose.*\.(yml|yaml)$
+        pass_filenames: false
+
+      - id: docker-build
+        name: Docker build validation
+        entry: bash -c 'docker build -t life-as-code:test .'
+        language: system
+        files: ^(Dockerfile|docker-entrypoint\.sh|src/.*\.py|pyproject\.toml)$
+        pass_filenames: false
+        stages: [pre-push]
+
+  # ============================================================================
+  # YAML & MARKDOWN
+  # ============================================================================
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.37.1
+    hooks:
+      - id: yamllint
+        name: Lint YAML files
+        args: ['-d', 'relaxed']
+        files: \.(yaml|yml)$
+        exclude: ^helm/
+
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.45.0
+    hooks:
+      - id: markdownlint
+        name: Lint Markdown files
+        args: ['--fix']
+        files: \.(md|markdown)$
+
+  # ============================================================================
+  # SPELL CHECKING
+  # ============================================================================
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.1
+    hooks:
+      - id: codespell
+        name: Spell checking
+        args:
+          - '--write-changes'
+          - '--ignore-words-list=crate,nd,ser,async,theses,ba,te,tha,ue,ist,hevy,checkin'
+        exclude: ^(frontend/node_modules/|frontend/dist/|frontend/package-lock\.json)$
+
+  # ============================================================================
+  # COMMIT MESSAGE QUALITY
+  # ============================================================================
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v4.9.1
+    hooks:
+      - id: commitizen
+        stages: [commit-msg]
