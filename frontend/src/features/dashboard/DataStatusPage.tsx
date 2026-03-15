@@ -113,6 +113,12 @@ export function DataStatusPage() {
     return source ? getLastSyncForSource(syncStatus, source) : null;
   };
 
+  const isSporadicRecentlySynced = (status: DataSourceStatus): boolean => {
+    const lastSync = getSporadicSourceSyncProvider(status);
+    if (!lastSync) return false;
+    return differenceInDays(new Date(), parseISO(lastSync)) <= 7;
+  };
+
   const getStatusInfo = (status: DataSourceStatus) => {
     if (status.count === 0) {
       return {
@@ -122,54 +128,51 @@ export function DataStatusPage() {
         label: "No data",
       };
     }
-    if (status.latestDate) {
-      const daysSinceUpdate = differenceInDays(
-        new Date(),
-        parseISO(status.latestDate),
-      );
-      if (daysSinceUpdate <= 1) {
-        return {
-          icon: CheckCircle,
-          colorClass: "text-success",
-          bgClass: "bg-success/10",
-          label: "Up to date",
-        };
-      }
-      if (daysSinceUpdate <= 7) {
-        return {
-          icon: Clock,
-          colorClass: "text-warning",
-          bgClass: "bg-warning/10",
-          label: `${String(daysSinceUpdate)}d ago`,
-        };
-      }
+    if (!status.latestDate) {
+      return {
+        icon: AlertCircle,
+        colorClass: "text-destructive",
+        bgClass: "bg-destructive/10",
+        label: "Stale",
+      };
+    }
 
-      if (status.cadence === "sporadic") {
-        const lastSync = getSporadicSourceSyncProvider(status);
-        if (lastSync) {
-          const daysSinceSync = differenceInDays(
-            new Date(),
-            parseISO(lastSync),
-          );
-          if (daysSinceSync <= 7) {
-            return {
-              icon: CheckCircle,
-              colorClass: "text-success",
-              bgClass: "bg-success/10",
-              label: "Up to date",
-            };
-          }
-        }
+    const daysSinceUpdate = differenceInDays(
+      new Date(),
+      parseISO(status.latestDate),
+    );
 
-        if (daysSinceUpdate <= 30) {
-          return {
-            icon: Clock,
-            colorClass: "text-warning",
-            bgClass: "bg-warning/10",
-            label: `${String(daysSinceUpdate)}d ago`,
-          };
-        }
-      }
+    if (daysSinceUpdate <= 1) {
+      return {
+        icon: CheckCircle,
+        colorClass: "text-success",
+        bgClass: "bg-success/10",
+        label: "Up to date",
+      };
+    }
+    if (daysSinceUpdate <= 7) {
+      return {
+        icon: Clock,
+        colorClass: "text-warning",
+        bgClass: "bg-warning/10",
+        label: `${String(daysSinceUpdate)}d ago`,
+      };
+    }
+    if (status.cadence === "sporadic" && isSporadicRecentlySynced(status)) {
+      return {
+        icon: CheckCircle,
+        colorClass: "text-success",
+        bgClass: "bg-success/10",
+        label: "Up to date",
+      };
+    }
+    if (status.cadence === "sporadic" && daysSinceUpdate <= 30) {
+      return {
+        icon: Clock,
+        colorClass: "text-warning",
+        bgClass: "bg-warning/10",
+        label: `${String(daysSinceUpdate)}d ago`,
+      };
     }
     return {
       icon: AlertCircle,

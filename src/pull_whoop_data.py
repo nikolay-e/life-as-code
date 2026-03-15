@@ -378,6 +378,48 @@ WHOOP_SYNC_CONFIGS = [
 ]
 
 
+def _parse_whoop_item(config: WhoopSyncConfig, item: dict):
+    if config.parser_needs_date:
+        return config.parser_class.from_whoop_response(item, item.get("date"))
+    return config.parser_class.from_whoop_response(item)
+
+
+def _upsert_whoop_item(
+    db,
+    config: WhoopSyncConfig,
+    item: dict,
+    user_id: int,
+    sync_result: SyncResult,
+    counters: dict[str, int],
+) -> None:
+    try:
+        parsed = _parse_whoop_item(config, item)
+        if not parsed:
+            counters["skipped"] += 1
+            return
+
+        data_dict = {
+            "user_id": user_id,
+            "date": item.get("date"),
+            **parsed.model_dump(),
+        }
+
+        result, error = upsert_data(
+            db, config.model_class, data_dict, config.unique_fields, user_id
+        )
+        if result == UpsertResult.CREATED:
+            counters["created"] += 1
+        elif result == UpsertResult.UPDATED:
+            counters["updated"] += 1
+        else:
+            counters["skipped"] += 1
+            if error:
+                sync_result.add_error(error)
+    except Exception as e:
+        sync_result.add_error(f"Error processing {config.data_type}: {str(e)}")
+        counters["skipped"] += 1
+
+
 def _sync_whoop_data_type(
     client: WhoopAPIClient,
     user_id: int,
@@ -392,57 +434,16 @@ def _sync_whoop_data_type(
     try:
         get_data = getattr(client, config.get_data_method)
         raw_data = get_data(start_date, end_date)
-
-        local_created = 0
-        local_updated = 0
-        local_skipped = 0
+        counters = {"created": 0, "updated": 0, "skipped": 0}
 
         with get_db_session_context() as db:
             for item in raw_data:
-                try:
-                    if config.parser_needs_date:
-                        parsed = config.parser_class.from_whoop_response(
-                            item, item.get("date")
-                        )
-                    else:
-                        parsed = config.parser_class.from_whoop_response(item)
-
-                    if not parsed:
-                        local_skipped += 1
-                        continue
-
-                    data_dict = {
-                        "user_id": user_id,
-                        "date": item.get("date"),
-                        **parsed.model_dump(),
-                    }
-
-                    result, error = upsert_data(
-                        db,
-                        config.model_class,
-                        data_dict,
-                        config.unique_fields,
-                        user_id,
-                    )
-                    if result == UpsertResult.CREATED:
-                        local_created += 1
-                    elif result == UpsertResult.UPDATED:
-                        local_updated += 1
-                    else:
-                        local_skipped += 1
-                        if error:
-                            sync_result.add_error(error)
-
-                except Exception as e:
-                    sync_result.add_error(
-                        f"Error processing {config.data_type}: {str(e)}"
-                    )
-                    local_skipped += 1
+                _upsert_whoop_item(db, config, item, user_id, sync_result, counters)
 
             db.commit()
-            sync_result.records_created = local_created
-            sync_result.records_updated = local_updated
-            sync_result.records_skipped = local_skipped
+            sync_result.records_created = counters["created"]
+            sync_result.records_updated = counters["updated"]
+            sync_result.records_skipped = counters["skipped"]
             sync_result.success = True
 
     except Exception as e:
@@ -459,6 +460,9 @@ def sync_whoop_data_for_user(
     except (CredentialsNotFoundError, CredentialsDecryptionError) as e:
         logger.error("whoop_credentials_error", user_id=user_id, error=str(e))
         return {"error": str(e), "user_id": user_id}
+
+    if not creds.whoop_access_token or not creds.whoop_refresh_token:
+        return {"error": "Whoop tokens not configured", "user_id": user_id}
 
     try:
         client = WhoopAPIClient(
@@ -517,6 +521,9 @@ def refresh_whoop_token_for_user(user_id: int) -> bool:
         creds = get_provider_credentials(user_id, DataSource.WHOOP)
     except (CredentialsNotFoundError, CredentialsDecryptionError) as e:
         logger.error("whoop_credentials_error", user_id=user_id, error=str(e))
+        return False
+
+    if not creds.whoop_access_token or not creds.whoop_refresh_token:
         return False
 
     try:

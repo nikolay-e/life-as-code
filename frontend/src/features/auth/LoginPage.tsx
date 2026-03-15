@@ -27,13 +27,11 @@ export function LoginPage() {
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     clearError();
-    void login(username, password)
+    login(username, password)
       .then(() => {
         void navigate(from, { replace: true });
       })
-      .catch(() => {
-        // Error is handled in store
-      });
+      .catch(() => {});
   };
 
   return (

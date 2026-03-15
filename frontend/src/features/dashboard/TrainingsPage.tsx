@@ -44,17 +44,23 @@ type TrainingItem =
   | { type: "whoop"; data: WhoopWorkoutData; sortKey: string };
 
 interface DailyTrainings {
-  date: string;
-  items: TrainingItem[];
+  readonly date: string;
+  readonly items: TrainingItem[];
 }
 
-function groupAllTrainingsByDate(
-  strengthWorkouts: WorkoutExerciseDetail[],
-  garminActivities: GarminActivityData[],
-  whoopWorkouts: WhoopWorkoutData[],
-): DailyTrainings[] {
-  const byDate = new Map<string, TrainingItem[]>();
+function addToDateMap(
+  byDate: Map<string, TrainingItem[]>,
+  date: string,
+  item: TrainingItem,
+): void {
+  const items = byDate.get(date) ?? [];
+  items.push(item);
+  byDate.set(date, items);
+}
 
+function groupStrengthByDate(
+  strengthWorkouts: WorkoutExerciseDetail[],
+): Map<string, WorkoutExerciseDetail[]> {
   const strengthByDate = new Map<string, WorkoutExerciseDetail[]>();
   for (const w of strengthWorkouts) {
     const existing = strengthByDate.get(w.date);
@@ -64,31 +70,38 @@ function groupAllTrainingsByDate(
       strengthByDate.set(w.date, [w]);
     }
   }
+  return strengthByDate;
+}
 
-  for (const [date, exercises] of strengthByDate) {
-    const items = byDate.get(date) ?? [];
-    items.push({ type: "strength", data: exercises, sortKey: date });
-    byDate.set(date, items);
+function groupAllTrainingsByDate(
+  strengthWorkouts: WorkoutExerciseDetail[],
+  garminActivities: GarminActivityData[],
+  whoopWorkouts: WhoopWorkoutData[],
+): DailyTrainings[] {
+  const byDate = new Map<string, TrainingItem[]>();
+
+  for (const [date, exercises] of groupStrengthByDate(strengthWorkouts)) {
+    addToDateMap(byDate, date, {
+      type: "strength",
+      data: exercises,
+      sortKey: date,
+    });
   }
 
   for (const activity of garminActivities) {
-    const items = byDate.get(activity.date) ?? [];
-    items.push({
+    addToDateMap(byDate, activity.date, {
       type: "garmin",
       data: activity,
       sortKey: activity.start_time ?? activity.date,
     });
-    byDate.set(activity.date, items);
   }
 
   for (const workout of whoopWorkouts) {
-    const items = byDate.get(workout.date) ?? [];
-    items.push({
+    addToDateMap(byDate, workout.date, {
       type: "whoop",
       data: workout,
       sortKey: workout.start_time ?? workout.date,
     });
-    byDate.set(workout.date, items);
   }
 
   return Array.from(byDate.entries())
@@ -103,11 +116,11 @@ function formatWorkoutDate(dateStr: string): string {
   return format(parseISO(dateStr), "EEEE, MMMM d, yyyy");
 }
 
-function StrengthWorkoutInline({
-  exercises,
-}: {
-  exercises: WorkoutExerciseDetail[];
-}) {
+interface StrengthWorkoutInlineProps {
+  readonly exercises: WorkoutExerciseDetail[];
+}
+
+function StrengthWorkoutInline({ exercises }: StrengthWorkoutInlineProps) {
   const totalVolume = exercises.reduce((sum, ex) => sum + ex.total_volume, 0);
   const totalSets = exercises.reduce((sum, ex) => sum + ex.total_sets, 0);
 
@@ -137,19 +150,17 @@ function StrengthWorkoutInline({
 
           <div className="space-y-1 text-sm">
             {exercise.sets.map((set) => {
-              const parts: string[] = [];
-
               const setLabel =
                 set.set_type && set.set_type !== "normal"
                   ? `Set ${String(set.set_index + 1)} (${set.set_type})`
                   : `Set ${String(set.set_index + 1)}`;
-              parts.push(setLabel);
 
-              if (set.weight_kg !== null) {
-                parts.push(`${String(set.weight_kg)}kg`);
-              } else {
-                parts.push("bodyweight");
-              }
+              const weightStr =
+                set.weight_kg !== null
+                  ? `${String(set.weight_kg)}kg`
+                  : "bodyweight";
+
+              const parts: string[] = [setLabel, weightStr];
 
               if (set.reps !== null) {
                 parts.push(`× ${String(set.reps)} reps`);
@@ -193,12 +204,16 @@ const GARMIN_ZONE_COLORS = [
 ] as const;
 
 interface HRZoneEntry {
-  label: string;
-  seconds: number;
-  color: string;
+  readonly label: string;
+  readonly seconds: number;
+  readonly color: string;
 }
 
-function HRZoneBar({ zones }: { zones: HRZoneEntry[] }) {
+interface HRZoneBarProps {
+  readonly zones: HRZoneEntry[];
+}
+
+function HRZoneBar({ zones }: HRZoneBarProps) {
   const nonZero = zones.filter((z) => z.seconds > 0);
   if (nonZero.length === 0) return null;
 
@@ -268,7 +283,11 @@ function buildGarminZones(activity: GarminActivityData): HRZoneEntry[] {
   }));
 }
 
-function WhoopWorkoutInline({ workout }: { workout: WhoopWorkoutData }) {
+interface WhoopWorkoutInlineProps {
+  readonly workout: WhoopWorkoutData;
+}
+
+function WhoopWorkoutInline({ workout }: WhoopWorkoutInlineProps) {
   const startTime = workout.start_time
     ? format(parseISO(workout.start_time), "h:mm a")
     : null;
@@ -334,7 +353,11 @@ function WhoopWorkoutInline({ workout }: { workout: WhoopWorkoutData }) {
   );
 }
 
-function GarminActivityInline({ activity }: { activity: GarminActivityData }) {
+interface GarminActivityInlineProps {
+  readonly activity: GarminActivityData;
+}
+
+function GarminActivityInline({ activity }: GarminActivityInlineProps) {
   const startTime = activity.start_time
     ? format(parseISO(activity.start_time), "h:mm a")
     : null;
@@ -396,7 +419,11 @@ function GarminActivityInline({ activity }: { activity: GarminActivityData }) {
   );
 }
 
-function DailyTrainingCard({ day }: { day: DailyTrainings }) {
+interface DailyTrainingCardProps {
+  readonly day: DailyTrainings;
+}
+
+function DailyTrainingCard({ day }: DailyTrainingCardProps) {
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -521,13 +548,12 @@ export function TrainingsPage() {
   );
 }
 
-function PeriodSelector({
-  period,
-  setPeriod,
-}: {
-  period: PeriodDays;
-  setPeriod: (p: PeriodDays) => void;
-}) {
+interface PeriodSelectorProps {
+  readonly period: PeriodDays;
+  readonly setPeriod: (p: PeriodDays) => void;
+}
+
+function PeriodSelector({ period, setPeriod }: PeriodSelectorProps) {
   return (
     <div className="flex items-center gap-2 p-1 bg-muted/50 rounded-lg">
       <Calendar className="h-4 w-4 text-muted-foreground ml-2" />

@@ -132,64 +132,77 @@ class HevyAPIClient:
         result: requests.Response = _do_request()
         return result
 
+    def _filter_workouts_by_date(
+        self, workouts: list[dict], start_date: datetime.date
+    ) -> tuple[list[dict], bool]:
+        filtered = []
+        oldest_in_page: datetime.date | None = None
+        for w in workouts:
+            try:
+                workout_date = parse_iso_date(w["start_time"])
+                if oldest_in_page is None or workout_date < oldest_in_page:
+                    oldest_in_page = workout_date
+                if workout_date >= start_date:
+                    filtered.append(w)
+            except (KeyError, ValueError):
+                filtered.append(w)
+        reached_cutoff = bool(oldest_in_page and oldest_in_page < start_date)
+        return filtered, reached_cutoff
+
+    def _process_page_response(
+        self,
+        response: "requests.Response",
+        start_date: datetime.date | None,
+        page: int,
+        all_workouts: list[dict],
+    ) -> bool:
+        if response.status_code == 404:
+            logger.info("hevy_page_not_found", page=page)
+            return False
+
+        if response.status_code != 200:
+            logger.error(
+                "hevy_request_failed",
+                status_code=response.status_code,
+                response=response.text[:200],
+            )
+            return False
+
+        page_data = response.json()
+        workouts = page_data.get("workouts", [])
+
+        if not workouts:
+            logger.info("hevy_pagination_end")
+            return False
+
+        if start_date:
+            workouts, reached_cutoff = self._filter_workouts_by_date(
+                workouts, start_date
+            )
+            all_workouts.extend(workouts)
+            if reached_cutoff:
+                logger.info("hevy_date_cutoff", cutoff_date=start_date)
+                return False
+        else:
+            all_workouts.extend(workouts)
+
+        logger.info("hevy_page_retrieved", workouts=len(workouts), page=page)
+        return True
+
     def get_workouts(self, start_date: datetime.date | None = None) -> list[dict]:
-        """Fetch workouts from Hevy API with pagination."""
         all_workouts: list[dict] = []
         page = 1
         max_pages = 1000
 
         while page <= max_pages:
             logger.info("hevy_fetching_page", page=page)
-
             try:
                 response = self._fetch_page(page)
-
-                if response.status_code == 200:
-                    page_data = response.json()
-                    workouts = page_data.get("workouts", [])
-
-                    if not workouts:
-                        logger.info("hevy_pagination_end")
-                        break
-
-                    if start_date:
-                        filtered = []
-                        oldest_in_page = None
-                        for w in workouts:
-                            try:
-                                workout_date = parse_iso_date(w["start_time"])
-                                if (
-                                    oldest_in_page is None
-                                    or workout_date < oldest_in_page
-                                ):
-                                    oldest_in_page = workout_date
-                                if workout_date >= start_date:
-                                    filtered.append(w)
-                            except (KeyError, ValueError):
-                                filtered.append(w)
-                        workouts = filtered
-                        if oldest_in_page and oldest_in_page < start_date:
-                            logger.info("hevy_date_cutoff", cutoff_date=start_date)
-                            all_workouts.extend(workouts)
-                            break
-
-                    all_workouts.extend(workouts)
-                    logger.info(
-                        "hevy_page_retrieved", workouts=len(workouts), page=page
-                    )
-
-                elif response.status_code == 404:
-                    logger.info("hevy_page_not_found", page=page)
+                should_continue = self._process_page_response(
+                    response, start_date, page, all_workouts
+                )
+                if not should_continue:
                     break
-
-                else:
-                    logger.error(
-                        "hevy_request_failed",
-                        status_code=response.status_code,
-                        response=response.text[:200],
-                    )
-                    break
-
             except Exception as e:
                 logger.error("hevy_fetch_error", page=page, error=str(e))
                 break
@@ -208,6 +221,9 @@ def sync_hevy_data_for_user(
     except (CredentialsNotFoundError, CredentialsDecryptionError) as e:
         logger.error("hevy_credentials_error", user_id=user_id, error=str(e))
         return {"error": str(e), "user_id": user_id}
+
+    if not creds.hevy_api_key:
+        return {"error": "Hevy API key not configured", "user_id": user_id}
 
     try:
         api_client = HevyAPIClient(creds.hevy_api_key)

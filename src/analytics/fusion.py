@@ -126,6 +126,83 @@ def normalize_garmin_strain_to_whoop_scale(
     return result, True
 
 
+def _compute_source_z(value: float | None, stats: dict) -> float | None:
+    if value is not None and stats["std"] > 0:
+        return float((value - stats["mean"]) / stats["std"])
+    return None
+
+
+def _concordance_factor(g_z: float | None, w_z: float | None) -> float:
+    if g_z is None or w_z is None:
+        return 1.0
+    z_diff = abs(g_z - w_z)
+    if z_diff > 2.0:
+        return 0.5
+    if z_diff > 1.0:
+        return 0.75
+    return 1.0
+
+
+def _fuse_both_sources(
+    g_val: float,
+    w_val: float,
+    g_weight: float,
+    w_weight: float,
+    g_z: float | None,
+    w_z: float | None,
+    has_enough_overlap: bool,
+) -> tuple[float | None, float | None, float, DataProvider]:
+    total_weight = g_weight + w_weight
+    if total_weight <= 0:
+        return None, None, 0.0, "garmin"
+    if has_enough_overlap:
+        fused_value = (g_val * g_weight + w_val * w_weight) / total_weight
+        fused_z = (
+            ((g_z or 0) * g_weight + (w_z or 0) * w_weight) / total_weight
+            if g_z is not None and w_z is not None
+            else (g_z or w_z)
+        )
+        concordance = _concordance_factor(g_z, w_z)
+        confidence = min(1.0, (total_weight / 2) * concordance)
+        return fused_value, fused_z, confidence, "blended"
+    prefer_whoop = w_weight >= g_weight
+    return (
+        w_val if prefer_whoop else g_val,
+        w_z if prefer_whoop else g_z,
+        min(1.0, max(g_weight, w_weight) * 0.6),
+        "whoop" if prefer_whoop else "garmin",
+    )
+
+
+def _fuse_single_source(
+    val: float,
+    z: float | None,
+    weight: float,
+    provider: DataProvider,
+) -> tuple[float | None, float | None, float, DataProvider]:
+    return val, z, min(1.0, weight * 0.8), provider
+
+
+def _fuse_point(
+    g_val: float | None,
+    w_val: float | None,
+    g_weight: float,
+    w_weight: float,
+    g_z: float | None,
+    w_z: float | None,
+    has_enough_overlap: bool,
+) -> tuple[float | None, float | None, float, DataProvider]:
+    if g_val is not None and w_val is not None:
+        return _fuse_both_sources(
+            g_val, w_val, g_weight, w_weight, g_z, w_z, has_enough_overlap
+        )
+    if g_val is not None:
+        return _fuse_single_source(g_val, g_z, g_weight, "garmin")
+    if w_val is not None:
+        return _fuse_single_source(w_val, w_z, w_weight, "whoop")
+    return None, None, 0.0, "garmin"
+
+
 def blended_merge(
     garmin_data: list[DataPoint],
     whoop_data: list[DataPoint],
@@ -153,57 +230,12 @@ def blended_merge(
         w_val = whoop_map.get(date_key)
         g_weight = _calculate_source_weight(garmin_stats, g_val, metric_type)
         w_weight = _calculate_source_weight(whoop_stats, w_val, metric_type)
+        g_z = _compute_source_z(g_val, garmin_stats)
+        w_z = _compute_source_z(w_val, whoop_stats)
 
-        g_z: float | None = None
-        w_z: float | None = None
-        if g_val is not None and garmin_stats["std"] > 0:
-            g_z = (g_val - garmin_stats["mean"]) / garmin_stats["std"]
-        if w_val is not None and whoop_stats["std"] > 0:
-            w_z = (w_val - whoop_stats["mean"]) / whoop_stats["std"]
-
-        fused_value: float | None = None
-        fused_z: float | None = None
-        confidence = 0.0
-        provider: DataProvider = "garmin"
-        total_weight = g_weight + w_weight
-
-        if (
-            g_val is not None
-            and w_val is not None
-            and total_weight > 0
-            and has_enough_overlap
-        ):
-            fused_value = (g_val * g_weight + w_val * w_weight) / total_weight
-            fused_z = (
-                ((g_z or 0) * g_weight + (w_z or 0) * w_weight) / total_weight
-                if g_z is not None and w_z is not None
-                else (g_z or w_z)
-            )
-            concordance = 1.0
-            if g_z is not None and w_z is not None:
-                z_diff = abs(g_z - w_z)
-                if z_diff > 2.0:
-                    concordance = 0.5
-                elif z_diff > 1.0:
-                    concordance = 0.75
-            confidence = min(1.0, (total_weight / 2) * concordance)
-            provider = "blended"
-        elif g_val is not None and w_val is not None and not has_enough_overlap:
-            prefer_whoop = w_weight >= g_weight
-            fused_value = w_val if prefer_whoop else g_val
-            fused_z = w_z if prefer_whoop else g_z
-            confidence = min(1.0, max(g_weight, w_weight) * 0.6)
-            provider = "whoop" if prefer_whoop else "garmin"
-        elif g_val is not None:
-            fused_value = g_val
-            fused_z = g_z
-            confidence = min(1.0, g_weight * 0.8)
-            provider = "garmin"
-        elif w_val is not None:
-            fused_value = w_val
-            fused_z = w_z
-            confidence = min(1.0, w_weight * 0.8)
-            provider = "whoop"
+        fused_value, fused_z, confidence, provider = _fuse_point(
+            g_val, w_val, g_weight, w_weight, g_z, w_z, has_enough_overlap
+        )
 
         result.append(
             UnifiedMetricPoint(

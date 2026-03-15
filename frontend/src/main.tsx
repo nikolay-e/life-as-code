@@ -30,10 +30,13 @@ function handleUnauthorized() {
     isHandlingUnauthorized = true;
     toast.error("Session expired. Please log in again.");
     queryClient.clear();
-    void clearBrowserCaches();
-    void authStore.logout().finally(() => {
-      isHandlingUnauthorized = false;
-    });
+    clearBrowserCaches().catch(() => {});
+    authStore
+      .logout()
+      .finally(() => {
+        isHandlingUnauthorized = false;
+      })
+      .catch(() => {});
   }
 }
 
@@ -67,7 +70,10 @@ const queryClient = new QueryClient({
   },
 });
 
-void useAuthStore.getState().checkAuth();
+useAuthStore
+  .getState()
+  .checkAuth()
+  .catch(() => {});
 
 const rootElement = document.getElementById("root");
 if (!rootElement) throw new Error("Root element not found");

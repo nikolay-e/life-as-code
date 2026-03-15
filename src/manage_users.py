@@ -22,105 +22,111 @@ from security import (
     validate_username,
 )
 
+USERNAME_EMPTY_ERROR = "Username cannot be empty."
 
-def create_user():
-    """Create a new user account."""
-    print("🔐 Create New User Account")
-    print("=" * 30)
 
-    # Get username
+def _prompt_username():
     while True:
         username = input("Username (email recommended): ").strip()
         if not username:
-            print("Username cannot be empty.")
+            print(USERNAME_EMPTY_ERROR)
             continue
         if not validate_username(username):
             print("Invalid username. Must be 3-80 characters, alphanumeric plus _.@-")
             continue
-        break
+        return username
 
-    # Get password
+
+def _prompt_password():
     while True:
         password = getpass.getpass("Password: ")
         is_valid, message = validate_password(password)
         if not is_valid:
             print(f"❌ {message}")
             continue
-
         confirm_password = getpass.getpass("Confirm password: ")
         if password != confirm_password:
             print("❌ Passwords don't match.")
             continue
-        break
+        return password
 
-    # Optional: Get Garmin credentials
+
+def _prompt_service_credentials():
     garmin_email = input("Garmin email (optional, can be set later): ").strip()
     garmin_password = ""  # nosec B105
     if garmin_email:
         garmin_password = getpass.getpass("Garmin password (optional): ")
-
-    # Optional: Get Heavy API key
     hevy_api_key = input("Heavy API key (optional, can be set later): ").strip()
+    return garmin_email, garmin_password, hevy_api_key
 
-    # Create user in database
+
+def _insert_user_to_db(
+    db, username, password, garmin_email, garmin_password, hevy_api_key
+):
+    existing_user = db.scalars(select(User).filter_by(username=username)).first()
+    if existing_user:
+        print(f"❌ User '{username}' already exists.")
+        return None
+
+    user = User(username=username, password_hash=get_password_hash(password))
+    db.add(user)
+    db.flush()
+
+    credentials = UserCredentials(
+        user_id=user.id,
+        garmin_email=garmin_email if garmin_email else None,
+        encrypted_garmin_password=(
+            encrypt_data_for_user(garmin_password, user.id) if garmin_password else None
+        ),
+        encrypted_hevy_api_key=(
+            encrypt_data_for_user(hevy_api_key, user.id) if hevy_api_key else None
+        ),
+    )
+    db.add(credentials)
+
+    settings = UserSettings(
+        user_id=user.id,
+        hrv_good_threshold=get_threshold("hrv.good", 45),
+        hrv_moderate_threshold=get_threshold("hrv.moderate", 35),
+        deep_sleep_good_threshold=get_threshold("sleep.deep_sleep.good", 90),
+        deep_sleep_moderate_threshold=get_threshold("sleep.deep_sleep.moderate", 60),
+        total_sleep_good_threshold=get_threshold("sleep.total_sleep.good", 7.5),
+        total_sleep_moderate_threshold=get_threshold("sleep.total_sleep.moderate", 6.5),
+        training_high_volume_threshold=get_threshold("training.high_volume", 5000),
+    )
+    db.add(settings)
+    return user
+
+
+def _print_created_user(user, garmin_email, garmin_password, hevy_api_key):
+    print(f"✅ User '{user.username}' created successfully!")
+    print(f"   User ID: {user.id}")
+    if garmin_email:
+        print(f"   Garmin email: {garmin_email}")
+    if garmin_password:
+        print("   Garmin password: [encrypted]")
+    if hevy_api_key:
+        print("   Heavy API key: [encrypted]")
+
+
+def create_user():
+    print("🔐 Create New User Account")
+    print("=" * 30)
+
+    username = _prompt_username()
+    password = _prompt_password()
+    garmin_email, garmin_password, hevy_api_key = _prompt_service_credentials()
+
     db = SessionLocal()
     try:
-        # Check if user already exists
-        existing_user = db.scalars(select(User).filter_by(username=username)).first()
-        if existing_user:
-            print(f"❌ User '{username}' already exists.")
+        user = _insert_user_to_db(
+            db, username, password, garmin_email, garmin_password, hevy_api_key
+        )
+        if user is None:
             return False
-
-        # Create new user
-        user = User(username=username, password_hash=get_password_hash(password))
-        db.add(user)
-        db.flush()  # Get the user ID
-
-        # Create credentials record
-        credentials = UserCredentials(
-            user_id=user.id,
-            garmin_email=garmin_email if garmin_email else None,
-            encrypted_garmin_password=(
-                encrypt_data_for_user(garmin_password, user.id)
-                if garmin_password
-                else None
-            ),
-            encrypted_hevy_api_key=(
-                encrypt_data_for_user(hevy_api_key, user.id) if hevy_api_key else None
-            ),
-        )
-        db.add(credentials)
-
-        # Create UserSettings with default values
-        settings = UserSettings(
-            user_id=user.id,
-            hrv_good_threshold=get_threshold("hrv.good", 45),
-            hrv_moderate_threshold=get_threshold("hrv.moderate", 35),
-            deep_sleep_good_threshold=get_threshold("sleep.deep_sleep.good", 90),
-            deep_sleep_moderate_threshold=get_threshold(
-                "sleep.deep_sleep.moderate", 60
-            ),
-            total_sleep_good_threshold=get_threshold("sleep.total_sleep.good", 7.5),
-            total_sleep_moderate_threshold=get_threshold(
-                "sleep.total_sleep.moderate", 6.5
-            ),
-            training_high_volume_threshold=get_threshold("training.high_volume", 5000),
-        )
-        db.add(settings)
-
         db.commit()
-        print(f"✅ User '{username}' created successfully!")
-        print(f"   User ID: {user.id}")
-
-        if garmin_email:
-            print(f"   Garmin email: {garmin_email}")
-        if garmin_password:
-            print("   Garmin password: [encrypted]")
-        if hevy_api_key:
-            print("   Heavy API key: [encrypted]")
-
+        _print_created_user(user, garmin_email, garmin_password, hevy_api_key)
         return True
-
     except IntegrityError:
         db.rollback()
         print(f"❌ User '{username}' already exists.")
@@ -134,7 +140,6 @@ def create_user():
 
 
 def list_users():
-    """List all users."""
     db = SessionLocal()
     try:
         users = db.scalars(select(User)).all()
@@ -160,16 +165,14 @@ def list_users():
 
 
 def delete_user():
-    """Delete a user account."""
     print("\n🗑️ Delete User Account")
     print("=" * 25)
 
     username = input("Username to delete: ").strip()
     if not username:
-        print("Username cannot be empty.")
+        print(USERNAME_EMPTY_ERROR)
         return
 
-    # Confirm deletion
     confirm = input(
         f"Are you sure you want to delete '{username}'? (type 'DELETE' to confirm): "
     )
@@ -184,14 +187,11 @@ def delete_user():
             print(f"❌ User '{username}' not found.")
             return
 
-        # Store user ID for token cleanup
         user_id = user.id
 
-        # Delete user (cascade will handle credentials and data)
         db.delete(user)
         db.commit()
 
-        # Clean up Garmin tokens directory
         import shutil
 
         token_dir = f"/app/.garminconnect/user_{user_id}"
@@ -212,13 +212,12 @@ def delete_user():
 
 
 def update_credentials():
-    """Update user credentials."""
     print("\n🔑 Update User Credentials")
     print("=" * 28)
 
     username = input("Username: ").strip()
     if not username:
-        print("Username cannot be empty.")
+        print(USERNAME_EMPTY_ERROR)
         return
 
     db = SessionLocal()
@@ -236,7 +235,6 @@ def update_credentials():
         print(f"Updating credentials for: {username}")
         print("(Press Enter to skip/keep current value)")
 
-        # Update Garmin credentials
         garmin_email = input(
             f"Garmin email [{creds.garmin_email or 'not set'}]: "
         ).strip()
@@ -249,7 +247,6 @@ def update_credentials():
                 garmin_password, user.id
             )
 
-        # Update Heavy API key
         hevy_api_key = input("Heavy API key [hidden]: ").strip()
         if hevy_api_key:
             creds.encrypted_hevy_api_key = encrypt_data_for_user(hevy_api_key, user.id)
@@ -265,8 +262,6 @@ def update_credentials():
 
 
 def main():
-    """Main menu."""
-    # Initialize database
     init_db()
 
     while True:

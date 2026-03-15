@@ -137,9 +137,11 @@ export function useAutoSync() {
         const syncFn = syncFnMap[source];
 
         await syncFn(days);
-        void queryClient.invalidateQueries({
-          queryKey: healthKeys.syncStatus(),
-        });
+        queryClient
+          .invalidateQueries({
+            queryKey: healthKeys.syncStatus(),
+          })
+          .catch(() => {});
       } catch (error) {
         console.error(`Auto-sync failed for ${source}:`, error);
       } finally {
@@ -149,20 +151,22 @@ export function useAutoSync() {
           next.delete(source);
           return next;
         });
-        void queryClient.invalidateQueries({
-          predicate: (query) => {
-            const key = query.queryKey;
-            if (key[0] !== "health" || key[1] !== "data") return false;
-            if (key.length < 4) return true;
-            const [, , queryStart, queryEnd] = key as [
-              string,
-              string,
-              string,
-              string,
-            ];
-            return queryStart <= syncEndDate && queryEnd >= syncStartDate;
-          },
-        });
+        queryClient
+          .invalidateQueries({
+            predicate: (query) => {
+              const key = query.queryKey;
+              if (key[0] !== "health" || key[1] !== "data") return false;
+              if (key.length < 4) return true;
+              const [, , queryStart, queryEnd] = key as [
+                string,
+                string,
+                string,
+                string,
+              ];
+              return queryStart <= syncEndDate && queryEnd >= syncStartDate;
+            },
+          })
+          .catch(() => {});
       }
     },
     [queryClient],
@@ -178,12 +182,12 @@ export function useAutoSync() {
       !isSyncInProgress(syncStatus, "garmin")
     ) {
       const days = getDaysSinceLastSync(syncStatus, "garmin");
-      void triggerSync("garmin", days);
+      triggerSync("garmin", days).catch(() => {});
     }
 
     if (credentials.hevy_configured && !isSyncInProgress(syncStatus, "hevy")) {
       const days = getDaysSinceLastSync(syncStatus, "hevy");
-      void triggerSync("hevy", days);
+      triggerSync("hevy", days).catch(() => {});
     }
 
     if (
@@ -191,7 +195,7 @@ export function useAutoSync() {
       !isSyncInProgress(syncStatus, "whoop")
     ) {
       const days = getDaysSinceLastSync(syncStatus, "whoop");
-      void triggerSync("whoop", days);
+      triggerSync("whoop", days).catch(() => {});
     }
   }, [credentials, syncStatus, triggerSync]);
 

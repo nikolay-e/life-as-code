@@ -9,11 +9,14 @@ Materialized analytics snapshots and clinical alert lifecycle tracking.
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import text
 
 revision = "015_add_snapshots_alerts"
 down_revision = "014_add_predictions_anomalies"
 branch_labels = None
 depends_on = None
+
+NOW = text("now()")
 
 
 def upgrade() -> None:
@@ -26,7 +29,7 @@ def upgrade() -> None:
         sa.Column("snapshot_json", sa.JSON(), nullable=False),
         sa.Column("health_score", sa.Float()),
         sa.Column(
-            "computed_at", sa.DateTime(), nullable=False, server_default=sa.text("now()")
+            "computed_at", sa.DateTime(), nullable=False, server_default=NOW
         ),
         sa.UniqueConstraint(
             "user_id", "date", "mode", name="_user_snapshot_date_mode_uc"
@@ -55,17 +58,17 @@ def upgrade() -> None:
             "first_detected_at",
             sa.DateTime(),
             nullable=False,
-            server_default=sa.text("now()"),
+            server_default=NOW,
         ),
         sa.Column(
             "last_detected_at",
             sa.DateTime(),
             nullable=False,
-            server_default=sa.text("now()"),
+            server_default=NOW,
         ),
         sa.Column("acknowledged_at", sa.DateTime()),
         sa.Column("resolved_at", sa.DateTime()),
-        sa.Column("created_at", sa.DateTime(), server_default=sa.text("now()")),
+        sa.Column("created_at", sa.DateTime(), server_default=NOW),
         sa.Index("idx_alert_user_status", "user_id", "status"),
         sa.Index("idx_alert_user_type", "user_id", "alert_type"),
         sa.CheckConstraint(

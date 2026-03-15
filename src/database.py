@@ -138,6 +138,57 @@ def check_db_connection() -> bool:
         return False
 
 
+def _process_upsert_records(
+    records: list,
+    model_class,
+    user_id: int,
+    source: str | None,
+    error_count_ref: list,
+) -> list[dict]:
+    model_columns = {c.name for c in model_class.__table__.columns}
+    include_source = source is not None and "source" in model_columns
+    processed: list[dict] = []
+    all_keys: set[str] = set()
+
+    for record_data in records:
+        try:
+            data_dict = (
+                record_data.model_dump()
+                if hasattr(record_data, "model_dump")
+                else record_data.copy()
+            )
+            data_dict["user_id"] = user_id
+            if include_source:
+                data_dict["source"] = source
+            if "created_at" not in data_dict:
+                data_dict["created_at"] = utcnow()
+            all_keys.update(data_dict.keys())
+            processed.append(data_dict)
+        except Exception as e:
+            logger.error("record_processing_error", error=str(e))
+            error_count_ref[0] += 1
+
+    for record in processed:
+        for key in all_keys:
+            if key not in record:
+                record[key] = None
+
+    return processed
+
+
+def _build_upsert_stmt(model_class, processed_records: list[dict], unique_fields: list):
+    from sqlalchemy.dialects.postgresql import insert
+
+    stmt = insert(model_class).values(processed_records)
+    conflict_columns = ["user_id"] + unique_fields
+    update_dict = {
+        col: getattr(stmt.excluded, col)
+        for col in processed_records[0].keys()
+        if col not in ["id", "created_at", "user_id", "source"]
+    }
+    return stmt.on_conflict_do_update(index_elements=conflict_columns, set_=update_dict)
+
+
 def bulk_upsert_records(
     records: list,
     model_class,
@@ -145,66 +196,25 @@ def bulk_upsert_records(
     user_id: int,
     source: str | None = None,
 ) -> dict:
-    from sqlalchemy.dialects.postgresql import insert
-
     if not records:
         return {"created": 0, "updated": 0, "errors": 0}
 
-    result = {"created": 0, "updated": 0, "errors": 0}
+    error_count = [0]
+    result: dict = {"created": 0, "updated": 0, "errors": 0}
 
     try:
         with get_db_session_context() as db:
-            # Convert all records to dicts and add user_id
-            processed_records = []
-            all_keys: set[str] = set()
-            model_columns = {c.name for c in model_class.__table__.columns}
-            include_source = source is not None and "source" in model_columns
-
-            for record_data in records:
-                try:
-                    if hasattr(record_data, "model_dump"):
-                        data_dict = record_data.model_dump()
-                    else:
-                        data_dict = record_data.copy()
-
-                    data_dict["user_id"] = user_id
-                    if include_source:
-                        data_dict["source"] = source
-                    if "created_at" not in data_dict:
-                        data_dict["created_at"] = utcnow()
-
-                    all_keys.update(data_dict.keys())
-                    processed_records.append(data_dict)
-                except Exception as e:
-                    logger.error("record_processing_error", error=str(e))
-                    result["errors"] += 1
+            processed_records = _process_upsert_records(
+                records, model_class, user_id, source, error_count
+            )
+            result["errors"] = error_count[0]
 
             if not processed_records:
                 return result
 
-            for record in processed_records:
-                for key in all_keys:
-                    if key not in record:
-                        record[key] = None
-
-            # Build INSERT statement with ON CONFLICT
-            stmt = insert(model_class).values(processed_records)
-
-            # ON CONFLICT clause: update on conflict
-            conflict_columns = ["user_id"] + unique_fields
-            update_dict = {
-                col: getattr(stmt.excluded, col)
-                for col in processed_records[0].keys()
-                if col not in ["id", "created_at", "user_id", "source"]
-            }
-
-            stmt = stmt.on_conflict_do_update(
-                index_elements=conflict_columns, set_=update_dict
-            )
-
+            stmt = _build_upsert_stmt(model_class, processed_records, unique_fields)
             db.execute(stmt)
             result["created"] = len(processed_records)
-            result["updated"] = 0
 
         logger.info(
             "bulk_upsert_completed",

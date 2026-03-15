@@ -456,6 +456,21 @@ function formatClinicalMetrics(
   ];
 }
 
+function formatDayTableRow(day: DayMetrics): string {
+  const pad = (s: string, len: number) => s.padEnd(len);
+  const dateStr = format(parseISO(day.date), "MMM d (EEE)");
+  const rec = day.recovery === null ? "—" : `${day.recovery.toFixed(0)}%`;
+  const hrv = day.hrv === null ? "—" : day.hrv.toFixed(0);
+  const rhr = day.rhr === null ? "—" : day.rhr.toFixed(0);
+  const sleep = day.sleep === null ? "—" : formatMinutes(day.sleep);
+  const steps = day.steps === null ? "—" : formatSteps(day.steps);
+  const strain = day.strain === null ? "—" : day.strain.toFixed(1);
+  const stress = day.stress === null ? "—" : day.stress.toFixed(0);
+  const cal = day.calories === null ? "—" : day.calories.toFixed(0);
+  const weight = day.weight === null ? "—" : day.weight.toFixed(1);
+  return `| ${pad(dateStr, 10)} | ${pad(rec, 4)} | ${pad(hrv, 3)} | ${pad(rhr, 3)} | ${pad(sleep, 7)} | ${pad(steps, 6)} | ${pad(strain, 6)} | ${pad(stress, 6)} | ${pad(cal, 5)} | ${pad(weight, 6)} |`;
+}
+
 function formatLastDaysTable(lastDays: DayMetrics[]): string[] {
   const lines: string[] = [
     `## Last ${String(lastDays.length)} Days Detail`,
@@ -463,25 +478,9 @@ function formatLastDaysTable(lastDays: DayMetrics[]): string[] {
     `| Date       | Rec% | HRV | RHR | Sleep   | Steps  | Strain | Stress | Cal   | Weight |`,
     `|------------|------|-----|-----|---------|--------|--------|--------|-------|--------|`,
   ];
-
   for (const day of lastDays) {
-    const dateStr = format(parseISO(day.date), "MMM d (EEE)");
-    const rec = day.recovery === null ? "—" : `${day.recovery.toFixed(0)}%`;
-    const hrv = day.hrv === null ? "—" : day.hrv.toFixed(0);
-    const rhr = day.rhr === null ? "—" : day.rhr.toFixed(0);
-    const sleep = day.sleep === null ? "—" : formatMinutes(day.sleep);
-    const steps = day.steps === null ? "—" : formatSteps(day.steps);
-    const strain = day.strain === null ? "—" : day.strain.toFixed(1);
-    const stress = day.stress === null ? "—" : day.stress.toFixed(0);
-    const cal = day.calories === null ? "—" : day.calories.toFixed(0);
-    const weight = day.weight === null ? "—" : day.weight.toFixed(1);
-
-    const pad = (s: string, len: number) => s.padEnd(len);
-    lines.push(
-      `| ${pad(dateStr, 10)} | ${pad(rec, 4)} | ${pad(hrv, 3)} | ${pad(rhr, 3)} | ${pad(sleep, 7)} | ${pad(steps, 6)} | ${pad(strain, 6)} | ${pad(stress, 6)} | ${pad(cal, 5)} | ${pad(weight, 6)} |`,
-    );
+    lines.push(formatDayTableRow(day));
   }
-
   return lines;
 }
 
@@ -531,6 +530,62 @@ function formatAnalysisDetails(analytics: AnalyticsResponse): string[] {
   ];
 }
 
+function collectGarminActivityDetails(activity: GarminActivityData): string[] {
+  const details: string[] = [];
+
+  if (activity.duration_seconds !== null) {
+    details.push(`Duration: ${formatDuration(activity.duration_seconds)}`);
+  }
+  if (activity.distance_meters !== null && activity.distance_meters > 0) {
+    details.push(
+      `Distance: ${(activity.distance_meters / 1000).toFixed(2)} km`,
+    );
+  }
+  if (
+    activity.avg_speed_mps !== null &&
+    activity.avg_speed_mps > 0 &&
+    activity.distance_meters !== null &&
+    activity.distance_meters > 100
+  ) {
+    details.push(`Pace: ${formatPaceForReport(activity.avg_speed_mps)}`);
+  }
+  if (activity.avg_heart_rate !== null) {
+    details.push(`Avg HR: ${String(activity.avg_heart_rate)} bpm`);
+  }
+  if (activity.max_heart_rate !== null) {
+    details.push(`Max HR: ${String(activity.max_heart_rate)} bpm`);
+  }
+  if (activity.calories !== null) {
+    details.push(`Calories: ${String(activity.calories)} kcal`);
+  }
+  if (
+    activity.elevation_gain_meters !== null &&
+    activity.elevation_gain_meters > 0
+  ) {
+    details.push(
+      `Elevation Gain: ${String(Math.round(activity.elevation_gain_meters))} m`,
+    );
+  }
+  if (activity.avg_power_watts !== null) {
+    details.push(
+      `Avg Power: ${String(Math.round(activity.avg_power_watts))} W`,
+    );
+  }
+  if (activity.training_effect_aerobic !== null) {
+    details.push(`Aerobic TE: ${activity.training_effect_aerobic.toFixed(1)}`);
+  }
+  if (activity.training_effect_anaerobic !== null) {
+    details.push(
+      `Anaerobic TE: ${activity.training_effect_anaerobic.toFixed(1)}`,
+    );
+  }
+  if (activity.vo2_max_value !== null) {
+    details.push(`VO2 Max: ${activity.vo2_max_value.toFixed(1)}`);
+  }
+
+  return details;
+}
+
 function formatGarminActivities(
   activities: GarminActivityData[],
   now: Date,
@@ -564,77 +619,48 @@ function formatGarminActivities(
 
     lines.push(`### ${dateStr}${timeStr ? ` at ${timeStr}` : ""}: ${name}`);
 
-    const details: string[] = [];
-
-    if (activity.duration_seconds !== null) {
-      details.push(`Duration: ${formatDuration(activity.duration_seconds)}`);
-    }
-
-    if (activity.distance_meters !== null && activity.distance_meters > 0) {
-      details.push(
-        `Distance: ${(activity.distance_meters / 1000).toFixed(2)} km`,
-      );
-    }
-
-    if (
-      activity.avg_speed_mps !== null &&
-      activity.avg_speed_mps > 0 &&
-      activity.distance_meters !== null &&
-      activity.distance_meters > 100
-    ) {
-      details.push(`Pace: ${formatPaceForReport(activity.avg_speed_mps)}`);
-    }
-
-    if (activity.avg_heart_rate !== null) {
-      details.push(`Avg HR: ${String(activity.avg_heart_rate)} bpm`);
-    }
-
-    if (activity.max_heart_rate !== null) {
-      details.push(`Max HR: ${String(activity.max_heart_rate)} bpm`);
-    }
-
-    if (activity.calories !== null) {
-      details.push(`Calories: ${String(activity.calories)} kcal`);
-    }
-
-    if (
-      activity.elevation_gain_meters !== null &&
-      activity.elevation_gain_meters > 0
-    ) {
-      details.push(
-        `Elevation Gain: ${String(Math.round(activity.elevation_gain_meters))} m`,
-      );
-    }
-
-    if (activity.avg_power_watts !== null) {
-      details.push(
-        `Avg Power: ${String(Math.round(activity.avg_power_watts))} W`,
-      );
-    }
-
-    if (activity.training_effect_aerobic !== null) {
-      details.push(
-        `Aerobic TE: ${activity.training_effect_aerobic.toFixed(1)}`,
-      );
-    }
-
-    if (activity.training_effect_anaerobic !== null) {
-      details.push(
-        `Anaerobic TE: ${activity.training_effect_anaerobic.toFixed(1)}`,
-      );
-    }
-
-    if (activity.vo2_max_value !== null) {
-      details.push(`VO2 Max: ${activity.vo2_max_value.toFixed(1)}`);
-    }
-
-    for (const detail of details) {
+    for (const detail of collectGarminActivityDetails(activity)) {
       lines.push(`- ${detail}`);
     }
     lines.push(``);
   }
 
   return lines;
+}
+
+function collectWhoopWorkoutDetails(workout: WhoopWorkoutData): string[] {
+  const details: string[] = [];
+
+  if (workout.strain !== null) {
+    details.push(
+      `Strain: ${workout.strain.toFixed(1)} / ${String(WHOOP_MAX_STRAIN)}`,
+    );
+  }
+  if (workout.kilojoules !== null) {
+    const calories = Math.round(workout.kilojoules / 4.184);
+    details.push(
+      `Energy: ${String(calories)} kcal (${workout.kilojoules.toFixed(0)} kJ)`,
+    );
+  }
+  if (workout.avg_heart_rate !== null) {
+    details.push(`Avg HR: ${String(workout.avg_heart_rate)} bpm`);
+  }
+  if (workout.max_heart_rate !== null) {
+    details.push(`Max HR: ${String(workout.max_heart_rate)} bpm`);
+  }
+  if (workout.distance_meters !== null && workout.distance_meters > 0) {
+    details.push(`Distance: ${(workout.distance_meters / 1000).toFixed(2)} km`);
+  }
+  if (
+    workout.altitude_gain_meters !== null &&
+    workout.altitude_gain_meters > 0
+  ) {
+    details.push(
+      `Elevation Gain: ${String(Math.round(workout.altitude_gain_meters))} m`,
+    );
+  }
+
+  return details;
 }
 
 function formatWhoopWorkouts(
@@ -669,45 +695,7 @@ function formatWhoopWorkouts(
 
     lines.push(`### ${dateStr} at ${timeStr}: ${name}`);
 
-    const details: string[] = [];
-
-    if (workout.strain !== null) {
-      details.push(
-        `Strain: ${workout.strain.toFixed(1)} / ${String(WHOOP_MAX_STRAIN)}`,
-      );
-    }
-
-    if (workout.kilojoules !== null) {
-      const calories = Math.round(workout.kilojoules / 4.184);
-      details.push(
-        `Energy: ${String(calories)} kcal (${workout.kilojoules.toFixed(0)} kJ)`,
-      );
-    }
-
-    if (workout.avg_heart_rate !== null) {
-      details.push(`Avg HR: ${String(workout.avg_heart_rate)} bpm`);
-    }
-
-    if (workout.max_heart_rate !== null) {
-      details.push(`Max HR: ${String(workout.max_heart_rate)} bpm`);
-    }
-
-    if (workout.distance_meters !== null && workout.distance_meters > 0) {
-      details.push(
-        `Distance: ${(workout.distance_meters / 1000).toFixed(2)} km`,
-      );
-    }
-
-    if (
-      workout.altitude_gain_meters !== null &&
-      workout.altitude_gain_meters > 0
-    ) {
-      details.push(
-        `Elevation Gain: ${String(Math.round(workout.altitude_gain_meters))} m`,
-      );
-    }
-
-    for (const detail of details) {
+    for (const detail of collectWhoopWorkoutDetails(workout)) {
       lines.push(`- ${detail}`);
     }
     lines.push(``);
@@ -778,6 +766,39 @@ function formatSetInfo(set: {
   return parts.join(" ");
 }
 
+function formatVolumeStr(volume: number): string {
+  return volume >= 1000
+    ? `${(volume / 1000).toFixed(1)}t`
+    : `${String(Math.round(volume))}kg`;
+}
+
+function formatDayStrengthSection(day: DailyStrengthWorkout): string[] {
+  const lines: string[] = [];
+  const dateStr = format(parseISO(day.date), "MMM d (EEE)");
+  const volumeStr = formatVolumeStr(day.totalVolume);
+  lines.push(
+    `### ${dateStr} - ${String(day.exercises.length)} exercises, ${String(day.totalSets)} sets, ${volumeStr} total`,
+  );
+  lines.push(``);
+
+  for (const exercise of day.exercises) {
+    const exerciseVolumeStr = formatVolumeStr(exercise.total_volume);
+    const rpeStr =
+      exercise.avg_rpe === null
+        ? ""
+        : `, avg RPE ${exercise.avg_rpe.toFixed(1)}`;
+    lines.push(
+      `**${exercise.exercise}** (${String(exercise.total_sets)} sets, ${exerciseVolumeStr}${rpeStr})`,
+    );
+    for (const set of exercise.sets) {
+      lines.push(`  - ${formatSetInfo(set)}`);
+    }
+    lines.push(``);
+  }
+
+  return lines;
+}
+
 function formatStrengthWorkoutsWithExercises(
   detailedWorkouts: WorkoutExerciseDetail[] | null,
   now: Date,
@@ -805,36 +826,7 @@ function formatStrengthWorkoutsWithExercises(
   const grouped = groupWorkoutsByDate(filtered);
 
   for (const day of grouped) {
-    const dateStr = format(parseISO(day.date), "MMM d (EEE)");
-    const volumeStr =
-      day.totalVolume >= 1000
-        ? `${(day.totalVolume / 1000).toFixed(1)}t`
-        : `${String(Math.round(day.totalVolume))}kg`;
-
-    lines.push(
-      `### ${dateStr} - ${String(day.exercises.length)} exercises, ${String(day.totalSets)} sets, ${volumeStr} total`,
-    );
-    lines.push(``);
-
-    for (const exercise of day.exercises) {
-      const exerciseVolumeStr =
-        exercise.total_volume >= 1000
-          ? `${(exercise.total_volume / 1000).toFixed(1)}t`
-          : `${String(Math.round(exercise.total_volume))}kg`;
-      const rpeStr =
-        exercise.avg_rpe === null
-          ? ""
-          : `, avg RPE ${exercise.avg_rpe.toFixed(1)}`;
-
-      lines.push(
-        `**${exercise.exercise}** (${String(exercise.total_sets)} sets, ${exerciseVolumeStr}${rpeStr})`,
-      );
-
-      for (const set of exercise.sets) {
-        lines.push(`  - ${formatSetInfo(set)}`);
-      }
-      lines.push(``);
-    }
+    lines.push(...formatDayStrengthSection(day));
   }
 
   return lines;
@@ -876,16 +868,8 @@ function formatStrengthWorkoutsDetailed(
   return lines;
 }
 
-function formatAdvancedInsights(insights: AdvancedInsights): string[] {
-  const {
-    hrv_advanced,
-    sleep_quality,
-    fitness,
-    lag_correlations,
-    cross_domain,
-    allostatic_load,
-    recovery_enhanced,
-  } = insights;
+function formatHrvAdvancedSection(insights: AdvancedInsights): string[] {
+  const { hrv_advanced, sleep_quality } = insights;
 
   const deepSleepPct =
     sleep_quality.deep_sleep_pct === null
@@ -903,19 +887,13 @@ function formatAdvancedInsights(insights: AdvancedInsights): string[] {
     sleep_quality.consistency_score === null
       ? "N/A"
       : `${sleep_quality.consistency_score.toFixed(1)}%`;
-
   const sleepHrvP =
     sleep_quality.sleep_hrv_p_value === null
       ? ""
       : ` (p=${sleep_quality.sleep_hrv_p_value.toFixed(3)})`;
   const sleepHrvResponsiveness = `${formatNum(sleep_quality.sleep_hrv_responsiveness, 3)}${sleepHrvP}`;
 
-  const recoveryHalfLife =
-    recovery_enhanced.recovery_half_life_days === null
-      ? "N/A"
-      : `${recovery_enhanced.recovery_half_life_days.toFixed(1)} days`;
-
-  const lines: string[] = [
+  return [
     `# Advanced Health Insights`,
     ``,
     `## HRV Advanced`,
@@ -935,10 +913,13 @@ function formatAdvancedInsights(insights: AdvancedInsights): string[] {
     `- Fragmentation Index: ${formatNum(sleep_quality.fragmentation_index, 2)}`,
     `- Sleep→HRV Responsiveness: ${sleepHrvResponsiveness}`,
     `- Consistency Score: ${consistencyScore}`,
-    ``,
-    `## Cardio Fitness & Training Load`,
-    ``,
   ];
+}
+
+function formatFitnessSection(insights: AdvancedInsights): string[] {
+  const { fitness, allostatic_load, recovery_enhanced } = insights;
+
+  const lines: string[] = [``, `## Cardio Fitness & Training Load`, ``];
 
   if (fitness.vo2_max_current !== null) {
     const vo2Trend =
@@ -976,6 +957,11 @@ function formatAdvancedInsights(insights: AdvancedInsights): string[] {
     }
   }
 
+  const recoveryHalfLife =
+    recovery_enhanced.recovery_half_life_days === null
+      ? "N/A"
+      : `${recovery_enhanced.recovery_half_life_days.toFixed(1)} days`;
+
   lines.push(
     ``,
     `## Recovery Enhanced`,
@@ -985,6 +971,13 @@ function formatAdvancedInsights(insights: AdvancedInsights): string[] {
     `- Recovery Half-Life: ${recoveryHalfLife}`,
     ``,
   );
+
+  return lines;
+}
+
+function formatCrossDomainSection(insights: AdvancedInsights): string[] {
+  const { cross_domain } = insights;
+  const lines: string[] = [];
 
   const residual = cross_domain.hrv_residual;
   lines.push(
@@ -1007,11 +1000,10 @@ function formatAdvancedInsights(insights: AdvancedInsights): string[] {
       cross_domain.weight_hrv_p_value === null
         ? ""
         : ` (p=${cross_domain.weight_hrv_p_value.toFixed(3)})`;
-    const weightHrvCoupling = `${cross_domain.weight_hrv_coupling.toFixed(3)}${weightHrvP}`;
     lines.push(
       `## Cross-Domain`,
       ``,
-      `- Weight-HRV Coupling: ${weightHrvCoupling}`,
+      `- Weight-HRV Coupling: ${cross_domain.weight_hrv_coupling.toFixed(3)}${weightHrvP}`,
       ``,
     );
   }
@@ -1038,36 +1030,52 @@ function formatAdvancedInsights(insights: AdvancedInsights): string[] {
     lines.push(``);
   }
 
-  if (lag_correlations.pairs.length > 0) {
-    lines.push(`## Lag Correlations`, ``);
-    if (lag_correlations.strongest_positive) {
-      const sp = lag_correlations.strongest_positive;
-      lines.push(
-        `- Strongest Positive: ${sp.metric_a} → ${sp.metric_b} (lag ${String(sp.lag_days)}d, r=${formatNum(sp.correlation, 3)}, n=${String(sp.sample_size)})`,
-      );
-    }
-    if (lag_correlations.strongest_negative) {
-      const sn = lag_correlations.strongest_negative;
-      lines.push(
-        `- Strongest Negative: ${sn.metric_a} → ${sn.metric_b} (lag ${String(sn.lag_days)}d, r=${formatNum(sn.correlation, 3)}, n=${String(sn.sample_size)})`,
-      );
-    }
+  return lines;
+}
+
+function formatLagCorrelationsSection(insights: AdvancedInsights): string[] {
+  const { lag_correlations } = insights;
+  if (lag_correlations.pairs.length === 0) return [];
+
+  const lines: string[] = [`## Lag Correlations`, ``];
+
+  if (lag_correlations.strongest_positive) {
+    const sp = lag_correlations.strongest_positive;
     lines.push(
-      ``,
-      `| Metric A | Metric B | Lag | r | p | n |`,
-      `|----------|----------|-----|---|---|---|`,
+      `- Strongest Positive: ${sp.metric_a} → ${sp.metric_b} (lag ${String(sp.lag_days)}d, r=${formatNum(sp.correlation, 3)}, n=${String(sp.sample_size)})`,
     );
-    for (const pair of lag_correlations.pairs) {
-      if (pair.correlation === null) continue;
-      const pStr = pair.p_value === null ? "—" : pair.p_value.toFixed(3);
-      lines.push(
-        `| ${pair.metric_a} | ${pair.metric_b} | ${String(pair.lag_days)}d | ${pair.correlation.toFixed(3)} | ${pStr} | ${String(pair.sample_size)} |`,
-      );
-    }
-    lines.push(``);
   }
+  if (lag_correlations.strongest_negative) {
+    const sn = lag_correlations.strongest_negative;
+    lines.push(
+      `- Strongest Negative: ${sn.metric_a} → ${sn.metric_b} (lag ${String(sn.lag_days)}d, r=${formatNum(sn.correlation, 3)}, n=${String(sn.sample_size)})`,
+    );
+  }
+  lines.push(
+    ``,
+    `| Metric A | Metric B | Lag | r | p | n |`,
+    `|----------|----------|-----|---|---|---|`,
+  );
+
+  for (const pair of lag_correlations.pairs) {
+    if (pair.correlation === null) continue;
+    const pStr = pair.p_value === null ? "—" : pair.p_value.toFixed(3);
+    lines.push(
+      `| ${pair.metric_a} | ${pair.metric_b} | ${String(pair.lag_days)}d | ${pair.correlation.toFixed(3)} | ${pStr} | ${String(pair.sample_size)} |`,
+    );
+  }
+  lines.push(``);
 
   return lines;
+}
+
+function formatAdvancedInsights(insights: AdvancedInsights): string[] {
+  return [
+    ...formatHrvAdvancedSection(insights),
+    ...formatFitnessSection(insights),
+    ...formatCrossDomainSection(insights),
+    ...formatLagCorrelationsSection(insights),
+  ];
 }
 
 export function formatCombinedReport(

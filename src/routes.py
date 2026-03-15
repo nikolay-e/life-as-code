@@ -18,6 +18,8 @@ from security import encrypt_data_for_user, verify_password
 
 logger = get_logger(__name__)
 
+SETTINGS_REDIRECT = "/dashboard/settings"
+
 
 class UserModel:
     """User model for Flask-Login compatibility."""
@@ -45,108 +47,200 @@ class LoginForm(FlaskForm):
     submit = SubmitField("Login")
 
 
-def register_routes(server, limiter):
-    """Register Flask routes with the server."""
+def _authenticate_user(form):
+    with get_db_session_context() as db:
+        user = db.scalars(select(User).filter_by(username=form.username.data)).first()
+        if (
+            user
+            and form.password.data
+            and verify_password(form.password.data, user.password_hash)
+        ):
+            user_model = UserModel(user.id, user.username)
+            login_user(user_model)
+            logger.info(
+                "login_success",
+                username=form.username.data,
+                user_id=user.id,
+            )
+            return redirect("/dashboard/")
+        logger.warning(
+            "login_failed",
+            username=form.username.data,
+            reason="invalid_credentials",
+            ip=request.remote_addr,
+        )
+        flash("Invalid username or password")
+    return None
 
+
+def _render_login_page(form):
+    # nosemgrep: python.flask.security.audit.render-template-string.render-template-string
+    return render_template_string(
+        """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Life-as-Code - Login</title>
+        <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                   height: 100vh; margin: 0; display: flex; align-items: center; justify-content: center; }
+            .login-container { background: white; padding: 2rem; border-radius: 10px;
+                              box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 400px; max-width: 90%; }
+            .logo { text-align: center; margin-bottom: 2rem; }
+            .logo h1 { color: #333; margin: 0; }
+            .logo p { color: #666; margin: 5px 0 0 0; }
+            .form-group { margin-bottom: 1rem; }
+            .form-group label { display: block; margin-bottom: 5px; font-weight: bold; color: #333; }
+            .form-group input { width: 100%; padding: 12px; border: 1px solid #ddd;
+                               border-radius: 5px; font-size: 16px; box-sizing: border-box; }
+            .btn { background: #667eea; color: white; border: none; padding: 12px 24px;
+                   border-radius: 5px; cursor: pointer; width: 100%; font-size: 16px; }
+            .btn:hover { background: #5a6fd8; }
+            .alert { background: #f8d7da; color: #721c24; padding: 10px;
+                     border-radius: 5px; margin-bottom: 1rem; }
+            .footer { text-align: center; margin-top: 2rem; color: #666; font-size: 14px; }
+        </style>
+    </head>
+    <body>
+        <div class="login-container">
+            <div class="logo">
+                <h1>🏥 Life-as-Code</h1>
+                <p>Health Analytics Portal</p>
+            </div>
+
+            {% with messages = get_flashed_messages() %}
+                {% if messages %}
+                    <div class="alert">{{ messages[0] }}</div>
+                {% endif %}
+            {% endwith %}
+
+            <form method="post">
+                {{ form.hidden_tag() }}
+                <div class="form-group">
+                    {{ form.username.label(class="") }}
+                    {{ form.username(class="", required=True) }}
+                </div>
+                <div class="form-group">
+                    {{ form.password.label(class="") }}
+                    {{ form.password(class="", required=True) }}
+                </div>
+                <button type="submit" class="btn">Login</button>
+            </form>
+
+            <div class="footer">
+                <p>Contact your administrator for account access.</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """,
+        form=form,
+    )
+
+
+def _build_whoop_auth_url(client_id, redirect_uri, state):
+    from urllib.parse import quote
+
+    scope = quote("offline read:recovery read:sleep read:workout read:cycles")
+    return (
+        f"https://api.prod.whoop.com/oauth/oauth2/auth"
+        f"?client_id={client_id}"
+        f"&redirect_uri={quote(redirect_uri)}"
+        f"&response_type=code"
+        f"&scope={scope}"
+        f"&state={state}"
+    )
+
+
+def _validate_whoop_callback_state(state):
+    stored_state = session.pop("whoop_oauth_state", None)
+    if not state or state != stored_state:
+        logger.error(
+            "whoop_oauth_state_mismatch",
+            has_received_state=bool(state),
+            has_stored_state=bool(stored_state),
+        )
+        flash("Invalid OAuth state - please try again")
+        return False
+    return True
+
+
+def _exchange_whoop_token(code, client_id, client_secret, redirect_uri):
+    logger.info("whoop_token_exchange_started")
+    response = requests.post(
+        "https://api.prod.whoop.com/oauth/oauth2/token",
+        data={
+            "grant_type": "authorization_code",
+            "code": code,
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "redirect_uri": redirect_uri,
+        },
+        timeout=30,
+    )
+    if response.status_code != 200:
+        logger.error(
+            "whoop_token_exchange_failed",
+            status_code=response.status_code,
+        )
+        return None
+    tokens = response.json()
+    logger.info(
+        "whoop_token_exchange_successful",
+        expires_in=tokens.get("expires_in"),
+    )
+    return tokens
+
+
+def _save_whoop_tokens(tokens):
+    with get_db_session_context() as db:
+        creds = db.scalars(
+            select(UserCredentials).where(UserCredentials.user_id == current_user.id)
+        ).first()
+
+        if not creds:
+            logger.info("creating_new_user_credentials")
+            creds = UserCredentials(user_id=current_user.id)
+            db.add(creds)
+
+        encrypted_token = encrypt_data_for_user(tokens["access_token"], current_user.id)
+        encrypted_refresh = encrypt_data_for_user(
+            tokens["refresh_token"], current_user.id
+        )
+
+        logger.info(
+            "whoop_credentials_encrypted",
+            has_access_token=bool(encrypted_token),
+            has_refresh_token=bool(encrypted_refresh),
+        )
+
+        creds.encrypted_whoop_access_token = encrypted_token
+        creds.encrypted_whoop_refresh_token = encrypted_refresh
+        creds.whoop_token_expires_at = utcnow() + datetime.timedelta(
+            seconds=tokens.get("expires_in", 3600)
+        )
+
+        db.commit()
+        logger.info("whoop_credentials_saved")
+
+
+def register_routes(server, limiter):
     @server.route("/login", methods=["GET", "POST"])
     @limiter.limit("3000 per hour")
     def login():
         form = LoginForm()
         if form.validate_on_submit():
             try:
-                with get_db_session_context() as db:
-                    user = db.scalars(
-                        select(User).filter_by(username=form.username.data)
-                    ).first()
-                    if (
-                        user
-                        and form.password.data
-                        and verify_password(form.password.data, user.password_hash)
-                    ):
-                        user_model = UserModel(user.id, user.username)
-                        login_user(user_model)
-                        logger.info(
-                            "login_success",
-                            username=form.username.data,
-                            user_id=user.id,
-                        )
-                        return redirect("/dashboard/")
-                    logger.warning(
-                        "login_failed",
-                        username=form.username.data,
-                        reason="invalid_credentials",
-                        ip=request.remote_addr,
-                    )
-                    flash("Invalid username or password")
+                result = _authenticate_user(form)
+                if result is not None:
+                    return result
             except Exception as e:
                 logger.exception(
                     "login_error", username=form.username.data, error=str(e)
                 )
                 flash("An error occurred during login")
-
-        # nosemgrep: python.flask.security.audit.render-template-string.render-template-string
-        return render_template_string(
-            """
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Life-as-Code - Login</title>
-            <style>
-                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-                       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                       height: 100vh; margin: 0; display: flex; align-items: center; justify-content: center; }
-                .login-container { background: white; padding: 2rem; border-radius: 10px;
-                                  box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 400px; max-width: 90%; }
-                .logo { text-align: center; margin-bottom: 2rem; }
-                .logo h1 { color: #333; margin: 0; }
-                .logo p { color: #666; margin: 5px 0 0 0; }
-                .form-group { margin-bottom: 1rem; }
-                .form-group label { display: block; margin-bottom: 5px; font-weight: bold; color: #333; }
-                .form-group input { width: 100%; padding: 12px; border: 1px solid #ddd;
-                                   border-radius: 5px; font-size: 16px; box-sizing: border-box; }
-                .btn { background: #667eea; color: white; border: none; padding: 12px 24px;
-                       border-radius: 5px; cursor: pointer; width: 100%; font-size: 16px; }
-                .btn:hover { background: #5a6fd8; }
-                .alert { background: #f8d7da; color: #721c24; padding: 10px;
-                         border-radius: 5px; margin-bottom: 1rem; }
-                .footer { text-align: center; margin-top: 2rem; color: #666; font-size: 14px; }
-            </style>
-        </head>
-        <body>
-            <div class="login-container">
-                <div class="logo">
-                    <h1>🏥 Life-as-Code</h1>
-                    <p>Health Analytics Portal</p>
-                </div>
-
-                {% with messages = get_flashed_messages() %}
-                    {% if messages %}
-                        <div class="alert">{{ messages[0] }}</div>
-                    {% endif %}
-                {% endwith %}
-
-                <form method="post">
-                    {{ form.hidden_tag() }}
-                    <div class="form-group">
-                        {{ form.username.label(class="") }}
-                        {{ form.username(class="", required=True) }}
-                    </div>
-                    <div class="form-group">
-                        {{ form.password.label(class="") }}
-                        {{ form.password(class="", required=True) }}
-                    </div>
-                    <button type="submit" class="btn">Login</button>
-                </form>
-
-                <div class="footer">
-                    <p>Contact your administrator for account access.</p>
-                </div>
-            </div>
-        </body>
-        </html>
-        """,
-            form=form,
-        )
+        return _render_login_page(form)
 
     @server.route("/logout", methods=["GET"])
     @login_required
@@ -162,9 +256,6 @@ def register_routes(server, limiter):
     @server.route("/whoop/authorize", methods=["GET"])
     @login_required
     def whoop_authorize():
-        """Redirect to Whoop OAuth authorization."""
-        from urllib.parse import quote
-
         client_id = os.getenv("WHOOP_CLIENT_ID")
         redirect_uri = os.getenv(
             "WHOOP_REDIRECT_URI", "http://localhost:8080/whoop/callback"
@@ -172,22 +263,11 @@ def register_routes(server, limiter):
 
         if not client_id:
             flash("Whoop integration not configured")
-            return redirect("/dashboard/settings")
+            return redirect(SETTINGS_REDIRECT)
 
         state = secrets.token_urlsafe(32)
         session["whoop_oauth_state"] = state
-
-        scope = quote("offline read:recovery read:sleep read:workout read:cycles")
-        auth_url = (
-            f"https://api.prod.whoop.com/oauth/oauth2/auth"
-            f"?client_id={client_id}"
-            f"&redirect_uri={quote(redirect_uri)}"
-            f"&response_type=code"
-            f"&scope={scope}"
-            f"&state={state}"
-        )
-
-        return redirect(auth_url)
+        return redirect(_build_whoop_auth_url(client_id, redirect_uri, state))
 
     @server.route("/whoop/callback", methods=["GET"])
     @login_required
@@ -206,22 +286,14 @@ def register_routes(server, limiter):
             error_desc = request.args.get("error_description", error)
             logger.error("whoop_oauth_error", error_type=error)
             flash(f"Whoop authorization failed: {error_desc}")
-            return redirect("/dashboard/settings")
+            return redirect(SETTINGS_REDIRECT)
 
-        stored_state = session.pop("whoop_oauth_state", None)
-
-        if not state or state != stored_state:
-            logger.error(
-                "whoop_oauth_state_mismatch",
-                has_received_state=bool(state),
-                has_stored_state=bool(stored_state),
-            )
-            flash("Invalid OAuth state - please try again")
-            return redirect("/dashboard/settings")
+        if not _validate_whoop_callback_state(state):
+            return redirect(SETTINGS_REDIRECT)
 
         if not code:
             flash("Authorization code not received")
-            return redirect("/dashboard/settings")
+            return redirect(SETTINGS_REDIRECT)
 
         try:
             client_id = os.getenv("WHOOP_CLIENT_ID")
@@ -230,72 +302,17 @@ def register_routes(server, limiter):
                 "WHOOP_REDIRECT_URI", "http://localhost:8080/whoop/callback"
             )
 
-            logger.info("whoop_token_exchange_started")
-
-            response = requests.post(
-                "https://api.prod.whoop.com/oauth/oauth2/token",
-                data={
-                    "grant_type": "authorization_code",
-                    "code": code,
-                    "client_id": client_id,
-                    "client_secret": client_secret,
-                    "redirect_uri": redirect_uri,
-                },
-                timeout=30,
-            )
-
-            if response.status_code != 200:
-                logger.error(
-                    "whoop_token_exchange_failed",
-                    status_code=response.status_code,
-                )
+            tokens = _exchange_whoop_token(code, client_id, client_secret, redirect_uri)
+            if tokens is None:
                 flash("Token exchange failed. Please try again.")
-                return redirect("/dashboard/settings")
+                return redirect(SETTINGS_REDIRECT)
 
-            tokens = response.json()
-            logger.info(
-                "whoop_token_exchange_successful",
-                expires_in=tokens.get("expires_in"),
-            )
-
-            with get_db_session_context() as db:
-                creds = db.scalars(
-                    select(UserCredentials).where(
-                        UserCredentials.user_id == current_user.id
-                    )
-                ).first()
-
-                if not creds:
-                    logger.info("creating_new_user_credentials")
-                    creds = UserCredentials(user_id=current_user.id)
-                    db.add(creds)
-
-                encrypted_token = encrypt_data_for_user(
-                    tokens["access_token"], current_user.id
-                )
-                encrypted_refresh = encrypt_data_for_user(
-                    tokens["refresh_token"], current_user.id
-                )
-
-                logger.info(
-                    "whoop_credentials_encrypted",
-                    has_access_token=bool(encrypted_token),
-                    has_refresh_token=bool(encrypted_refresh),
-                )
-
-                creds.encrypted_whoop_access_token = encrypted_token
-                creds.encrypted_whoop_refresh_token = encrypted_refresh
-                creds.whoop_token_expires_at = utcnow() + datetime.timedelta(
-                    seconds=tokens.get("expires_in", 3600)
-                )
-
-                db.commit()
-                logger.info("whoop_credentials_saved")
+            _save_whoop_tokens(tokens)
 
             flash("Whoop account connected successfully!")
-            return redirect("/dashboard/settings")
+            return redirect(SETTINGS_REDIRECT)
 
         except (requests.RequestException, KeyError, ValueError):
             logger.exception("whoop_connection_error")
             flash("Error connecting Whoop. Please try again.")
-            return redirect("/dashboard/settings")
+            return redirect(SETTINGS_REDIRECT)

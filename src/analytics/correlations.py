@@ -98,6 +98,48 @@ def calculate_correlation_metrics(
     )
 
 
+def _calc_metric_slope(
+    data: list[DataPoint],
+    metric: str,
+    window_days: int,
+    ref_date: date | None,
+) -> float | None:
+    from .date_utils import day_number
+    from .series import to_daily_series_for_metric
+
+    daily = to_daily_series_for_metric(data, metric)
+    recent = [
+        d
+        for d in filter_by_window(daily, window_days, ref_date=ref_date)
+        if d.value is not None
+    ]
+    if len(recent) < 7:
+        return None
+    xs = [day_number(d.date) for d in recent]
+    ys: list[float] = [d.value for d in recent if d.value is not None]
+    return float(scipy_stats.linregress(xs, ys).slope)
+
+
+def _interpret_velocity(
+    velocity: float | None, threshold: float, invert_good: bool = False
+) -> str | None:
+    if velocity is None:
+        return None
+    if abs(velocity) < threshold:
+        return "stable"
+    is_positive = velocity > 0
+    is_good = not is_positive if invert_good else is_positive
+    return "improving" if is_good else "declining"
+
+
+def _interpret_weight_velocity(weight_v: float | None) -> str | None:
+    if weight_v is None:
+        return None
+    if abs(weight_v) < VELOCITY_SIGNIFICANCE["weight"]:
+        return "stable"
+    return "gaining" if weight_v > 0 else "losing"
+
+
 def calculate_velocity_metrics(
     hrv_data: list[DataPoint],
     rhr_data: list[DataPoint],
@@ -106,42 +148,10 @@ def calculate_velocity_metrics(
     window_days: int = 14,
     ref_date: date | None = None,
 ) -> VelocityMetrics:
-    from .date_utils import day_number
-    from .series import to_daily_series_for_metric
-
-    def calc_slope(data: list[DataPoint], metric: str) -> float | None:
-        daily = to_daily_series_for_metric(data, metric)
-        recent = [
-            d
-            for d in filter_by_window(daily, window_days, ref_date=ref_date)
-            if d.value is not None
-        ]
-        if len(recent) < 7:
-            return None
-        xs = [day_number(d.date) for d in recent]
-        ys: list[float] = [d.value for d in recent if d.value is not None]
-        return float(scipy_stats.linregress(xs, ys).slope)
-
-    hrv_v = calc_slope(hrv_data, "hrv")
-    rhr_v = calc_slope(rhr_data, "rhr")
-    weight_v = calc_slope(weight_data, "weight")
-    sleep_v = calc_slope(sleep_data, "sleep")
-
-    def interpret(velocity: float | None, threshold: float, invert_good: bool = False):
-        if velocity is None:
-            return None
-        if abs(velocity) < threshold:
-            return "stable"
-        is_positive = velocity > 0
-        is_good = not is_positive if invert_good else is_positive
-        return "improving" if is_good else "declining"
-
-    weight_interp = None
-    if weight_v is not None:
-        if abs(weight_v) < VELOCITY_SIGNIFICANCE["weight"]:
-            weight_interp = "stable"
-        else:
-            weight_interp = "gaining" if weight_v > 0 else "losing"
+    hrv_v = _calc_metric_slope(hrv_data, "hrv", window_days, ref_date)
+    rhr_v = _calc_metric_slope(rhr_data, "rhr", window_days, ref_date)
+    weight_v = _calc_metric_slope(weight_data, "weight", window_days, ref_date)
+    sleep_v = _calc_metric_slope(sleep_data, "sleep", window_days, ref_date)
 
     return VelocityMetrics(
         hrv_velocity=hrv_v,
@@ -149,9 +159,11 @@ def calculate_velocity_metrics(
         weight_velocity=weight_v,
         sleep_velocity=sleep_v,
         interpretation={
-            "hrv": interpret(hrv_v, VELOCITY_SIGNIFICANCE["hrv"]),
-            "rhr": interpret(rhr_v, VELOCITY_SIGNIFICANCE["rhr"], invert_good=True),
-            "weight": weight_interp,
-            "sleep": interpret(sleep_v, VELOCITY_SIGNIFICANCE["sleep"]),
+            "hrv": _interpret_velocity(hrv_v, VELOCITY_SIGNIFICANCE["hrv"]),
+            "rhr": _interpret_velocity(
+                rhr_v, VELOCITY_SIGNIFICANCE["rhr"], invert_good=True
+            ),
+            "weight": _interpret_weight_velocity(weight_v),
+            "sleep": _interpret_velocity(sleep_v, VELOCITY_SIGNIFICANCE["sleep"]),
         },
     )

@@ -23,6 +23,13 @@ from enums import DataSource, SyncStatus, SyncWindow, SyncWindowStatus
 Base: Any = declarative_base()
 
 CASCADE_ALL_DELETE = "all, delete-orphan"
+USERS_ID_FK = "users.id"
+AVG_HR_CHECK = (
+    "(avg_heart_rate >= 30 AND avg_heart_rate <= 250) OR avg_heart_rate IS NULL"
+)
+MAX_HR_CHECK = (
+    "(max_heart_rate >= 40 AND max_heart_rate <= 250) OR max_heart_rate IS NULL"
+)
 
 
 class User(Base):
@@ -115,7 +122,7 @@ class UserCredentials(Base):
     __tablename__ = "user_credentials"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, unique=True)
     garmin_email = Column(String(200))  # Store in plain text (it's just email)
     encrypted_garmin_password = Column(String(500))  # Encrypted
     encrypted_hevy_api_key = Column(String(500))  # Encrypted
@@ -136,7 +143,7 @@ class UserSettings(Base):
     __tablename__ = "user_settings"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, unique=True)
 
     # Personalized HRV thresholds
     hrv_good_threshold = Column(Integer, default=45)
@@ -167,7 +174,7 @@ class Sleep(Base):
     __tablename__ = "sleep"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
     date = Column(Date, nullable=False, index=True)
     source = Column(String(50), nullable=False, default="garmin")
     deep_minutes = Column(Float)
@@ -239,7 +246,7 @@ class HRV(Base):
     __tablename__ = "hrv"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
     date = Column(Date, nullable=False, index=True)
     source = Column(String(50), nullable=False, default="garmin")
     hrv_avg = Column(Float)
@@ -277,7 +284,7 @@ class Weight(Base):
     __tablename__ = "weight"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
     date = Column(Date, nullable=False, index=True)
     source = Column(String(50), nullable=False, default="garmin")
     weight_kg = Column(Float)
@@ -330,7 +337,7 @@ class HeartRate(Base):
     __tablename__ = "heart_rate"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
     date = Column(Date, nullable=False, index=True)
     source = Column(String(50), nullable=False, default="garmin")
     resting_hr = Column(Integer)
@@ -398,7 +405,7 @@ class Stress(Base):
     __tablename__ = "stress"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
     date = Column(Date, nullable=False, index=True)
     source = Column(String(50), nullable=False, default="garmin")
     avg_stress = Column(Float)
@@ -450,7 +457,7 @@ class Energy(Base):
     __tablename__ = "energy"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
     date = Column(Date, nullable=False, index=True)
     source = Column(String(50), nullable=False, default="garmin")
     active_energy = Column(Float, default=0)
@@ -495,7 +502,7 @@ class Steps(Base):
     __tablename__ = "steps"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
     date = Column(Date, nullable=False, index=True)
     source = Column(String(50), nullable=False, default="garmin")
     total_steps = Column(Integer, default=0)
@@ -552,7 +559,7 @@ class WorkoutSet(Base):
     __tablename__ = "workout_sets"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
     date = Column(Date, nullable=False, index=True)
     exercise = Column(String(200), nullable=False)
     set_index = Column(Integer, nullable=False, default=0)
@@ -595,7 +602,7 @@ class DataSync(Base):
     __tablename__ = "data_sync"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
     source = Column(String(50), nullable=False)  # 'garmin', 'hevy', 'whoop'
     data_type = Column(String(50), nullable=False)  # 'sleep', 'hrv', 'workouts'
     last_sync_date = Column(Date)
@@ -631,7 +638,7 @@ class SyncProgress(Base):
     __tablename__ = "sync_progress"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
     source = Column(String(50), nullable=False)
 
     oldest_synced_date = Column(Date)
@@ -737,7 +744,7 @@ class WhoopRecovery(Base):
     __tablename__ = "whoop_recovery"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
     date = Column(Date, nullable=False, index=True)
     recovery_score = Column(Integer)
     resting_heart_rate = Column(Integer)
@@ -783,7 +790,7 @@ class WhoopSleep(Base):
     __tablename__ = "whoop_sleep"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
     date = Column(Date, nullable=False, index=True)
     sleep_performance_percentage = Column(Float)
     sleep_consistency_percentage = Column(Float)
@@ -843,7 +850,7 @@ class WhoopWorkout(Base):
     __tablename__ = "whoop_workouts"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
     date = Column(Date, nullable=False, index=True)
     start_time = Column(DateTime, nullable=False)
     strain = Column(Float)
@@ -880,14 +887,8 @@ class WhoopWorkout(Base):
             "(strain >= 0 AND strain <= 21) OR strain IS NULL",
             name="valid_strain_range",
         ),
-        CheckConstraint(
-            "(avg_heart_rate >= 30 AND avg_heart_rate <= 250) OR avg_heart_rate IS NULL",
-            name="valid_whoop_workout_avg_hr",
-        ),
-        CheckConstraint(
-            "(max_heart_rate >= 40 AND max_heart_rate <= 250) OR max_heart_rate IS NULL",
-            name="valid_whoop_workout_max_hr",
-        ),
+        CheckConstraint(AVG_HR_CHECK, name="valid_whoop_workout_avg_hr"),
+        CheckConstraint(MAX_HR_CHECK, name="valid_whoop_workout_max_hr"),
         CheckConstraint(
             "(kilojoules >= 0) OR kilojoules IS NULL", name="valid_kilojoules"
         ),
@@ -905,7 +906,7 @@ class WhoopCycle(Base):
     __tablename__ = "whoop_cycles"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
     date = Column(Date, nullable=False, index=True)
     strain = Column(Float)
     kilojoules = Column(Float)
@@ -931,14 +932,8 @@ class WhoopCycle(Base):
             "(kilojoules >= 0) OR kilojoules IS NULL",
             name="valid_cycle_kilojoules",
         ),
-        CheckConstraint(
-            "(avg_heart_rate >= 30 AND avg_heart_rate <= 250) OR avg_heart_rate IS NULL",
-            name="valid_cycle_avg_hr",
-        ),
-        CheckConstraint(
-            "(max_heart_rate >= 40 AND max_heart_rate <= 250) OR max_heart_rate IS NULL",
-            name="valid_cycle_max_hr",
-        ),
+        CheckConstraint(AVG_HR_CHECK, name="valid_cycle_avg_hr"),
+        CheckConstraint(MAX_HR_CHECK, name="valid_cycle_max_hr"),
     )
 
     def __repr__(self):
@@ -949,7 +944,7 @@ class GarminTrainingStatus(Base):
     __tablename__ = "garmin_training_status"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
     date = Column(Date, nullable=False, index=True)
     vo2_max = Column(Float)
     vo2_max_precise = Column(Float)
@@ -1018,7 +1013,7 @@ class GarminActivity(Base):
     __tablename__ = "garmin_activities"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
     activity_id = Column(String(50), nullable=False)
     date = Column(Date, nullable=False, index=True)
     start_time = Column(DateTime, nullable=False)
@@ -1063,14 +1058,8 @@ class GarminActivity(Base):
             "(distance_meters >= 0) OR distance_meters IS NULL",
             name="valid_garmin_distance",
         ),
-        CheckConstraint(
-            "(avg_heart_rate >= 30 AND avg_heart_rate <= 250) OR avg_heart_rate IS NULL",
-            name="valid_garmin_activity_avg_hr",
-        ),
-        CheckConstraint(
-            "(max_heart_rate >= 40 AND max_heart_rate <= 250) OR max_heart_rate IS NULL",
-            name="valid_garmin_activity_max_hr",
-        ),
+        CheckConstraint(AVG_HR_CHECK, name="valid_garmin_activity_avg_hr"),
+        CheckConstraint(MAX_HR_CHECK, name="valid_garmin_activity_max_hr"),
         CheckConstraint(
             "(calories >= 0) OR calories IS NULL",
             name="valid_garmin_calories",
@@ -1093,7 +1082,7 @@ class GarminRacePrediction(Base):
     __tablename__ = "garmin_race_predictions"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
     date = Column(Date, nullable=False, index=True)
     prediction_5k_seconds = Column(Integer)
     prediction_10k_seconds = Column(Integer)
@@ -1142,7 +1131,7 @@ class Prediction(Base):
     __tablename__ = "predictions"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
     metric = Column(String(50), nullable=False)
     target_date = Column(Date, nullable=False)
     horizon_days = Column(Integer, nullable=False)
@@ -1174,7 +1163,7 @@ class Anomaly(Base):
     __tablename__ = "anomalies"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
     date = Column(Date, nullable=False, index=True)
     anomaly_score = Column(Float, nullable=False)
     contributing_factors = Column(JSON)
@@ -1205,7 +1194,7 @@ class HealthSnapshot(Base):
     __tablename__ = "health_snapshots"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
     date = Column(Date, nullable=False)
     mode = Column(String(20), nullable=False, default="recent")
     snapshot_json = Column(JSON, nullable=False)
@@ -1236,7 +1225,7 @@ class ClinicalAlertEvent(Base):
     __tablename__ = "clinical_alert_events"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
     alert_type = Column(String(50), nullable=False)
     severity = Column(String(20), nullable=False, default="warning")
     status = Column(String(20), nullable=False, default="open")

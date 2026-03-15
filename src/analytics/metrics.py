@@ -4,6 +4,7 @@ import math
 from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import date
+from typing import Literal
 
 from scipy import stats as scipy_stats
 
@@ -50,6 +51,7 @@ from .types import (
     BaselineOptions,
     CaloriesMetrics,
     DataPoint,
+    DataProvider,
     DataQuality,
     DayMetrics,
     DayOverDayDelta,
@@ -337,6 +339,99 @@ def calculate_baseline_metrics(
     return result
 
 
+def _get_baseline_slice(
+    daily: list[DataPoint],
+    baseline_window: int,
+    exclude_days: int,
+    ref_date: date | None,
+) -> list[DataPoint]:
+    if exclude_days > 0:
+        return filter_by_window_range(
+            daily,
+            baseline_window + exclude_days,
+            exclude_days - 1,
+            ref_date=ref_date,
+        )
+    return filter_by_window(daily, baseline_window, ref_date=ref_date)
+
+
+def _get_sorted_daily_up_to(
+    daily: list[DataPoint], ref_date: date | None
+) -> list[DataPoint]:
+    if ref_date is not None:
+        ref_str = ref_date.isoformat()
+        filtered = [d for d in daily if d.value is not None and d.date <= ref_str]
+    else:
+        filtered = [d for d in daily if d.value is not None]
+    return sorted(filtered, key=lambda d: d.date)
+
+
+def _compute_trend_slope(
+    daily: list[DataPoint],
+    trend_window: int,
+    opts: BaselineOptions,
+    ref_date: date | None,
+) -> float | None:
+    trend_data = [
+        d
+        for d in filter_by_window(daily, trend_window, ref_date=ref_date)
+        if d.value is not None
+    ]
+    prev_trend_data = [
+        d
+        for d in filter_by_window_range(
+            daily, trend_window * 2, trend_window, ref_date=ref_date
+        )
+        if d.value is not None
+    ]
+    raw_trend_values: list[float] = [d.value for d in trend_data if d.value is not None]
+    raw_prev_trend_values: list[float] = [
+        d.value for d in prev_trend_data if d.value is not None
+    ]
+    trend_values = (
+        winsorize(raw_trend_values, 5, 95) if opts.winsorize_trend else raw_trend_values
+    )
+    prev_trend_values = (
+        winsorize(raw_prev_trend_values, 5, 95)
+        if opts.winsorize_trend
+        else raw_prev_trend_values
+    )
+    min_data_for_trend = max(3, int(trend_window * 0.7))
+    has_valid_trend = (
+        len(trend_values) >= min_data_for_trend
+        and len(prev_trend_values) >= min_data_for_trend
+    )
+    if not has_valid_trend:
+        return None
+    if trend_window > 14 and len(trend_values) >= 7:
+        if opts.regression_uses_real_days:
+            return _linear_slope_per_day(
+                trend_data,
+                (5, 95) if opts.winsorize_trend else None,
+            )
+        return float(
+            scipy_stats.linregress(range(len(trend_values)), trend_values).slope
+        )
+    current_median = calculate_median(trend_values)
+    prev_median = calculate_median(prev_trend_values)
+    return (current_median - prev_median) / trend_window
+
+
+def _compute_long_term_percentile(
+    sorted_daily: list[DataPoint],
+    short_term_mean: float | None,
+    current_value: float | None,
+) -> float | None:
+    all_values = sorted(d.value for d in sorted_daily if d.value is not None)
+    if not all_values or len(all_values) < 30:
+        return None
+    anchor_value = short_term_mean if short_term_mean is not None else current_value
+    if anchor_value is None:
+        return None
+    below = sum(1 for v in all_values if v <= anchor_value)
+    return below / len(all_values) * 100
+
+
 def _calculate_baseline_metrics_impl(
     data: list[DataPoint],
     baseline_window: int = 30,
@@ -350,16 +445,7 @@ def _calculate_baseline_metrics_impl(
     daily = to_daily_series_for_metric(data, metric_name)
     exclude_days = max(0, opts.exclude_recent_days_from_baseline)
 
-    if exclude_days > 0:
-        baseline_slice = filter_by_window_range(
-            daily,
-            baseline_window + exclude_days,
-            exclude_days - 1,
-            ref_date=ref_date,
-        )
-    else:
-        baseline_slice = filter_by_window(daily, baseline_window, ref_date=ref_date)
-
+    baseline_slice = _get_baseline_slice(daily, baseline_window, exclude_days, ref_date)
     baseline_data = [d for d in baseline_slice if d.value is not None]
     short_term_data = [
         d
@@ -367,16 +453,7 @@ def _calculate_baseline_metrics_impl(
         if d.value is not None
     ]
 
-    if ref_date is not None:
-        ref_str = ref_date.isoformat()
-        sorted_daily = sorted(
-            [d for d in daily if d.value is not None and d.date <= ref_str],
-            key=lambda d: d.date,
-        )
-    else:
-        sorted_daily = sorted(
-            [d for d in daily if d.value is not None], key=lambda d: d.date
-        )
+    sorted_daily = _get_sorted_daily_up_to(daily, ref_date)
     current_value = sorted_daily[-1].value if sorted_daily else None
 
     if not baseline_data:
@@ -423,59 +500,10 @@ def _calculate_baseline_metrics_impl(
     if short_term_mean is not None and has_sufficient_data and has_valid_std:
         shifted_z_score = (short_term_mean - mean) / std
 
-    trend_data = [
-        d
-        for d in filter_by_window(daily, trend_window, ref_date=ref_date)
-        if d.value is not None
-    ]
-    prev_trend_data = [
-        d
-        for d in filter_by_window_range(
-            daily, trend_window * 2, trend_window, ref_date=ref_date
-        )
-        if d.value is not None
-    ]
-    raw_trend_values = [d.value for d in trend_data if d.value is not None]
-    raw_prev_trend_values = [d.value for d in prev_trend_data if d.value is not None]
-    trend_values = (
-        winsorize(raw_trend_values, 5, 95) if opts.winsorize_trend else raw_trend_values
+    trend_slope = _compute_trend_slope(daily, trend_window, opts, ref_date)
+    long_term_percentile = _compute_long_term_percentile(
+        sorted_daily, short_term_mean, current_value
     )
-    prev_trend_values = (
-        winsorize(raw_prev_trend_values, 5, 95)
-        if opts.winsorize_trend
-        else raw_prev_trend_values
-    )
-
-    min_data_for_trend = max(3, int(trend_window * 0.7))
-    has_valid_trend = (
-        len(trend_values) >= min_data_for_trend
-        and len(prev_trend_values) >= min_data_for_trend
-    )
-
-    trend_slope: float | None = None
-    if has_valid_trend:
-        if trend_window > 14 and len(trend_values) >= 7:
-            if opts.regression_uses_real_days:
-                trend_slope = _linear_slope_per_day(
-                    trend_data,
-                    (5, 95) if opts.winsorize_trend else None,
-                )
-            else:
-                trend_slope = float(
-                    scipy_stats.linregress(range(len(trend_values)), trend_values).slope
-                )
-        else:
-            current_median = calculate_median(trend_values)
-            prev_median = calculate_median(prev_trend_values)
-            trend_slope = (current_median - prev_median) / trend_window
-
-    all_values = sorted(d.value for d in sorted_daily if d.value is not None)
-    long_term_percentile: float | None = None
-    if all_values and len(all_values) >= 30:
-        anchor_value = short_term_mean if short_term_mean is not None else current_value
-        if anchor_value is not None:
-            below = sum(1 for v in all_values if v <= anchor_value)
-            long_term_percentile = below / len(all_values) * 100
 
     return BaselineMetrics(
         mean=mean,
@@ -809,42 +837,52 @@ def calculate_calories_metrics(
 # ============================================
 
 
+def _classify_calories_trend(
+    cal_delta: float,
+) -> Literal["surplus", "deficit", "maintenance"]:
+    if cal_delta > 100:
+        return "surplus"
+    if cal_delta < -100:
+        return "deficit"
+    return "maintenance"
+
+
+def _classify_weight_trend(
+    weight_delta: float,
+) -> Literal["gaining", "losing", "stable"]:
+    if weight_delta > 0.2:
+        return "gaining"
+    if weight_delta < -0.2:
+        return "losing"
+    return "stable"
+
+
+def _classify_balance_signal(
+    calories_trend: str, weight_trend: str
+) -> Literal["surplus_confirmed", "deficit_confirmed", "mixed"]:
+    if weight_trend == "gaining" and calories_trend in ("surplus", "maintenance"):
+        return "surplus_confirmed"
+    if weight_trend == "losing" and calories_trend in ("deficit", "maintenance"):
+        return "deficit_confirmed"
+    return "mixed"
+
+
 def calculate_energy_balance(
     cal: CaloriesMetrics, wt: WeightMetrics
 ) -> EnergyBalanceMetrics:
     cal_delta = cal.delta
     weight_delta = wt.period_change
 
-    calories_trend = None
-    if cal_delta is not None:
-        if cal_delta > 100:
-            calories_trend = "surplus"
-        elif cal_delta < -100:
-            calories_trend = "deficit"
-        else:
-            calories_trend = "maintenance"
-
-    weight_trend = None
-    if weight_delta is not None:
-        if weight_delta > 0.2:
-            weight_trend = "gaining"
-        elif weight_delta < -0.2:
-            weight_trend = "losing"
-        else:
-            weight_trend = "stable"
+    calories_trend = (
+        _classify_calories_trend(cal_delta) if cal_delta is not None else None
+    )
+    weight_trend = (
+        _classify_weight_trend(weight_delta) if weight_delta is not None else None
+    )
 
     balance_signal = None
     if calories_trend is not None and weight_trend is not None:
-        if (calories_trend == "surplus" and weight_trend == "gaining") or (
-            calories_trend == "maintenance" and weight_trend == "gaining"
-        ):
-            balance_signal = "surplus_confirmed"
-        elif (calories_trend == "deficit" and weight_trend == "losing") or (
-            calories_trend == "maintenance" and weight_trend == "losing"
-        ):
-            balance_signal = "deficit_confirmed"
-        else:
-            balance_signal = "mixed"
+        balance_signal = _classify_balance_signal(calories_trend, weight_trend)
 
     return EnergyBalanceMetrics(
         calories_trend=calories_trend,
@@ -909,6 +947,214 @@ def _cap_confidence(conf: float) -> float:
     return max(0.0, min(1.0, conf))
 
 
+def _format_gate_reason(conf: float, gate: float) -> str:
+    if gate >= 0.5:
+        return ""
+    return f"Conf {conf * 100:.0f}%, gate {gate:.2f}"
+
+
+def _compute_health_score_baselines(
+    hrv_data: list[DataPoint],
+    rhr_data: list[DataPoint],
+    sleep_data: list[DataPoint],
+    adjusted_stress: list[DataPoint],
+    adjusted_steps: list[DataPoint],
+    adjusted_strain: list[DataPoint],
+    adjusted_calories: list[DataPoint],
+    weight_data: list[DataPoint] | None,
+    baseline_window: int,
+    short_term_window: int,
+    trend_window: int,
+    options: BaselineOptions | None,
+    ref_date: date | None,
+) -> dict[str, BaselineMetrics | None]:
+    WEIGHT_MIN_BASELINE = 180
+    weight_baseline_window = max(baseline_window, WEIGHT_MIN_BASELINE)
+
+    def bl(
+        data: list[DataPoint], metric: str, window: int | None = None
+    ) -> BaselineMetrics:
+        return calculate_baseline_metrics(
+            data,
+            window or baseline_window,
+            short_term_window,
+            metric,
+            trend_window,
+            options,
+            ref_date=ref_date,
+        )
+
+    return {
+        "hrv": bl(hrv_data, "hrv"),
+        "rhr": bl(rhr_data, "rhr"),
+        "sleep": bl(sleep_data, "sleep"),
+        "stress": bl(adjusted_stress, "stress"),
+        "steps": bl(adjusted_steps, "steps"),
+        "strain": bl(adjusted_strain, "strain"),
+        "calories": bl(adjusted_calories, "calories") if adjusted_calories else None,
+        "weight": (
+            bl(weight_data, "weight", weight_baseline_window) if weight_data else None
+        ),
+    }
+
+
+def _resolve_metric_confidences(
+    fi: dict[str, FusedZScoreInput],
+    hrv_quality: DataQuality | None,
+    rhr_quality: DataQuality | None,
+    sleep_quality: DataQuality | None,
+    stress_quality: DataQuality | None,
+    steps_quality: DataQuality | None,
+    strain_quality: DataQuality | None,
+    bl_calories: BaselineMetrics | None,
+    bl_weight: BaselineMetrics | None,
+) -> dict[str, float]:
+    def fused_conf(key: str, fallback_quality: DataQuality | None) -> float:
+        return _cap_confidence(
+            fi.get(
+                key,
+                FusedZScoreInput(
+                    confidence=fallback_quality.confidence if fallback_quality else 1,
+                    source="garmin",
+                ),
+            ).confidence
+        )
+
+    cal_fi = fi.get("calories")
+    return {
+        "hrv": fused_conf("hrv", hrv_quality),
+        "rhr": fused_conf("rhr", rhr_quality),
+        "sleep": fused_conf("sleep", sleep_quality),
+        "stress": _cap_confidence(stress_quality.confidence if stress_quality else 1),
+        "steps": _cap_confidence(steps_quality.confidence if steps_quality else 1),
+        "strain": _cap_confidence(strain_quality.confidence if strain_quality else 1),
+        "calories": _cap_confidence(
+            cal_fi.confidence
+            if cal_fi
+            else (0.7 if bl_calories and bl_calories.z_score is not None else 0)
+        ),
+        "weight": _cap_confidence(
+            0.8 if bl_weight and bl_weight.z_score is not None else 0
+        ),
+    }
+
+
+def _compute_gated_core_score(
+    z_scores: dict[str, float | None],
+    gates: dict[str, float],
+    core_weights: dict[str, float],
+    min_core_metrics: int,
+) -> tuple[float | None, float]:
+    core_sum = 0.0
+    core_weight_sum = 0.0
+    core_available = 0
+    for key in ("hrv", "rhr", "sleep", "stress"):
+        z = z_scores.get(key)
+        if z is not None:
+            core_available += 1
+            ew = core_weights[key] * gates[key]
+            core_sum += z * ew
+            core_weight_sum += ew
+    if core_available >= min_core_metrics and core_weight_sum > 0:
+        return core_sum / core_weight_sum, core_weight_sum
+    return None, core_weight_sum
+
+
+def _compute_gated_support_score(
+    z_scores: dict[str, float | None],
+    gates: dict[str, float],
+    support_weights: dict[str, float],
+) -> tuple[float | None, float]:
+    support_sum = 0.0
+    support_weight_sum = 0.0
+    for key in ("steps", "calories", "weight"):
+        z = z_scores.get(key)
+        if z is not None:
+            ew = support_weights[key] * gates[key]
+            support_sum += z * ew
+            support_weight_sum += ew
+    if support_weight_sum > 0:
+        return support_sum / support_weight_sum, support_weight_sum
+    return None, support_weight_sum
+
+
+def _compute_overall_score(
+    recovery_core: float | None,
+    training_load: float | None,
+    behavior_support: float | None,
+) -> float | None:
+    recovery_weight = 0.75 if training_load is None else 0.6
+    training_weight = 0.2
+    support_weight = 0.25 if training_load is None else 0.2
+    scored_parts: list[tuple[float, float]] = []
+    if recovery_core is not None:
+        scored_parts.append((recovery_core, recovery_weight))
+    if training_load is not None:
+        scored_parts.append((training_load, training_weight))
+    if behavior_support is not None:
+        scored_parts.append((behavior_support, support_weight))
+    if not scored_parts:
+        return None
+    total_w = sum(w for _, w in scored_parts)
+    return sum(s * w for s, w in scored_parts) / total_w
+
+
+def _build_health_contributors(
+    raw_z: dict[str, float | None],
+    goodness_z: dict[str, float | None],
+    confs: dict[str, float],
+    gates: dict[str, float],
+    core_weights: dict[str, float],
+    support_weights: dict[str, float],
+    fi: dict[str, FusedZScoreInput],
+    bl: dict[str, BaselineMetrics | None],
+    steps_reason: str,
+) -> list[HealthScoreContributor]:
+    def contrib(
+        name: str,
+        key: str,
+        weights: dict[str, float],
+        source: DataProvider | None,
+        gate_reason_override: str | None = None,
+    ) -> HealthScoreContributor:
+        z = goodness_z.get(key)
+        w = weights[key]
+        g = gates[key]
+        c = confs[key]
+        bl_item = bl.get(key)
+        return HealthScoreContributor(
+            name=name,
+            raw_z_score=raw_z.get(key),
+            goodness_z_score=z,
+            weight=w,
+            contribution=z * w * g if z is not None else None,
+            confidence=c,
+            gate_factor=g,
+            gate_reason=(
+                gate_reason_override
+                if gate_reason_override is not None
+                else _format_gate_reason(c, g)
+            ),
+            source=fi[key].source if key in fi else source,
+            long_term_percentile=bl_item.long_term_percentile if bl_item else None,
+        )
+
+    steps_gate_reason = (
+        _format_gate_reason(confs["steps"], gates["steps"])
+        if gates["steps"] < 0.5
+        else steps_reason
+    )
+    return [
+        contrib("HRV", "hrv", core_weights, None),
+        contrib("Resting HR", "rhr", core_weights, None),
+        contrib("Sleep", "sleep", core_weights, None),
+        contrib("Stress", "stress", core_weights, "garmin"),
+        contrib("Steps", "steps", support_weights, "garmin", steps_gate_reason),
+        contrib("Calories", "calories", support_weights, None),
+        contrib("Weight", "weight", support_weights, "garmin"),
+    ]
+
+
 def calculate_health_score(
     hrv_data: list[DataPoint],
     rhr_data: list[DataPoint],
@@ -941,137 +1187,53 @@ def calculate_health_score(
     _, adjusted_stress, _ = should_use_today_metric(
         stress_data, "stress", ref_date=ref_date
     )
+    adjusted_calories: list[DataPoint] = []
     if calories_data:
         _, adjusted_calories, _ = should_use_today_metric(
             calories_data, "calories", ref_date=ref_date
         )
-    else:
-        adjusted_calories = []
 
-    bl_hrv = calculate_baseline_metrics(
+    baselines = _compute_health_score_baselines(
         hrv_data,
-        baseline_window,
-        short_term_window,
-        "hrv",
-        trend_window,
-        options,
-        ref_date=ref_date,
-    )
-    bl_rhr = calculate_baseline_metrics(
         rhr_data,
-        baseline_window,
-        short_term_window,
-        "rhr",
-        trend_window,
-        options,
-        ref_date=ref_date,
-    )
-    bl_sleep = calculate_baseline_metrics(
         sleep_data,
-        baseline_window,
-        short_term_window,
-        "sleep",
-        trend_window,
-        options,
-        ref_date=ref_date,
-    )
-    bl_stress = calculate_baseline_metrics(
         adjusted_stress,
-        baseline_window,
-        short_term_window,
-        "stress",
-        trend_window,
-        options,
-        ref_date=ref_date,
-    )
-    bl_steps = calculate_baseline_metrics(
         adjusted_steps,
-        baseline_window,
-        short_term_window,
-        "steps",
-        trend_window,
-        options,
-        ref_date=ref_date,
-    )
-    bl_strain = calculate_baseline_metrics(
         adjusted_strain,
+        adjusted_calories,
+        weight_data,
         baseline_window,
         short_term_window,
-        "strain",
         trend_window,
         options,
-        ref_date=ref_date,
+        ref_date,
     )
-    bl_calories = (
-        calculate_baseline_metrics(
-            adjusted_calories,
-            baseline_window,
-            short_term_window,
-            "calories",
-            trend_window,
-            options,
-            ref_date=ref_date,
-        )
-        if adjusted_calories
-        else None
-    )
-    WEIGHT_MIN_BASELINE = 180
-    weight_baseline_window = max(baseline_window, WEIGHT_MIN_BASELINE)
-    bl_weight = (
-        calculate_baseline_metrics(
-            weight_data,
-            weight_baseline_window,
-            short_term_window,
-            "weight",
-            trend_window,
-            options,
-            ref_date=ref_date,
-        )
-        if weight_data
-        else None
-    )
+    bl_hrv = baselines["hrv"]
+    bl_rhr = baselines["rhr"]
+    bl_sleep = baselines["sleep"]
+    bl_stress = baselines["stress"]
+    bl_steps = baselines["steps"]
+    bl_strain = baselines["strain"]
+    bl_calories = baselines["calories"]
+    bl_weight = baselines["weight"]
 
     fi = fused_inputs or {}
-    hrv_conf = _cap_confidence(
-        fi.get(
-            "hrv",
-            FusedZScoreInput(
-                confidence=hrv_quality.confidence if hrv_quality else 1, source="garmin"
-            ),
-        ).confidence
-    )
-    rhr_conf = _cap_confidence(
-        fi.get(
-            "rhr",
-            FusedZScoreInput(
-                confidence=rhr_quality.confidence if rhr_quality else 1, source="garmin"
-            ),
-        ).confidence
-    )
-    sleep_conf = _cap_confidence(
-        fi.get(
-            "sleep",
-            FusedZScoreInput(
-                confidence=sleep_quality.confidence if sleep_quality else 1,
-                source="garmin",
-            ),
-        ).confidence
-    )
-    stress_conf = _cap_confidence(stress_quality.confidence if stress_quality else 1)
-    steps_conf = _cap_confidence(steps_quality.confidence if steps_quality else 1)
-    strain_conf = _cap_confidence(strain_quality.confidence if strain_quality else 1)
-    cal_fi = fi.get("calories")
-    calories_conf = _cap_confidence(
-        cal_fi.confidence
-        if cal_fi
-        else (0.7 if bl_calories and bl_calories.z_score is not None else 0)
-    )
-    weight_conf = _cap_confidence(
-        0.8 if bl_weight and bl_weight.z_score is not None else 0
+    confs = _resolve_metric_confidences(
+        fi,
+        hrv_quality,
+        rhr_quality,
+        sleep_quality,
+        stress_quality,
+        steps_quality,
+        strain_quality,
+        bl_calories,
+        bl_weight,
     )
 
-    def select_z(bl: BaselineMetrics) -> float | None:
-        return bl.shifted_z_score if use_shifted_z_score else bl.z_score
+    def select_z(bl_item: BaselineMetrics | None) -> float | None:
+        if bl_item is None:
+            return None
+        return bl_item.shifted_z_score if use_shifted_z_score else bl_item.z_score
 
     raw_z_hrv = _clamp_z(select_z(bl_hrv))
     raw_z_rhr = _clamp_z(select_z(bl_rhr))
@@ -1079,90 +1241,51 @@ def calculate_health_score(
     raw_z_stress = _clamp_z(select_z(bl_stress))
     raw_z_steps = _clamp_z(select_z(bl_steps))
     raw_z_load = _clamp_z(select_z(bl_strain))
-    raw_z_cal = _clamp_z(select_z(bl_calories) if bl_calories else None)
-    raw_z_weight = _clamp_z(select_z(bl_weight) if bl_weight else None)
+    raw_z_cal = _clamp_z(select_z(bl_calories))
+    raw_z_weight = _clamp_z(select_z(bl_weight))
 
-    z_hrv = raw_z_hrv
-    z_rhr = -raw_z_rhr if raw_z_rhr is not None else None
-    z_sleep = raw_z_sleep
-    z_stress = -raw_z_stress if raw_z_stress is not None else None
-    z_steps = (
-        _steps_recovery_cap(raw_z_steps, raw_z_hrv) if raw_z_steps is not None else None
-    )
-    z_load = _strain_goodness(raw_z_load) if raw_z_load is not None else None
-    z_cal = _calories_goodness(raw_z_cal) if raw_z_cal is not None else None
-    z_weight = _weight_goodness(raw_z_weight) if raw_z_weight is not None else None
+    raw_z = {
+        "hrv": raw_z_hrv,
+        "rhr": raw_z_rhr,
+        "sleep": raw_z_sleep,
+        "stress": raw_z_stress,
+        "steps": raw_z_steps,
+        "strain": raw_z_load,
+        "calories": raw_z_cal,
+        "weight": raw_z_weight,
+    }
+    goodness_z = {
+        "hrv": raw_z_hrv,
+        "rhr": -raw_z_rhr if raw_z_rhr is not None else None,
+        "sleep": raw_z_sleep,
+        "stress": -raw_z_stress if raw_z_stress is not None else None,
+        "steps": (
+            _steps_recovery_cap(raw_z_steps, raw_z_hrv)
+            if raw_z_steps is not None
+            else None
+        ),
+        "strain": _strain_goodness(raw_z_load) if raw_z_load is not None else None,
+        "calories": _calories_goodness(raw_z_cal) if raw_z_cal is not None else None,
+        "weight": _weight_goodness(raw_z_weight) if raw_z_weight is not None else None,
+    }
 
     core_weights = {"hrv": 0.35, "rhr": 0.25, "sleep": 0.25, "stress": 0.15}
     support_weights = {"steps": 0.35, "calories": 0.35, "weight": 0.30}
     total_core_weight = sum(core_weights.values())
     total_support_weight = sum(support_weights.values())
-    min_core_metrics = 2
 
-    hrv_gate = _confidence_gate(hrv_conf)
-    rhr_gate = _confidence_gate(rhr_conf)
-    sleep_gate = _confidence_gate(sleep_conf)
-    stress_gate = _confidence_gate(stress_conf)
-    steps_gate = _confidence_gate(steps_conf)
-    strain_gate = _confidence_gate(strain_conf)
-    cal_gate = _confidence_gate(calories_conf)
-    weight_gate = _confidence_gate(weight_conf)
+    gates = {k: _confidence_gate(v) for k, v in confs.items()}
 
-    recovery_core: float | None = None
-    core_sum = 0.0
-    core_weight_sum = 0.0
-    core_available = 0
-    for z, gate, w_key in [
-        (z_hrv, hrv_gate, "hrv"),
-        (z_rhr, rhr_gate, "rhr"),
-        (z_sleep, sleep_gate, "sleep"),
-        (z_stress, stress_gate, "stress"),
-    ]:
-        if z is not None:
-            core_available += 1
-            ew = core_weights[w_key] * gate
-            core_sum += z * ew
-            core_weight_sum += ew
-    if core_available >= min_core_metrics and core_weight_sum > 0:
-        recovery_core = core_sum / core_weight_sum
+    recovery_core, core_weight_sum = _compute_gated_core_score(
+        goodness_z, gates, core_weights, min_core_metrics=2
+    )
+    behavior_support, support_weight_sum = _compute_gated_support_score(
+        goodness_z, gates, support_weights
+    )
 
-    behavior_support: float | None = None
-    support_sum = 0.0
-    support_weight_sum = 0.0
-    for z, gate, w_key in [
-        (z_steps, steps_gate, "steps"),
-        (z_cal, cal_gate, "calories"),
-        (z_weight, weight_gate, "weight"),
-    ]:
-        if z is not None:
-            ew = support_weights[w_key] * gate
-            support_sum += z * ew
-            support_weight_sum += ew
-    if support_weight_sum > 0:
-        behavior_support = support_sum / support_weight_sum
-
-    training_load: float | None = None
-    if z_load is not None and strain_gate > 0.1:
-        training_load = z_load
-
-    overall: float | None = None
-    recovery_weight = 0.6
-    training_weight = 0.2
-    support_weight = 0.2
-    if training_load is None:
-        recovery_weight = 0.75
-        support_weight = 0.25
-
-    scored_parts: list[tuple[float, float]] = []
-    if recovery_core is not None:
-        scored_parts.append((recovery_core, recovery_weight))
-    if training_load is not None:
-        scored_parts.append((training_load, training_weight))
-    if behavior_support is not None:
-        scored_parts.append((behavior_support, support_weight))
-    if scored_parts:
-        total_w = sum(w for _, w in scored_parts)
-        overall = sum(s * w for s, w in scored_parts) / total_w
+    z_load = goodness_z["strain"]
+    training_load = z_load if z_load is not None and gates["strain"] > 0.1 else None
+    overall = _compute_overall_score(recovery_core, training_load, behavior_support)
 
     total_possible_weight = total_core_weight + total_support_weight
     data_confidence = (
@@ -1171,129 +1294,17 @@ def calculate_health_score(
         else None
     )
 
-    def _gate_reason(conf: float, gate: float) -> str:
-        if gate >= 0.5:
-            return ""
-        return f"Conf {conf * 100:.0f}%, gate {gate:.2f}"
-
-    contributors = [
-        HealthScoreContributor(
-            name="HRV",
-            raw_z_score=raw_z_hrv,
-            goodness_z_score=z_hrv,
-            weight=core_weights["hrv"],
-            contribution=(
-                z_hrv * core_weights["hrv"] * hrv_gate if z_hrv is not None else None
-            ),
-            confidence=hrv_conf,
-            gate_factor=hrv_gate,
-            gate_reason=_gate_reason(hrv_conf, hrv_gate),
-            source=fi["hrv"].source if "hrv" in fi else None,
-            long_term_percentile=bl_hrv.long_term_percentile,
-        ),
-        HealthScoreContributor(
-            name="Resting HR",
-            raw_z_score=raw_z_rhr,
-            goodness_z_score=z_rhr,
-            weight=core_weights["rhr"],
-            contribution=(
-                z_rhr * core_weights["rhr"] * rhr_gate if z_rhr is not None else None
-            ),
-            confidence=rhr_conf,
-            gate_factor=rhr_gate,
-            gate_reason=_gate_reason(rhr_conf, rhr_gate),
-            source=fi["rhr"].source if "rhr" in fi else None,
-            long_term_percentile=bl_rhr.long_term_percentile,
-        ),
-        HealthScoreContributor(
-            name="Sleep",
-            raw_z_score=raw_z_sleep,
-            goodness_z_score=z_sleep,
-            weight=core_weights["sleep"],
-            contribution=(
-                z_sleep * core_weights["sleep"] * sleep_gate
-                if z_sleep is not None
-                else None
-            ),
-            confidence=sleep_conf,
-            gate_factor=sleep_gate,
-            gate_reason=_gate_reason(sleep_conf, sleep_gate),
-            source=fi["sleep"].source if "sleep" in fi else None,
-            long_term_percentile=bl_sleep.long_term_percentile,
-        ),
-        HealthScoreContributor(
-            name="Stress",
-            raw_z_score=raw_z_stress,
-            goodness_z_score=z_stress,
-            weight=core_weights["stress"],
-            contribution=(
-                z_stress * core_weights["stress"] * stress_gate
-                if z_stress is not None
-                else None
-            ),
-            confidence=stress_conf,
-            gate_factor=stress_gate,
-            gate_reason=_gate_reason(stress_conf, stress_gate),
-            source="garmin",
-            long_term_percentile=bl_stress.long_term_percentile,
-        ),
-        HealthScoreContributor(
-            name="Steps",
-            raw_z_score=raw_z_steps,
-            goodness_z_score=z_steps,
-            weight=support_weights["steps"],
-            contribution=(
-                z_steps * support_weights["steps"] * steps_gate
-                if z_steps is not None
-                else None
-            ),
-            confidence=steps_conf,
-            gate_factor=steps_gate,
-            gate_reason=(
-                _gate_reason(steps_conf, steps_gate)
-                if steps_gate < 0.5
-                else steps_reason
-            ),
-            source="garmin",
-            long_term_percentile=bl_steps.long_term_percentile,
-        ),
-        HealthScoreContributor(
-            name="Calories",
-            raw_z_score=raw_z_cal,
-            goodness_z_score=z_cal,
-            weight=support_weights["calories"],
-            contribution=(
-                z_cal * support_weights["calories"] * cal_gate
-                if z_cal is not None
-                else None
-            ),
-            confidence=calories_conf,
-            gate_factor=cal_gate,
-            gate_reason=_gate_reason(calories_conf, cal_gate),
-            source=fi["calories"].source if "calories" in fi else None,
-            long_term_percentile=(
-                bl_calories.long_term_percentile if bl_calories else None
-            ),
-        ),
-        HealthScoreContributor(
-            name="Weight",
-            raw_z_score=raw_z_weight,
-            goodness_z_score=z_weight,
-            weight=support_weights["weight"],
-            contribution=(
-                z_weight * support_weights["weight"] * weight_gate
-                if z_weight is not None
-                else None
-            ),
-            confidence=weight_conf,
-            gate_factor=weight_gate,
-            gate_reason=_gate_reason(weight_conf, weight_gate),
-            source="garmin",
-            long_term_percentile=(
-                bl_weight.long_term_percentile if bl_weight else None
-            ),
-        ),
-    ]
+    contributors = _build_health_contributors(
+        raw_z,
+        goodness_z,
+        confs,
+        gates,
+        core_weights,
+        support_weights,
+        fi,
+        baselines,
+        steps_reason,
+    )
 
     return HealthScore(
         overall=overall,

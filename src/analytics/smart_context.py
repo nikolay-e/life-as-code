@@ -3,11 +3,9 @@ from __future__ import annotations
 from .types import HealthAnalysis
 
 
-def build_smart_context(analysis: HealthAnalysis, max_anomalies: int = 3) -> dict:
-    ctx: dict = {}
-
+def _build_health_score_ctx(analysis: HealthAnalysis) -> dict:
     hs = analysis.health_score
-    ctx["health_score"] = {
+    hs_ctx: dict = {
         "overall": hs.overall,
         "recovery_core": hs.recovery_core,
         "training_load": hs.training_load,
@@ -27,41 +25,32 @@ def build_smart_context(analysis: HealthAnalysis, max_anomalies: int = 3) -> dic
         and c.gate_factor >= 0.1
     ]
     if notable:
-        ctx["health_score"]["notable_contributors"] = notable
-
+        hs_ctx["notable_contributors"] = notable
     gated = [
         {"name": c.name, "reason": c.gate_reason}
         for c in hs.contributors
         if c.gate_factor < 0.1 and c.gate_reason
     ]
     if gated:
-        ctx["health_score"]["gated"] = gated
-
+        hs_ctx["gated"] = gated
     if hs.data_confidence is not None:
-        ctx["health_score"]["data_confidence"] = round(hs.data_confidence, 2)
+        hs_ctx["data_confidence"] = round(hs.data_confidence, 2)
+    return hs_ctx
 
-    _add_if_notable_recovery(ctx, analysis)
-    _add_if_notable_sleep(ctx, analysis)
-    _add_if_notable_activity(ctx, analysis)
-    _add_if_notable_weight(ctx, analysis)
-    _add_if_notable_calories(ctx, analysis)
-    _add_if_notable_energy_balance(ctx, analysis)
 
+def _add_clinical_signals(ctx: dict, analysis: HealthAnalysis) -> None:
     ca = analysis.clinical_alerts
     if ca.any_alert:
         ctx["clinical_alerts"] = ca.model_dump(exclude_none=True)
-
-    o = analysis.overreaching
-    if o.risk_level in ("high", "critical"):
-        ctx["overreaching"] = o.model_dump(exclude_none=True)
-
-    ir = analysis.illness_risk
-    if ir.risk_level in ("moderate", "high"):
-        ctx["illness_risk"] = ir.model_dump(exclude_none=True)
-
+    if analysis.overreaching.risk_level in ("high", "critical"):
+        ctx["overreaching"] = analysis.overreaching.model_dump(exclude_none=True)
+    if analysis.illness_risk.risk_level in ("moderate", "high"):
+        ctx["illness_risk"] = analysis.illness_risk.model_dump(exclude_none=True)
     if analysis.decorrelation.is_decorrelated:
         ctx["decorrelation"] = analysis.decorrelation.model_dump(exclude_none=True)
 
+
+def _add_significant_correlations(ctx: dict, analysis: HealthAnalysis) -> None:
     corr = analysis.correlations
     sig_corrs = {}
     if corr.hrv_rhr_p_value is not None and corr.hrv_rhr_p_value < 0.05:
@@ -73,32 +62,24 @@ def build_smart_context(analysis: HealthAnalysis, max_anomalies: int = 3) -> dic
     if sig_corrs:
         ctx["significant_correlations"] = sig_corrs
 
-    vel = analysis.velocity
-    active_vel = {
-        k: v for k, v in vel.interpretation.items() if v is not None and v != "stable"
-    }
-    if active_vel:
-        ctx["velocity_trends"] = active_vel
 
-    rc = analysis.recovery_capacity
-    if rc.avg_recovery_days is not None:
-        ctx["recovery_capacity"] = rc.model_dump(exclude_none=True)
-
+def _add_anomalies_ctx(ctx: dict, analysis: HealthAnalysis, max_anomalies: int) -> None:
     anomalies = analysis.anomalies
-    if anomalies.anomaly_count > 0:
-        ctx["anomalies"] = {
-            "count": anomalies.anomaly_count,
-            "has_recent": anomalies.has_recent_anomaly,
-            "items": [
-                a.model_dump(exclude_none=True)
-                for a in anomalies.anomalies[:max_anomalies]
-            ],
-        }
-        if anomalies.most_severe:
-            ctx["anomalies"]["most_severe"] = anomalies.most_severe.model_dump(
-                exclude_none=True
-            )
+    if anomalies.anomaly_count <= 0:
+        return
+    anomaly_ctx = {
+        "count": anomalies.anomaly_count,
+        "has_recent": anomalies.has_recent_anomaly,
+        "items": [
+            a.model_dump(exclude_none=True) for a in anomalies.anomalies[:max_anomalies]
+        ],
+    }
+    if anomalies.most_severe:
+        anomaly_ctx["most_severe"] = anomalies.most_severe.model_dump(exclude_none=True)
+    ctx["anomalies"] = anomaly_ctx
 
+
+def _add_day_over_day_ctx(ctx: dict, analysis: HealthAnalysis) -> None:
     dod = analysis.day_over_day
     notable_dod = {}
     for field_name in ["hrv", "rhr", "sleep", "recovery", "steps", "weight", "strain"]:
@@ -113,24 +94,59 @@ def build_smart_context(analysis: HealthAnalysis, max_anomalies: int = 3) -> dic
     if notable_dod:
         ctx["day_over_day"] = notable_dod
 
+
+def _add_ml_insights_ctx(
+    ctx: dict, analysis: HealthAnalysis, max_anomalies: int
+) -> None:
+    ml = analysis.ml_insights
+    if not ml:
+        return
+    ml_ctx = {}
+    if ml.has_active_forecasts:
+        ml_ctx["forecasts"] = [f.model_dump(exclude_none=True) for f in ml.forecasts]
+    if ml.has_recent_ml_anomalies:
+        ml_ctx["ml_anomalies"] = [
+            a.model_dump(exclude_none=True) for a in ml.ml_anomalies[:max_anomalies]
+        ]
+    if ml_ctx:
+        ctx["ml_insights"] = ml_ctx
+
+
+def build_smart_context(analysis: HealthAnalysis, max_anomalies: int = 3) -> dict:
+    ctx: dict = {}
+
+    ctx["health_score"] = _build_health_score_ctx(analysis)
+
+    _add_if_notable_recovery(ctx, analysis)
+    _add_if_notable_sleep(ctx, analysis)
+    _add_if_notable_activity(ctx, analysis)
+    _add_if_notable_weight(ctx, analysis)
+    _add_if_notable_calories(ctx, analysis)
+    _add_if_notable_energy_balance(ctx, analysis)
+
+    _add_clinical_signals(ctx, analysis)
+    _add_significant_correlations(ctx, analysis)
+
+    vel = analysis.velocity
+    active_vel = {
+        k: v for k, v in vel.interpretation.items() if v is not None and v != "stable"
+    }
+    if active_vel:
+        ctx["velocity_trends"] = active_vel
+
+    rc = analysis.recovery_capacity
+    if rc.avg_recovery_days is not None:
+        ctx["recovery_capacity"] = rc.model_dump(exclude_none=True)
+
+    _add_anomalies_ctx(ctx, analysis, max_anomalies)
+    _add_day_over_day_ctx(ctx, analysis)
+
     if analysis.recent_days:
         ctx["recent_days"] = [
             d.model_dump(exclude_none=True) for d in analysis.recent_days
         ]
 
-    ml = analysis.ml_insights
-    if ml:
-        ml_ctx = {}
-        if ml.has_active_forecasts:
-            ml_ctx["forecasts"] = [
-                f.model_dump(exclude_none=True) for f in ml.forecasts
-            ]
-        if ml.has_recent_ml_anomalies:
-            ml_ctx["ml_anomalies"] = [
-                a.model_dump(exclude_none=True) for a in ml.ml_anomalies[:max_anomalies]
-            ]
-        if ml_ctx:
-            ctx["ml_insights"] = ml_ctx
+    _add_ml_insights_ctx(ctx, analysis, max_anomalies)
 
     ctx["day_completeness"] = analysis.day_completeness
 

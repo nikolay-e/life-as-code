@@ -109,6 +109,9 @@ def sync_garmin_data_for_user(
         logger.error("garmin_credentials_error", user_id=user_id, error=str(e))
         return {"error": str(e), "user_id": user_id}
 
+    if not creds.garmin_email or not creds.garmin_password:
+        return {"error": "Garmin credentials not configured", "user_id": user_id}
+
     try:
         api = init_api(creds.garmin_email, creds.garmin_password, user_id)
         date_range = get_sync_date_range(days, full_sync, GARMIN_MAX_HISTORY_DAYS)
@@ -216,7 +219,8 @@ def sync_garmin_data_for_user(
             },
         ]
 
-        enhanced_api = GarminAPIWrapper(api, date_range.start_date, date_range.end_date)
+        sync_start = date_range.start_date or datetime.date(2000, 1, 1)
+        enhanced_api = GarminAPIWrapper(api, sync_start, date_range.end_date)
         results = batch_sync_data(sync_configs, user_id, enhanced_api)
 
         summary = {
@@ -224,7 +228,11 @@ def sync_garmin_data_for_user(
             "sync_date": utcnow().isoformat(),
             "sync_type": date_range.sync_type,
             "date_range": {
-                "start": date_range.start_date.isoformat(),
+                "start": (
+                    date_range.start_date.isoformat()
+                    if date_range.start_date
+                    else "all"
+                ),
                 "end": date_range.end_date.isoformat(),
             },
             "results": [r.get_summary() for r in results],
@@ -275,13 +283,24 @@ class GarminAPIWrapper:
                 self._summary_cache[date_str] = None
         return self._summary_cache[date_str]
 
+    def _append_fetched_data(
+        self, results: list[dict], data: dict | list[dict] | None
+    ) -> None:
+        if not data:
+            return
+        if isinstance(data, list):
+            for x in data:
+                if isinstance(x, dict):
+                    results.append(dict(x))
+        elif isinstance(data, dict):
+            results.append(dict(data))
+
     def _fetch_daily(
         self,
         date_range: tuple,
         data_type: str,
         fetcher: Callable[[str, datetime.date], dict | list[dict] | None],
     ) -> list[dict]:
-        """Generic daily data fetcher with retry, rate limiting, and error handling."""
         results: list[dict] = []
         start_date, end_date = date_range
 
@@ -301,13 +320,7 @@ class GarminAPIWrapper:
             try:
                 date_str = current_date.strftime("%Y-%m-%d")
                 data = _fetch_with_retry(date_str, current_date)
-                if data:
-                    if isinstance(data, list):
-                        for x in data:
-                            if isinstance(x, dict):
-                                results.append(dict(x))
-                    elif isinstance(data, dict):
-                        results.append(dict(data))
+                self._append_fetched_data(results, data)
             except Exception as e:
                 logger.warning(
                     "garmin_api_error",
@@ -372,50 +385,52 @@ class GarminAPIWrapper:
 
         return self._fetch_daily(date_range, "stress", fetch)
 
-    def get_steps_data(self, date_range: tuple) -> list[dict]:
-        """Get steps data for date range. Uses get_user_summary with fallback to hourly buckets."""
+    def _steps_from_summary(
+        self, summary: dict, current_date: datetime.date
+    ) -> dict | None:
+        result = {
+            "date": current_date,
+            "totalSteps": self._safe_int(summary.get("totalSteps")),
+            "totalDistance": self._safe_float(summary.get("totalDistanceMeters")),
+            "stepGoal": self._safe_int(summary.get("dailyStepGoal")),
+            "activeMinutes": (
+                self._safe_int(summary.get("vigorousIntensityMinutes", 0) or 0) or 0
+            )
+            + (self._safe_int(summary.get("moderateIntensityMinutes", 0) or 0) or 0),
+            "floorsClimbed": self._safe_int(summary.get("floorsAscended")),
+        }
+        return result if result["totalSteps"] is not None else None
 
+    def _steps_from_hourly_buckets(
+        self, date_str: str, current_date: datetime.date
+    ) -> dict | None:
+        steps_data = self.api.get_steps_data(date_str)
+        if not steps_data or not isinstance(steps_data, list):
+            return None
+        total_steps = sum(
+            self._safe_int(bucket.get("steps")) or 0
+            for bucket in steps_data
+            if isinstance(bucket, dict)
+        )
+        if total_steps > 0:
+            return {
+                "date": current_date,
+                "totalSteps": total_steps,
+                "totalDistance": None,
+                "stepGoal": None,
+                "activeMinutes": None,
+                "floorsClimbed": None,
+            }
+        return None
+
+    def get_steps_data(self, date_range: tuple) -> list[dict]:
         def fetch(date_str: str, current_date: datetime.date) -> dict | None:
             summary = self._get_cached_summary(date_str)
             if summary:
-                result = {
-                    "date": current_date,
-                    "totalSteps": self._safe_int(summary.get("totalSteps")),
-                    "totalDistance": self._safe_float(
-                        summary.get("totalDistanceMeters")
-                    ),
-                    "stepGoal": self._safe_int(summary.get("dailyStepGoal")),
-                    "activeMinutes": (
-                        self._safe_int(summary.get("vigorousIntensityMinutes", 0) or 0)
-                        or 0
-                    )
-                    + (
-                        self._safe_int(summary.get("moderateIntensityMinutes", 0) or 0)
-                        or 0
-                    ),
-                    "floorsClimbed": self._safe_int(summary.get("floorsAscended")),
-                }
-                if result["totalSteps"] is not None:
+                result = self._steps_from_summary(summary, current_date)
+                if result is not None:
                     return result
-
-            # Fallback to get_steps_data and aggregate hourly buckets
-            steps_data = self.api.get_steps_data(date_str)
-            if steps_data and isinstance(steps_data, list):
-                total_steps = sum(
-                    self._safe_int(bucket.get("steps")) or 0
-                    for bucket in steps_data
-                    if isinstance(bucket, dict)
-                )
-                if total_steps > 0:
-                    return {
-                        "date": current_date,
-                        "totalSteps": total_steps,
-                        "totalDistance": None,
-                        "stepGoal": None,
-                        "activeMinutes": None,
-                        "floorsClimbed": None,
-                    }
-            return None
+            return self._steps_from_hourly_buckets(date_str, current_date)
 
         return self._fetch_daily(date_range, "steps", fetch)
 
@@ -449,40 +464,56 @@ class GarminAPIWrapper:
 
         return None
 
-    def get_weight_data(self, date_range: tuple) -> list[dict]:
-        """Get weight and body composition data. Weight values are in grams."""
+    def _weight_entries_from_date_list(
+        self, date_weight_list: list, current_date: datetime.date
+    ) -> list[dict]:
+        results: list[dict] = []
+        for item in date_weight_list:
+            if isinstance(item, dict) and item.get("weight"):
+                entry = dict(item)
+                entry["date"] = current_date
+                results.append(entry)
+        return results
 
+    def _weight_entry_from_total_average(
+        self, weight_response: dict, current_date: datetime.date
+    ) -> list[dict]:
+        total_avg = weight_response.get("totalAverage", {})
+        if (
+            total_avg
+            and isinstance(total_avg, dict)
+            and total_avg.get("weight") is not None
+        ):
+            return [
+                {
+                    "date": current_date,
+                    "weight": total_avg.get("weight"),
+                    "bmi": total_avg.get("bmi"),
+                    "bodyFat": total_avg.get("bodyFat"),
+                    "bodyWater": total_avg.get("bodyWater"),
+                    "boneMass": total_avg.get("boneMass"),
+                    "muscleMass": total_avg.get("muscleMass"),
+                }
+            ]
+        return []
+
+    def get_weight_data(self, date_range: tuple) -> list[dict]:
         def fetch(date_str: str, current_date: datetime.date) -> list[dict] | None:
             weight_response = self.api.get_weigh_ins(date_str, date_str)
             if not weight_response or not isinstance(weight_response, dict):
                 return None
 
-            results: list[dict] = []
             date_weight_list = weight_response.get("dateWeightList", [])
             if date_weight_list and isinstance(date_weight_list, list):
-                for item in date_weight_list:
-                    if isinstance(item, dict) and item.get("weight"):
-                        entry = dict(item)
-                        entry["date"] = current_date
-                        results.append(entry)
+                results = self._weight_entries_from_date_list(
+                    date_weight_list, current_date
+                )
             elif not date_weight_list:
-                total_avg = weight_response.get("totalAverage", {})
-                if (
-                    total_avg
-                    and isinstance(total_avg, dict)
-                    and total_avg.get("weight") is not None
-                ):
-                    results.append(
-                        {
-                            "date": current_date,
-                            "weight": total_avg.get("weight"),
-                            "bmi": total_avg.get("bmi"),
-                            "bodyFat": total_avg.get("bodyFat"),
-                            "bodyWater": total_avg.get("bodyWater"),
-                            "boneMass": total_avg.get("boneMass"),
-                            "muscleMass": total_avg.get("muscleMass"),
-                        }
-                    )
+                results = self._weight_entry_from_total_average(
+                    weight_response, current_date
+                )
+            else:
+                results = []
             return results if results else None
 
         return self._fetch_daily(date_range, "weight", fetch)
@@ -565,122 +596,183 @@ class GarminAPIWrapper:
 
         return self._fetch_daily(date_range, "energy", fetch)
 
-    def get_training_status_data(self, date_range: tuple) -> list[dict]:
-        """Get training status, VO2Max, fitness age, and related metrics from multiple endpoints."""
+    def _fetch_training_status_fields(
+        self, date_str: str, combined_data: dict[str, Any]
+    ) -> None:
+        try:
+            training_status = self.api.get_training_status(date_str)
+            logger.debug(
+                "garmin_training_status_raw",
+                date=date_str,
+                response_type=type(training_status).__name__,
+                is_dict=isinstance(training_status, dict),
+                is_empty=not training_status,
+            )
+            if not training_status or not isinstance(training_status, dict):
+                return
+            acute_load_dto = self._extract_acute_training_load_dto(training_status)
+            logger.info(
+                "garmin_training_status_response",
+                date=date_str,
+                vo2_max=training_status.get("vo2MaxValue"),
+                fitness_age=training_status.get("fitnessAge"),
+                daily_load_acute=(
+                    acute_load_dto.get("dailyTrainingLoadAcute")
+                    if acute_load_dto
+                    else None
+                ),
+                daily_load_chronic=(
+                    acute_load_dto.get("dailyTrainingLoadChronic")
+                    if acute_load_dto
+                    else None
+                ),
+                has_keys=list(training_status.keys())[:15],
+            )
+            combined_data["trainingStatusLabel"] = training_status.get(
+                "trainingStatusLabel"
+            )
+            combined_data["trainingStatusDescription"] = training_status.get(
+                "trainingStatusDescription"
+            )
+            if acute_load_dto:
+                combined_data["acuteTrainingLoad"] = acute_load_dto.get(
+                    "dailyTrainingLoadAcute"
+                )
+                combined_data["trainingLoad7Days"] = acute_load_dto.get(
+                    "dailyTrainingLoadChronic"
+                )
+            else:
+                combined_data["acuteTrainingLoad"] = training_status.get(
+                    "acuteTrainingLoad"
+                )
+                combined_data["trainingLoad7Days"] = training_status.get(
+                    "trainingLoad7Days"
+                ) or training_status.get("sevenDaysTrainingLoad")
+            combined_data["primaryTrainingEffect"] = training_status.get(
+                "primaryTrainingEffect"
+            )
+            combined_data["anaerobicTrainingEffect"] = training_status.get(
+                "anaerobicTrainingEffect"
+            )
+        except Exception as e:
+            logger.warning(
+                "garmin_training_status_error",
+                date=date_str,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
 
+    def _fetch_max_metrics_fields(
+        self, date_str: str, combined_data: dict[str, Any]
+    ) -> None:
+        try:
+            max_metrics = self.api.get_max_metrics(date_str)
+            if not max_metrics or not isinstance(max_metrics, dict):
+                return
+            generic = max_metrics.get("generic")
+            if generic and isinstance(generic, dict):
+                combined_data["vo2MaxValue"] = self._safe_float(
+                    generic.get("vo2MaxValue")
+                )
+                combined_data["vo2MaxPreciseValue"] = self._safe_float(
+                    generic.get("vo2MaxPreciseValue")
+                )
+            logger.debug(
+                "garmin_max_metrics_response",
+                date=date_str,
+                vo2_max=combined_data.get("vo2MaxValue"),
+            )
+        except Exception as e:
+            logger.warning(
+                "garmin_max_metrics_error",
+                date=date_str,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+
+    def _fetch_fitnessage_fields(
+        self, date_str: str, combined_data: dict[str, Any]
+    ) -> None:
+        try:
+            fitnessage = self.api.get_fitnessage_data(date_str)
+            if not fitnessage or not isinstance(fitnessage, dict):
+                return
+            combined_data["fitnessAge"] = self._safe_int(fitnessage.get("fitnessAge"))
+            logger.debug(
+                "garmin_fitnessage_response",
+                date=date_str,
+                fitness_age=combined_data.get("fitnessAge"),
+            )
+        except Exception as e:
+            logger.warning(
+                "garmin_fitnessage_error",
+                date=date_str,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+
+    def _fetch_endurance_score_fields(
+        self, date_str: str, combined_data: dict[str, Any]
+    ) -> None:
+        try:
+            endurance = self.api.get_endurance_score(date_str)
+            if endurance and isinstance(endurance, dict):
+                combined_data["enduranceScore"] = endurance.get(
+                    "overallScore"
+                ) or endurance.get("enduranceScore")
+        except Exception as e:
+            logger.warning(
+                "garmin_endurance_score_error",
+                date=date_str,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+
+    def _fetch_readiness_fields(
+        self, date_str: str, combined_data: dict[str, Any]
+    ) -> None:
+        try:
+            readiness: Any = self.api.get_training_readiness(date_str)
+            if not readiness:
+                return
+            if isinstance(readiness, list) and len(readiness) > 0:
+                morning_entry = next(
+                    (
+                        entry
+                        for entry in readiness
+                        if isinstance(entry, dict)
+                        and entry.get("inputContext") == "AFTER_WAKEUP_RESET"
+                    ),
+                    readiness[0],
+                )
+                if isinstance(morning_entry, dict):
+                    combined_data["trainingReadinessScore"] = morning_entry.get("score")
+            elif isinstance(readiness, dict):
+                combined_data["trainingReadinessScore"] = readiness.get("score")
+        except Exception as e:
+            logger.warning(
+                "garmin_training_readiness_error",
+                date=date_str,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+
+    _TRAINING_MEANINGFUL_KEYS = [
+        "vo2MaxValue",
+        "fitnessAge",
+        "trainingLoad7Days",
+        "totalKilocalories",
+        "enduranceScore",
+        "trainingReadinessScore",
+    ]
+
+    def get_training_status_data(self, date_range: tuple) -> list[dict]:
         def fetch(date_str: str, current_date: datetime.date) -> dict | None:
             combined_data: dict[str, Any] = {"date": current_date}
 
-            # Get training status (includes VO2 max and training load)
-            try:
-                training_status = self.api.get_training_status(date_str)
-                logger.debug(
-                    "garmin_training_status_raw",
-                    date=date_str,
-                    response_type=type(training_status).__name__,
-                    is_dict=isinstance(training_status, dict),
-                    is_empty=not training_status,
-                )
-                if training_status and isinstance(training_status, dict):
-                    acute_load_dto = self._extract_acute_training_load_dto(
-                        training_status
-                    )
-                    logger.info(
-                        "garmin_training_status_response",
-                        date=date_str,
-                        vo2_max=training_status.get("vo2MaxValue"),
-                        fitness_age=training_status.get("fitnessAge"),
-                        daily_load_acute=(
-                            acute_load_dto.get("dailyTrainingLoadAcute")
-                            if acute_load_dto
-                            else None
-                        ),
-                        daily_load_chronic=(
-                            acute_load_dto.get("dailyTrainingLoadChronic")
-                            if acute_load_dto
-                            else None
-                        ),
-                        has_keys=list(training_status.keys())[:15],
-                    )
-                    # Training status only - vo2Max and fitnessAge come from separate APIs
-                    combined_data["trainingStatusLabel"] = training_status.get(
-                        "trainingStatusLabel"
-                    )
-                    combined_data["trainingStatusDescription"] = training_status.get(
-                        "trainingStatusDescription"
-                    )
-                    if acute_load_dto:
-                        combined_data["acuteTrainingLoad"] = acute_load_dto.get(
-                            "dailyTrainingLoadAcute"
-                        )
-                        combined_data["trainingLoad7Days"] = acute_load_dto.get(
-                            "dailyTrainingLoadChronic"
-                        )
-                    else:
-                        combined_data["acuteTrainingLoad"] = training_status.get(
-                            "acuteTrainingLoad"
-                        )
-                        combined_data["trainingLoad7Days"] = training_status.get(
-                            "trainingLoad7Days"
-                        ) or training_status.get("sevenDaysTrainingLoad")
-                    combined_data["primaryTrainingEffect"] = training_status.get(
-                        "primaryTrainingEffect"
-                    )
-                    combined_data["anaerobicTrainingEffect"] = training_status.get(
-                        "anaerobicTrainingEffect"
-                    )
-            except Exception as e:
-                logger.warning(
-                    "garmin_training_status_error",
-                    date=date_str,
-                    error=str(e),
-                    error_type=type(e).__name__,
-                )
-
-            # Get max metrics (VO2 max)
-            try:
-                max_metrics = self.api.get_max_metrics(date_str)
-                if max_metrics and isinstance(max_metrics, dict):
-                    generic = max_metrics.get("generic")
-                    if generic and isinstance(generic, dict):
-                        combined_data["vo2MaxValue"] = self._safe_float(
-                            generic.get("vo2MaxValue")
-                        )
-                        combined_data["vo2MaxPreciseValue"] = self._safe_float(
-                            generic.get("vo2MaxPreciseValue")
-                        )
-                    logger.debug(
-                        "garmin_max_metrics_response",
-                        date=date_str,
-                        vo2_max=combined_data.get("vo2MaxValue"),
-                    )
-            except Exception as e:
-                logger.warning(
-                    "garmin_max_metrics_error",
-                    date=date_str,
-                    error=str(e),
-                    error_type=type(e).__name__,
-                )
-
-            # Get fitness age
-            try:
-                fitnessage = self.api.get_fitnessage_data(date_str)
-                if fitnessage and isinstance(fitnessage, dict):
-                    combined_data["fitnessAge"] = self._safe_int(
-                        fitnessage.get("fitnessAge")
-                    )
-                    logger.debug(
-                        "garmin_fitnessage_response",
-                        date=date_str,
-                        fitness_age=combined_data.get("fitnessAge"),
-                    )
-            except Exception as e:
-                logger.warning(
-                    "garmin_fitnessage_error",
-                    date=date_str,
-                    error=str(e),
-                    error_type=type(e).__name__,
-                )
+            self._fetch_training_status_fields(date_str, combined_data)
+            self._fetch_max_metrics_fields(date_str, combined_data)
+            self._fetch_fitnessage_fields(date_str, combined_data)
 
             summary = self._get_cached_summary(date_str)
             if summary:
@@ -691,57 +783,12 @@ class GarminAPIWrapper:
                     summary.get("activeKilocalories")
                 )
 
-            # Try to get endurance score
-            try:
-                endurance = self.api.get_endurance_score(date_str)
-                if endurance and isinstance(endurance, dict):
-                    combined_data["enduranceScore"] = endurance.get(
-                        "overallScore"
-                    ) or endurance.get("enduranceScore")
-            except Exception as e:
-                logger.warning(
-                    "garmin_endurance_score_error",
-                    date=date_str,
-                    error=str(e),
-                    error_type=type(e).__name__,
-                )
+            self._fetch_endurance_score_fields(date_str, combined_data)
+            self._fetch_readiness_fields(date_str, combined_data)
 
-            # Try to get training readiness score
-            try:
-                readiness = self.api.get_training_readiness(date_str)
-                if readiness:
-                    if isinstance(readiness, list) and len(readiness) > 0:
-                        morning_entry = next(
-                            (
-                                entry
-                                for entry in readiness
-                                if entry.get("inputContext") == "AFTER_WAKEUP_RESET"
-                            ),
-                            readiness[0],
-                        )
-                        combined_data["trainingReadinessScore"] = morning_entry.get(
-                            "score"
-                        )
-                    elif isinstance(readiness, dict):
-                        combined_data["trainingReadinessScore"] = readiness.get("score")
-            except Exception as e:
-                logger.warning(
-                    "garmin_training_readiness_error",
-                    date=date_str,
-                    error=str(e),
-                    error_type=type(e).__name__,
-                )
-
-            # Only return if we have at least some meaningful data
-            meaningful_keys = [
-                "vo2MaxValue",
-                "fitnessAge",
-                "trainingLoad7Days",
-                "totalKilocalories",
-                "enduranceScore",
-                "trainingReadinessScore",
-            ]
-            if any(combined_data.get(k) is not None for k in meaningful_keys):
+            if any(
+                combined_data.get(k) is not None for k in self._TRAINING_MEANINGFUL_KEYS
+            ):
                 return combined_data
             return None
 
@@ -777,6 +824,38 @@ class GarminAPIWrapper:
         names = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five"}
         return names.get(zone_number, "")
 
+    def _parse_activity_date(self, activity: dict) -> datetime.date | None:
+        start_time_str = activity.get("startTimeLocal") or activity.get("startTimeGMT")
+        if not start_time_str:
+            return None
+        try:
+            if isinstance(start_time_str, str):
+                start_dt = datetime.datetime.fromisoformat(
+                    start_time_str.replace("Z", "+00:00")
+                )
+                return start_dt.date()
+            if isinstance(start_time_str, (int, float)):
+                start_dt = datetime.datetime.fromtimestamp(start_time_str / 1000)
+                return start_dt.date()
+        except (ValueError, OSError):
+            return None
+        return None
+
+    def _enrich_activity_with_date_and_zones(self, activity: dict) -> dict | None:
+        activity_data = dict(activity)
+        date = self._parse_activity_date(activity)
+        if date is None:
+            return None
+        activity_data["date"] = date
+
+        activity_id = activity.get("activityId")
+        if activity_id:
+            time.sleep(GARMIN_API_RATE_LIMIT_DELAY)
+            zone_data = self._fetch_hr_zones_for_activity(str(activity_id))
+            activity_data.update(zone_data)
+
+        return activity_data
+
     def get_activities_data(self, date_range: tuple) -> list[dict]:
         start_date, end_date = date_range
         results: list[dict] = []
@@ -792,34 +871,9 @@ class GarminAPIWrapper:
             for activity in activities:
                 if not isinstance(activity, dict):
                     continue
-
-                activity_data = dict(activity)
-
-                start_time_str = activity.get("startTimeLocal") or activity.get(
-                    "startTimeGMT"
-                )
-                if start_time_str:
-                    try:
-                        if isinstance(start_time_str, str):
-                            start_dt = datetime.datetime.fromisoformat(
-                                start_time_str.replace("Z", "+00:00")
-                            )
-                            activity_data["date"] = start_dt.date()
-                        elif isinstance(start_time_str, (int, float)):
-                            start_dt = datetime.datetime.fromtimestamp(
-                                start_time_str / 1000
-                            )
-                            activity_data["date"] = start_dt.date()
-                    except (ValueError, OSError):
-                        continue
-
-                activity_id = activity.get("activityId")
-                if activity_id:
-                    time.sleep(GARMIN_API_RATE_LIMIT_DELAY)
-                    zone_data = self._fetch_hr_zones_for_activity(str(activity_id))
-                    activity_data.update(zone_data)
-
-                results.append(activity_data)
+                enriched = self._enrich_activity_with_date_and_zones(activity)
+                if enriched is not None:
+                    results.append(enriched)
 
             logger.info(
                 "garmin_activities_fetched",
@@ -837,59 +891,66 @@ class GarminAPIWrapper:
 
         return results
 
+    _RACE_DISTANCE_KEY_MAP = {
+        5000: "prediction_5k_seconds",
+        10000: "prediction_10k_seconds",
+        21097: "prediction_half_marathon_seconds",
+        21098: "prediction_half_marathon_seconds",
+        42195: "prediction_marathon_seconds",
+    }
+
+    _RACE_PREDICTION_MEANINGFUL_KEYS = [
+        "prediction_5k_seconds",
+        "prediction_10k_seconds",
+        "prediction_half_marathon_seconds",
+        "prediction_marathon_seconds",
+    ]
+
+    def _extract_vo2_from_predictions(
+        self, predictions: dict, result: dict[str, Any]
+    ) -> None:
+        for vo2_key in ("overallVO2Max", "vo2MaxValue", "vo2Max"):
+            val = predictions.get(vo2_key)
+            if val is not None:
+                result["vo2MaxValue"] = self._safe_float(val)
+                break
+
+    def _extract_race_times(self, predictions: dict, result: dict[str, Any]) -> None:
+        for list_key in ("raceTimes", "racePredictions"):
+            race_list = predictions.get(list_key, [])
+            if not isinstance(race_list, list):
+                continue
+            for race in race_list:
+                if not isinstance(race, dict):
+                    continue
+                raw_distance = race.get("distance") or race.get(
+                    "racePredictionDistance"
+                )
+                distance = int(raw_distance) if raw_distance is not None else None
+                time_secs = race.get("time") or race.get("racePredictionTime")
+                if (
+                    distance is not None
+                    and distance in self._RACE_DISTANCE_KEY_MAP
+                    and time_secs is not None
+                ):
+                    result[self._RACE_DISTANCE_KEY_MAP[distance]] = self._safe_int(
+                        time_secs
+                    )
+
     def get_race_predictions_data(self) -> list[dict]:
         try:
             predictions = self.api.get_race_predictions()
             if not predictions or not isinstance(predictions, dict):
                 return []
 
-            today = datetime.date.today()
-            result: dict[str, Any] = {"date": today}
+            result: dict[str, Any] = {"date": datetime.date.today()}
+            self._extract_vo2_from_predictions(predictions, result)
+            self._extract_race_times(predictions, result)
 
-            for vo2_key in ("overallVO2Max", "vo2MaxValue", "vo2Max"):
-                val = predictions.get(vo2_key)
-                if val is not None:
-                    result["vo2MaxValue"] = self._safe_float(val)
-                    break
-
-            distance_key_map = {
-                5000: "prediction_5k_seconds",
-                10000: "prediction_10k_seconds",
-                21097: "prediction_half_marathon_seconds",
-                21098: "prediction_half_marathon_seconds",
-                42195: "prediction_marathon_seconds",
-            }
-
-            for list_key in ("raceTimes", "racePredictions"):
-                race_list = predictions.get(list_key, [])
-                if not isinstance(race_list, list):
-                    continue
-                for race in race_list:
-                    if not isinstance(race, dict):
-                        continue
-                    raw_distance = race.get("distance") or race.get(
-                        "racePredictionDistance"
-                    )
-                    distance = int(raw_distance) if raw_distance is not None else None
-                    time_secs = race.get("time") or race.get("racePredictionTime")
-                    if (
-                        distance is not None
-                        and distance in distance_key_map
-                        and time_secs is not None
-                    ):
-                        result[distance_key_map[distance]] = self._safe_int(time_secs)
-
-            meaningful_keys = [
-                "prediction_5k_seconds",
-                "prediction_10k_seconds",
-                "prediction_half_marathon_seconds",
-                "prediction_marathon_seconds",
-            ]
-            if any(result.get(k) is not None for k in meaningful_keys):
-                logger.info(
-                    "garmin_race_predictions_fetched",
-                    keys=list(result.keys()),
-                )
+            if any(
+                result.get(k) is not None for k in self._RACE_PREDICTION_MEANINGFUL_KEYS
+            ):
+                logger.info("garmin_race_predictions_fetched", keys=list(result.keys()))
                 return [result]
 
             return []

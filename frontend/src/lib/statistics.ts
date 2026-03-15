@@ -176,6 +176,60 @@ function catmullRomSpline(
   return a * t3 + b * t2 + c * t + d;
 }
 
+function extractMeasurements<
+  T extends { date: string } & Record<string, unknown>,
+>(sortedData: T[], valueKey: keyof T, firstDate: Date): MeasurementPoint[] {
+  const measurements: MeasurementPoint[] = [];
+  for (const point of sortedData) {
+    const value = point[valueKey] as number | null | undefined;
+    if (value !== null && value !== undefined) {
+      const date = new Date(point.date);
+      const dayIndex = Math.round(
+        (date.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24),
+      );
+      measurements.push({ date, dateStr: point.date, value, dayIndex });
+    }
+  }
+  return measurements;
+}
+
+function buildSmoothedByDay(
+  measurements: MeasurementPoint[],
+): Map<number, number> {
+  const smoothedByDay = new Map<number, number>();
+  for (let i = 0; i < measurements.length - 1; i++) {
+    const curr = measurements[i];
+    const next = measurements[i + 1];
+    const p0 = i > 0 ? measurements[i - 1].value : curr.value;
+    const p1 = curr.value;
+    const p2 = next.value;
+    const p3 =
+      i < measurements.length - 2 ? measurements[i + 2].value : next.value;
+    const startDay = curr.dayIndex;
+    const endDay = next.dayIndex;
+    const daySpan = endDay - startDay;
+    if (daySpan <= 0) continue;
+    for (let day = startDay; day <= endDay; day++) {
+      const t = (day - startDay) / daySpan;
+      smoothedByDay.set(day, catmullRomSpline(p0, p1, p2, p3, t));
+    }
+  }
+  return smoothedByDay;
+}
+
+function resolveSmoothedWeight(
+  dayIndex: number,
+  smoothedByDay: Map<number, number>,
+  firstMeasurement: MeasurementPoint,
+  lastMeasurement: MeasurementPoint,
+): number | null {
+  const smoothed = smoothedByDay.get(dayIndex) ?? null;
+  if (smoothed !== null) return smoothed;
+  if (dayIndex < firstMeasurement.dayIndex) return firstMeasurement.value;
+  if (dayIndex > lastMeasurement.dayIndex) return lastMeasurement.value;
+  return null;
+}
+
 export function calculateBiologicalWeightSmoothing<
   T extends { date: string } & Record<string, unknown>,
 >(data: T[], valueKey: keyof T): WeightSmoothedPoint[] {
@@ -187,19 +241,8 @@ export function calculateBiologicalWeightSmoothing<
     return [];
   }
 
-  const measurements: MeasurementPoint[] = [];
   const firstDate = new Date(sortedData[0].date);
-
-  for (const point of sortedData) {
-    const value = point[valueKey] as number | null | undefined;
-    if (value !== null && value !== undefined) {
-      const date = new Date(point.date);
-      const dayIndex = Math.round(
-        (date.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24),
-      );
-      measurements.push({ date, dateStr: point.date, value, dayIndex });
-    }
-  }
+  const measurements = extractMeasurements(sortedData, valueKey, firstDate);
 
   if (measurements.length === 0) {
     return sortedData.map((d) => ({
@@ -217,31 +260,7 @@ export function calculateBiologicalWeightSmoothing<
     }));
   }
 
-  const smoothedByDay = new Map<number, number>();
-
-  for (let i = 0; i < measurements.length - 1; i++) {
-    const curr = measurements[i];
-    const next = measurements[i + 1];
-
-    const p0 = i > 0 ? measurements[i - 1].value : curr.value;
-    const p1 = curr.value;
-    const p2 = next.value;
-    const p3 =
-      i < measurements.length - 2 ? measurements[i + 2].value : next.value;
-
-    const startDay = curr.dayIndex;
-    const endDay = next.dayIndex;
-    const daySpan = endDay - startDay;
-
-    if (daySpan <= 0) continue;
-
-    for (let day = startDay; day <= endDay; day++) {
-      const t = (day - startDay) / daySpan;
-      const interpolated = catmullRomSpline(p0, p1, p2, p3, t);
-      smoothedByDay.set(day, interpolated);
-    }
-  }
-
+  const smoothedByDay = buildSmoothedByDay(measurements);
   const firstMeasurement = measurements[0];
   const lastMeasurement = measurements.at(-1) ?? measurements[0];
 
@@ -251,21 +270,15 @@ export function calculateBiologicalWeightSmoothing<
     const dayIndex = Math.round(
       (date.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24),
     );
-
-    let smoothedWeight: number | null = smoothedByDay.get(dayIndex) ?? null;
-
-    if (smoothedWeight === null) {
-      if (dayIndex < firstMeasurement.dayIndex) {
-        smoothedWeight = firstMeasurement.value;
-      } else if (dayIndex > lastMeasurement.dayIndex) {
-        smoothedWeight = lastMeasurement.value;
-      }
-    }
-
     return {
       date: point.date,
       rawWeight: rawValue,
-      smoothedWeight,
+      smoothedWeight: resolveSmoothedWeight(
+        dayIndex,
+        smoothedByDay,
+        firstMeasurement,
+        lastMeasurement,
+      ),
     };
   });
 }
@@ -314,7 +327,7 @@ export function loessSmooth<
       .sort((a, b) => a.dist - b.dist)
       .slice(0, windowSize);
 
-    const maxDist = distances.at(-1)?.dist || 1;
+    const maxDist = distances.at(-1)?.dist ?? 1;
 
     let sumW = 0,
       sumWX = 0,

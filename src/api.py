@@ -207,43 +207,47 @@ def api_ml_forecasts():
         )
 
 
+def _parse_date_range(start_str: str | None, end_str: str | None) -> tuple[Any, Any]:
+    if not start_str or not end_str:
+        end = datetime.now().date()
+        return end - timedelta(days=90), end
+    try:
+        return parse_date_string(start_str), parse_date_string(end_str)
+    except ValueError:
+        raise InvalidDateFormatError(f"{start_str} or {end_str}") from None
+
+
+def _serialize_workouts_df(df) -> list[dict]:
+    volume_df = get_workout_volume_data(df)
+    if volume_df.empty:
+        return []
+    volume_df["date"] = volume_df["date"].astype(str)
+    return sanitize_for_json(volume_df.to_dict(orient="records"))
+
+
+def _serialize_generic_df(df) -> list[dict]:
+    df["date"] = df["date"].astype(str)
+    for col in df.select_dtypes(include=["datetime64[ns]"]).columns:
+        df[col] = df[col].apply(lambda x: x.isoformat() if pd.notna(x) else None)
+    return sanitize_for_json(df.to_dict(orient="records"))
+
+
 @api.route("/data/range", methods=["GET"])
 @login_required
 def api_data_range():
-    start_date = request.args.get("start_date")
-    end_date = request.args.get("end_date")
-
-    if not start_date or not end_date:
-        end_date = datetime.now().date()
-        start_date = end_date - timedelta(days=90)
-    else:
-        try:
-            start_date = parse_date_string(start_date)
-            end_date = parse_date_string(end_date)
-        except ValueError:
-            raise InvalidDateFormatError(f"{start_date} or {end_date}") from None
-
+    start_date, end_date = _parse_date_range(
+        request.args.get("start_date"), request.args.get("end_date")
+    )
     data = load_data_for_user(start_date, end_date, current_user.id)
 
     result = {}
     for key, df in data.items():
         if df.empty:
             result[key] = []
+        elif key == "workouts":
+            result[key] = _serialize_workouts_df(df)
         else:
-            if key == "workouts":
-                volume_df = get_workout_volume_data(df)
-                if volume_df.empty:
-                    result[key] = []
-                else:
-                    volume_df["date"] = volume_df["date"].astype(str)
-                    result[key] = sanitize_for_json(volume_df.to_dict(orient="records"))
-            else:
-                df["date"] = df["date"].astype(str)
-                for col in df.select_dtypes(include=["datetime64[ns]"]).columns:
-                    df[col] = df[col].apply(
-                        lambda x: x.isoformat() if pd.notna(x) else None
-                    )
-                result[key] = sanitize_for_json(df.to_dict(orient="records"))
+            result[key] = _serialize_generic_df(df)
 
     return jsonify(result)
 
@@ -399,6 +403,31 @@ def api_save_thresholds():
         )
 
 
+def _check_whoop_token_status(creds) -> tuple[bool, bool]:
+    if creds is None:
+        return False, False
+    whoop_has_token = bool(creds.encrypted_whoop_access_token)
+    if not whoop_has_token:
+        return False, False
+    whoop_token_expired = False
+    if creds.whoop_token_expires_at:
+        expires_at = creds.whoop_token_expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=UTC)
+        whoop_token_expired = expires_at < datetime.now(UTC)
+    return whoop_has_token, whoop_token_expired
+
+
+def _maybe_refresh_whoop_token(creds, user_id: int, token_expired: bool) -> bool:
+    if not token_expired or creds is None or not creds.encrypted_whoop_refresh_token:
+        return token_expired
+    logger.info("whoop_token_expired_refreshing", user_id=user_id)
+    if refresh_whoop_token_for_user(user_id):
+        logger.info("whoop_token_refreshed_proactively", user_id=user_id)
+        return False
+    return token_expired
+
+
 @api.route("/settings/credentials", methods=["GET"])
 @login_required
 def api_get_credentials():
@@ -406,24 +435,10 @@ def api_get_credentials():
     whoop_client_id = os.getenv("WHOOP_CLIENT_ID")
     whoop_auth_url = "/whoop/authorize" if whoop_client_id else None
 
-    whoop_has_token = False
-    whoop_token_expired = False
-
-    if creds is not None:
-        whoop_has_token = bool(creds.encrypted_whoop_access_token)
-        if whoop_has_token and creds.whoop_token_expires_at:
-            expires_at = creds.whoop_token_expires_at
-            if expires_at.tzinfo is None:
-                expires_at = expires_at.replace(tzinfo=UTC)
-            whoop_token_expired = expires_at < datetime.now(UTC)
-
-        if whoop_token_expired and creds.encrypted_whoop_refresh_token:
-            logger.info("whoop_token_expired_refreshing", user_id=current_user.id)
-            if refresh_whoop_token_for_user(current_user.id):
-                whoop_token_expired = False
-                logger.info(
-                    "whoop_token_refreshed_proactively", user_id=current_user.id
-                )
+    whoop_has_token, whoop_token_expired = _check_whoop_token_status(creds)
+    whoop_token_expired = _maybe_refresh_whoop_token(
+        creds, current_user.id, whoop_token_expired
+    )
 
     return jsonify(
         {

@@ -44,16 +44,64 @@ def interruptible_sleep(seconds):
         elapsed += 1
 
 
-def sync_all_users():
+def _get_sync_funcs() -> dict:
     from pull_garmin_data import sync_garmin_data_for_user
     from pull_hevy_data import sync_hevy_data_for_user
     from pull_whoop_data import sync_whoop_data_for_user
 
-    sync_funcs = {
+    return {
         DataSource.GARMIN.value: sync_garmin_data_for_user,
         DataSource.HEVY.value: sync_hevy_data_for_user,
         DataSource.WHOOP.value: sync_whoop_data_for_user,
     }
+
+
+def _sync_source_for_user(user_id: int, source: str, sync_func) -> None:
+    logger.info(
+        "scheduler_sync_starting", user_id=user_id, source=source, days=SYNC_DAYS
+    )
+    try:
+        result = sync_func(user_id, days=SYNC_DAYS)
+        logger.info(
+            "scheduler_sync_completed",
+            user_id=user_id,
+            source=source,
+            success=result.get("success", False),
+            records=result.get("total_records", 0),
+        )
+    except Exception:
+        logger.exception("scheduler_sync_error", user_id=user_id, source=source)
+
+
+def _sync_user_sources(user_id: int, sync_funcs: dict) -> None:
+    for source in SOURCES:
+        if shutdown_requested:
+            break
+        if not has_credentials_for_source(user_id, source):
+            continue
+        if is_sync_recently_active(user_id, source):
+            logger.info(
+                "scheduler_skipping_active_sync", user_id=user_id, source=source
+            )
+            continue
+        sync_func = sync_funcs.get(source)
+        if not sync_func:
+            continue
+        _sync_source_for_user(user_id, source, sync_func)
+
+
+def _recompute_analytics_for_user(user_id: int) -> None:
+    try:
+        from analytics.pipeline import on_data_sync_complete
+
+        with get_db_session_context() as db:
+            on_data_sync_complete(db, user_id)
+    except Exception:
+        logger.exception("scheduler_recompute_error", user_id=user_id)
+
+
+def sync_all_users():
+    sync_funcs = _get_sync_funcs()
 
     with get_db_session_context() as db:
         users = db.query(User).all()
@@ -64,57 +112,9 @@ def sync_all_users():
     for user_id in user_ids:
         if shutdown_requested:
             break
-
-        for source in SOURCES:
-            if shutdown_requested:
-                break
-
-            if not has_credentials_for_source(user_id, source):
-                continue
-
-            if is_sync_recently_active(user_id, source):
-                logger.info(
-                    "scheduler_skipping_active_sync",
-                    user_id=user_id,
-                    source=source,
-                )
-                continue
-
-            sync_func = sync_funcs.get(source)
-            if not sync_func:
-                continue
-
-            logger.info(
-                "scheduler_sync_starting",
-                user_id=user_id,
-                source=source,
-                days=SYNC_DAYS,
-            )
-
-            try:
-                result = sync_func(user_id, days=SYNC_DAYS)
-                logger.info(
-                    "scheduler_sync_completed",
-                    user_id=user_id,
-                    source=source,
-                    success=result.get("success", False),
-                    records=result.get("total_records", 0),
-                )
-            except Exception:
-                logger.exception(
-                    "scheduler_sync_error",
-                    user_id=user_id,
-                    source=source,
-                )
-
+        _sync_user_sources(user_id, sync_funcs)
         if not shutdown_requested:
-            try:
-                from analytics.pipeline import on_data_sync_complete
-
-                with get_db_session_context() as db:
-                    on_data_sync_complete(db, user_id)
-            except Exception:
-                logger.exception("scheduler_recompute_error", user_id=user_id)
+            _recompute_analytics_for_user(user_id)
 
 
 def main():

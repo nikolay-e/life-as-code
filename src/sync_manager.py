@@ -12,7 +12,7 @@ from date_utils import utcnow
 from enums import DataSource, SyncStatus
 from errors import CredentialsDecryptionError, CredentialsNotFoundError
 from logging_config import get_logger
-from models import Base, DataSync
+from models import DataSync
 from security import decrypt_data_for_user
 from utils import get_user_credentials
 
@@ -47,6 +47,65 @@ def get_sync_date_range(
     return SyncDateRange(start_date=start_date, end_date=end_date, sync_type=sync_type)
 
 
+def _get_garmin_credentials(
+    creds, user_id: int, provider_name: str
+) -> ProviderCredentials:
+    if not creds.garmin_email:
+        raise CredentialsNotFoundError(
+            "No Garmin credentials found for user", provider=provider_name
+        )
+    try:
+        return ProviderCredentials(
+            garmin_email=creds.garmin_email,
+            garmin_password=decrypt_data_for_user(
+                creds.encrypted_garmin_password, user_id
+            ),
+        )
+    except Exception as e:
+        raise CredentialsDecryptionError(
+            f"Failed to decrypt Garmin credentials: {e}", provider=provider_name
+        ) from e
+
+
+def _get_hevy_credentials(
+    creds, user_id: int, provider_name: str
+) -> ProviderCredentials:
+    if not creds.encrypted_hevy_api_key:
+        raise CredentialsNotFoundError(
+            "No Hevy API key found for user", provider=provider_name
+        )
+    try:
+        return ProviderCredentials(
+            hevy_api_key=decrypt_data_for_user(creds.encrypted_hevy_api_key, user_id),
+        )
+    except Exception as e:
+        raise CredentialsDecryptionError(
+            f"Failed to decrypt Hevy credentials: {e}", provider=provider_name
+        ) from e
+
+
+def _get_whoop_credentials(
+    creds, user_id: int, provider_name: str
+) -> ProviderCredentials:
+    if not creds.encrypted_whoop_access_token:
+        raise CredentialsNotFoundError(
+            "No Whoop credentials found for user", provider=provider_name
+        )
+    try:
+        return ProviderCredentials(
+            whoop_access_token=decrypt_data_for_user(
+                creds.encrypted_whoop_access_token, user_id
+            ),
+            whoop_refresh_token=decrypt_data_for_user(
+                creds.encrypted_whoop_refresh_token, user_id
+            ),
+        )
+    except Exception as e:
+        raise CredentialsDecryptionError(
+            f"Failed to decrypt Whoop credentials: {e}", provider=provider_name
+        ) from e
+
+
 def get_provider_credentials(user_id: int, provider: DataSource) -> ProviderCredentials:
     creds = get_user_credentials(user_id)
     if not creds:
@@ -57,56 +116,11 @@ def get_provider_credentials(user_id: int, provider: DataSource) -> ProviderCred
     provider_name = provider.value
 
     if provider == DataSource.GARMIN:
-        if not creds.garmin_email:
-            raise CredentialsNotFoundError(
-                "No Garmin credentials found for user", provider=provider_name
-            )
-        try:
-            return ProviderCredentials(
-                garmin_email=creds.garmin_email,
-                garmin_password=decrypt_data_for_user(
-                    creds.encrypted_garmin_password, user_id
-                ),
-            )
-        except Exception as e:
-            raise CredentialsDecryptionError(
-                f"Failed to decrypt Garmin credentials: {e}", provider=provider_name
-            ) from e
-
+        return _get_garmin_credentials(creds, user_id, provider_name)
     if provider == DataSource.HEVY:
-        if not creds.encrypted_hevy_api_key:
-            raise CredentialsNotFoundError(
-                "No Hevy API key found for user", provider=provider_name
-            )
-        try:
-            return ProviderCredentials(
-                hevy_api_key=decrypt_data_for_user(
-                    creds.encrypted_hevy_api_key, user_id
-                ),
-            )
-        except Exception as e:
-            raise CredentialsDecryptionError(
-                f"Failed to decrypt Hevy credentials: {e}", provider=provider_name
-            ) from e
-
+        return _get_hevy_credentials(creds, user_id, provider_name)
     if provider == DataSource.WHOOP:
-        if not creds.encrypted_whoop_access_token:
-            raise CredentialsNotFoundError(
-                "No Whoop credentials found for user", provider=provider_name
-            )
-        try:
-            return ProviderCredentials(
-                whoop_access_token=decrypt_data_for_user(
-                    creds.encrypted_whoop_access_token, user_id
-                ),
-                whoop_refresh_token=decrypt_data_for_user(
-                    creds.encrypted_whoop_refresh_token, user_id
-                ),
-            )
-        except Exception as e:
-            raise CredentialsDecryptionError(
-                f"Failed to decrypt Whoop credentials: {e}", provider=provider_name
-            ) from e
+        return _get_whoop_credentials(creds, user_id, provider_name)
 
     raise CredentialsNotFoundError(
         f"Unknown provider: {provider}", provider=provider_name
@@ -240,7 +254,7 @@ class UpsertResult:
 
 def upsert_data(
     db: Session,
-    model_class: type[Base],
+    model_class: Any,
     data_instance: BaseModel | dict,
     unique_fields: list[str],
     user_id: int,
@@ -270,10 +284,65 @@ def upsert_data(
     return UpsertResult.CREATED, None
 
 
+def _invoke_parser(parser_class: type[BaseModel], item: Any) -> Any:
+    if hasattr(parser_class, "from_api_response"):
+        return parser_class.from_api_response(item)
+    if hasattr(parser_class, "from_garmin_response"):
+        return parser_class.from_garmin_response(item)
+    return parser_class(**item)
+
+
+def _collect_parsed_records(
+    api_response: list,
+    parser_class: type[BaseModel],
+    sync_result: "SyncResult",
+) -> list:
+    all_records: list = []
+    for item in api_response:
+        try:
+            parsed_data = _invoke_parser(parser_class, item)
+            if isinstance(parsed_data, list):
+                for data_item in parsed_data:
+                    if data_item:
+                        all_records.append(data_item)
+                        sync_result.records_processed += 1
+                    else:
+                        sync_result.records_skipped += 1
+            elif parsed_data:
+                all_records.append(parsed_data)
+                sync_result.records_processed += 1
+            else:
+                sync_result.records_skipped += 1
+        except Exception as e:
+            sync_result.add_error(f"Error parsing item: {str(e)}")
+            sync_result.records_skipped += 1
+    return all_records
+
+
+def _apply_bulk_upsert(
+    all_records: list,
+    model_class: Any,
+    unique_fields: list[str],
+    user_id: int,
+    source: str,
+    sync_result: "SyncResult",
+) -> None:
+    if not all_records:
+        return
+    result = bulk_upsert_records(
+        all_records, model_class, unique_fields, user_id, source
+    )
+    if "error" in result:
+        sync_result.add_error(result["error"])
+    else:
+        sync_result.records_created = result.get("created", 0)
+        sync_result.records_updated = result.get("updated", 0)
+
+
 def extract_and_parse(
     api_call_func,
     parser_class: type[BaseModel],
-    model_class: type[Base],
+    model_class: Any,
     unique_fields: list[str],
     user_id: int,
     source: str,
@@ -305,43 +374,10 @@ def extract_and_parse(
         if not isinstance(api_response, list):
             api_response = [api_response]
 
-        all_records: list = []
-        for item in api_response:
-            try:
-                if hasattr(parser_class, "from_api_response"):
-                    parsed_data = parser_class.from_api_response(item)
-                elif hasattr(parser_class, "from_garmin_response"):
-                    parsed_data = parser_class.from_garmin_response(item)
-                else:
-                    parsed_data = parser_class(**item)
-
-                if isinstance(parsed_data, list):
-                    for data_item in parsed_data:
-                        if data_item:
-                            all_records.append(data_item)
-                            sync_result.records_processed += 1
-                        else:
-                            sync_result.records_skipped += 1
-                elif parsed_data:
-                    all_records.append(parsed_data)
-                    sync_result.records_processed += 1
-                else:
-                    sync_result.records_skipped += 1
-
-            except Exception as e:
-                sync_result.add_error(f"Error parsing item: {str(e)}")
-                sync_result.records_skipped += 1
-                continue
-
-        if all_records:
-            result = bulk_upsert_records(
-                all_records, model_class, unique_fields, user_id, source
-            )
-            if "error" in result:
-                sync_result.add_error(result["error"])
-            else:
-                sync_result.records_created = result.get("created", 0)
-                sync_result.records_updated = result.get("updated", 0)
+        all_records = _collect_parsed_records(api_response, parser_class, sync_result)
+        _apply_bulk_upsert(
+            all_records, model_class, unique_fields, user_id, source, sync_result
+        )
 
         with get_db_session_context() as db:
             update_sync_status(db, user_id, source, data_type, sync_result)

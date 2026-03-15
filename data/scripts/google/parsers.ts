@@ -4,6 +4,7 @@ import { parse } from "csv-parse/sync";
 import {
   SleepStageCode,
   FitDataFile,
+  FitDataPoint,
   FitSession,
   SleepData,
   BodyComposition,
@@ -199,6 +200,33 @@ function minuteTsToDateString(minuteTs: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+function applySegmentToTimeline(
+  point: FitDataPoint,
+  timeline: Map<number, number>,
+  sleepDates: Set<string>,
+): void {
+  if (point.dataTypeName !== "com.google.sleep.segment") return;
+
+  const sleepType = point.fitValue?.[0]?.value?.intVal;
+  if (sleepType === undefined || STAGE_PRIORITY[sleepType] === undefined) return;
+  if (point.endTimeNanos <= point.startTimeNanos) return;
+
+  const durationMinutes = durationNanosToMinutes(point.startTimeNanos, point.endTimeNanos);
+  if (durationMinutes > 24 * 60) return;
+
+  const startMinute = nanosToMinuteTs(point.startTimeNanos);
+  const endMinute = nanosToMinuteTs(point.endTimeNanos);
+
+  for (let m = startMinute; m < endMinute; m++) {
+    const existing = timeline.get(m);
+    if (existing === undefined || STAGE_PRIORITY[sleepType] > STAGE_PRIORITY[existing]) {
+      timeline.set(m, sleepType);
+    }
+  }
+
+  sleepDates.add(nanosToDateString(point.endTimeNanos));
+}
+
 function buildSleepTimeline(dataDir: string): { timeline: Map<number, number>; sleepDates: Set<string> } {
   const files = readdirSync(dataDir).filter(f =>
     f.includes("sleep.segment") && f.endsWith(".json")
@@ -212,26 +240,7 @@ function buildSleepTimeline(dataDir: string): { timeline: Map<number, number>; s
     if (!fitData) continue;
 
     for (const point of fitData["Data Points"]) {
-      if (point.dataTypeName !== "com.google.sleep.segment") continue;
-
-      const sleepType = point.fitValue?.[0]?.value?.intVal;
-      if (sleepType === undefined || STAGE_PRIORITY[sleepType] === undefined) continue;
-      if (point.endTimeNanos <= point.startTimeNanos) continue;
-
-      const durationMinutes = durationNanosToMinutes(point.startTimeNanos, point.endTimeNanos);
-      if (durationMinutes > 24 * 60) continue;
-
-      const startMinute = nanosToMinuteTs(point.startTimeNanos);
-      const endMinute = nanosToMinuteTs(point.endTimeNanos);
-
-      for (let m = startMinute; m < endMinute; m++) {
-        const existing = timeline.get(m);
-        if (existing === undefined || STAGE_PRIORITY[sleepType] > STAGE_PRIORITY[existing]) {
-          timeline.set(m, sleepType);
-        }
-      }
-
-      sleepDates.add(nanosToDateString(point.endTimeNanos));
+      applySegmentToTimeline(point, timeline, sleepDates);
     }
   }
 

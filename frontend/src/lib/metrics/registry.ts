@@ -237,40 +237,56 @@ export function getMetricByKey(key: string): MetricDef | undefined {
 
 export { formatSleepMinutes };
 
-function validateRegistry(): void {
+function validateMetricEntry(
+  m: MetricDef,
+  keysSeen: Set<string>,
+  aliasesSeen: Set<string>,
+): string[] {
   const errors: string[] = [];
+
+  if (keysSeen.has(m.key)) {
+    errors.push(`Duplicate key: ${m.key}`);
+  }
+  keysSeen.add(m.key);
+
+  if (!m.colorVar.startsWith("--")) {
+    errors.push(`Invalid colorVar for ${m.key}: expected "--name" format`);
+  }
+
+  if (!m.gradientId) {
+    errors.push(`Missing gradientId for ${m.key}`);
+  }
+
+  for (const alias of m.aliases ?? []) {
+    if (aliasesSeen.has(alias)) {
+      errors.push(`Duplicate alias: ${alias}`);
+    }
+    aliasesSeen.add(alias);
+  }
+
+  return errors;
+}
+
+function reportValidationErrors(errors: string[]): void {
+  const msg = `METRIC_REGISTRY validation failed:\n${errors.join("\n")}`;
+  if (import.meta.env.DEV) {
+    throw new Error(msg);
+  } else {
+    console.error(`[METRIC_REGISTRY] ${msg}`);
+  }
+}
+
+function validateRegistry(): void {
   const keysSeen = new Set<string>();
   const aliasesSeen = new Set<string>();
+  const errors: string[] = [];
 
   for (const m of METRIC_REGISTRY) {
-    if (keysSeen.has(m.key)) {
-      errors.push(`Duplicate key: ${m.key}`);
-    }
-    keysSeen.add(m.key);
-
-    if (!m.colorVar.startsWith("--")) {
-      errors.push(`Invalid colorVar for ${m.key}: expected "--name" format`);
-    }
-
-    if (!m.gradientId) {
-      errors.push(`Missing gradientId for ${m.key}`);
-    }
-
-    for (const alias of m.aliases ?? []) {
-      if (aliasesSeen.has(alias)) {
-        errors.push(`Duplicate alias: ${alias}`);
-      }
-      aliasesSeen.add(alias);
-    }
+    errors.push(...validateMetricEntry(m, keysSeen, aliasesSeen));
   }
 
   if (errors.length > 0) {
-    const msg = `METRIC_REGISTRY validation failed:\n${errors.join("\n")}`;
-    if (import.meta.env.DEV) {
-      throw new Error(msg);
-    } else {
-      console.error(`[METRIC_REGISTRY] ${msg}`);
-    }
+    reportValidationErrors(errors);
   }
 }
 

@@ -17,9 +17,11 @@ export function useUpdateThresholds() {
     mutationFn: (thresholds: Partial<UserThresholds>) =>
       api.settings.updateThresholds(thresholds),
     onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: settingsKeys.thresholds(),
-      });
+      queryClient
+        .invalidateQueries({
+          queryKey: settingsKeys.thresholds(),
+        })
+        .catch(() => {});
     },
   });
 }
@@ -37,8 +39,12 @@ function useSyncMutation(syncFn: () => Promise<SyncResponse>) {
   return useMutation({
     mutationFn: syncFn,
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: healthKeys.data() });
-      void queryClient.invalidateQueries({ queryKey: healthKeys.syncStatus() });
+      queryClient
+        .invalidateQueries({ queryKey: healthKeys.data() })
+        .catch(() => {});
+      queryClient
+        .invalidateQueries({ queryKey: healthKeys.syncStatus() })
+        .catch(() => {});
     },
   });
 }

@@ -116,6 +116,45 @@ def get_detailed_workout_data(start_date, end_date, user_id):
         return [dict(row._mapping) for row in result]
 
 
+def _int_or_none(row, col):
+    return int(row[col]) if pd.notna(row[col]) else None
+
+
+def _float_or_none(row, col):
+    return float(row[col]) if pd.notna(row[col]) else None
+
+
+def _row_to_garmin_activity(row) -> dict:
+    return {
+        "activity_id": row["activity_id"],
+        "date": str(row["date"]),
+        "start_time": (
+            row["start_time"].isoformat() if pd.notna(row["start_time"]) else None
+        ),
+        "activity_type": row["activity_type"],
+        "activity_name": row["activity_name"],
+        "duration_seconds": _int_or_none(row, "duration_seconds"),
+        "distance_meters": _float_or_none(row, "distance_meters"),
+        "avg_heart_rate": _int_or_none(row, "avg_heart_rate"),
+        "max_heart_rate": _int_or_none(row, "max_heart_rate"),
+        "calories": _int_or_none(row, "calories"),
+        "avg_speed_mps": _float_or_none(row, "avg_speed_mps"),
+        "max_speed_mps": _float_or_none(row, "max_speed_mps"),
+        "elevation_gain_meters": _float_or_none(row, "elevation_gain_meters"),
+        "elevation_loss_meters": _float_or_none(row, "elevation_loss_meters"),
+        "avg_power_watts": _float_or_none(row, "avg_power_watts"),
+        "max_power_watts": _float_or_none(row, "max_power_watts"),
+        "training_effect_aerobic": _float_or_none(row, "training_effect_aerobic"),
+        "training_effect_anaerobic": _float_or_none(row, "training_effect_anaerobic"),
+        "vo2_max_value": _float_or_none(row, "vo2_max_value"),
+        "hr_zone_one_seconds": _int_or_none(row, "hr_zone_one_seconds"),
+        "hr_zone_two_seconds": _int_or_none(row, "hr_zone_two_seconds"),
+        "hr_zone_three_seconds": _int_or_none(row, "hr_zone_three_seconds"),
+        "hr_zone_four_seconds": _int_or_none(row, "hr_zone_four_seconds"),
+        "hr_zone_five_seconds": _int_or_none(row, "hr_zone_five_seconds"),
+    }
+
+
 def get_garmin_activities_data(start_date, end_date, user_id):
     from database import read_engine
 
@@ -130,99 +169,6 @@ def get_garmin_activities_data(start_date, end_date, user_id):
     if df.empty:
         return []
 
-    result = []
-    for _, row in df.iterrows():
-        activity = {
-            "activity_id": row["activity_id"],
-            "date": str(row["date"]),
-            "start_time": (
-                row["start_time"].isoformat() if pd.notna(row["start_time"]) else None
-            ),
-            "activity_type": row["activity_type"],
-            "activity_name": row["activity_name"],
-            "duration_seconds": (
-                int(row["duration_seconds"])
-                if pd.notna(row["duration_seconds"])
-                else None
-            ),
-            "distance_meters": (
-                float(row["distance_meters"])
-                if pd.notna(row["distance_meters"])
-                else None
-            ),
-            "avg_heart_rate": (
-                int(row["avg_heart_rate"]) if pd.notna(row["avg_heart_rate"]) else None
-            ),
-            "max_heart_rate": (
-                int(row["max_heart_rate"]) if pd.notna(row["max_heart_rate"]) else None
-            ),
-            "calories": int(row["calories"]) if pd.notna(row["calories"]) else None,
-            "avg_speed_mps": (
-                float(row["avg_speed_mps"]) if pd.notna(row["avg_speed_mps"]) else None
-            ),
-            "max_speed_mps": (
-                float(row["max_speed_mps"]) if pd.notna(row["max_speed_mps"]) else None
-            ),
-            "elevation_gain_meters": (
-                float(row["elevation_gain_meters"])
-                if pd.notna(row["elevation_gain_meters"])
-                else None
-            ),
-            "elevation_loss_meters": (
-                float(row["elevation_loss_meters"])
-                if pd.notna(row["elevation_loss_meters"])
-                else None
-            ),
-            "avg_power_watts": (
-                float(row["avg_power_watts"])
-                if pd.notna(row["avg_power_watts"])
-                else None
-            ),
-            "max_power_watts": (
-                float(row["max_power_watts"])
-                if pd.notna(row["max_power_watts"])
-                else None
-            ),
-            "training_effect_aerobic": (
-                float(row["training_effect_aerobic"])
-                if pd.notna(row["training_effect_aerobic"])
-                else None
-            ),
-            "training_effect_anaerobic": (
-                float(row["training_effect_anaerobic"])
-                if pd.notna(row["training_effect_anaerobic"])
-                else None
-            ),
-            "vo2_max_value": (
-                float(row["vo2_max_value"]) if pd.notna(row["vo2_max_value"]) else None
-            ),
-            "hr_zone_one_seconds": (
-                int(row["hr_zone_one_seconds"])
-                if pd.notna(row["hr_zone_one_seconds"])
-                else None
-            ),
-            "hr_zone_two_seconds": (
-                int(row["hr_zone_two_seconds"])
-                if pd.notna(row["hr_zone_two_seconds"])
-                else None
-            ),
-            "hr_zone_three_seconds": (
-                int(row["hr_zone_three_seconds"])
-                if pd.notna(row["hr_zone_three_seconds"])
-                else None
-            ),
-            "hr_zone_four_seconds": (
-                int(row["hr_zone_four_seconds"])
-                if pd.notna(row["hr_zone_four_seconds"])
-                else None
-            ),
-            "hr_zone_five_seconds": (
-                int(row["hr_zone_five_seconds"])
-                if pd.notna(row["hr_zone_five_seconds"])
-                else None
-            ),
-        }
-        result.append(activity)
-
+    result = [_row_to_garmin_activity(row) for _, row in df.iterrows()]
     result.sort(key=lambda x: x["start_time"] or x["date"], reverse=True)
     return result
