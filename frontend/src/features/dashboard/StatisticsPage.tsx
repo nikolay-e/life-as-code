@@ -1043,6 +1043,237 @@ function ClinicalAlertsCard({ clinicalAlerts }: ClinicalAlertsCardProps) {
   );
 }
 
+interface OverreachingCardProps {
+  readonly overreaching: OverreachingMetrics;
+}
+
+function OverreachingCard({ overreaching }: OverreachingCardProps) {
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center gap-2">
+          <Flame className="h-4 w-4 text-orange-500" />
+          <CardTitle className="text-base">Overreaching Score</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-baseline gap-2 mb-3">
+          <span
+            className={cn(
+              "text-3xl font-bold",
+              overreaching.risk_level === "low" && "text-green-500",
+              overreaching.risk_level === "moderate" && "text-yellow-500",
+              overreaching.risk_level === "high" && "text-orange-500",
+              overreaching.risk_level === "critical" && "text-red-500",
+            )}
+          >
+            {overreaching.score !== null ? overreaching.score.toFixed(2) : "—"}
+          </span>
+          {overreaching.risk_level && (
+            <span
+              className={cn(
+                "text-sm font-medium px-2 py-0.5 rounded-full",
+                overreaching.risk_level === "low" &&
+                  "bg-green-500/10 text-green-600",
+                overreaching.risk_level === "moderate" &&
+                  "bg-yellow-500/10 text-yellow-600",
+                overreaching.risk_level === "high" &&
+                  "bg-orange-500/10 text-orange-600",
+                overreaching.risk_level === "critical" &&
+                  "bg-red-500/10 text-red-600",
+              )}
+            >
+              {overreaching.risk_level}
+            </span>
+          )}
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-sm">
+          <div>
+            <p className="text-xs text-muted-foreground">Low HRV streak</p>
+            <p className="font-medium">
+              {overreaching.consecutive_low_recovery_days} days
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Components</p>
+            <div className="text-xs space-x-1">
+              {(overreaching.components.strain_component ?? null) !== null && (
+                <span className="text-orange-500">
+                  S:
+                  {(overreaching.components.strain_component as number).toFixed(
+                    1,
+                  )}
+                </span>
+              )}
+              {(overreaching.components.hrv_component ?? null) !== null && (
+                <span className="text-red-500">
+                  H:
+                  {(overreaching.components.hrv_component as number).toFixed(1)}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+interface CorrelationsCardProps {
+  readonly correlations: CorrelationMetrics;
+}
+
+function CorrelationsCard({ correlations }: CorrelationsCardProps) {
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center gap-2">
+          <GitBranch className="h-4 w-4 text-purple-500" />
+          <CardTitle className="text-base">Correlations</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3">
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-muted-foreground">HRV ↔ RHR</span>
+            <span
+              className={cn(
+                "font-mono text-sm",
+                getCorrelationColor(correlations.hrv_rhr_correlation),
+              )}
+            >
+              {correlations.hrv_rhr_correlation !== null
+                ? correlations.hrv_rhr_correlation.toFixed(2)
+                : "—"}
+            </span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-muted-foreground">Sleep → HRV</span>
+            <span
+              className={cn(
+                "font-mono text-sm",
+                correlations.sleep_hrv_lag_correlation !== null &&
+                  correlations.sleep_hrv_lag_correlation > 0.3
+                  ? "text-green-500"
+                  : "text-muted-foreground",
+              )}
+            >
+              {correlations.sleep_hrv_lag_correlation !== null
+                ? correlations.sleep_hrv_lag_correlation.toFixed(2)
+                : "—"}
+            </span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-muted-foreground">
+              Strain → Recovery
+            </span>
+            <span
+              className={cn(
+                "font-mono text-sm",
+                correlations.strain_recovery_correlation !== null &&
+                  correlations.strain_recovery_correlation < -0.2
+                  ? "text-green-500"
+                  : "text-muted-foreground",
+              )}
+            >
+              {correlations.strain_recovery_correlation !== null
+                ? correlations.strain_recovery_correlation.toFixed(2)
+                : "—"}
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground pt-1 border-t">
+            Sample size: {correlations.sample_size} days
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+interface VelocityCardProps {
+  readonly velocity: VelocityMetrics;
+}
+
+function VelocityCard({ velocity }: VelocityCardProps) {
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center gap-2">
+          <TrendingUp className="h-4 w-4 text-blue-500" />
+          <CardTitle className="text-base">Trends (Velocity)</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-2">
+          {[
+            {
+              label: "HRV",
+              value: velocity.hrv_velocity,
+              unit: "ms/d",
+              status: velocity.interpretation.hrv,
+            },
+            {
+              label: "RHR",
+              value: velocity.rhr_velocity,
+              unit: "bpm/d",
+              status: velocity.interpretation.rhr,
+            },
+            {
+              label: "Weight",
+              value: velocity.weight_velocity,
+              unit: "kg/d",
+              status: velocity.interpretation.weight,
+            },
+            {
+              label: "Sleep",
+              value: velocity.sleep_velocity,
+              unit: "min/d",
+              status: velocity.interpretation.sleep,
+            },
+          ].map(({ label, value, unit, status }) => (
+            <div key={label} className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">{label}</span>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-sm">
+                  {value !== null
+                    ? `${signPrefix(value)}${value.toFixed(2)} ${unit}`
+                    : "—"}
+                </span>
+                {status && (
+                  <span
+                    className={cn(
+                      "text-xs",
+                      status === "improving" && "text-green-500",
+                      status === "declining" && "text-red-500",
+                      status === "stable" && "text-muted-foreground",
+                      status === "gaining" && "text-yellow-500",
+                      status === "losing" && "text-blue-500",
+                    )}
+                  >
+                    {status === "improving" && (
+                      <ArrowUpRight className="h-3 w-3" />
+                    )}
+                    {status === "declining" && (
+                      <ArrowDownRight className="h-3 w-3" />
+                    )}
+                    {status === "stable" && <Minus className="h-3 w-3" />}
+                    {status === "gaining" && (
+                      <ArrowUpRight className="h-3 w-3" />
+                    )}
+                    {status === "losing" && (
+                      <ArrowDownRight className="h-3 w-3" />
+                    )}
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 interface TrendMetricsSectionProps {
   readonly overreaching: OverreachingMetrics;
   readonly correlations: CorrelationMetrics;
@@ -1056,217 +1287,9 @@ function TrendMetricsSection({
 }: TrendMetricsSectionProps) {
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-      <Card>
-        <CardHeader className="pb-2">
-          <div className="flex items-center gap-2">
-            <Flame className="h-4 w-4 text-orange-500" />
-            <CardTitle className="text-base">Overreaching Score</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-baseline gap-2 mb-3">
-            <span
-              className={cn(
-                "text-3xl font-bold",
-                overreaching.risk_level === "low" && "text-green-500",
-                overreaching.risk_level === "moderate" && "text-yellow-500",
-                overreaching.risk_level === "high" && "text-orange-500",
-                overreaching.risk_level === "critical" && "text-red-500",
-              )}
-            >
-              {overreaching.score !== null
-                ? overreaching.score.toFixed(2)
-                : "—"}
-            </span>
-            {overreaching.risk_level && (
-              <span
-                className={cn(
-                  "text-sm font-medium px-2 py-0.5 rounded-full",
-                  overreaching.risk_level === "low" &&
-                    "bg-green-500/10 text-green-600",
-                  overreaching.risk_level === "moderate" &&
-                    "bg-yellow-500/10 text-yellow-600",
-                  overreaching.risk_level === "high" &&
-                    "bg-orange-500/10 text-orange-600",
-                  overreaching.risk_level === "critical" &&
-                    "bg-red-500/10 text-red-600",
-                )}
-              >
-                {overreaching.risk_level}
-              </span>
-            )}
-          </div>
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            <div>
-              <p className="text-xs text-muted-foreground">Low HRV streak</p>
-              <p className="font-medium">
-                {overreaching.consecutive_low_recovery_days} days
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Components</p>
-              <div className="text-xs space-x-1">
-                {(overreaching.components.strain_component ?? null) !==
-                  null && (
-                  <span className="text-orange-500">
-                    S:
-                    {(
-                      overreaching.components.strain_component as number
-                    ).toFixed(1)}
-                  </span>
-                )}
-                {(overreaching.components.hrv_component ?? null) !== null && (
-                  <span className="text-red-500">
-                    H:
-                    {(overreaching.components.hrv_component as number).toFixed(
-                      1,
-                    )}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-2">
-          <div className="flex items-center gap-2">
-            <GitBranch className="h-4 w-4 text-purple-500" />
-            <CardTitle className="text-base">Correlations</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">HRV ↔ RHR</span>
-              <span
-                className={cn(
-                  "font-mono text-sm",
-                  getCorrelationColor(correlations.hrv_rhr_correlation),
-                )}
-              >
-                {correlations.hrv_rhr_correlation !== null
-                  ? correlations.hrv_rhr_correlation.toFixed(2)
-                  : "—"}
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Sleep → HRV</span>
-              <span
-                className={cn(
-                  "font-mono text-sm",
-                  correlations.sleep_hrv_lag_correlation !== null &&
-                    correlations.sleep_hrv_lag_correlation > 0.3
-                    ? "text-green-500"
-                    : "text-muted-foreground",
-                )}
-              >
-                {correlations.sleep_hrv_lag_correlation !== null
-                  ? correlations.sleep_hrv_lag_correlation.toFixed(2)
-                  : "—"}
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">
-                Strain → Recovery
-              </span>
-              <span
-                className={cn(
-                  "font-mono text-sm",
-                  correlations.strain_recovery_correlation !== null &&
-                    correlations.strain_recovery_correlation < -0.2
-                    ? "text-green-500"
-                    : "text-muted-foreground",
-                )}
-              >
-                {correlations.strain_recovery_correlation !== null
-                  ? correlations.strain_recovery_correlation.toFixed(2)
-                  : "—"}
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground pt-1 border-t">
-              Sample size: {correlations.sample_size} days
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-2">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-blue-500" />
-            <CardTitle className="text-base">Trends (Velocity)</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {[
-              {
-                label: "HRV",
-                value: velocity.hrv_velocity,
-                unit: "ms/d",
-                status: velocity.interpretation.hrv,
-              },
-              {
-                label: "RHR",
-                value: velocity.rhr_velocity,
-                unit: "bpm/d",
-                status: velocity.interpretation.rhr,
-              },
-              {
-                label: "Weight",
-                value: velocity.weight_velocity,
-                unit: "kg/d",
-                status: velocity.interpretation.weight,
-              },
-              {
-                label: "Sleep",
-                value: velocity.sleep_velocity,
-                unit: "min/d",
-                status: velocity.interpretation.sleep,
-              },
-            ].map(({ label, value, unit, status }) => (
-              <div key={label} className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">{label}</span>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-sm">
-                    {value !== null
-                      ? `${signPrefix(value)}${value.toFixed(2)} ${unit}`
-                      : "—"}
-                  </span>
-                  {status && (
-                    <span
-                      className={cn(
-                        "text-xs",
-                        status === "improving" && "text-green-500",
-                        status === "declining" && "text-red-500",
-                        status === "stable" && "text-muted-foreground",
-                        status === "gaining" && "text-yellow-500",
-                        status === "losing" && "text-blue-500",
-                      )}
-                    >
-                      {status === "improving" && (
-                        <ArrowUpRight className="h-3 w-3" />
-                      )}
-                      {status === "declining" && (
-                        <ArrowDownRight className="h-3 w-3" />
-                      )}
-                      {status === "stable" && <Minus className="h-3 w-3" />}
-                      {status === "gaining" && (
-                        <ArrowUpRight className="h-3 w-3" />
-                      )}
-                      {status === "losing" && (
-                        <ArrowDownRight className="h-3 w-3" />
-                      )}
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      <OverreachingCard overreaching={overreaching} />
+      <CorrelationsCard correlations={correlations} />
+      <VelocityCard velocity={velocity} />
     </div>
   );
 }

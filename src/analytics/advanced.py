@@ -50,7 +50,8 @@ def _build_day_map(
 def _ema_smooth(values: list[float], span: int = 7) -> list[float]:
     if not values:
         return []
-    return [float(v) for v in pd.Series(values).ewm(span=span, adjust=False).mean()]
+    result: list[float] = pd.Series(values).ewm(span=span, adjust=False).mean().tolist()
+    return result
 
 
 def _aligned_pairs(

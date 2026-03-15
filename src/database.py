@@ -1,6 +1,7 @@
 import os
 from collections.abc import Generator
 from contextlib import contextmanager
+from typing import Any
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
@@ -138,6 +139,40 @@ def check_db_connection() -> bool:
         return False
 
 
+def _to_record_dict(
+    record_data,
+    user_id: int,
+    source: str | None,
+    include_source: bool,
+    all_keys: set[str],
+    error_count_ref: list,
+) -> "dict[str, Any] | None":
+    try:
+        data_dict: dict[str, Any] = (
+            record_data.model_dump()
+            if hasattr(record_data, "model_dump")
+            else record_data.copy()
+        )
+        data_dict["user_id"] = user_id
+        if include_source:
+            data_dict["source"] = source
+        if "created_at" not in data_dict:
+            data_dict["created_at"] = utcnow()
+        all_keys.update(data_dict.keys())
+        return data_dict
+    except Exception as e:
+        logger.error("record_processing_error", error=str(e))
+        error_count_ref[0] += 1
+        return None
+
+
+def _fill_missing_keys(records: list[dict], all_keys: set[str]) -> None:
+    for record in records:
+        for key in all_keys:
+            if key not in record:
+                record[key] = None
+
+
 def _process_upsert_records(
     records: list,
     model_class,
@@ -147,32 +182,15 @@ def _process_upsert_records(
 ) -> list[dict]:
     model_columns = {c.name for c in model_class.__table__.columns}
     include_source = source is not None and "source" in model_columns
-    processed: list[dict] = []
     all_keys: set[str] = set()
-
+    processed: list[dict] = []
     for record_data in records:
-        try:
-            data_dict = (
-                record_data.model_dump()
-                if hasattr(record_data, "model_dump")
-                else record_data.copy()
-            )
-            data_dict["user_id"] = user_id
-            if include_source:
-                data_dict["source"] = source
-            if "created_at" not in data_dict:
-                data_dict["created_at"] = utcnow()
-            all_keys.update(data_dict.keys())
-            processed.append(data_dict)
-        except Exception as e:
-            logger.error("record_processing_error", error=str(e))
-            error_count_ref[0] += 1
-
-    for record in processed:
-        for key in all_keys:
-            if key not in record:
-                record[key] = None
-
+        d = _to_record_dict(
+            record_data, user_id, source, include_source, all_keys, error_count_ref
+        )
+        if d is not None:
+            processed.append(d)
+    _fill_missing_keys(processed, all_keys)
     return processed
 
 

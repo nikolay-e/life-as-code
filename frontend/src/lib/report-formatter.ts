@@ -975,6 +975,40 @@ function formatFitnessSection(insights: AdvancedInsights): string[] {
   return lines;
 }
 
+function _formatWeekdayWeekendRow(
+  metric: string,
+  split: {
+    weekday_mean: number | null;
+    weekend_mean: number | null;
+    delta: number | null;
+  },
+): string {
+  const wdStr =
+    split.weekday_mean === null ? "—" : split.weekday_mean.toFixed(1);
+  const weStr =
+    split.weekend_mean === null ? "—" : split.weekend_mean.toFixed(1);
+  const dStr =
+    split.delta === null
+      ? "—"
+      : `${split.delta >= 0 ? "+" : ""}${split.delta.toFixed(1)}`;
+  return `| ${metric} | ${wdStr} | ${weStr} | ${dStr} |`;
+}
+
+function _formatWeightHrvSection(cross_domain: {
+  weight_hrv_coupling: number | null;
+  weight_hrv_p_value: number | null;
+}): string[] {
+  if (cross_domain.weight_hrv_coupling === null) return [];
+  const p = cross_domain.weight_hrv_p_value;
+  const weightHrvP = p === null ? "" : ` (p=${p.toFixed(3)})`;
+  return [
+    `## Cross-Domain`,
+    ``,
+    `- Weight-HRV Coupling: ${cross_domain.weight_hrv_coupling.toFixed(3)}${weightHrvP}`,
+    ``,
+  ];
+}
+
 function formatCrossDomainSection(insights: AdvancedInsights): string[] {
   const { cross_domain } = insights;
   const lines: string[] = [];
@@ -995,18 +1029,7 @@ function formatCrossDomainSection(insights: AdvancedInsights): string[] {
   }
   lines.push(``);
 
-  if (cross_domain.weight_hrv_coupling !== null) {
-    const weightHrvP =
-      cross_domain.weight_hrv_p_value === null
-        ? ""
-        : ` (p=${cross_domain.weight_hrv_p_value.toFixed(3)})`;
-    lines.push(
-      `## Cross-Domain`,
-      ``,
-      `- Weight-HRV Coupling: ${cross_domain.weight_hrv_coupling.toFixed(3)}${weightHrvP}`,
-      ``,
-    );
-  }
+  lines.push(..._formatWeightHrvSection(cross_domain));
 
   const weekdayWeekend = cross_domain.weekday_weekend;
   if (Object.keys(weekdayWeekend).length > 0) {
@@ -1017,15 +1040,7 @@ function formatCrossDomainSection(insights: AdvancedInsights): string[] {
       `|--------|---------|---------|-------|`,
     );
     for (const [metric, split] of Object.entries(weekdayWeekend)) {
-      const wdStr =
-        split.weekday_mean === null ? "—" : split.weekday_mean.toFixed(1);
-      const weStr =
-        split.weekend_mean === null ? "—" : split.weekend_mean.toFixed(1);
-      const dStr =
-        split.delta === null
-          ? "—"
-          : `${split.delta >= 0 ? "+" : ""}${split.delta.toFixed(1)}`;
-      lines.push(`| ${metric} | ${wdStr} | ${weStr} | ${dStr} |`);
+      lines.push(_formatWeekdayWeekendRow(metric, split));
     }
     lines.push(``);
   }

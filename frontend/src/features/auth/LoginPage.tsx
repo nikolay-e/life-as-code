@@ -28,9 +28,7 @@ export function LoginPage() {
     e.preventDefault();
     clearError();
     login(username, password)
-      .then(() => {
-        void navigate(from, { replace: true });
-      })
+      .then(() => navigate(from, { replace: true }))
       .catch(() => {});
   };
 

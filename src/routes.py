@@ -225,22 +225,70 @@ def _save_whoop_tokens(tokens):
         logger.info("whoop_credentials_saved")
 
 
+def _login_handler(form: "LoginForm"):
+    if form.validate_on_submit():
+        try:
+            result = _authenticate_user(form)
+            if result is not None:
+                return result
+        except Exception as e:
+            logger.exception("login_error", username=form.username.data, error=str(e))
+            flash("An error occurred during login")
+    return _render_login_page(form)
+
+
+def _whoop_callback_handler():
+    code = request.args.get("code")
+    error = request.args.get("error")
+    state = request.args.get("state")
+
+    logger.info(
+        "whoop_callback_received",
+        has_code=bool(code),
+        has_state=bool(state),
+    )
+
+    if error:
+        error_desc = request.args.get("error_description", error)
+        logger.error("whoop_oauth_error", error_type=error)
+        flash(f"Whoop authorization failed: {error_desc}")
+        return redirect(SETTINGS_REDIRECT)
+
+    if not _validate_whoop_callback_state(state):
+        return redirect(SETTINGS_REDIRECT)
+
+    if not code:
+        flash("Authorization code not received")
+        return redirect(SETTINGS_REDIRECT)
+
+    try:
+        client_id = os.getenv("WHOOP_CLIENT_ID")
+        client_secret = os.getenv("WHOOP_CLIENT_SECRET")
+        redirect_uri = os.getenv(
+            "WHOOP_REDIRECT_URI", "http://localhost:8080/whoop/callback"
+        )
+
+        tokens = _exchange_whoop_token(code, client_id, client_secret, redirect_uri)
+        if tokens is None:
+            flash("Token exchange failed. Please try again.")
+            return redirect(SETTINGS_REDIRECT)
+
+        _save_whoop_tokens(tokens)
+
+        flash("Whoop account connected successfully!")
+        return redirect(SETTINGS_REDIRECT)
+
+    except (requests.RequestException, KeyError, ValueError):
+        logger.exception("whoop_connection_error")
+        flash("Error connecting Whoop. Please try again.")
+        return redirect(SETTINGS_REDIRECT)
+
+
 def register_routes(server, limiter):
     @server.route("/login", methods=["GET", "POST"])
     @limiter.limit("3000 per hour")
     def login():
-        form = LoginForm()
-        if form.validate_on_submit():
-            try:
-                result = _authenticate_user(form)
-                if result is not None:
-                    return result
-            except Exception as e:
-                logger.exception(
-                    "login_error", username=form.username.data, error=str(e)
-                )
-                flash("An error occurred during login")
-        return _render_login_page(form)
+        return _login_handler(LoginForm())
 
     @server.route("/logout", methods=["GET"])
     @login_required
@@ -272,47 +320,4 @@ def register_routes(server, limiter):
     @server.route("/whoop/callback", methods=["GET"])
     @login_required
     def whoop_callback():
-        code = request.args.get("code")
-        error = request.args.get("error")
-        state = request.args.get("state")
-
-        logger.info(
-            "whoop_callback_received",
-            has_code=bool(code),
-            has_state=bool(state),
-        )
-
-        if error:
-            error_desc = request.args.get("error_description", error)
-            logger.error("whoop_oauth_error", error_type=error)
-            flash(f"Whoop authorization failed: {error_desc}")
-            return redirect(SETTINGS_REDIRECT)
-
-        if not _validate_whoop_callback_state(state):
-            return redirect(SETTINGS_REDIRECT)
-
-        if not code:
-            flash("Authorization code not received")
-            return redirect(SETTINGS_REDIRECT)
-
-        try:
-            client_id = os.getenv("WHOOP_CLIENT_ID")
-            client_secret = os.getenv("WHOOP_CLIENT_SECRET")
-            redirect_uri = os.getenv(
-                "WHOOP_REDIRECT_URI", "http://localhost:8080/whoop/callback"
-            )
-
-            tokens = _exchange_whoop_token(code, client_id, client_secret, redirect_uri)
-            if tokens is None:
-                flash("Token exchange failed. Please try again.")
-                return redirect(SETTINGS_REDIRECT)
-
-            _save_whoop_tokens(tokens)
-
-            flash("Whoop account connected successfully!")
-            return redirect(SETTINGS_REDIRECT)
-
-        except (requests.RequestException, KeyError, ValueError):
-            logger.exception("whoop_connection_error")
-            flash("Error connecting Whoop. Please try again.")
-            return redirect(SETTINGS_REDIRECT)
+        return _whoop_callback_handler()

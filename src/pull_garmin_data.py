@@ -915,27 +915,25 @@ class GarminAPIWrapper:
                 result["vo2MaxValue"] = self._safe_float(val)
                 break
 
+    def _extract_single_race(self, race: dict, result: dict[str, Any]) -> None:
+        raw_distance = race.get("distance") or race.get("racePredictionDistance")
+        distance = int(raw_distance) if raw_distance is not None else None
+        time_secs = race.get("time") or race.get("racePredictionTime")
+        if (
+            distance is not None
+            and distance in self._RACE_DISTANCE_KEY_MAP
+            and time_secs is not None
+        ):
+            result[self._RACE_DISTANCE_KEY_MAP[distance]] = self._safe_int(time_secs)
+
     def _extract_race_times(self, predictions: dict, result: dict[str, Any]) -> None:
         for list_key in ("raceTimes", "racePredictions"):
             race_list = predictions.get(list_key, [])
             if not isinstance(race_list, list):
                 continue
             for race in race_list:
-                if not isinstance(race, dict):
-                    continue
-                raw_distance = race.get("distance") or race.get(
-                    "racePredictionDistance"
-                )
-                distance = int(raw_distance) if raw_distance is not None else None
-                time_secs = race.get("time") or race.get("racePredictionTime")
-                if (
-                    distance is not None
-                    and distance in self._RACE_DISTANCE_KEY_MAP
-                    and time_secs is not None
-                ):
-                    result[self._RACE_DISTANCE_KEY_MAP[distance]] = self._safe_int(
-                        time_secs
-                    )
+                if isinstance(race, dict):
+                    self._extract_single_race(race, result)
 
     def get_race_predictions_data(self) -> list[dict]:
         try:
