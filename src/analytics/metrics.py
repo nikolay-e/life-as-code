@@ -5,6 +5,8 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import date
 
+from scipy import stats as scipy_stats
+
 from .constants import (
     MAD_SCALE_FACTOR,
     MAX_SLEEP_TARGET_WINDOW,
@@ -248,11 +250,8 @@ def _linear_slope_per_day(
         if winsorize_pct
         else ys_raw
     )
-    x_mean = sum(xs) / len(xs)
-    y_mean = sum(ys) / len(ys)
-    num = sum((x - x_mean) * (y - y_mean) for x, y in zip(xs, ys, strict=False))
-    den = sum((x - x_mean) ** 2 for x in xs)
-    return num / den if den != 0 else None
+    result = scipy_stats.linregress(xs, ys)
+    return float(result.slope)
 
 
 def _build_cache_key(
@@ -462,12 +461,9 @@ def _calculate_baseline_metrics_impl(
                     (5, 95) if opts.winsorize_trend else None,
                 )
             else:
-                n = len(trend_values)
-                x_mean = (n - 1) / 2
-                y_mean = sum(trend_values) / n
-                num = sum((i - x_mean) * (trend_values[i] - y_mean) for i in range(n))
-                den = sum((i - x_mean) ** 2 for i in range(n))
-                trend_slope = num / den if den != 0 else None
+                trend_slope = float(
+                    scipy_stats.linregress(range(len(trend_values)), trend_values).slope
+                )
         else:
             current_median = calculate_median(trend_values)
             prev_median = calculate_median(prev_trend_values)

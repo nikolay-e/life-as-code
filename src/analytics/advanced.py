@@ -4,6 +4,9 @@ import math
 from collections import defaultdict
 from datetime import date, timedelta
 
+import numpy as np
+import pandas as pd
+
 from .constants import MIN_LAG_SAMPLE_SIZE
 from .date_utils import filter_by_window, local_today, to_day_date, to_day_key
 from .series import get_window_values, to_daily_series
@@ -46,11 +49,7 @@ def _build_day_map(
 def _ema_smooth(values: list[float], span: int = 7) -> list[float]:
     if not values:
         return []
-    alpha = 2.0 / (span + 1)
-    result = [values[0]]
-    for v in values[1:]:
-        result.append(alpha * v + (1 - alpha) * result[-1])
-    return result
+    return [float(v) for v in pd.Series(values).ewm(span=span, adjust=False).mean()]
 
 
 def _aligned_pairs(
@@ -436,44 +435,11 @@ def calculate_hrv_residual(
     y_vals = [r[0] for r in rows]
     y_mean = sum(y_vals) / n
 
-    x_matrix = [[1.0] + r[1] for r in rows]
-    kk = k + 1
-
-    xtx = [[0.0] * kk for _ in range(kk)]
-    xty = [0.0] * kk
-    for i in range(n):
-        for j in range(kk):
-            xty[j] += x_matrix[i][j] * y_vals[i]
-            for m in range(j, kk):
-                xtx[j][m] += x_matrix[i][j] * x_matrix[i][m]
-    for j in range(kk):
-        for m in range(j):
-            xtx[j][m] = xtx[m][j]
-
-    aug = [xtx[j][:] + [xty[j]] for j in range(kk)]
-    for col in range(kk):
-        max_row = max(range(col, kk), key=lambda r: abs(aug[r][col]))
-        aug[col], aug[max_row] = aug[max_row], aug[col]
-        pivot = aug[col][col]
-        if abs(pivot) < 1e-12:
-            return HRVResidualMetrics(
-                predicted=None,
-                actual=None,
-                residual=None,
-                residual_z=None,
-                r_squared=None,
-                model_features=available_features,
-            )
-        for j in range(col, kk + 1):
-            aug[col][j] /= pivot
-        for row in range(kk):
-            if row != col:
-                factor = aug[row][col]
-                for j in range(col, kk + 1):
-                    aug[row][j] -= factor * aug[col][j]
-    coeffs = [aug[j][kk] for j in range(kk)]
-    intercept = coeffs[0]
-    betas = coeffs[1:]
+    X = np.column_stack([[1.0] * n, [r[1] for r in rows]])
+    y = np.array(y_vals)
+    coeffs, _, _, _ = np.linalg.lstsq(X, y, rcond=None)
+    intercept = float(coeffs[0])
+    betas = coeffs[1:].tolist()
 
     predictions = [
         intercept + sum(betas[j] * rows[i][1][j] for j in range(k)) for i in range(n)
@@ -481,7 +447,7 @@ def calculate_hrv_residual(
     residuals = [y_vals[i] - predictions[i] for i in range(n)]
 
     ss_res = sum(r**2 for r in residuals)
-    ss_tot = sum((y - y_mean) ** 2 for y in y_vals)
+    ss_tot = sum((yv - y_mean) ** 2 for yv in y_vals)
     r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else None
 
     predicted_latest = intercept + sum(betas[j] * latest_features[j] for j in range(k))

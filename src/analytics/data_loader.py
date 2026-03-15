@@ -298,59 +298,41 @@ def load_ml_insights(
     from models import Anomaly, Prediction
 
     anchor = ref_date or local_today()
+    historical_cutoff = anchor - timedelta(days=7)
+    anomaly_cutoff = anchor - timedelta(days=anomaly_lookback_days)
 
-    prediction_rows = (
+    all_prediction_rows = (
         db.query(Prediction)
-        .filter(Prediction.user_id == user_id, Prediction.target_date >= anchor)
+        .filter(
+            Prediction.user_id == user_id,
+            Prediction.target_date >= historical_cutoff,
+        )
         .order_by(Prediction.metric, Prediction.target_date)
         .all()
     )
 
     by_metric: dict[str, list[MLForecastPoint]] = defaultdict(list)
-    for r in prediction_rows:
-        by_metric[r.metric].append(
-            MLForecastPoint(
-                target_date=r.target_date.isoformat(),
-                horizon_days=r.horizon_days,
-                p10=r.p10,
-                p50=r.p50,
-                p90=r.p90,
-            )
+    by_metric_hist: dict[str, list[MLForecastPoint]] = defaultdict(list)
+    for r in all_prediction_rows:
+        point = MLForecastPoint(
+            target_date=r.target_date.isoformat(),
+            horizon_days=r.horizon_days,
+            p10=r.p10,
+            p50=r.p50,
+            p90=r.p90,
         )
+        if r.target_date >= anchor:
+            by_metric[r.metric].append(point)
+        else:
+            by_metric_hist[r.metric].append(point)
 
     forecasts = [
         MLForecastMetric(metric=m, forecasts=pts) for m, pts in by_metric.items()
     ]
-
-    historical_cutoff = anchor - timedelta(days=7)
-    historical_rows = (
-        db.query(Prediction)
-        .filter(
-            Prediction.user_id == user_id,
-            Prediction.target_date >= historical_cutoff,
-            Prediction.target_date < anchor,
-        )
-        .order_by(Prediction.metric, Prediction.target_date)
-        .all()
-    )
-
-    by_metric_hist: dict[str, list[MLForecastPoint]] = defaultdict(list)
-    for r in historical_rows:
-        by_metric_hist[r.metric].append(
-            MLForecastPoint(
-                target_date=r.target_date.isoformat(),
-                horizon_days=r.horizon_days,
-                p10=r.p10,
-                p50=r.p50,
-                p90=r.p90,
-            )
-        )
-
     historical_forecasts = [
         MLForecastMetric(metric=m, forecasts=pts) for m, pts in by_metric_hist.items()
     ]
 
-    anomaly_cutoff = anchor - timedelta(days=anomaly_lookback_days)
     anomaly_rows = (
         db.query(Anomaly)
         .filter(

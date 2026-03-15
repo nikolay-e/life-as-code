@@ -161,6 +161,52 @@ def api_analytics():
         return jsonify(result)
 
 
+@api.route("/ml/anomalies", methods=["GET"])
+@login_required
+def api_ml_anomalies():
+    days = request.args.get("days", 14, type=int)
+    with get_db_session_context() as db:
+        from analytics.data_loader import load_ml_insights
+
+        insights = load_ml_insights(db, current_user.id, anomaly_lookback_days=days)
+        return jsonify(
+            {
+                "anomalies": [a.model_dump() for a in insights.ml_anomalies],
+                "count": len(insights.ml_anomalies),
+                "has_recent": insights.has_recent_ml_anomalies,
+            }
+        )
+
+
+@api.route("/ml/forecasts", methods=["GET"])
+@login_required
+def api_ml_forecasts():
+    metric = request.args.get("metric")
+    horizon = request.args.get("horizon", 14, type=int)
+    with get_db_session_context() as db:
+        from analytics.data_loader import load_ml_insights
+
+        insights = load_ml_insights(db, current_user.id)
+        forecasts = [
+            f for f in insights.forecasts if metric is None or f.metric == metric
+        ]
+        horizon_filtered = [
+            {
+                "metric": f.metric,
+                "forecasts": [
+                    p.model_dump() for p in f.forecasts if p.horizon_days <= horizon
+                ],
+            }
+            for f in forecasts
+        ]
+        return jsonify(
+            {
+                "forecasts": horizon_filtered,
+                "has_active": insights.has_active_forecasts,
+            }
+        )
+
+
 @api.route("/data/range", methods=["GET"])
 @login_required
 def api_data_range():

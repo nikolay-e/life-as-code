@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from datetime import date
 
+import pandas as pd
+
 from .constants import METRIC_AGGREGATION
 from .date_utils import (
-    day_number,
     filter_by_window,
     filter_by_window_range,
     to_day_key,
@@ -13,32 +14,26 @@ from .types import DataPoint
 
 
 def to_daily_series(data: list[DataPoint], method: str = "last") -> list[DataPoint]:
-    sorted_data = sorted(
-        [d for d in data if d.value is not None],
-        key=lambda d: day_number(d.date),
-    )
+    rows = [
+        {"date": to_day_key(d.date), "value": d.value}
+        for d in data
+        if d.value is not None
+    ]
+    if not rows:
+        return []
 
-    day_map: dict[str, list[float]] = {}
-    for d in sorted_data:
-        dk = to_day_key(d.date)
-        if d.value is not None:
-            day_map.setdefault(dk, []).append(d.value)
+    df = pd.DataFrame(rows)
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.sort_values("date")
 
-    result: list[DataPoint] = []
-    for date_key, values in day_map.items():
-        if not values:
-            continue
-        if method == "mean":
-            aggregated = sum(values) / len(values)
-        elif method == "max":
-            aggregated = max(values)
-        elif method == "sum":
-            aggregated = sum(values)
-        else:
-            aggregated = values[-1]
-        result.append(DataPoint(date=date_key, value=aggregated))
+    agg_map = {"mean": "mean", "max": "max", "sum": "sum", "last": "last"}
+    agg_fn = agg_map.get(method, "last")
+    daily = df.groupby("date")["value"].agg(agg_fn).reset_index()
 
-    return sorted(result, key=lambda d: d.date)
+    return [
+        DataPoint(date=row["date"].strftime("%Y-%m-%d"), value=float(row["value"]))
+        for _, row in daily.iterrows()
+    ]
 
 
 def to_daily_series_for_metric(data: list[DataPoint], metric: str) -> list[DataPoint]:

@@ -411,6 +411,24 @@ class FusedZScoreInput(BaseModel):
     source: DataProvider
 
 
+class MetricBaseline(BaseModel):
+    key: str
+    current_value: float | None
+    mean: float | None
+    std: float | None
+    z_score: float | None
+    shifted_z_score: float | None
+    trend_slope: float | None
+    percentile: float | None
+    quality_coverage: float
+    quality_confidence: float
+    short_term_mean: float | None = None
+    cv: float = 0.0
+    valid_points: int = 0
+    outlier_rate: float = 0.0
+    latency_days: int | None = None
+
+
 class HealthAnalysis(BaseModel):
     health_score: HealthScore
     recovery_metrics: RecoveryMetrics
@@ -431,6 +449,8 @@ class HealthAnalysis(BaseModel):
     recent_days: list[DayMetrics]
     day_completeness: float
     data_source_summary: list[DataSourceSummary]
+    metric_baselines: dict[str, MetricBaseline] = {}
+    raw_series: dict[str, list[DataPoint]] = {}
     advanced_insights: AdvancedInsights | None = None
     ml_insights: MLInsights | None = None
     mode: TrendMode

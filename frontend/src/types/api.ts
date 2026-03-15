@@ -333,9 +333,290 @@ export interface AdvancedInsights {
   recovery_enhanced: RecoveryEnhancedMetrics;
 }
 
+export interface DataPoint {
+  date: string;
+  value: number | null;
+}
+
+export interface MetricBaseline {
+  key: string;
+  current_value: number | null;
+  mean: number | null;
+  std: number | null;
+  z_score: number | null;
+  shifted_z_score: number | null;
+  trend_slope: number | null;
+  percentile: number | null;
+  quality_coverage: number;
+  quality_confidence: number;
+  short_term_mean: number | null;
+  cv: number;
+  valid_points: number;
+  outlier_rate: number;
+  latency_days: number | null;
+}
+
+export interface HealthScoreContributor {
+  name: string;
+  raw_z_score: number | null;
+  goodness_z_score: number | null;
+  weight: number;
+  contribution: number | null;
+  confidence: number;
+  gate_factor: number;
+  gate_reason: string;
+  source: string | null;
+  long_term_percentile: number | null;
+  is_gated: boolean;
+}
+
+export interface OverreachingMetrics {
+  score: number | null;
+  risk_level: "low" | "moderate" | "high" | "critical" | null;
+  components: Record<string, number | null>;
+  consecutive_low_recovery_days: number;
+}
+
+export interface CorrelationMetrics {
+  hrv_rhr_correlation: number | null;
+  hrv_rhr_p_value: number | null;
+  sleep_hrv_lag_correlation: number | null;
+  sleep_hrv_p_value: number | null;
+  strain_recovery_correlation: number | null;
+  strain_recovery_p_value: number | null;
+  sample_size: number;
+  is_significant: boolean;
+}
+
+export interface VelocityMetrics {
+  hrv_velocity: number | null;
+  rhr_velocity: number | null;
+  weight_velocity: number | null;
+  sleep_velocity: number | null;
+  interpretation: Record<string, string>;
+}
+
+export interface RecoveryCapacityMetrics {
+  avg_recovery_days: number | null;
+  recovery_efficiency: number | null;
+  high_strain_events: number;
+  recovered_events: number;
+}
+
+export interface IllnessRiskSignal {
+  combined_deviation: number | null;
+  consecutive_days_elevated: number;
+  risk_level: "low" | "moderate" | "high" | null;
+  components: Record<string, number | null>;
+}
+
+export interface DecorrelationAlert {
+  is_decorrelated: boolean;
+  current_correlation: number | null;
+  baseline_correlation: number | null;
+  correlation_delta: number | null;
+}
+
+export interface DayMetrics {
+  date: string;
+  hrv: number | null;
+  rhr: number | null;
+  sleep: number | null;
+  recovery: number | null;
+  steps: number | null;
+  weight: number | null;
+  strain: number | null;
+  stress: number | null;
+  calories: number | null;
+}
+
+export interface HealthScore {
+  overall: number | null;
+  recovery_core: number | null;
+  training_load: number | null;
+  behavior_support: number | null;
+  contributors: HealthScoreContributor[];
+  steps_status: Record<string, unknown>;
+  data_confidence: number | null;
+}
+
+export interface RecoveryMetrics {
+  hrv_rhr_imbalance: number | null;
+  recovery_cv: number | null;
+  has_recovery_data: boolean;
+  stress_load_short: number | null;
+  stress_load_long: number | null;
+  stress_trend: number | null;
+  short_term_window: number;
+  long_term_window: number;
+}
+
+export interface SleepMetrics {
+  sleep_debt_short: number;
+  sleep_surplus_short: number;
+  sleep_cv: number;
+  target_sleep: number;
+  avg_sleep_short: number | null;
+  avg_sleep_long: number | null;
+  short_term_window: number;
+  long_term_window: number;
+}
+
+export interface ActivityMetrics {
+  acute_load: number | null;
+  chronic_load: number | null;
+  acwr: number | null;
+  steps_avg_short: number | null;
+  steps_avg_long: number | null;
+  steps_change: number | null;
+  steps_cv: number;
+  short_term_window: number;
+  long_term_window: number;
+}
+
+export interface WeightMetrics {
+  ema_short: number | null;
+  ema_long: number | null;
+  period_change: number | null;
+  volatility_short: number;
+  volatility_long: number;
+}
+
+export interface CaloriesMetrics {
+  avg_7: number | null;
+  avg_30: number | null;
+  delta: number | null;
+  cv_30: number;
+  z_score: number | null;
+  trend: "increasing" | "decreasing" | "stable" | null;
+}
+
+export interface EnergyBalanceMetrics {
+  calories_trend: "surplus" | "deficit" | "maintenance" | null;
+  weight_trend: "gaining" | "losing" | "stable" | null;
+  balance_signal: "surplus_confirmed" | "deficit_confirmed" | "mixed" | null;
+  cal_delta: number | null;
+  weight_delta: number | null;
+}
+
+export interface ClinicalAlerts {
+  persistent_tachycardia: boolean;
+  tachycardia_days: number;
+  acute_hrv_drop: boolean;
+  hrv_drop_percent: number | null;
+  progressive_weight_loss: boolean;
+  weight_loss_percent: number | null;
+  severe_overtraining: boolean;
+  overtraining_score: number | null;
+  any_alert: boolean;
+}
+
+export interface AnomalyResult {
+  date: string;
+  metric: string;
+  value: number;
+  z_score: number;
+  severity: "warning" | "alert" | "critical";
+  source: string | null;
+}
+
+export interface AnomalyMetrics {
+  anomalies: AnomalyResult[];
+  anomaly_count: number;
+  has_recent_anomaly: boolean;
+  most_severe: AnomalyResult | null;
+}
+
+export interface DayOverDayDelta {
+  latest: number | null;
+  previous: number | null;
+  delta: number | null;
+  delta_percent: number | null;
+  latest_date: string | null;
+  previous_date: string | null;
+  gap_days: number | null;
+}
+
+export interface DayOverDayMetrics {
+  hrv: DayOverDayDelta;
+  rhr: DayOverDayDelta;
+  sleep: DayOverDayDelta;
+  recovery: DayOverDayDelta;
+  steps: DayOverDayDelta;
+  weight: DayOverDayDelta;
+  strain: DayOverDayDelta;
+}
+
+export interface DataSourceSummary {
+  metric: string;
+  total: number;
+  garmin_only: number;
+  whoop_only: number;
+  blended: number;
+  avg_confidence: number;
+}
+
+export interface MLForecastPoint {
+  target_date: string;
+  horizon_days: number;
+  p10: number | null;
+  p50: number | null;
+  p90: number | null;
+}
+
+export interface MLForecastMetric {
+  metric: string;
+  forecasts: MLForecastPoint[];
+}
+
+export interface MLAnomalyRecord {
+  date: string;
+  anomaly_score: number;
+  contributing_factors: Record<string, number> | null;
+}
+
+export interface MLInsights {
+  forecasts: MLForecastMetric[];
+  historical_forecasts: MLForecastMetric[];
+  ml_anomalies: MLAnomalyRecord[];
+  has_active_forecasts: boolean;
+  has_historical_forecasts: boolean;
+  has_recent_ml_anomalies: boolean;
+}
+
 export interface AnalyticsResponse {
+  health_score: HealthScore;
+  recovery_metrics: RecoveryMetrics;
+  sleep_metrics: SleepMetrics;
+  activity_metrics: ActivityMetrics;
+  weight_metrics: WeightMetrics;
+  calories_metrics: CaloriesMetrics;
+  energy_balance: EnergyBalanceMetrics;
+  clinical_alerts: ClinicalAlerts;
+  overreaching: OverreachingMetrics;
+  illness_risk: IllnessRiskSignal;
+  decorrelation: DecorrelationAlert;
+  correlations: CorrelationMetrics;
+  velocity: VelocityMetrics;
+  recovery_capacity: RecoveryCapacityMetrics;
+  anomalies: AnomalyMetrics;
+  day_over_day: DayOverDayMetrics;
+  recent_days: DayMetrics[];
+  day_completeness: number;
+  data_source_summary: DataSourceSummary[];
+  metric_baselines: Record<string, MetricBaseline>;
+  raw_series: Record<string, DataPoint[]>;
   advanced_insights?: AdvancedInsights;
+  ml_insights?: MLInsights;
   mode: string;
+  mode_config: {
+    range_days: number;
+    short_term: number;
+    long_term: number;
+    baseline: number;
+    trend_window: number;
+    use_shifted_z_score: boolean;
+  };
 }
 
 export interface GarminActivityData {

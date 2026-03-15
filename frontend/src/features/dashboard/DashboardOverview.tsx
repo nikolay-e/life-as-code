@@ -33,15 +33,17 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import {
-  buildDashboardCards,
+  METRIC_REGISTRY,
   TREND_MODES,
   MODE_ORDER,
-  type MetricCardVM,
   type ViewMode,
 } from "../../lib/metrics";
+import { DASHBOARD_METRIC_KEYS } from "../../lib/metrics/keys";
 import { toTimeMs } from "../../lib/health";
-import { calculateDynamicStepsFloor } from "../../lib/health-metrics";
 import { getLatestSyncDate } from "../../lib/sync-utils";
+import { useAnalytics } from "../../hooks/useAnalytics";
+
+const DASHBOARD_KEYS = new Set<string>(DASHBOARD_METRIC_KEYS);
 
 interface MetricCardProps {
   title: string;
@@ -125,20 +127,20 @@ export function DashboardOverview() {
   );
   const { data: syncStatus } = useSyncStatus();
   const { isSyncing } = useAutoSync();
-
-  const metricCards: MetricCardVM[] = useMemo(
-    () => buildDashboardCards(data ?? null, selectedDays, new Date()),
-    [data, selectedDays],
-  );
+  const { data: analyticsData } = useAnalytics("recent");
 
   const stepsFloor = useMemo(() => {
     const steps = data?.steps;
     if (!steps || steps.length === 0) return undefined;
-    const stepsDataPoints = steps.map((s) => ({
-      date: s.date,
-      value: s.total_steps ?? null,
-    }));
-    return calculateDynamicStepsFloor(stepsDataPoints, rangeDays);
+    const window = Math.min(rangeDays, 90);
+    const vals = steps
+      .slice(-window)
+      .map((s) => s.total_steps)
+      .filter((v): v is number => v !== null);
+    if (vals.length < 14) return undefined;
+    const sorted = [...vals].sort((a, b) => a - b);
+    const idx = Math.floor(sorted.length * 0.1);
+    return Math.round(sorted[Math.min(idx, sorted.length - 1)]);
   }, [data, rangeDays]);
 
   if (isLoading) {
@@ -260,17 +262,26 @@ export function DashboardOverview() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {metricCards.map((vm) => (
-          <MetricCard
-            key={vm.key}
-            title={vm.title}
-            value={vm.value}
-            subtitle={vm.subtitle}
-            icon={vm.icon}
-            colorClass={vm.colorClass}
-            bgClass={vm.bgClass}
-          />
-        ))}
+        {METRIC_REGISTRY.filter((def) => DASHBOARD_KEYS.has(def.key)).map(
+          (def) => {
+            const baseline = analyticsData?.metric_baselines[def.key];
+            const currentVal = baseline?.current_value ?? null;
+            const shortAvg = baseline?.short_term_mean ?? null;
+            const subtitle =
+              shortAvg !== null ? `7d avg: ${def.format(shortAvg)}` : "Current";
+            return (
+              <MetricCard
+                key={def.key}
+                title={def.title}
+                value={def.format(currentVal)}
+                subtitle={subtitle}
+                icon={def.icon}
+                colorClass={def.iconColorClass}
+                bgClass={def.iconBgClass}
+              />
+            );
+          },
+        )}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">

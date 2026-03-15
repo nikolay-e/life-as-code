@@ -30,17 +30,6 @@ export {
   MODE_ORDER,
   MAX_BASELINE_DAYS,
   TREND_CONFIGS,
-  getSeries,
-  getDisplayValue,
-  generateSubtitle,
-  buildDashboardCards,
   getTrendConfig,
   getTrendConfigByKey,
-  computeMetric,
-  computeAllMetrics,
-  getBaselineOptions,
-  computeHealthAnalysis,
-  type ComputedMetric,
-  type HealthAnalysis,
-  type DataSourceSummary,
-} from "./service";
+} from "./config";

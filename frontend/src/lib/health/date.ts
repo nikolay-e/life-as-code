@@ -50,8 +50,3 @@ export function toTimeMs(dateStr: string): number {
 
   return toLocalDayDate(dateStr).getTime();
 }
-
-export function toDayNumber(dateStr: string): number {
-  const d = toLocalDayDate(toLocalDayKey(dateStr));
-  return Math.floor(d.getTime() / (1000 * 60 * 60 * 24));
-}

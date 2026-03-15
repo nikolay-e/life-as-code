@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
+from scipy import stats as scipy_stats
+
 from .constants import VELOCITY_SIGNIFICANCE
 from .date_utils import filter_by_window, to_day_date, to_day_key
 from .series import to_daily_series
@@ -118,11 +120,7 @@ def calculate_velocity_metrics(
             return None
         xs = [day_number(d.date) for d in recent]
         ys: list[float] = [d.value for d in recent if d.value is not None]
-        x_mean = sum(xs) / len(xs)
-        y_mean = sum(ys) / len(ys)
-        num = sum((x - x_mean) * (y - y_mean) for x, y in zip(xs, ys, strict=False))
-        den = sum((x - x_mean) ** 2 for x in xs)
-        return num / den if den > 0 else None
+        return float(scipy_stats.linregress(xs, ys).slope)
 
     hrv_v = calc_slope(hrv_data, "hrv")
     rhr_v = calc_slope(rhr_data, "rhr")

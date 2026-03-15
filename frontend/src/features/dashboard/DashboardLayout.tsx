@@ -22,6 +22,7 @@ import { cn } from "../../lib/utils";
 import { Spinner } from "../../components/ui/spinner";
 import { VersionInfo } from "../../components/ui/version-info";
 import { formatCombinedReport } from "../../lib/report-formatter";
+import type { AnalyticsResponse } from "../../types/api";
 import { MAX_BASELINE_DAYS } from "../../lib/metrics";
 import { healthKeys } from "../../lib/query-keys";
 import { format, subDays } from "date-fns";
@@ -88,7 +89,8 @@ export function DashboardLayout() {
       const startDate = format(subDays(today, MAX_BASELINE_DAYS), "yyyy-MM-dd");
       const workoutsStartDate = format(subDays(today, 30), "yyyy-MM-dd");
 
-      const [data, detailedWorkouts, analyticsData] = await Promise.all([
+      const modes = ["recent", "quarter", "year", "all"] as const;
+      const [data, detailedWorkouts, ...analyticsArr] = await Promise.all([
         queryClient.fetchQuery({
           queryKey: healthKeys.dataRange(startDate, endDate),
           queryFn: () => api.data.getRange(startDate, endDate),
@@ -100,20 +102,26 @@ export function DashboardLayout() {
             api.data.getDetailedWorkouts(workoutsStartDate, endDate),
           staleTime: 60_000,
         }),
-        queryClient
-          .fetchQuery({
-            queryKey: healthKeys.analytics("recent"),
-            queryFn: () => api.analytics.get("recent"),
-            staleTime: 60_000,
-          })
-          .catch(() => null),
+        ...modes.map((mode) =>
+          queryClient
+            .fetchQuery({
+              queryKey: healthKeys.analytics(mode),
+              queryFn: () => api.analytics.get(mode),
+              staleTime: 60_000,
+            })
+            .catch(() => null),
+        ),
       ]);
 
-      const report = formatCombinedReport(
-        data,
-        detailedWorkouts,
-        analyticsData?.advanced_insights ?? null,
-      );
+      const allAnalytics: Partial<Record<string, AnalyticsResponse>> = {};
+      modes.forEach((mode, i) => {
+        const result = analyticsArr[i];
+        if (result != null) {
+          allAnalytics[mode] = result;
+        }
+      });
+
+      const report = formatCombinedReport(data, detailedWorkouts, allAnalytics);
       if (!report) {
         toast.error("No data to copy");
         setCopyState("idle");

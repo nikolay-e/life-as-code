@@ -25,6 +25,7 @@ from .metric_series import FusedHealthData, MetricSeries
 from .metrics import (
     baseline_cache_scope,
     calculate_activity_metrics,
+    calculate_baseline_metrics,
     calculate_calories_metrics,
     calculate_data_quality,
     calculate_day_completeness,
@@ -37,6 +38,7 @@ from .metrics import (
     calculate_weight_metrics,
     should_use_today_metric,
 )
+from .series import to_daily_series_for_metric
 from .types import (
     AnomalyMetrics,
     AnomalyResult,
@@ -44,6 +46,7 @@ from .types import (
     DataPoint,
     FusedZScoreInput,
     HealthAnalysis,
+    MetricBaseline,
     TrendMode,
     TrendModeConfig,
 )
@@ -57,6 +60,48 @@ def get_baseline_options(mode: TrendMode, config: TrendModeConfig) -> BaselineOp
         regression_uses_real_days=mode in (TrendMode.YEAR, TrendMode.ALL),
         winsorize_trend=True,
     )
+
+
+def _compute_metric_baselines(
+    metric_data: dict[str, list[DataPoint]],
+    baseline_window: int,
+    short_term_window: int,
+    trend_window: int,
+    options: BaselineOptions,
+    ref_date: date | None,
+) -> dict[str, MetricBaseline]:
+    result: dict[str, MetricBaseline] = {}
+    for key, data in metric_data.items():
+        if not data:
+            continue
+        baseline = calculate_baseline_metrics(
+            data,
+            baseline_window=baseline_window,
+            short_term_window=short_term_window,
+            metric_name=key,
+            trend_window=trend_window,
+            options=options,
+            ref_date=ref_date,
+        )
+        quality = calculate_data_quality(data, baseline_window, key, ref_date=ref_date)
+        result[key] = MetricBaseline(
+            key=key,
+            current_value=baseline.current_value,
+            mean=baseline.mean,
+            std=baseline.std,
+            z_score=baseline.z_score,
+            shifted_z_score=baseline.shifted_z_score,
+            trend_slope=baseline.trend_slope,
+            percentile=baseline.long_term_percentile,
+            quality_coverage=quality.coverage,
+            quality_confidence=quality.confidence,
+            short_term_mean=baseline.short_term_mean,
+            cv=baseline.cv,
+            valid_points=quality.valid_points,
+            outlier_rate=quality.outlier_rate,
+            latency_days=quality.latency_days,
+        )
+    return result
 
 
 def _detect_multi_source_anomalies(
@@ -374,6 +419,36 @@ def _compute_health_analysis_impl(
 
     ml_insights = load_ml_insights(db, user_id, ref_date=target_date)
 
+    metric_baselines = _compute_metric_baselines(
+        {
+            "hrv": hrv_data,
+            "rhr": rhr_data,
+            "sleep": sleep_data,
+            "stress": stress_data,
+            "steps": adjusted_steps,
+            "weight": weight_data,
+            "strain": adjusted_strain,
+            "calories": calories_data,
+        },
+        config.baseline,
+        config.short_term,
+        config.trend_window,
+        options,
+        target_date,
+    )
+
+    raw_series = {
+        "hrv": to_daily_series_for_metric(hrv_data, "hrv"),
+        "rhr": to_daily_series_for_metric(rhr_data, "rhr"),
+        "sleep": to_daily_series_for_metric(sleep_data, "sleep"),
+        "stress": to_daily_series_for_metric(stress_data, "stress"),
+        "steps": to_daily_series_for_metric(adjusted_steps, "steps"),
+        "weight": to_daily_series_for_metric(weight_data, "weight"),
+        "strain": to_daily_series_for_metric(adjusted_strain, "strain"),
+        "calories": to_daily_series_for_metric(calories_data, "calories"),
+        "recovery": to_daily_series_for_metric(recovery_data, "recovery"),
+    }
+
     return HealthAnalysis(
         health_score=health_score,
         recovery_metrics=recovery_metrics,
@@ -395,6 +470,8 @@ def _compute_health_analysis_impl(
         advanced_insights=advanced_insights,
         day_completeness=calculate_day_completeness(ref_date=target_date),
         data_source_summary=data_source_summary,
+        metric_baselines=metric_baselines,
+        raw_series=raw_series,
         ml_insights=ml_insights,
         mode=mode,
         mode_config=config,
