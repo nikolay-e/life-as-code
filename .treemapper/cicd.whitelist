@@ -1,0 +1,9 @@
+# CI/CD Pipeline Review
+# Workflows, Dockerfiles, Docker Compose, entrypoints
+
+.github/workflows/*.yml
+.github/actions/**/*.yml
+Dockerfile
+docker-compose*.yml
+docker-entrypoint.sh
+.pre-commit-config.yaml

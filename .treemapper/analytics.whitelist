@@ -1,0 +1,4 @@
+# Analytics Module Review
+# Metrics, correlations, fusion, pipeline, alerts
+
+src/analytics/**/*.py

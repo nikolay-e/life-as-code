@@ -1,0 +1,8 @@
+# Database & Models Review
+# SQLAlchemy models, migrations, database config
+
+src/models.py
+src/database.py
+src/enums.py
+migrations/versions/**/*.py
+alembic.ini

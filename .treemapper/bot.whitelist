@@ -1,0 +1,4 @@
+# Telegram Bot Review
+# Bot commands, scheduler, formatters
+
+src/bot/**/*.py

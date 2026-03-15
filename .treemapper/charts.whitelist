@@ -1,0 +1,7 @@
+# Frontend Charts & Dashboard Review
+# Chart components, dashboard features, hooks
+
+frontend/src/components/charts/**/*.tsx
+frontend/src/features/dashboard/**/*.tsx
+frontend/src/features/dashboard/**/*.ts
+frontend/src/hooks/**/*.ts

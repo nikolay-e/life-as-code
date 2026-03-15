@@ -1,0 +1,8 @@
+# Python Backend Review
+# All Python source files + configs
+
+src/*.py
+src/config/**/*.yaml
+alembic.ini
+pyproject.toml
+requirements*.txt

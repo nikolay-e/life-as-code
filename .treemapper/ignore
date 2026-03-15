@@ -1,0 +1,119 @@
+# Dependencies
+node_modules
+vendor
+__pycache__
+*.egg-info
+.mypy_cache
+.ruff_cache
+.venv
+
+# Build output
+dist
+frontend/dist
+logs
+data
+
+# Test artifacts
+.pytest_cache
+.hypothesis
+htmlcov
+.coverage
+
+# CI/CD
+.github
+
+# Config/meta files (not logic)
+.gitignore
+.gitmodules
+.gitlint
+.gitleaks.toml
+.gitleaksignore
+.pre-commit-config.yaml
+.secrets.baseline
+.dockerignore
+.mise.toml
+.jscpd.json
+.markdownlint.yaml
+.stylelintrc.json
+renovate.json
+alembic.ini
+vulture_whitelist.py
+knip.json
+treemapper.yml
+
+# Build tooling configs
+tsconfig.json
+tsconfig.app.json
+tsconfig.node.json
+vite.config.ts
+postcss.config.js
+tailwind.config.js
+eslint.config.js
+vite-env.d.ts
+
+# Infrastructure configs
+docker-compose.yml
+docker-entrypoint.sh
+nginx.conf
+Dockerfile
+
+# Env template
+.env.example
+
+# Dependency manifests (not logic)
+package.json
+
+# Data configs
+thresholds.yaml
+*.yaml
+
+# Assets
+*.png
+*.svg
+*.ico
+*.css
+index.html
+offline.html
+
+# Documentation
+README.md
+CLAUDE.md
+PLAN.MD
+*.md
+
+# Output files
+tree.yaml
+tree.json
+tree.md
+tree.txt
+tree.tmp
+
+# Lock files
+package-lock.json
+pyproject.toml
+
+# Claude/tooling
+.claude
+.playwright-mcp
+.treemapper/review-*.whitelist
+
+# Migrations (SQL schema, not logic)
+migrations
+
+# Schema/model definitions (boilerplate, not algorithmic logic)
+garmin_schemas.py
+whoop_schemas.py
+models.py
+logging_config.py
+frontend/src/types/api.ts
+src/analytics/types.py
+
+# Data fetching/sync scripts (not analytics logic)
+pull_garmin_data.py
+pull_whoop_data.py
+pull_hevy_data.py
+sync_manager.py
+progressive_sync.py
+
+# Text formatting for AI briefings (not core analytics)
+report-formatter.ts

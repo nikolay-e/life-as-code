@@ -1,0 +1,10 @@
+# Data Sync Review
+# Garmin, Hevy, Whoop sync + scheduler + data loaders
+
+src/pull_*.py
+src/sync_manager.py
+src/progressive_sync.py
+src/scheduler.py
+src/data_loaders.py
+src/garmin_schemas.py
+src/whoop_schemas.py
