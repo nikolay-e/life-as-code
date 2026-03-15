@@ -4,8 +4,8 @@ import { Button } from "./button";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
 
 interface FallbackProps {
-  error: Error;
-  resetErrorBoundary: () => void;
+  readonly error: Error;
+  readonly resetErrorBoundary: () => void;
 }
 
 function ErrorFallback({ error, resetErrorBoundary }: FallbackProps) {

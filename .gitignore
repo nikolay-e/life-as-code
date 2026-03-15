@@ -140,3 +140,4 @@ node_modules/
 yarn.lock
 
 .treemapper/
+.venv/

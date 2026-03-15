@@ -20,7 +20,7 @@ import { WHOOP_MAX_STRAIN, DEFAULT_ACTIVITY_NAME } from "./constants";
 import { toTimeMs } from "./health";
 
 function formatNum(v: number | null, decimals = 1): string {
-  return v !== null ? v.toFixed(decimals) : "N/A";
+  return v === null ? "N/A" : v.toFixed(decimals);
 }
 
 function getRiskStatus(riskLevel: string | null): string {
@@ -55,7 +55,7 @@ function formatMinutes(mins: number | null): string {
 }
 
 function formatSteps(v: number | null): string {
-  return v !== null ? Math.round(v).toLocaleString() : "N/A";
+  return v === null ? "N/A" : Math.round(v).toLocaleString();
 }
 
 interface LastWorkout {
@@ -158,15 +158,16 @@ function formatTodayStatus(
   dayCompleteness: number,
   now: Date,
 ): string[] {
-  const lines: string[] = [];
   const timeStr = format(now, "HH:mm");
   const dateStr = format(now, "yyyy-MM-dd (EEEE)");
   const isIncomplete = dayCompleteness < 1;
 
-  lines.push(`## Today's Status`);
-  lines.push(`Date: ${dateStr}`);
-  lines.push(`Report time: ${timeStr}`);
-  lines.push(``);
+  const lines: string[] = [
+    `## Today's Status`,
+    `Date: ${dateStr}`,
+    `Report time: ${timeStr}`,
+    ``,
+  ];
 
   const { recovery, hrv, rhr, sleep, steps, weight } = dayOverDay;
 
@@ -235,19 +236,17 @@ function formatAlerts(
   illnessRisk: IllnessRiskSignal,
   decorrelationAlert: DecorrelationAlert,
 ): string[] {
-  const lines: string[] = [];
-  lines.push(`## Alerts`);
-  lines.push(``);
-
   const riskStatus = getRiskStatus(illnessRisk.risk_level);
-  lines.push(
-    `${riskStatus} Pre-Illness Risk: ${(illnessRisk.risk_level ?? "N/A").toUpperCase()}`,
-  );
-
+  const riskLevel = (illnessRisk.risk_level ?? "N/A").toUpperCase();
   const decorStatus = decorrelationAlert.is_decorrelated ? "[ALERT]" : "[OK]";
-  lines.push(
-    `${decorStatus} HRV-RHR Decorrelation: ${decorrelationAlert.is_decorrelated ? "YES - monitor" : "No"}`,
-  );
+  const decorText = decorrelationAlert.is_decorrelated ? "YES - monitor" : "No";
+
+  const lines: string[] = [
+    `## Alerts`,
+    ``,
+    `${riskStatus} Pre-Illness Risk: ${riskLevel}`,
+    `${decorStatus} HRV-RHR Decorrelation: ${decorText}`,
+  ];
 
   if (illnessRisk.consecutive_days_elevated > 0) {
     lines.push(
@@ -263,32 +262,27 @@ function formatReadiness(
   activityMetrics: ActivityMetrics,
   illnessRiskLevel: string | null,
 ): string[] {
-  const lines: string[] = [];
-  lines.push(`## Readiness`);
-  lines.push(``);
-
   const imbalance = recoveryMetrics.hrv_rhr_imbalance;
   const imbalanceStatus = getImbalanceStatus(imbalance);
-  lines.push(`HRV-RHR Imbalance: ${formatNum(imbalance)} (${imbalanceStatus})`);
-
   const acwr = activityMetrics.acwr;
   const acwrStatus = getAcwrStatus(acwr);
-  lines.push(`ACWR: ${formatNum(acwr)} (${acwrStatus})`);
-
   const recommendation = getReadinessRecommendation(
     acwr,
     imbalance,
     illnessRiskLevel,
   );
-  lines.push(`Recommendation: ${recommendation}`);
 
-  return lines;
+  return [
+    `## Readiness`,
+    ``,
+    `HRV-RHR Imbalance: ${formatNum(imbalance)} (${imbalanceStatus})`,
+    `ACWR: ${formatNum(acwr)} (${acwrStatus})`,
+    `Recommendation: ${recommendation}`,
+  ];
 }
 
 function formatLastWorkouts(workouts: WorkoutData[], now: Date): string[] {
-  const lines: string[] = [];
-  lines.push(`## Last Workouts`);
-  lines.push(``);
+  const lines: string[] = [`## Last Workouts`, ``];
 
   const { strength } = getLastWorkouts(workouts, now);
 
@@ -309,9 +303,7 @@ function formatLastWorkouts(workouts: WorkoutData[], now: Date): string[] {
 }
 
 function formatAnalysisWindows(now: Date): string[] {
-  const lines: string[] = [];
-  lines.push(`## Analysis Windows`);
-  lines.push(``);
+  const lines: string[] = [`## Analysis Windows`, ``];
 
   const windows = [
     { label: "7d", days: 7 },
@@ -338,18 +330,6 @@ function formatAnalysisWindows(now: Date): string[] {
 function formatTrendsSummaryTable(
   allAnalytics: Partial<Record<string, AnalyticsResponse>>,
 ): string[] {
-  const lines: string[] = [];
-  lines.push(`## Trends Summary`);
-  lines.push(``);
-  lines.push(`Short-term averages by mode (baseline windows in parentheses):`);
-  lines.push(``);
-  lines.push(
-    `| Metric   | 6W (7d) | 6M (14d) | 2Y (30d) | 5Y (90d) | 7d Trend   |`,
-  );
-  lines.push(
-    `|----------|---------|----------|----------|----------|------------|`,
-  );
-
   const modes = ["recent", "quarter", "year", "all"] as const;
 
   const formatRow = (
@@ -365,49 +345,46 @@ function formatTrendsSummaryTable(
     const trendSlope =
       allAnalytics.recent?.metric_baselines[key]?.trend_slope ?? null;
     const trendStr =
-      trendSlope !== null
-        ? `${trendSlope >= 0 ? "+" : ""}${trendSlope.toFixed(2)}/d`
-        : "N/A";
+      trendSlope === null
+        ? "N/A"
+        : `${trendSlope >= 0 ? "+" : ""}${trendSlope.toFixed(2)}/d`;
 
     const pad = (s: string, len: number) => s.padEnd(len);
     return `| ${pad(name, 8)} | ${pad(formatter(values[0]), 7)} | ${pad(formatter(values[1]), 8)} | ${pad(formatter(values[2]), 8)} | ${pad(formatter(values[3]), 8)} | ${pad(trendStr, 10)} |`;
   };
 
-  lines.push(
-    formatRow("HRV", "hrv", (v) => (v !== null ? v.toFixed(1) : "N/A")),
-  );
-  lines.push(
-    formatRow("RHR", "rhr", (v) => (v !== null ? v.toFixed(1) : "N/A")),
-  );
-  lines.push(
-    formatRow("Sleep", "sleep", (v) => (v !== null ? formatMinutes(v) : "N/A")),
-  );
-  lines.push(formatRow("Steps", "steps", (v) => formatSteps(v)));
-  lines.push(
-    formatRow("Weight", "weight", (v) => (v !== null ? v.toFixed(1) : "N/A")),
-  );
-  lines.push(
+  return [
+    `## Trends Summary`,
+    ``,
+    `Short-term averages by mode (baseline windows in parentheses):`,
+    ``,
+    `| Metric   | 6W (7d) | 6M (14d) | 2Y (30d) | 5Y (90d) | 7d Trend   |`,
+    `|----------|---------|----------|----------|----------|------------|`,
+    formatRow("HRV", "hrv", (v) => (v === null ? "N/A" : v.toFixed(1))),
+    formatRow("RHR", "rhr", (v) => (v === null ? "N/A" : v.toFixed(1))),
+    formatRow("Sleep", "sleep", (v) => (v === null ? "N/A" : formatMinutes(v))),
+    formatRow("Steps", "steps", (v) => formatSteps(v)),
+    formatRow("Weight", "weight", (v) => (v === null ? "N/A" : v.toFixed(1))),
     formatRow("Recovery", "recovery", (v) =>
-      v !== null ? `${v.toFixed(0)}%` : "N/A",
+      v === null ? "N/A" : `${v.toFixed(0)}%`,
     ),
-  );
-
-  return lines;
+  ];
 }
 
 function formatHealthScoreSummary(analytics: AnalyticsResponse): string[] {
-  const lines: string[] = [];
   const hs = analytics.health_score;
 
-  lines.push(`## Health Score`);
-  lines.push(``);
-  lines.push(`Overall: ${formatNum(hs.overall, 2)}`);
-  lines.push(`Recovery Core (60%): ${formatNum(hs.recovery_core, 2)}`);
-  lines.push(`Training Load (20%): ${formatNum(hs.training_load, 2)}`);
-  lines.push(`Behavior Support (20%): ${formatNum(hs.behavior_support, 2)}`);
-  lines.push(``);
+  const lines: string[] = [
+    `## Health Score`,
+    ``,
+    `Overall: ${formatNum(hs.overall, 2)}`,
+    `Recovery Core (60%): ${formatNum(hs.recovery_core, 2)}`,
+    `Training Load (20%): ${formatNum(hs.training_load, 2)}`,
+    `Behavior Support (20%): ${formatNum(hs.behavior_support, 2)}`,
+    ``,
+    `Contributors:`,
+  ];
 
-  lines.push(`Contributors:`);
   for (const c of hs.contributors) {
     const gateStatus = c.is_gated ? " [GATED]" : "";
     lines.push(
@@ -423,77 +400,81 @@ function formatClinicalMetrics(
   illnessRisk: IllnessRiskSignal,
   decorrelationAlert: DecorrelationAlert,
 ): string[] {
-  const lines: string[] = [];
-  lines.push(`## Clinical Metrics (Detailed)`);
-  lines.push(``);
+  const avgRecDays =
+    recoveryCapacity.avg_recovery_days === null
+      ? "N/A"
+      : recoveryCapacity.avg_recovery_days.toFixed(1);
+  const recEfficiency =
+    recoveryCapacity.recovery_efficiency === null
+      ? "N/A"
+      : recoveryCapacity.recovery_efficiency.toFixed(2);
 
-  lines.push(`### Recovery Capacity`);
-  lines.push(
-    `- Avg Recovery Days: ${recoveryCapacity.avg_recovery_days !== null ? recoveryCapacity.avg_recovery_days.toFixed(1) : "N/A"}`,
-  );
-  lines.push(
-    `- Recovery Efficiency: ${recoveryCapacity.recovery_efficiency !== null ? recoveryCapacity.recovery_efficiency.toFixed(2) : "N/A"}`,
-  );
-  lines.push(
-    `- High Strain Events: ${String(recoveryCapacity.high_strain_events)}`,
-  );
-  lines.push(
-    `- Recovered Events: ${String(recoveryCapacity.recovered_events)}`,
-  );
-  lines.push(``);
-
-  lines.push(`### Pre-Illness Components`);
   const components = illnessRisk.components;
-  lines.push(
-    `- Combined Deviation: ${illnessRisk.combined_deviation !== null ? illnessRisk.combined_deviation.toFixed(2) : "N/A"}`,
-  );
-  lines.push(
-    `- HRV Drop: ${components.hrv_drop !== null ? components.hrv_drop.toFixed(2) : "N/A"}`,
-  );
-  lines.push(
-    `- RHR Rise: ${components.rhr_rise !== null ? components.rhr_rise.toFixed(2) : "N/A"}`,
-  );
-  lines.push(
-    `- Sleep Drop: ${components.sleep_drop !== null ? components.sleep_drop.toFixed(2) : "N/A"}`,
-  );
-  lines.push(``);
+  const combinedDev =
+    illnessRisk.combined_deviation === null
+      ? "N/A"
+      : illnessRisk.combined_deviation.toFixed(2);
+  const hrvDrop =
+    components.hrv_drop === null ? "N/A" : components.hrv_drop.toFixed(2);
+  const rhrRise =
+    components.rhr_rise === null ? "N/A" : components.rhr_rise.toFixed(2);
+  const sleepDrop =
+    components.sleep_drop === null ? "N/A" : components.sleep_drop.toFixed(2);
 
-  lines.push(`### HRV-RHR Correlation`);
-  lines.push(
-    `- Current (14d): ${decorrelationAlert.current_correlation !== null ? decorrelationAlert.current_correlation.toFixed(3) : "N/A"}`,
-  );
-  lines.push(
-    `- Baseline (60d): ${decorrelationAlert.baseline_correlation !== null ? decorrelationAlert.baseline_correlation.toFixed(3) : "N/A"}`,
-  );
-  lines.push(
-    `- Delta: ${decorrelationAlert.correlation_delta !== null ? decorrelationAlert.correlation_delta.toFixed(3) : "N/A"}`,
-  );
+  const currentCorr =
+    decorrelationAlert.current_correlation === null
+      ? "N/A"
+      : decorrelationAlert.current_correlation.toFixed(3);
+  const baselineCorr =
+    decorrelationAlert.baseline_correlation === null
+      ? "N/A"
+      : decorrelationAlert.baseline_correlation.toFixed(3);
+  const corrDelta =
+    decorrelationAlert.correlation_delta === null
+      ? "N/A"
+      : decorrelationAlert.correlation_delta.toFixed(3);
 
-  return lines;
+  return [
+    `## Clinical Metrics (Detailed)`,
+    ``,
+    `### Recovery Capacity`,
+    `- Avg Recovery Days: ${avgRecDays}`,
+    `- Recovery Efficiency: ${recEfficiency}`,
+    `- High Strain Events: ${String(recoveryCapacity.high_strain_events)}`,
+    `- Recovered Events: ${String(recoveryCapacity.recovered_events)}`,
+    ``,
+    `### Pre-Illness Components`,
+    `- Combined Deviation: ${combinedDev}`,
+    `- HRV Drop: ${hrvDrop}`,
+    `- RHR Rise: ${rhrRise}`,
+    `- Sleep Drop: ${sleepDrop}`,
+    ``,
+    `### HRV-RHR Correlation`,
+    `- Current (14d): ${currentCorr}`,
+    `- Baseline (60d): ${baselineCorr}`,
+    `- Delta: ${corrDelta}`,
+  ];
 }
 
 function formatLastDaysTable(lastDays: DayMetrics[]): string[] {
-  const lines: string[] = [];
-  lines.push(`## Last ${String(lastDays.length)} Days Detail`);
-  lines.push(``);
-  lines.push(
+  const lines: string[] = [
+    `## Last ${String(lastDays.length)} Days Detail`,
+    ``,
     `| Date       | Rec% | HRV | RHR | Sleep   | Steps  | Strain | Stress | Cal   | Weight |`,
-  );
-  lines.push(
     `|------------|------|-----|-----|---------|--------|--------|--------|-------|--------|`,
-  );
+  ];
 
   for (const day of lastDays) {
     const dateStr = format(parseISO(day.date), "MMM d (EEE)");
-    const rec = day.recovery !== null ? `${day.recovery.toFixed(0)}%` : "—";
-    const hrv = day.hrv !== null ? day.hrv.toFixed(0) : "—";
-    const rhr = day.rhr !== null ? day.rhr.toFixed(0) : "—";
-    const sleep = day.sleep !== null ? formatMinutes(day.sleep) : "—";
-    const steps = day.steps !== null ? formatSteps(day.steps) : "—";
-    const strain = day.strain !== null ? day.strain.toFixed(1) : "—";
-    const stress = day.stress !== null ? day.stress.toFixed(0) : "—";
-    const cal = day.calories !== null ? day.calories.toFixed(0) : "—";
-    const weight = day.weight !== null ? day.weight.toFixed(1) : "—";
+    const rec = day.recovery === null ? "—" : `${day.recovery.toFixed(0)}%`;
+    const hrv = day.hrv === null ? "—" : day.hrv.toFixed(0);
+    const rhr = day.rhr === null ? "—" : day.rhr.toFixed(0);
+    const sleep = day.sleep === null ? "—" : formatMinutes(day.sleep);
+    const steps = day.steps === null ? "—" : formatSteps(day.steps);
+    const strain = day.strain === null ? "—" : day.strain.toFixed(1);
+    const stress = day.stress === null ? "—" : day.stress.toFixed(0);
+    const cal = day.calories === null ? "—" : day.calories.toFixed(0);
+    const weight = day.weight === null ? "—" : day.weight.toFixed(1);
 
     const pad = (s: string, len: number) => s.padEnd(len);
     lines.push(
@@ -505,66 +486,56 @@ function formatLastDaysTable(lastDays: DayMetrics[]): string[] {
 }
 
 function formatAnalysisDetails(analytics: AnalyticsResponse): string[] {
-  const lines: string[] = [];
   const cfg = analytics.mode_config;
   const { recovery_metrics, sleep_metrics, activity_metrics, weight_metrics } =
     analytics;
 
-  lines.push(`### ${analytics.mode} Analysis Details`);
-  lines.push(``);
+  const emaShort =
+    weight_metrics.ema_short === null
+      ? "N/A"
+      : `${weight_metrics.ema_short.toFixed(1)} kg`;
+  const emaLong =
+    weight_metrics.ema_long === null
+      ? "N/A"
+      : `${weight_metrics.ema_long.toFixed(1)} kg`;
+  const periodChange =
+    weight_metrics.period_change === null
+      ? "N/A"
+      : `${weight_metrics.period_change >= 0 ? "+" : ""}${weight_metrics.period_change.toFixed(2)} kg`;
 
-  lines.push(`**Recovery:**`);
-  lines.push(
-    `- Recovery CV: ${recovery_metrics.recovery_cv !== null ? (recovery_metrics.recovery_cv * 100).toFixed(1) : "N/A"}%`,
-  );
-  lines.push(
+  return [
+    `### ${analytics.mode} Analysis Details`,
+    ``,
+    `**Recovery:**`,
+    `- Recovery CV: ${recovery_metrics.recovery_cv === null ? "N/A" : (recovery_metrics.recovery_cv * 100).toFixed(1)}%`,
     `- Stress Load (${String(cfg.short_term)}d): ${formatNum(recovery_metrics.stress_load_short, 0)}`,
-  );
-  lines.push(
     `- Stress Load (${String(cfg.baseline)}d): ${formatNum(recovery_metrics.stress_load_long, 0)}`,
-  );
-  lines.push(``);
-
-  lines.push(`**Sleep:**`);
-  lines.push(`- Target: ${formatMinutes(sleep_metrics.target_sleep)}/night`);
-  lines.push(
+    ``,
+    `**Sleep:**`,
+    `- Target: ${formatMinutes(sleep_metrics.target_sleep)}/night`,
     `- Debt (${String(cfg.short_term)}d): ${formatMinutes(sleep_metrics.sleep_debt_short)}`,
-  );
-  lines.push(
     `- Surplus (${String(cfg.short_term)}d): ${formatMinutes(sleep_metrics.sleep_surplus_short)}`,
-  );
-  lines.push(`- CV: ${(sleep_metrics.sleep_cv * 100).toFixed(1)}%`);
-  lines.push(``);
-
-  lines.push(`**Activity:**`);
-  lines.push(`- Acute Load: ${formatNum(activity_metrics.acute_load, 1)}`);
-  lines.push(`- Chronic Load: ${formatNum(activity_metrics.chronic_load, 1)}`);
-  lines.push(`- ACWR: ${formatNum(activity_metrics.acwr)}`);
-  lines.push(`- Steps CV: ${(activity_metrics.steps_cv * 100).toFixed(1)}%`);
-  lines.push(``);
-
-  lines.push(`**Weight:**`);
-  lines.push(
-    `- EMA (${String(cfg.short_term)}d): ${weight_metrics.ema_short !== null ? `${weight_metrics.ema_short.toFixed(1)} kg` : "N/A"}`,
-  );
-  lines.push(
-    `- EMA (${String(cfg.baseline)}d): ${weight_metrics.ema_long !== null ? `${weight_metrics.ema_long.toFixed(1)} kg` : "N/A"}`,
-  );
-  lines.push(
-    `- Period Change: ${weight_metrics.period_change !== null ? `${weight_metrics.period_change >= 0 ? "+" : ""}${weight_metrics.period_change.toFixed(2)} kg` : "N/A"}`,
-  );
-  lines.push(`- Volatility: ±${weight_metrics.volatility_short.toFixed(2)} kg`);
-
-  return lines;
+    `- CV: ${(sleep_metrics.sleep_cv * 100).toFixed(1)}%`,
+    ``,
+    `**Activity:**`,
+    `- Acute Load: ${formatNum(activity_metrics.acute_load, 1)}`,
+    `- Chronic Load: ${formatNum(activity_metrics.chronic_load, 1)}`,
+    `- ACWR: ${formatNum(activity_metrics.acwr)}`,
+    `- Steps CV: ${(activity_metrics.steps_cv * 100).toFixed(1)}%`,
+    ``,
+    `**Weight:**`,
+    `- EMA (${String(cfg.short_term)}d): ${emaShort}`,
+    `- EMA (${String(cfg.baseline)}d): ${emaLong}`,
+    `- Period Change: ${periodChange}`,
+    `- Volatility: ±${weight_metrics.volatility_short.toFixed(2)} kg`,
+  ];
 }
 
 function formatGarminActivities(
   activities: GarminActivityData[],
   now: Date,
 ): string[] {
-  const lines: string[] = [];
-  lines.push(`## Garmin Activities (Last 30 Days)`);
-  lines.push(``);
+  const lines: string[] = [`## Garmin Activities (Last 30 Days)`, ``];
 
   const thirtyDaysAgo = new Date(now);
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -670,9 +641,7 @@ function formatWhoopWorkouts(
   workouts: WhoopWorkoutData[],
   now: Date,
 ): string[] {
-  const lines: string[] = [];
-  lines.push(`## Whoop Workouts (Last 30 Days)`);
-  lines.push(``);
+  const lines: string[] = [`## Whoop Workouts (Last 30 Days)`, ``];
 
   const thirtyDaysAgo = new Date(now);
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -813,9 +782,7 @@ function formatStrengthWorkoutsWithExercises(
   detailedWorkouts: WorkoutExerciseDetail[] | null,
   now: Date,
 ): string[] {
-  const lines: string[] = [];
-  lines.push(`## Strength Training (Hevy) - Last 30 Days`);
-  lines.push(``);
+  const lines: string[] = [`## Strength Training (Hevy) - Last 30 Days`, ``];
 
   if (!detailedWorkouts || detailedWorkouts.length === 0) {
     lines.push(`No strength workouts recorded in the last 30 days.`);
@@ -855,9 +822,9 @@ function formatStrengthWorkoutsWithExercises(
           ? `${(exercise.total_volume / 1000).toFixed(1)}t`
           : `${String(Math.round(exercise.total_volume))}kg`;
       const rpeStr =
-        exercise.avg_rpe !== null
-          ? `, avg RPE ${exercise.avg_rpe.toFixed(1)}`
-          : "";
+        exercise.avg_rpe === null
+          ? ""
+          : `, avg RPE ${exercise.avg_rpe.toFixed(1)}`;
 
       lines.push(
         `**${exercise.exercise}** (${String(exercise.total_sets)} sets, ${exerciseVolumeStr}${rpeStr})`,
@@ -877,9 +844,7 @@ function formatStrengthWorkoutsDetailed(
   workouts: WorkoutData[],
   now: Date,
 ): string[] {
-  const lines: string[] = [];
-  lines.push(`## Strength Training (Hevy) (Last 30 Days)`);
-  lines.push(``);
+  const lines: string[] = [`## Strength Training (Hevy) (Last 30 Days)`, ``];
 
   const thirtyDaysAgo = new Date(now);
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -899,7 +864,7 @@ function formatStrengthWorkoutsDetailed(
   for (const workout of sorted) {
     const dateStr = format(parseISO(workout.date), "MMM d (EEE)");
     const volumeKg =
-      workout.total_volume !== null ? Math.round(workout.total_volume) : 0;
+      workout.total_volume === null ? 0 : Math.round(workout.total_volume);
     const sets = workout.total_sets ?? 0;
 
     lines.push(
@@ -912,10 +877,6 @@ function formatStrengthWorkoutsDetailed(
 }
 
 function formatAdvancedInsights(insights: AdvancedInsights): string[] {
-  const lines: string[] = [];
-  lines.push(`# Advanced Health Insights`);
-  lines.push(``);
-
   const {
     hrv_advanced,
     sleep_quality,
@@ -926,141 +887,159 @@ function formatAdvancedInsights(insights: AdvancedInsights): string[] {
     recovery_enhanced,
   } = insights;
 
-  lines.push(`## HRV Advanced`);
-  lines.push(``);
-  lines.push(
+  const deepSleepPct =
+    sleep_quality.deep_sleep_pct === null
+      ? "N/A"
+      : `${sleep_quality.deep_sleep_pct.toFixed(1)}%`;
+  const remSleepPct =
+    sleep_quality.rem_sleep_pct === null
+      ? "N/A"
+      : `${sleep_quality.rem_sleep_pct.toFixed(1)}%`;
+  const sleepEfficiency =
+    sleep_quality.efficiency === null
+      ? "N/A"
+      : `${sleep_quality.efficiency.toFixed(1)}%`;
+  const consistencyScore =
+    sleep_quality.consistency_score === null
+      ? "N/A"
+      : `${sleep_quality.consistency_score.toFixed(1)}%`;
+
+  const sleepHrvP =
+    sleep_quality.sleep_hrv_p_value === null
+      ? ""
+      : ` (p=${sleep_quality.sleep_hrv_p_value.toFixed(3)})`;
+  const sleepHrvResponsiveness = `${formatNum(sleep_quality.sleep_hrv_responsiveness, 3)}${sleepHrvP}`;
+
+  const recoveryHalfLife =
+    recovery_enhanced.recovery_half_life_days === null
+      ? "N/A"
+      : `${recovery_enhanced.recovery_half_life_days.toFixed(1)} days`;
+
+  const lines: string[] = [
+    `# Advanced Health Insights`,
+    ``,
+    `## HRV Advanced`,
+    ``,
     `- ln(RMSSD) Current: ${formatNum(hrv_advanced.ln_rmssd_current, 2)}`,
-  );
-  lines.push(
     `- ln(RMSSD) 7d Mean: ${formatNum(hrv_advanced.ln_rmssd_mean_7d, 2)}`,
-  );
-  lines.push(`- ln(RMSSD) 7d SD: ${formatNum(hrv_advanced.ln_rmssd_sd_7d, 3)}`);
-  lines.push(
+    `- ln(RMSSD) 7d SD: ${formatNum(hrv_advanced.ln_rmssd_sd_7d, 3)}`,
     `- HRV-RHR Rolling r (14d): ${formatNum(hrv_advanced.hrv_rhr_rolling_r_14d, 3)}`,
-  );
-  lines.push(
     `- HRV-RHR Rolling r (60d): ${formatNum(hrv_advanced.hrv_rhr_rolling_r_60d, 3)}`,
-  );
-  lines.push(
     `- Divergence Rate: ${formatNum(hrv_advanced.divergence_rate, 3)}`,
-  );
-  lines.push(``);
-
-  lines.push(`## Sleep Quality`);
-  lines.push(``);
-  lines.push(
-    `- Deep Sleep: ${sleep_quality.deep_sleep_pct !== null ? `${sleep_quality.deep_sleep_pct.toFixed(1)}%` : "N/A"}`,
-  );
-  lines.push(
-    `- REM Sleep: ${sleep_quality.rem_sleep_pct !== null ? `${sleep_quality.rem_sleep_pct.toFixed(1)}%` : "N/A"}`,
-  );
-  lines.push(
-    `- Efficiency: ${sleep_quality.efficiency !== null ? `${sleep_quality.efficiency.toFixed(1)}%` : "N/A"}`,
-  );
-  lines.push(
+    ``,
+    `## Sleep Quality`,
+    ``,
+    `- Deep Sleep: ${deepSleepPct}`,
+    `- REM Sleep: ${remSleepPct}`,
+    `- Efficiency: ${sleepEfficiency}`,
     `- Fragmentation Index: ${formatNum(sleep_quality.fragmentation_index, 2)}`,
-  );
-  lines.push(
-    `- Sleep→HRV Responsiveness: ${formatNum(sleep_quality.sleep_hrv_responsiveness, 3)}${sleep_quality.sleep_hrv_p_value !== null ? ` (p=${sleep_quality.sleep_hrv_p_value.toFixed(3)})` : ""}`,
-  );
-  lines.push(
-    `- Consistency Score: ${sleep_quality.consistency_score !== null ? `${sleep_quality.consistency_score.toFixed(1)}%` : "N/A"}`,
-  );
-  lines.push(``);
+    `- Sleep→HRV Responsiveness: ${sleepHrvResponsiveness}`,
+    `- Consistency Score: ${consistencyScore}`,
+    ``,
+    `## Cardio Fitness & Training Load`,
+    ``,
+  ];
 
-  lines.push(`## Cardio Fitness & Training Load`);
-  lines.push(``);
   if (fitness.vo2_max_current !== null) {
-    lines.push(
-      `- VO2 Max: ${fitness.vo2_max_current.toFixed(1)}${fitness.vo2_max_trend !== null ? ` (trend: ${fitness.vo2_max_trend >= 0 ? "+" : ""}${fitness.vo2_max_trend.toFixed(2)}/wk)` : ""}`,
-    );
+    const vo2Trend =
+      fitness.vo2_max_trend === null
+        ? ""
+        : ` (trend: ${fitness.vo2_max_trend >= 0 ? "+" : ""}${fitness.vo2_max_trend.toFixed(2)}/wk)`;
+    lines.push(`- VO2 Max: ${fitness.vo2_max_current.toFixed(1)}${vo2Trend}`);
   }
-  lines.push(
-    `- Days Since Last Workout: ${fitness.days_since_last_workout !== null ? String(fitness.days_since_last_workout) : "N/A"}`,
-  );
-  lines.push(
-    `- Training Frequency: ${String(fitness.training_frequency_7d)}/7d, ${String(fitness.training_frequency_30d)}/30d`,
-  );
-  lines.push(`- CTL (Chronic Load): ${formatNum(fitness.ctl)}`);
-  lines.push(`- ATL (Acute Load): ${formatNum(fitness.atl)}`);
-  lines.push(`- TSB (Form): ${formatNum(fitness.tsb)}`);
-  lines.push(`- Monotony: ${formatNum(fitness.monotony, 2)}`);
-  lines.push(`- Strain Index: ${formatNum(fitness.strain_index)}`);
-  lines.push(`- Detraining Score: ${formatNum(fitness.detraining_score, 2)}`);
-  lines.push(``);
 
-  lines.push(`## Allostatic Load`);
-  lines.push(``);
+  const daysSinceLastWorkout =
+    fitness.days_since_last_workout === null
+      ? "N/A"
+      : String(fitness.days_since_last_workout);
+
   lines.push(
+    `- Days Since Last Workout: ${daysSinceLastWorkout}`,
+    `- Training Frequency: ${String(fitness.training_frequency_7d)}/7d, ${String(fitness.training_frequency_30d)}/30d`,
+    `- CTL (Chronic Load): ${formatNum(fitness.ctl)}`,
+    `- ATL (Acute Load): ${formatNum(fitness.atl)}`,
+    `- TSB (Form): ${formatNum(fitness.tsb)}`,
+    `- Monotony: ${formatNum(fitness.monotony, 2)}`,
+    `- Strain Index: ${formatNum(fitness.strain_index)}`,
+    `- Detraining Score: ${formatNum(fitness.detraining_score, 2)}`,
+    ``,
+    `## Allostatic Load`,
+    ``,
     `- Composite Score: ${formatNum(allostatic_load.composite_score, 2)}`,
+    `- Trend: ${formatNum(allostatic_load.trend, 3)}`,
   );
-  lines.push(`- Trend: ${formatNum(allostatic_load.trend, 3)}`);
+
   if (Object.keys(allostatic_load.breach_rates).length > 0) {
     lines.push(`- Breach Rates:`);
     for (const [metric, rate] of Object.entries(allostatic_load.breach_rates)) {
       lines.push(`  - ${metric}: ${(rate * 100).toFixed(0)}%`);
     }
   }
-  lines.push(``);
 
-  lines.push(`## Recovery Enhanced`);
-  lines.push(``);
   lines.push(
+    ``,
+    `## Recovery Enhanced`,
+    ``,
     `- Recovery Debt: ${formatNum(recovery_enhanced.recovery_debt, 2)}`,
-  );
-  lines.push(
     `- Strain-Recovery Mismatch (7d): ${formatNum(recovery_enhanced.strain_recovery_mismatch_7d, 2)}`,
+    `- Recovery Half-Life: ${recoveryHalfLife}`,
+    ``,
   );
-  lines.push(
-    `- Recovery Half-Life: ${recovery_enhanced.recovery_half_life_days !== null ? `${recovery_enhanced.recovery_half_life_days.toFixed(1)} days` : "N/A"}`,
-  );
-  lines.push(``);
 
   const residual = cross_domain.hrv_residual;
-  lines.push(`## HRV Residual Model`);
-  lines.push(``);
-  lines.push(`- Predicted HRV: ${formatNum(residual.predicted)}`);
-  lines.push(`- Actual HRV: ${formatNum(residual.actual)}`);
-  lines.push(`- Residual: ${formatNum(residual.residual)}`);
-  lines.push(`- Residual Z-Score: ${formatNum(residual.residual_z, 2)}`);
-  lines.push(`- Model R²: ${formatNum(residual.r_squared, 3)}`);
+  lines.push(
+    `## HRV Residual Model`,
+    ``,
+    `- Predicted HRV: ${formatNum(residual.predicted)}`,
+    `- Actual HRV: ${formatNum(residual.actual)}`,
+    `- Residual: ${formatNum(residual.residual)}`,
+    `- Residual Z-Score: ${formatNum(residual.residual_z, 2)}`,
+    `- Model R²: ${formatNum(residual.r_squared, 3)}`,
+  );
+
   if (residual.model_features.length > 0) {
     lines.push(`- Features: ${residual.model_features.join(", ")}`);
   }
   lines.push(``);
 
   if (cross_domain.weight_hrv_coupling !== null) {
-    lines.push(`## Cross-Domain`);
-    lines.push(``);
+    const weightHrvP =
+      cross_domain.weight_hrv_p_value === null
+        ? ""
+        : ` (p=${cross_domain.weight_hrv_p_value.toFixed(3)})`;
+    const weightHrvCoupling = `${cross_domain.weight_hrv_coupling.toFixed(3)}${weightHrvP}`;
     lines.push(
-      `- Weight-HRV Coupling: ${cross_domain.weight_hrv_coupling.toFixed(3)}${cross_domain.weight_hrv_p_value !== null ? ` (p=${cross_domain.weight_hrv_p_value.toFixed(3)})` : ""}`,
+      `## Cross-Domain`,
+      ``,
+      `- Weight-HRV Coupling: ${weightHrvCoupling}`,
+      ``,
     );
-    lines.push(``);
   }
 
   const weekdayWeekend = cross_domain.weekday_weekend;
   if (Object.keys(weekdayWeekend).length > 0) {
-    lines.push(`## Weekday vs Weekend`);
-    lines.push(``);
-    lines.push(`| Metric | Weekday | Weekend | Delta |`);
-    lines.push(`|--------|---------|---------|-------|`);
+    lines.push(
+      `## Weekday vs Weekend`,
+      ``,
+      `| Metric | Weekday | Weekend | Delta |`,
+      `|--------|---------|---------|-------|`,
+    );
     for (const [metric, split] of Object.entries(weekdayWeekend)) {
       const wdStr =
-        split.weekday_mean !== null ? split.weekday_mean.toFixed(1) : "—";
+        split.weekday_mean === null ? "—" : split.weekday_mean.toFixed(1);
       const weStr =
-        split.weekend_mean !== null ? split.weekend_mean.toFixed(1) : "—";
+        split.weekend_mean === null ? "—" : split.weekend_mean.toFixed(1);
       const dStr =
-        split.delta !== null
-          ? `${split.delta >= 0 ? "+" : ""}${split.delta.toFixed(1)}`
-          : "—";
+        split.delta === null
+          ? "—"
+          : `${split.delta >= 0 ? "+" : ""}${split.delta.toFixed(1)}`;
       lines.push(`| ${metric} | ${wdStr} | ${weStr} | ${dStr} |`);
     }
     lines.push(``);
   }
 
   if (lag_correlations.pairs.length > 0) {
-    lines.push(`## Lag Correlations`);
-    lines.push(``);
+    lines.push(`## Lag Correlations`, ``);
     if (lag_correlations.strongest_positive) {
       const sp = lag_correlations.strongest_positive;
       lines.push(
@@ -1073,12 +1052,14 @@ function formatAdvancedInsights(insights: AdvancedInsights): string[] {
         `- Strongest Negative: ${sn.metric_a} → ${sn.metric_b} (lag ${String(sn.lag_days)}d, r=${formatNum(sn.correlation, 3)}, n=${String(sn.sample_size)})`,
       );
     }
-    lines.push(``);
-    lines.push(`| Metric A | Metric B | Lag | r | p | n |`);
-    lines.push(`|----------|----------|-----|---|---|---|`);
+    lines.push(
+      ``,
+      `| Metric A | Metric B | Lag | r | p | n |`,
+      `|----------|----------|-----|---|---|---|`,
+    );
     for (const pair of lag_correlations.pairs) {
       if (pair.correlation === null) continue;
-      const pStr = pair.p_value !== null ? pair.p_value.toFixed(3) : "—";
+      const pStr = pair.p_value === null ? "—" : pair.p_value.toFixed(3);
       lines.push(
         `| ${pair.metric_a} | ${pair.metric_b} | ${String(pair.lag_days)}d | ${pair.correlation.toFixed(3)} | ${pStr} | ${String(pair.sample_size)} |`,
       );
@@ -1097,12 +1078,13 @@ export function formatCombinedReport(
   if (!data) return "";
 
   const now = new Date();
-  const sections: string[] = [];
   const recentAnalytics = allAnalytics?.recent ?? null;
 
-  sections.push(`# Daily Health Brief`);
-  sections.push(`Generated: ${format(now, "yyyy-MM-dd HH:mm")}`);
-  sections.push(``);
+  const sections: string[] = [
+    `# Daily Health Brief`,
+    `Generated: ${format(now, "yyyy-MM-dd HH:mm")}`,
+    ``,
+  ];
 
   if (recentAnalytics) {
     sections.push(
@@ -1138,9 +1120,7 @@ export function formatCombinedReport(
   sections.push(...formatLastWorkouts(data.workouts, now));
   sections.push(``);
 
-  sections.push(`---`);
-  sections.push(`# Detailed Training Log`);
-  sections.push(``);
+  sections.push(`---`, `# Detailed Training Log`, ``);
 
   if (detailedWorkouts && detailedWorkouts.length > 0) {
     sections.push(
@@ -1155,27 +1135,20 @@ export function formatCombinedReport(
   sections.push(``);
 
   sections.push(...formatWhoopWorkouts(data.whoop_workout, now));
-  sections.push(``);
-
-  sections.push(`---`);
-  sections.push(``);
+  sections.push(``, `---`, ``);
 
   sections.push(...formatAnalysisWindows(now));
   sections.push(``);
 
   if (allAnalytics) {
-    sections.push(`---`);
-    sections.push(``);
+    sections.push(`---`, ``);
 
     sections.push(...formatTrendsSummaryTable(allAnalytics));
     sections.push(``);
 
     if (recentAnalytics) {
       sections.push(...formatHealthScoreSummary(recentAnalytics));
-      sections.push(``);
-
-      sections.push(`---`);
-      sections.push(``);
+      sections.push(``, `---`, ``);
 
       sections.push(
         ...formatClinicalMetrics(
@@ -1187,9 +1160,7 @@ export function formatCombinedReport(
       sections.push(``);
     }
 
-    sections.push(`---`);
-    sections.push(`# Detailed Analysis by Timeframe`);
-    sections.push(``);
+    sections.push(`---`, `# Detailed Analysis by Timeframe`, ``);
 
     for (const m of ["recent", "quarter", "year", "all"] as const) {
       const modeData = allAnalytics[m];
@@ -1201,16 +1172,13 @@ export function formatCombinedReport(
   }
 
   if (recentAnalytics?.advanced_insights) {
-    sections.push(`---`);
-    sections.push(``);
+    sections.push(`---`, ``);
     sections.push(...formatAdvancedInsights(recentAnalytics.advanced_insights));
   }
 
-  sections.push(`---`);
   sections.push(
+    `---`,
     `Z-Score: <-2 very low, -1 to -2 low, -1 to +1 normal, +1 to +2 high, >+2 very high`,
-  );
-  sections.push(
     `ACWR: <0.8 detraining, 0.8-1.3 optimal, 1.3-1.5 caution, >1.5 injury risk`,
   );
 

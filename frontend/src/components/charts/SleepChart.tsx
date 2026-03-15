@@ -22,14 +22,14 @@ function dateToTimestamp(dateStr: string): number {
 }
 
 interface SleepChartProps {
-  garminData: SleepData[];
-  whoopData?: WhoopSleepData[];
-  showBreakdown?: boolean;
-  showTrends?: boolean;
-  bandwidthShort?: number;
-  bandwidthLong?: number;
-  height?: number;
-  dateRange?: { start: string; end: string };
+  readonly garminData: SleepData[];
+  readonly whoopData?: WhoopSleepData[];
+  readonly showBreakdown?: boolean;
+  readonly showTrends?: boolean;
+  readonly bandwidthShort?: number;
+  readonly bandwidthLong?: number;
+  readonly height?: number;
+  readonly dateRange?: { start: string; end: string };
 }
 
 const SLEEP_STAGE_COLORS = {

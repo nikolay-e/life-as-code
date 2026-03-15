@@ -22,22 +22,22 @@ function dateToTimestamp(dateStr: string): number {
 }
 
 interface MultiProviderLineChartProps {
-  data: MultiProviderDataPoint[];
-  config: {
+  readonly data: MultiProviderDataPoint[];
+  readonly config: {
     garminColor: string;
     whoopColor: string;
   };
-  emptyMessage: string;
-  garminLabel: string;
-  whoopLabel: string;
-  unit: string;
-  height?: number | `${number}%`;
-  yDomain?: [number | string, number | string];
-  valueFormatter?: (value: number) => string;
-  baselineValue?: number | null;
-  showTrends?: boolean;
-  bandwidthShort?: number;
-  bandwidthLong?: number;
+  readonly emptyMessage: string;
+  readonly garminLabel: string;
+  readonly whoopLabel: string;
+  readonly unit: string;
+  readonly height?: number | `${number}%`;
+  readonly yDomain?: [number | string, number | string];
+  readonly valueFormatter?: (value: number) => string;
+  readonly baselineValue?: number | null;
+  readonly showTrends?: boolean;
+  readonly bandwidthShort?: number;
+  readonly bandwidthLong?: number;
   dateRange?: { start: string; end: string };
 }
 

@@ -46,12 +46,12 @@ import { useAnalytics } from "../../hooks/useAnalytics";
 const DASHBOARD_KEYS = new Set<string>(DASHBOARD_METRIC_KEYS);
 
 interface MetricCardProps {
-  title: string;
-  value: string;
-  subtitle: string;
-  icon: LucideIcon;
-  colorClass: string;
-  bgClass: string;
+  readonly title: string;
+  readonly value: string;
+  readonly subtitle: string;
+  readonly icon: LucideIcon;
+  readonly colorClass: string;
+  readonly bgClass: string;
 }
 
 function MetricCard({

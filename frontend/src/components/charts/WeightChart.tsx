@@ -22,12 +22,12 @@ function dateToTimestamp(dateStr: string): number {
 }
 
 interface WeightChartProps {
-  data: WeightData[];
-  showTrends?: boolean;
-  showBaseline?: boolean;
-  bandwidthShort?: number;
-  bandwidthLong?: number;
-  height?: number;
+  readonly data: WeightData[];
+  readonly showTrends?: boolean;
+  readonly showBaseline?: boolean;
+  readonly bandwidthShort?: number;
+  readonly bandwidthLong?: number;
+  readonly height?: number;
   dateRange?: { start: string; end: string };
 }
 

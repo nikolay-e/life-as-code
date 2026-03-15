@@ -19,18 +19,16 @@ const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
   silent: 4,
 };
 
-const VALID_LOG_LEVELS: LogLevel[] = [
+const VALID_LOG_LEVELS = new Set<LogLevel>([
   "debug",
   "info",
   "warn",
   "error",
   "silent",
-];
+]);
 
 function isValidLogLevel(level: unknown): level is LogLevel {
-  return (
-    typeof level === "string" && VALID_LOG_LEVELS.includes(level as LogLevel)
-  );
+  return typeof level === "string" && VALID_LOG_LEVELS.has(level as LogLevel);
 }
 
 function detectEnvironment(): { isDev: boolean; logLevel: LogLevel } {
@@ -55,20 +53,21 @@ function sanitizeValue(value: unknown): unknown {
     return value
       .replace(/api_key=[^&\s]+/gi, "api_key=[REDACTED]")
       .replace(/token=[^&\s]+/gi, "token=[REDACTED]")
-      .replace(/password=[^&\s]+/gi, "password=[REDACTED]")
+      .replace(/password=[^&\s]+/gi, "password=[REDACTED]") // NOSONAR: regex pattern redacts secrets from URLs, not a hardcoded password
       .replace(/Bearer\s+[^\s]+/gi, "Bearer [REDACTED]");
   }
   return value;
 }
 
 function sanitizeContext(context?: LogContext): LogContext | undefined {
-  if (!context) return undefined;
-
-  const sanitized: LogContext = {};
-  for (const [key, value] of Object.entries(context)) {
-    sanitized[key] = sanitizeValue(value);
+  if (context) {
+    const sanitized: LogContext = {};
+    for (const [key, value] of Object.entries(context)) {
+      sanitized[key] = sanitizeValue(value);
+    }
+    return sanitized;
   }
-  return sanitized;
+  return undefined;
 }
 
 function formatMessage(namespace: string, message: string): string {

@@ -22,6 +22,8 @@ from enums import DataSource, SyncStatus, SyncWindow, SyncWindowStatus
 
 Base: Any = declarative_base()
 
+CASCADE_ALL_DELETE = "all, delete-orphan"
+
 
 class User(Base):
     __tablename__ = "users"
@@ -37,72 +39,72 @@ class User(Base):
         "UserCredentials",
         back_populates="user",
         uselist=False,
-        cascade="all, delete-orphan",
+        cascade=CASCADE_ALL_DELETE,
     )
     settings = relationship(
         "UserSettings",
         back_populates="user",
         uselist=False,
-        cascade="all, delete-orphan",
+        cascade=CASCADE_ALL_DELETE,
     )
     sleep_data = relationship(
-        "Sleep", back_populates="user", cascade="all, delete-orphan"
+        "Sleep", back_populates="user", cascade=CASCADE_ALL_DELETE
     )
     weight_data = relationship(
-        "Weight", back_populates="user", cascade="all, delete-orphan"
+        "Weight", back_populates="user", cascade=CASCADE_ALL_DELETE
     )
     heart_rate_data = relationship(
-        "HeartRate", back_populates="user", cascade="all, delete-orphan"
+        "HeartRate", back_populates="user", cascade=CASCADE_ALL_DELETE
     )
     stress_data = relationship(
-        "Stress", back_populates="user", cascade="all, delete-orphan"
+        "Stress", back_populates="user", cascade=CASCADE_ALL_DELETE
     )
-    hrv_data = relationship("HRV", back_populates="user", cascade="all, delete-orphan")
+    hrv_data = relationship("HRV", back_populates="user", cascade=CASCADE_ALL_DELETE)
     energy_data = relationship(
-        "Energy", back_populates="user", cascade="all, delete-orphan"
+        "Energy", back_populates="user", cascade=CASCADE_ALL_DELETE
     )
-    steps = relationship("Steps", back_populates="user", cascade="all, delete-orphan")
+    steps = relationship("Steps", back_populates="user", cascade=CASCADE_ALL_DELETE)
     workout_sets = relationship(
-        "WorkoutSet", back_populates="user", cascade="all, delete-orphan"
+        "WorkoutSet", back_populates="user", cascade=CASCADE_ALL_DELETE
     )
     data_syncs = relationship(
-        "DataSync", back_populates="user", cascade="all, delete-orphan"
+        "DataSync", back_populates="user", cascade=CASCADE_ALL_DELETE
     )
     sync_progress = relationship(
-        "SyncProgress", back_populates="user", cascade="all, delete-orphan"
+        "SyncProgress", back_populates="user", cascade=CASCADE_ALL_DELETE
     )
     whoop_recoveries = relationship(
-        "WhoopRecovery", back_populates="user", cascade="all, delete-orphan"
+        "WhoopRecovery", back_populates="user", cascade=CASCADE_ALL_DELETE
     )
     whoop_sleeps = relationship(
-        "WhoopSleep", back_populates="user", cascade="all, delete-orphan"
+        "WhoopSleep", back_populates="user", cascade=CASCADE_ALL_DELETE
     )
     whoop_workouts = relationship(
-        "WhoopWorkout", back_populates="user", cascade="all, delete-orphan"
+        "WhoopWorkout", back_populates="user", cascade=CASCADE_ALL_DELETE
     )
     whoop_cycles = relationship(
-        "WhoopCycle", back_populates="user", cascade="all, delete-orphan"
+        "WhoopCycle", back_populates="user", cascade=CASCADE_ALL_DELETE
     )
     garmin_training_status = relationship(
-        "GarminTrainingStatus", back_populates="user", cascade="all, delete-orphan"
+        "GarminTrainingStatus", back_populates="user", cascade=CASCADE_ALL_DELETE
     )
     garmin_activities = relationship(
-        "GarminActivity", back_populates="user", cascade="all, delete-orphan"
+        "GarminActivity", back_populates="user", cascade=CASCADE_ALL_DELETE
     )
     garmin_race_predictions = relationship(
-        "GarminRacePrediction", back_populates="user", cascade="all, delete-orphan"
+        "GarminRacePrediction", back_populates="user", cascade=CASCADE_ALL_DELETE
     )
     predictions = relationship(
-        "Prediction", back_populates="user", cascade="all, delete-orphan"
+        "Prediction", back_populates="user", cascade=CASCADE_ALL_DELETE
     )
     anomalies = relationship(
-        "Anomaly", back_populates="user", cascade="all, delete-orphan"
+        "Anomaly", back_populates="user", cascade=CASCADE_ALL_DELETE
     )
     health_snapshots = relationship(
-        "HealthSnapshot", back_populates="user", cascade="all, delete-orphan"
+        "HealthSnapshot", back_populates="user", cascade=CASCADE_ALL_DELETE
     )
     clinical_alert_events = relationship(
-        "ClinicalAlertEvent", back_populates="user", cascade="all, delete-orphan"
+        "ClinicalAlertEvent", back_populates="user", cascade=CASCADE_ALL_DELETE
     )
 
     def __repr__(self):

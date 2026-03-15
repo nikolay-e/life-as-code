@@ -70,7 +70,7 @@ export function DataStatusPage() {
       provider,
       count: items.length,
       latestDate: sorted[0].date,
-      oldestDate: sorted[sorted.length - 1].date,
+      oldestDate: (sorted.at(-1) ?? sorted[0]).date,
       cadence,
     };
   };

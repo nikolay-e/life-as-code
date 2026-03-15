@@ -3,12 +3,12 @@ import type { ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 
 interface ChartCardProps {
-  title: string;
-  icon: LucideIcon;
-  iconColorClass: string;
-  iconBgClass: string;
-  children: ReactNode;
-  contentClassName?: string;
+  readonly title: string;
+  readonly icon: LucideIcon;
+  readonly iconColorClass: string;
+  readonly iconBgClass: string;
+  readonly children: ReactNode;
+  readonly contentClassName?: string;
 }
 
 export function ChartCard({

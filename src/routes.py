@@ -58,7 +58,11 @@ def register_routes(server, limiter):
                     user = db.scalars(
                         select(User).filter_by(username=form.username.data)
                     ).first()
-                    if user and verify_password(form.password.data, user.password_hash):
+                    if (
+                        user
+                        and form.password.data
+                        and verify_password(form.password.data, user.password_hash)
+                    ):
                         user_model = UserModel(user.id, user.username)
                         login_user(user_model)
                         logger.info(
@@ -144,18 +148,18 @@ def register_routes(server, limiter):
             form=form,
         )
 
-    @server.route("/logout")
+    @server.route("/logout", methods=["GET"])
     @login_required
     @limiter.limit("3000 per hour")
     def logout():
         logout_user()
         return redirect(url_for("login"))
 
-    @server.route("/")
+    @server.route("/", methods=["GET"])
     def index():
         return redirect("/dashboard/")
 
-    @server.route("/whoop/authorize")
+    @server.route("/whoop/authorize", methods=["GET"])
     @login_required
     def whoop_authorize():
         """Redirect to Whoop OAuth authorization."""
@@ -185,7 +189,7 @@ def register_routes(server, limiter):
 
         return redirect(auth_url)
 
-    @server.route("/whoop/callback")
+    @server.route("/whoop/callback", methods=["GET"])
     @login_required
     def whoop_callback():
         code = request.args.get("code")

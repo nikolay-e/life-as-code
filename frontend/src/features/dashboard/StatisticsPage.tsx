@@ -152,6 +152,10 @@ function getCrossCorrelationColor(value: number | null): string {
   return "";
 }
 
+function signPrefix(value: number): string {
+  return value > 0 ? "+" : "";
+}
+
 function formatDaysLabel(days: number): string {
   if (days >= 365) {
     const years = Math.round(days / 365);
@@ -163,19 +167,25 @@ function formatDaysLabel(days: number): string {
   return `${String(days)}d`;
 }
 
+function getQualityBadgeAppearance(confidence: number): {
+  color: string;
+  Icon: typeof CheckCircle;
+} {
+  if (confidence < 0.6) {
+    return { color: "text-red-600 dark:text-red-400", Icon: AlertTriangle };
+  }
+  if (confidence < 0.8) {
+    return { color: "text-yellow-600 dark:text-yellow-400", Icon: Clock };
+  }
+  return { color: "text-green-600 dark:text-green-400", Icon: CheckCircle };
+}
+
 function DataQualityBadge({ baseline }: { baseline: MetricBaseline }) {
   const coveragePercent = Math.round(baseline.quality_coverage * 100);
   const confidencePercent = Math.round(baseline.quality_confidence * 100);
-  let color = "text-green-600 dark:text-green-400";
-  let Icon = CheckCircle;
-
-  if (baseline.quality_confidence < 0.6) {
-    color = "text-red-600 dark:text-red-400";
-    Icon = AlertTriangle;
-  } else if (baseline.quality_confidence < 0.8) {
-    color = "text-yellow-600 dark:text-yellow-400";
-    Icon = Clock;
-  }
+  const { color, Icon } = getQualityBadgeAppearance(
+    baseline.quality_confidence,
+  );
 
   return (
     <div className="flex items-center gap-1.5 text-xs">
@@ -192,17 +202,17 @@ function DataQualityBadge({ baseline }: { baseline: MetricBaseline }) {
 }
 
 interface MetricCardProps {
-  title: string;
-  icon: LucideIcon;
-  iconColorClass: string;
-  iconBgClass: string;
-  baseline: MetricBaseline;
-  format: (value: number | null) => string;
-  invertZScore?: boolean;
-  shortTermDays: number;
-  baselineDays: number;
-  trendWindow: number;
-  useShiftedZScore: boolean;
+  readonly title: string;
+  readonly icon: LucideIcon;
+  readonly iconColorClass: string;
+  readonly iconBgClass: string;
+  readonly baseline: MetricBaseline;
+  readonly format: (value: number | null) => string;
+  readonly invertZScore?: boolean;
+  readonly shortTermDays: number;
+  readonly baselineDays: number;
+  readonly trendWindow: number;
+  readonly useShiftedZScore: boolean;
 }
 
 function MetricCard({
@@ -301,7 +311,7 @@ function MetricCard({
                   {trendIcon}
                   <span className="font-medium">
                     {baseline.trend_slope !== null
-                      ? `${baseline.trend_slope > 0 ? "+" : ""}${baseline.trend_slope.toFixed(2)}/d`
+                      ? `${signPrefix(baseline.trend_slope)}${baseline.trend_slope.toFixed(2)}/d`
                       : "—"}
                   </span>
                 </div>
@@ -712,7 +722,7 @@ export function StatisticsPage() {
               )}
             >
               {activityMetrics.steps_change !== null
-                ? `${activityMetrics.steps_change > 0 ? "+" : ""}${Math.round(activityMetrics.steps_change).toLocaleString()}`
+                ? `${signPrefix(activityMetrics.steps_change)}${Math.round(activityMetrics.steps_change).toLocaleString()}`
                 : "—"}
             </p>
             <p className="text-xs text-muted-foreground">
@@ -919,7 +929,7 @@ export function StatisticsPage() {
                   )}
                 >
                   {weightMetrics.period_change !== null
-                    ? `${weightMetrics.period_change > 0 ? "+" : ""}${weightMetrics.period_change.toFixed(2)} kg`
+                    ? `${signPrefix(weightMetrics.period_change)}${weightMetrics.period_change.toFixed(2)} kg`
                     : "—"}
                 </p>
               </div>
@@ -973,7 +983,7 @@ export function StatisticsPage() {
                   )}
                 >
                   {recoveryMetrics.stress_trend !== null
-                    ? `${recoveryMetrics.stress_trend > 0 ? "+" : ""}${recoveryMetrics.stress_trend.toFixed(1)}`
+                    ? `${signPrefix(recoveryMetrics.stress_trend)}${recoveryMetrics.stress_trend.toFixed(1)}`
                     : "—"}
                 </p>
               </div>
@@ -1252,7 +1262,7 @@ export function StatisticsPage() {
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-sm">
                       {value !== null
-                        ? `${value > 0 ? "+" : ""}${value.toFixed(2)} ${unit}`
+                        ? `${signPrefix(value)}${value.toFixed(2)} ${unit}`
                         : "—"}
                     </span>
                     {status && (
@@ -1550,289 +1560,392 @@ export function StatisticsPage() {
       )}
 
       {advancedInsights && (
-        <>
-          <div>
-            <h2 className="text-xl font-semibold mb-4">Advanced Insights</h2>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              <Card>
-                <CardHeader className="pb-2">
-                  <div className="flex items-center gap-2">
-                    <Heart className="h-4 w-4 text-rose-500" />
-                    <CardTitle className="text-base">HRV Advanced</CardTitle>
+        <div>
+          <h2 className="text-xl font-semibold mb-4">Advanced Insights</h2>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2">
+                  <Heart className="h-4 w-4 text-rose-500" />
+                  <CardTitle className="text-base">HRV Advanced</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">
+                      lnRMSSD
+                    </span>
+                    <span className="font-mono text-sm font-semibold">
+                      {advancedInsights.hrv_advanced.ln_rmssd_current?.toFixed(
+                        2,
+                      ) ?? "—"}
+                    </span>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">
-                        lnRMSSD
-                      </span>
-                      <span className="font-mono text-sm font-semibold">
-                        {advancedInsights.hrv_advanced.ln_rmssd_current?.toFixed(
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">
+                      7d Mean
+                    </span>
+                    <span className="font-mono text-sm">
+                      {advancedInsights.hrv_advanced.ln_rmssd_mean_7d?.toFixed(
+                        2,
+                      ) ?? "—"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">
+                      SD (7d)
+                    </span>
+                    <span
+                      className={cn(
+                        "font-mono text-sm",
+                        getHrvSdColor(
+                          advancedInsights.hrv_advanced.ln_rmssd_sd_7d,
+                        ),
+                      )}
+                    >
+                      {advancedInsights.hrv_advanced.ln_rmssd_sd_7d?.toFixed(
+                        3,
+                      ) ?? "—"}
+                    </span>
+                  </div>
+                  <div className="pt-2 border-t text-xs text-muted-foreground">
+                    <div className="flex justify-between">
+                      <span>HRV-RHR r(14d)</span>
+                      <span className="font-mono">
+                        {advancedInsights.hrv_advanced.hrv_rhr_rolling_r_14d?.toFixed(
                           2,
                         ) ?? "—"}
                       </span>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">
-                        7d Mean
-                      </span>
-                      <span className="font-mono text-sm">
-                        {advancedInsights.hrv_advanced.ln_rmssd_mean_7d?.toFixed(
+                    <div className="flex justify-between">
+                      <span>HRV-RHR r(60d)</span>
+                      <span className="font-mono">
+                        {advancedInsights.hrv_advanced.hrv_rhr_rolling_r_60d?.toFixed(
                           2,
                         ) ?? "—"}
                       </span>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">
-                        SD (7d)
-                      </span>
-                      <span
-                        className={cn(
-                          "font-mono text-sm",
-                          getHrvSdColor(
-                            advancedInsights.hrv_advanced.ln_rmssd_sd_7d,
-                          ),
-                        )}
-                      >
-                        {advancedInsights.hrv_advanced.ln_rmssd_sd_7d?.toFixed(
-                          3,
-                        ) ?? "—"}
-                      </span>
-                    </div>
-                    <div className="pt-2 border-t text-xs text-muted-foreground">
-                      <div className="flex justify-between">
-                        <span>HRV-RHR r(14d)</span>
-                        <span className="font-mono">
-                          {advancedInsights.hrv_advanced.hrv_rhr_rolling_r_14d?.toFixed(
-                            2,
-                          ) ?? "—"}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>HRV-RHR r(60d)</span>
-                        <span className="font-mono">
-                          {advancedInsights.hrv_advanced.hrv_rhr_rolling_r_60d?.toFixed(
-                            2,
-                          ) ?? "—"}
-                        </span>
-                      </div>
-                    </div>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </CardContent>
+            </Card>
 
-              <Card>
-                <CardHeader className="pb-2">
-                  <div className="flex items-center gap-2">
-                    <Moon className="h-4 w-4 text-indigo-500" />
-                    <CardTitle className="text-base">Sleep Quality</CardTitle>
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2">
+                  <Moon className="h-4 w-4 text-indigo-500" />
+                  <CardTitle className="text-base">Sleep Quality</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">
+                      Efficiency
+                    </span>
+                    <span className="font-mono text-sm">
+                      {advancedInsights.sleep_quality.efficiency?.toFixed(1) ??
+                        "—"}
+                      %
+                    </span>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">
-                        Efficiency
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">
+                      Deep Sleep
+                    </span>
+                    <span
+                      className={cn(
+                        "font-mono text-sm",
+                        advancedInsights.sleep_quality.deep_sleep_pct !==
+                          null &&
+                          advancedInsights.sleep_quality.deep_sleep_pct >= 15
+                          ? "text-green-500"
+                          : "text-yellow-500",
+                      )}
+                    >
+                      {advancedInsights.sleep_quality.deep_sleep_pct?.toFixed(
+                        1,
+                      ) ?? "—"}
+                      %
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">
+                      REM Sleep
+                    </span>
+                    <span
+                      className={cn(
+                        "font-mono text-sm",
+                        advancedInsights.sleep_quality.rem_sleep_pct !== null &&
+                          advancedInsights.sleep_quality.rem_sleep_pct >= 20
+                          ? "text-green-500"
+                          : "text-yellow-500",
+                      )}
+                    >
+                      {advancedInsights.sleep_quality.rem_sleep_pct?.toFixed(
+                        1,
+                      ) ?? "—"}
+                      %
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">
+                      Consistency
+                    </span>
+                    <span className="font-mono text-sm">
+                      {advancedInsights.sleep_quality.consistency_score?.toFixed(
+                        0,
+                      ) ?? "—"}
+                      /100
+                    </span>
+                  </div>
+                  <div className="pt-2 border-t text-xs text-muted-foreground">
+                    <div className="flex justify-between">
+                      <span>Sleep→HRV</span>
+                      <span className="font-mono">
+                        r={" "}
+                        {advancedInsights.sleep_quality.sleep_hrv_responsiveness?.toFixed(
+                          2,
+                        ) ?? "—"}
+                        {advancedInsights.sleep_quality.sleep_hrv_p_value !==
+                          null &&
+                          advancedInsights.sleep_quality.sleep_hrv_p_value <
+                            0.05 && (
+                            <span className="text-green-500 ml-1">*</span>
+                          )}
                       </span>
-                      <span className="font-mono text-sm">
-                        {advancedInsights.sleep_quality.efficiency?.toFixed(
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Fragmentation</span>
+                      <span className="font-mono">
+                        {advancedInsights.sleep_quality.fragmentation_index?.toFixed(
                           1,
                         ) ?? "—"}
-                        %
+                        /hr
                       </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">
-                        Deep Sleep
-                      </span>
-                      <span
-                        className={cn(
-                          "font-mono text-sm",
-                          advancedInsights.sleep_quality.deep_sleep_pct !==
-                            null &&
-                            advancedInsights.sleep_quality.deep_sleep_pct >= 15
-                            ? "text-green-500"
-                            : "text-yellow-500",
-                        )}
-                      >
-                        {advancedInsights.sleep_quality.deep_sleep_pct?.toFixed(
-                          1,
-                        ) ?? "—"}
-                        %
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">
-                        REM Sleep
-                      </span>
-                      <span
-                        className={cn(
-                          "font-mono text-sm",
-                          advancedInsights.sleep_quality.rem_sleep_pct !==
-                            null &&
-                            advancedInsights.sleep_quality.rem_sleep_pct >= 20
-                            ? "text-green-500"
-                            : "text-yellow-500",
-                        )}
-                      >
-                        {advancedInsights.sleep_quality.rem_sleep_pct?.toFixed(
-                          1,
-                        ) ?? "—"}
-                        %
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">
-                        Consistency
-                      </span>
-                      <span className="font-mono text-sm">
-                        {advancedInsights.sleep_quality.consistency_score?.toFixed(
-                          0,
-                        ) ?? "—"}
-                        /100
-                      </span>
-                    </div>
-                    <div className="pt-2 border-t text-xs text-muted-foreground">
-                      <div className="flex justify-between">
-                        <span>Sleep→HRV</span>
-                        <span className="font-mono">
-                          r={" "}
-                          {advancedInsights.sleep_quality.sleep_hrv_responsiveness?.toFixed(
-                            2,
-                          ) ?? "—"}
-                          {advancedInsights.sleep_quality.sleep_hrv_p_value !==
-                            null &&
-                            advancedInsights.sleep_quality.sleep_hrv_p_value <
-                              0.05 && (
-                              <span className="text-green-500 ml-1">*</span>
-                            )}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Fragmentation</span>
-                        <span className="font-mono">
-                          {advancedInsights.sleep_quality.fragmentation_index?.toFixed(
-                            1,
-                          ) ?? "—"}
-                          /hr
-                        </span>
-                      </div>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </CardContent>
+            </Card>
 
-              <Card>
-                <CardHeader className="pb-2">
-                  <div className="flex items-center gap-2">
-                    <Dumbbell className="h-4 w-4 text-blue-500" />
-                    <CardTitle className="text-base">
-                      Fitness & Training
-                    </CardTitle>
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2">
+                  <Dumbbell className="h-4 w-4 text-blue-500" />
+                  <CardTitle className="text-base">
+                    Fitness & Training
+                  </CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">
+                      Last Workout
+                    </span>
+                    <span
+                      className={cn(
+                        "font-mono text-sm",
+                        advancedInsights.fitness.days_since_last_workout !==
+                          null &&
+                          advancedInsights.fitness.days_since_last_workout > 7
+                          ? "text-red-500"
+                          : "text-green-500",
+                      )}
+                    >
+                      {advancedInsights.fitness.days_since_last_workout !== null
+                        ? `${String(advancedInsights.fitness.days_since_last_workout)}d ago`
+                        : "—"}
+                    </span>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">
-                        Last Workout
-                      </span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">
+                      Frequency
+                    </span>
+                    <span className="font-mono text-sm">
+                      {advancedInsights.fitness.training_frequency_7d}/w ·{" "}
+                      {advancedInsights.fitness.training_frequency_30d}/mo
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">
+                      CTL / ATL / TSB
+                    </span>
+                    <span className="font-mono text-sm">
+                      {advancedInsights.fitness.ctl?.toFixed(1) ?? "—"} /{" "}
+                      {advancedInsights.fitness.atl?.toFixed(1) ?? "—"} /{" "}
                       <span
                         className={cn(
-                          "font-mono text-sm",
-                          advancedInsights.fitness.days_since_last_workout !==
-                            null &&
-                            advancedInsights.fitness.days_since_last_workout > 7
-                            ? "text-red-500"
-                            : "text-green-500",
+                          getTsbColor(advancedInsights.fitness.tsb),
                         )}
                       >
-                        {advancedInsights.fitness.days_since_last_workout !==
-                        null
-                          ? `${String(advancedInsights.fitness.days_since_last_workout)}d ago`
-                          : "—"}
+                        {advancedInsights.fitness.tsb?.toFixed(1) ?? "—"}
                       </span>
-                    </div>
+                    </span>
+                  </div>
+                  {advancedInsights.fitness.vo2_max_current !== null && (
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">
-                        Frequency
+                        VO2 Max
                       </span>
                       <span className="font-mono text-sm">
-                        {advancedInsights.fitness.training_frequency_7d}/w ·{" "}
-                        {advancedInsights.fitness.training_frequency_30d}/mo
+                        {advancedInsights.fitness.vo2_max_current.toFixed(1)}
                       </span>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">
-                        CTL / ATL / TSB
-                      </span>
-                      <span className="font-mono text-sm">
-                        {advancedInsights.fitness.ctl?.toFixed(1) ?? "—"} /{" "}
-                        {advancedInsights.fitness.atl?.toFixed(1) ?? "—"} /{" "}
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-cyan-500" />
+                  <CardTitle className="text-base">Allostatic Load</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">
+                      Composite Score
+                    </span>
+                    <span
+                      className={cn(
+                        "font-mono text-sm font-semibold",
+                        getAllostaticScoreColor(
+                          advancedInsights.allostatic_load.composite_score,
+                        ),
+                      )}
+                    >
+                      {advancedInsights.allostatic_load.composite_score?.toFixed(
+                        1,
+                      ) ?? "—"}
+                    </span>
+                  </div>
+                  <div className="text-xs text-muted-foreground pt-2 border-t space-y-1">
+                    {Object.entries(
+                      advancedInsights.allostatic_load.breach_rates,
+                    ).map(([metric, rate]) => (
+                      <div key={metric} className="flex justify-between">
+                        <span>{metric}</span>
                         <span
                           className={cn(
-                            getTsbColor(advancedInsights.fitness.tsb),
+                            "font-mono",
+                            rate > 0.3 && "text-red-500",
+                            rate > 0.15 && rate <= 0.3 && "text-yellow-500",
                           )}
                         >
-                          {advancedInsights.fitness.tsb?.toFixed(1) ?? "—"}
-                        </span>
-                      </span>
-                    </div>
-                    {advancedInsights.fitness.vo2_max_current !== null && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">
-                          VO2 Max
-                        </span>
-                        <span className="font-mono text-sm">
-                          {advancedInsights.fitness.vo2_max_current.toFixed(1)}
+                          {(rate * 100).toFixed(0)}%
                         </span>
                       </div>
-                    )}
+                    ))}
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </CardContent>
+            </Card>
 
+            {advancedInsights.cross_domain.hrv_residual.r_squared !== null && (
               <Card>
                 <CardHeader className="pb-2">
                   <div className="flex items-center gap-2">
-                    <Activity className="h-4 w-4 text-cyan-500" />
-                    <CardTitle className="text-base">Allostatic Load</CardTitle>
+                    <Brain className="h-4 w-4 text-violet-500" />
+                    <CardTitle className="text-base">HRV Residual</CardTitle>
                   </div>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">
-                        Composite Score
+                        Predicted
+                      </span>
+                      <span className="font-mono text-sm">
+                        {advancedInsights.cross_domain.hrv_residual.predicted?.toFixed(
+                          1,
+                        ) ?? "—"}{" "}
+                        ms
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">
+                        Actual
+                      </span>
+                      <span className="font-mono text-sm">
+                        {advancedInsights.cross_domain.hrv_residual.actual?.toFixed(
+                          1,
+                        ) ?? "—"}{" "}
+                        ms
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">
+                        Residual z
                       </span>
                       <span
                         className={cn(
-                          "font-mono text-sm font-semibold",
-                          getAllostaticScoreColor(
-                            advancedInsights.allostatic_load.composite_score,
+                          "font-mono text-sm",
+                          getZScoreColor(
+                            advancedInsights.cross_domain.hrv_residual
+                              .residual_z,
                           ),
                         )}
                       >
-                        {advancedInsights.allostatic_load.composite_score?.toFixed(
-                          1,
+                        {advancedInsights.cross_domain.hrv_residual.residual_z?.toFixed(
+                          2,
                         ) ?? "—"}
+                        σ
+                      </span>
+                    </div>
+                    <div className="text-xs text-muted-foreground pt-2 border-t">
+                      R² ={" "}
+                      {advancedInsights.cross_domain.hrv_residual.r_squared.toFixed(
+                        3,
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {advancedInsights.cross_domain.weight_hrv_coupling !== null && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center gap-2">
+                    <Scale className="h-4 w-4 text-emerald-500" />
+                    <CardTitle className="text-base">Cross-Domain</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">
+                        Weight↔HRV
+                      </span>
+                      <span
+                        className={cn(
+                          "font-mono text-sm",
+                          getCrossCorrelationColor(
+                            advancedInsights.cross_domain.weight_hrv_coupling,
+                          ),
+                        )}
+                      >
+                        r={" "}
+                        {advancedInsights.cross_domain.weight_hrv_coupling.toFixed(
+                          2,
+                        )}
                       </span>
                     </div>
                     <div className="text-xs text-muted-foreground pt-2 border-t space-y-1">
                       {Object.entries(
-                        advancedInsights.allostatic_load.breach_rates,
-                      ).map(([metric, rate]) => (
+                        advancedInsights.cross_domain.weekday_weekend,
+                      ).map(([metric, split]) => (
                         <div key={metric} className="flex justify-between">
                           <span>{metric}</span>
-                          <span
-                            className={cn(
-                              "font-mono",
-                              rate > 0.3 && "text-red-500",
-                              rate > 0.15 && rate <= 0.3 && "text-yellow-500",
-                            )}
-                          >
-                            {(rate * 100).toFixed(0)}%
+                          <span className="font-mono">
+                            {split.weekday_mean?.toFixed(0) ?? "—"} /{" "}
+                            {split.weekend_mean?.toFixed(0) ?? "—"}
                           </span>
                         </div>
                       ))}
@@ -1840,118 +1953,9 @@ export function StatisticsPage() {
                   </div>
                 </CardContent>
               </Card>
-
-              {advancedInsights.cross_domain.hrv_residual.r_squared !==
-                null && (
-                <Card>
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center gap-2">
-                      <Brain className="h-4 w-4 text-violet-500" />
-                      <CardTitle className="text-base">HRV Residual</CardTitle>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">
-                          Predicted
-                        </span>
-                        <span className="font-mono text-sm">
-                          {advancedInsights.cross_domain.hrv_residual.predicted?.toFixed(
-                            1,
-                          ) ?? "—"}{" "}
-                          ms
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">
-                          Actual
-                        </span>
-                        <span className="font-mono text-sm">
-                          {advancedInsights.cross_domain.hrv_residual.actual?.toFixed(
-                            1,
-                          ) ?? "—"}{" "}
-                          ms
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">
-                          Residual z
-                        </span>
-                        <span
-                          className={cn(
-                            "font-mono text-sm",
-                            getZScoreColor(
-                              advancedInsights.cross_domain.hrv_residual
-                                .residual_z,
-                            ),
-                          )}
-                        >
-                          {advancedInsights.cross_domain.hrv_residual.residual_z?.toFixed(
-                            2,
-                          ) ?? "—"}
-                          σ
-                        </span>
-                      </div>
-                      <div className="text-xs text-muted-foreground pt-2 border-t">
-                        R² ={" "}
-                        {advancedInsights.cross_domain.hrv_residual.r_squared.toFixed(
-                          3,
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {advancedInsights.cross_domain.weight_hrv_coupling !== null && (
-                <Card>
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center gap-2">
-                      <Scale className="h-4 w-4 text-emerald-500" />
-                      <CardTitle className="text-base">Cross-Domain</CardTitle>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">
-                          Weight↔HRV
-                        </span>
-                        <span
-                          className={cn(
-                            "font-mono text-sm",
-                            getCrossCorrelationColor(
-                              advancedInsights.cross_domain.weight_hrv_coupling,
-                            ),
-                          )}
-                        >
-                          r={" "}
-                          {advancedInsights.cross_domain.weight_hrv_coupling.toFixed(
-                            2,
-                          )}
-                        </span>
-                      </div>
-                      <div className="text-xs text-muted-foreground pt-2 border-t space-y-1">
-                        {Object.entries(
-                          advancedInsights.cross_domain.weekday_weekend,
-                        ).map(([metric, split]) => (
-                          <div key={metric} className="flex justify-between">
-                            <span>{metric}</span>
-                            <span className="font-mono">
-                              {split.weekday_mean?.toFixed(0) ?? "—"} /{" "}
-                              {split.weekend_mean?.toFixed(0) ?? "—"}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
+            )}
           </div>
-        </>
+        </div>
       )}
     </div>
   );

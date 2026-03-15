@@ -7,6 +7,8 @@ import {
   ImportResult,
 } from "./schemas";
 
+export type { ImportResult };
+
 // Create empty import result
 export function createImportResult(source: string, dataType: string): ImportResult {
   return {
@@ -314,25 +316,23 @@ export async function importDailyMetrics(
       console.log(`[DRY-RUN] Daily: ${data.date} - ${data.totalSteps} steps, ${data.totalCalories} kcal`);
       result.processed++;
     }
-    return result;
-  }
+  } else if (pool) {
+    const batchSize = 100;
+    for (let i = 0; i < dailyData.length; i += batchSize) {
+      const batch = dailyData.slice(i, i + batchSize);
 
-  // Process in batches of 100
-  const batchSize = 100;
-  for (let i = 0; i < dailyData.length; i += batchSize) {
-    const batch = dailyData.slice(i, i + batchSize);
+      await withTransaction(pool, async (client) => {
+        for (const data of batch) {
+          await upsertSteps(client, userId, data, result, source);
+          await upsertHeartRate(client, userId, data, result, source);
+          await upsertWeight(client, userId, data.date, data.avgWeight, null, result, source);
+          await upsertEnergy(client, userId, data, result, source);
+        }
+      });
 
-    await withTransaction(pool!, async (client) => {
-      for (const data of batch) {
-        await upsertSteps(client, userId, data, result, source);
-        await upsertHeartRate(client, userId, data, result, source);
-        await upsertWeight(client, userId, data.date, data.avgWeight, null, result, source);
-        await upsertEnergy(client, userId, data, result, source);
+      if ((i + batchSize) % 500 === 0) {
+        console.log(`  Processed ${Math.min(i + batchSize, dailyData.length)}/${dailyData.length} daily records...`);
       }
-    });
-
-    if ((i + batchSize) % 500 === 0) {
-      console.log(`  Processed ${Math.min(i + batchSize, dailyData.length)}/${dailyData.length} daily records...`);
     }
   }
 
@@ -355,18 +355,17 @@ export async function importSleepData(
       console.log(`[DRY-RUN] Sleep: ${data.date} - ${data.totalSleepMinutes}min total, ${data.deepSleepMinutes}min deep`);
       result.processed++;
     }
-    return result;
-  }
+  } else if (pool) {
+    const batchSize = 100;
+    for (let i = 0; i < sleepArray.length; i += batchSize) {
+      const batch = sleepArray.slice(i, i + batchSize);
 
-  const batchSize = 100;
-  for (let i = 0; i < sleepArray.length; i += batchSize) {
-    const batch = sleepArray.slice(i, i + batchSize);
-
-    await withTransaction(pool!, async (client) => {
-      for (const data of batch) {
-        await upsertSleep(client, userId, data, result, source);
-      }
-    });
+      await withTransaction(pool, async (client) => {
+        for (const data of batch) {
+          await upsertSleep(client, userId, data, result, source);
+        }
+      });
+    }
   }
 
   return result;
@@ -388,18 +387,17 @@ export async function importBodyComposition(
       console.log(`[DRY-RUN] Body: ${data.date} - ${data.bodyFatPct?.toFixed(1)}% fat, ${data.weight?.toFixed(1)}kg`);
       result.processed++;
     }
-    return result;
-  }
+  } else if (pool) {
+    const batchSize = 100;
+    for (let i = 0; i < bodyArray.length; i += batchSize) {
+      const batch = bodyArray.slice(i, i + batchSize);
 
-  const batchSize = 100;
-  for (let i = 0; i < bodyArray.length; i += batchSize) {
-    const batch = bodyArray.slice(i, i + batchSize);
-
-    await withTransaction(pool!, async (client) => {
-      for (const data of batch) {
-        await upsertWeight(client, userId, data.date, data.weight, data.bodyFatPct, result, source);
-      }
-    });
+      await withTransaction(pool, async (client) => {
+        for (const data of batch) {
+          await upsertWeight(client, userId, data.date, data.weight, data.bodyFatPct, result, source);
+        }
+      });
+    }
   }
 
   return result;
@@ -421,56 +419,53 @@ export async function importSessionActivities(
       console.log(`[DRY-RUN] Sessions: ${date} - ${data.steps} steps, ${data.calories} kcal from sessions`);
       result.processed++;
     }
-    return result;
-  }
+  } else if (pool) {
+    const entries = Array.from(aggregated.entries());
+    const batchSize = 100;
 
-  const entries = Array.from(aggregated.entries());
-  const batchSize = 100;
+    for (let i = 0; i < entries.length; i += batchSize) {
+      const batch = entries.slice(i, i + batchSize);
 
-  for (let i = 0; i < entries.length; i += batchSize) {
-    const batch = entries.slice(i, i + batchSize);
+      await withTransaction(pool, async (client) => {
+        for (const [date, data] of batch) {
+          if (data.steps > 0 || data.distance > 0) {
+            const stepsData: DailyAggregated = {
+              date,
+              totalSteps: data.steps,
+              totalDistance: Math.round(data.distance),
+              totalCalories: 0,
+              avgHeartRate: null,
+              maxHeartRate: null,
+              minHeartRate: null,
+              avgWeight: null,
+              avgSpO2: null,
+              minSpO2: null,
+              activeMinutes: data.activeMinutes,
+            };
+            await upsertSteps(client, userId, stepsData, result, source);
+          }
 
-    await withTransaction(pool!, async (client) => {
-      for (const [date, data] of batch) {
-        // Update steps if session has step data
-        if (data.steps > 0 || data.distance > 0) {
-          const dailyData: DailyAggregated = {
-            date,
-            totalSteps: data.steps,
-            totalDistance: Math.round(data.distance),
-            totalCalories: 0,
-            avgHeartRate: null,
-            maxHeartRate: null,
-            minHeartRate: null,
-            avgWeight: null,
-            avgSpO2: null,
-            minSpO2: null,
-            activeMinutes: data.activeMinutes,
-          };
-          await upsertSteps(client, userId, dailyData, result, source);
+          if (data.calories > 0) {
+            const energyData: DailyAggregated = {
+              date,
+              totalSteps: 0,
+              totalDistance: 0,
+              totalCalories: Math.round(data.calories),
+              avgHeartRate: null,
+              maxHeartRate: null,
+              minHeartRate: null,
+              avgWeight: null,
+              avgSpO2: null,
+              minSpO2: null,
+              activeMinutes: 0,
+            };
+            await upsertEnergy(client, userId, energyData, result, source);
+          }
+
+          result.processed++;
         }
-
-        // Update energy if session has calorie data
-        if (data.calories > 0) {
-          const dailyData: DailyAggregated = {
-            date,
-            totalSteps: 0,
-            totalDistance: 0,
-            totalCalories: Math.round(data.calories),
-            avgHeartRate: null,
-            maxHeartRate: null,
-            minHeartRate: null,
-            avgWeight: null,
-            avgSpO2: null,
-            minSpO2: null,
-            activeMinutes: 0,
-          };
-          await upsertEnergy(client, userId, dailyData, result, source);
-        }
-
-        result.processed++;
-      }
-    });
+      });
+    }
   }
 
   return result;

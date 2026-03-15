@@ -1,7 +1,7 @@
 import { cn } from "../../lib/utils";
 
 interface SkeletonProps {
-  className?: string;
+  readonly className?: string;
 }
 
 export function Skeleton({ className }: SkeletonProps) {

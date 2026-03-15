@@ -8,7 +8,7 @@ class BotConfig:
     token: str = ""
     allowed_user_ids: list[int] = field(default_factory=list)
     db_user_id: int = 1
-    timezone_offset_hours: int = 1  # CET = UTC+1
+    timezone_offset_hours: int = 1
 
     def __post_init__(self):
         self.token = os.getenv("TELEGRAM_BOT_TOKEN", self.token)

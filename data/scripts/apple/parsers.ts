@@ -1,21 +1,18 @@
-import { createReadStream } from "fs";
-import { createGunzip } from "zlib";
+import { createReadStream } from "node:fs";
+import { createGunzip } from "node:zlib";
 import sax from "sax";
 import { SleepData, BodyComposition, DailyAggregated } from "../schemas";
 
-// Sleep stage type for timeline
 type SleepStage = "deep" | "light" | "rem" | "awake" | null;
 
-// Raw sleep record from Apple Health
 interface SleepRecord {
-  startTime: number; // Unix timestamp in minutes
+  startTime: number;
   endTime: number;
   stage: SleepStage;
   source: string;
   priority: number;
 }
 
-// Source priority - higher number = higher priority
 const SOURCE_PRIORITY: Record<string, number> = {
   "Nikolay's Apple Watch": 100,
   "Apple Watch": 90,
@@ -32,7 +29,7 @@ function getSourcePriority(source: string): number {
   for (const [key, priority] of Object.entries(SOURCE_PRIORITY)) {
     if (source.includes(key)) return priority;
   }
-  return 10; // Default low priority for unknown sources
+  return 10;
 }
 
 interface AppleHealthData {
@@ -66,8 +63,10 @@ const SLEEP_VALUES = {
   IN_BED: "HKCategoryValueSleepAnalysisInBed",
 } as const;
 
+const APPLE_DATE_RE = /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}) ([+-]\d{4})$/;
+
 function parseAppleDate(dateStr: string): Date | null {
-  const match = dateStr.match(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}) ([+-]\d{4})$/);
+  const match = APPLE_DATE_RE.exec(dateStr);
   if (!match) return null;
 
   const [, datePart, timePart, tzOffset] = match;
@@ -95,13 +94,164 @@ function getSleepStage(value: string): SleepStage {
   }
 }
 
+function processWeightRecord(
+  data: AppleHealthData,
+  value: string,
+  unit: string,
+  dateKey: string
+): void {
+  let weightKg = Number.parseFloat(value);
+  if (unit === "lb") weightKg *= 0.453592;
+  if (weightKg > 20 && weightKg < 500) {
+    if (!data.weight.has(dateKey)) data.weight.set(dateKey, []);
+    data.weight.get(dateKey)!.push(weightKg);
+  }
+}
+
+function processCountableRecord(
+  targetMap: Map<string, Map<string, number>>,
+  rawValue: number,
+  dateKey: string,
+  sourceName: string
+): void {
+  if (rawValue <= 0) return;
+  const src = sourceName || "Unknown";
+  if (!targetMap.has(dateKey)) targetMap.set(dateKey, new Map());
+  const m = targetMap.get(dateKey)!;
+  m.set(src, (m.get(src) || 0) + rawValue);
+}
+
+function processStepRecord(
+  data: AppleHealthData,
+  value: string,
+  dateKey: string,
+  sourceName: string
+): void {
+  const steps = Number.parseInt(value, 10);
+  processCountableRecord(data.steps, steps, dateKey, sourceName);
+}
+
+function processDistanceRecord(
+  data: AppleHealthData,
+  value: string,
+  unit: string,
+  dateKey: string,
+  sourceName: string
+): void {
+  let meters = Number.parseFloat(value);
+  if (unit === "km") meters *= 1000;
+  else if (unit === "mi") meters *= 1609.34;
+  processCountableRecord(data.distance, meters, dateKey, sourceName);
+}
+
+function processEnergyRecord(
+  targetMap: Map<string, Map<string, number>>,
+  value: string,
+  unit: string,
+  dateKey: string,
+  sourceName: string
+): void {
+  let kcal = Number.parseFloat(value);
+  if (unit === "kJ") kcal /= 4.184;
+  processCountableRecord(targetMap, kcal, dateKey, sourceName);
+}
+
+function processHrvRecord(data: AppleHealthData, value: string, dateKey: string): void {
+  const hrvMs = Number.parseFloat(value);
+  if (hrvMs > 0 && hrvMs < 300) {
+    if (!data.hrv.has(dateKey)) data.hrv.set(dateKey, []);
+    data.hrv.get(dateKey)!.push(hrvMs);
+  }
+}
+
+function processRhrRecord(data: AppleHealthData, value: string, dateKey: string): void {
+  const rhr = Number.parseFloat(value);
+  if (rhr > 20 && rhr < 200) {
+    if (!data.rhr.has(dateKey)) data.rhr.set(dateKey, []);
+    data.rhr.get(dateKey)!.push(rhr);
+  }
+}
+
+function processSleepRecord(
+  data: AppleHealthData,
+  value: string,
+  startDate: Date,
+  endDate: Date,
+  sourceName: string
+): void {
+  const stage = getSleepStage(value);
+  if (stage === null) return;
+
+  const startMinutes = Math.floor(startDate.getTime() / 60000);
+  const endMinutes = Math.floor(endDate.getTime() / 60000);
+  const duration = endMinutes - startMinutes;
+
+  if (duration <= 0 || duration > 24 * 60) return;
+
+  data.sleepRecords.push({
+    startTime: startMinutes,
+    endTime: endMinutes,
+    stage,
+    source: sourceName || "Unknown",
+    priority: getSourcePriority(sourceName || ""),
+  });
+}
+
+function processRecord(
+  data: AppleHealthData,
+  node: sax.Tag | sax.QualifiedTag
+): void {
+  const attrs = node.attributes as Record<string, string>;
+  const type = attrs.type;
+  const value = attrs.value;
+  const startDateStr = attrs.startDate;
+  const endDateStr = attrs.endDate;
+  const unit = attrs.unit;
+  const sourceName = attrs.sourceName;
+
+  if (!type || !startDateStr) return;
+
+  const startDate = parseAppleDate(startDateStr);
+  const endDate = endDateStr ? parseAppleDate(endDateStr) : startDate;
+  if (!startDate || !endDate) return;
+
+  const dateKey = getDateString(endDate);
+
+  switch (type) {
+    case HK_TYPES.BODY_MASS:
+      processWeightRecord(data, value, unit, dateKey);
+      break;
+    case HK_TYPES.STEP_COUNT:
+      processStepRecord(data, value, dateKey, sourceName);
+      break;
+    case HK_TYPES.DISTANCE:
+      processDistanceRecord(data, value, unit, dateKey, sourceName);
+      break;
+    case HK_TYPES.ACTIVE_ENERGY:
+      processEnergyRecord(data.activeEnergy, value, unit, dateKey, sourceName);
+      break;
+    case HK_TYPES.BASAL_ENERGY:
+      processEnergyRecord(data.basalEnergy, value, unit, dateKey, sourceName);
+      break;
+    case HK_TYPES.HRV:
+      processHrvRecord(data, value, dateKey);
+      break;
+    case HK_TYPES.RESTING_HR:
+      processRhrRecord(data, value, dateKey);
+      break;
+    case HK_TYPES.SLEEP:
+      processSleepRecord(data, value, startDate, endDate, sourceName);
+      break;
+  }
+}
+
 export async function parseAppleHealthExport(xmlPath: string): Promise<AppleHealthData> {
   const data: AppleHealthData = {
     weight: new Map(),
-    steps: new Map(),       // date -> source -> total
-    distance: new Map(),    // date -> source -> total
-    activeEnergy: new Map(),// date -> source -> total
-    basalEnergy: new Map(), // date -> source -> total
+    steps: new Map(),
+    distance: new Map(),
+    activeEnergy: new Map(),
+    basalEnergy: new Map(),
     hrv: new Map(),
     rhr: new Map(),
     sleepRecords: [],
@@ -112,126 +262,15 @@ export async function parseAppleHealthExport(xmlPath: string): Promise<AppleHeal
   return new Promise((resolve, reject) => {
     const parser = sax.createStream(true, {});
 
-    parser.on("opentag", (node) => {
+    parser.on("opentag", (node: sax.Tag | sax.QualifiedTag) => {
       if (node.name !== "Record") return;
 
-      const type = node.attributes.type as string;
-      const value = node.attributes.value as string;
-      const startDateStr = node.attributes.startDate as string;
-      const endDateStr = node.attributes.endDate as string;
-      const unit = node.attributes.unit as string;
-      const sourceName = node.attributes.sourceName as string;
-
-      if (!type || !startDateStr) return;
-
-      const startDate = parseAppleDate(startDateStr);
-      const endDate = endDateStr ? parseAppleDate(endDateStr) : startDate;
-      if (!startDate || !endDate) return;
-
-      const dateKey = getDateString(endDate);
       recordCount++;
-
       if (recordCount % 500000 === 0) {
         console.log(`  Parsed ${recordCount.toLocaleString()} records...`);
       }
 
-      switch (type) {
-        case HK_TYPES.BODY_MASS: {
-          let weightKg = Number.parseFloat(value);
-          if (unit === "lb") weightKg *= 0.453592;
-          if (weightKg > 20 && weightKg < 500) {
-            if (!data.weight.has(dateKey)) data.weight.set(dateKey, []);
-            data.weight.get(dateKey)!.push(weightKg);
-          }
-          break;
-        }
-
-        case HK_TYPES.STEP_COUNT: {
-          const steps = Number.parseInt(value, 10);
-          if (steps > 0) {
-            const src = sourceName || "Unknown";
-            if (!data.steps.has(dateKey)) data.steps.set(dateKey, new Map());
-            const m = data.steps.get(dateKey)!;
-            m.set(src, (m.get(src) || 0) + steps);
-          }
-          break;
-        }
-
-        case HK_TYPES.DISTANCE: {
-          let meters = Number.parseFloat(value);
-          if (unit === "km") meters *= 1000;
-          else if (unit === "mi") meters *= 1609.34;
-          if (meters > 0) {
-            const src = sourceName || "Unknown";
-            if (!data.distance.has(dateKey)) data.distance.set(dateKey, new Map());
-            const m = data.distance.get(dateKey)!;
-            m.set(src, (m.get(src) || 0) + meters);
-          }
-          break;
-        }
-
-        case HK_TYPES.ACTIVE_ENERGY: {
-          let kcal = Number.parseFloat(value);
-          if (unit === "kJ") kcal /= 4.184;
-          if (kcal > 0) {
-            const src = sourceName || "Unknown";
-            if (!data.activeEnergy.has(dateKey)) data.activeEnergy.set(dateKey, new Map());
-            const m = data.activeEnergy.get(dateKey)!;
-            m.set(src, (m.get(src) || 0) + kcal);
-          }
-          break;
-        }
-
-        case HK_TYPES.BASAL_ENERGY: {
-          let kcal = Number.parseFloat(value);
-          if (unit === "kJ") kcal /= 4.184;
-          if (kcal > 0) {
-            const src = sourceName || "Unknown";
-            if (!data.basalEnergy.has(dateKey)) data.basalEnergy.set(dateKey, new Map());
-            const m = data.basalEnergy.get(dateKey)!;
-            m.set(src, (m.get(src) || 0) + kcal);
-          }
-          break;
-        }
-
-        case HK_TYPES.HRV: {
-          const hrvMs = Number.parseFloat(value);
-          if (hrvMs > 0 && hrvMs < 300) {
-            if (!data.hrv.has(dateKey)) data.hrv.set(dateKey, []);
-            data.hrv.get(dateKey)!.push(hrvMs);
-          }
-          break;
-        }
-
-        case HK_TYPES.RESTING_HR: {
-          const rhr = Number.parseFloat(value);
-          if (rhr > 20 && rhr < 200) {
-            if (!data.rhr.has(dateKey)) data.rhr.set(dateKey, []);
-            data.rhr.get(dateKey)!.push(rhr);
-          }
-          break;
-        }
-
-        case HK_TYPES.SLEEP: {
-          const stage = getSleepStage(value);
-          if (stage === null) break; // Skip embed and unknown
-
-          const startMinutes = Math.floor(startDate.getTime() / 60000);
-          const endMinutes = Math.floor(endDate.getTime() / 60000);
-          const duration = endMinutes - startMinutes;
-
-          if (duration <= 0 || duration > 24 * 60) break;
-
-          data.sleepRecords.push({
-            startTime: startMinutes,
-            endTime: endMinutes,
-            stage,
-            source: sourceName || "Unknown",
-            priority: getSourcePriority(sourceName || ""),
-          });
-          break;
-        }
-      }
+      processRecord(data, node);
     });
 
     parser.on("error", (err) => {
@@ -254,31 +293,23 @@ export async function parseAppleHealthExport(xmlPath: string): Promise<AppleHeal
   });
 }
 
-// Group sleep records into nights and deduplicate by timeline
 function aggregateSleepData(
   sleepRecords: SleepRecord[]
 ): Map<string, { deep: number; light: number; rem: number; awake: number }> {
   if (sleepRecords.length === 0) return new Map();
 
-  // Sort by start time
-  const sorted = [...sleepRecords].sort((a, b) => a.startTime - b.startTime);
-
-  // Create a timeline map: minute -> { stage, priority }
+  const sorted = [...sleepRecords].toSorted((a, b) => a.startTime - b.startTime);
   const timeline = new Map<number, { stage: SleepStage; priority: number }>();
 
   for (const record of sorted) {
     for (let minute = record.startTime; minute < record.endTime; minute++) {
       const existing = timeline.get(minute);
-      // Only update if this source has higher priority
       if (!existing || record.priority > existing.priority) {
         timeline.set(minute, { stage: record.stage, priority: record.priority });
       }
     }
   }
 
-  // Group timeline by wake-up date (date when sleep ends)
-  // Sleep that ends between 00:00 and 18:00 belongs to that date
-  // Sleep that ends between 18:00 and 24:00 belongs to next date
   const byDate = new Map<string, { deep: number; light: number; rem: number; awake: number }>();
 
   for (const [minute, { stage }] of timeline) {
@@ -287,10 +318,8 @@ function aggregateSleepData(
     const date = new Date(minute * 60000);
     const hour = date.getHours();
 
-    // Determine which date this sleep belongs to
     let sleepDate: string;
     if (hour >= 18) {
-      // Evening sleep - belongs to next day
       const nextDay = new Date(date);
       nextDay.setDate(nextDay.getDate() + 1);
       sleepDate = getDateString(nextDay);
@@ -369,7 +398,6 @@ export function aggregateAppleHealthData(data: AppleHealthData): {
     }
   }
 
-  // Aggregate sleep with deduplication
   const aggregatedSleep = aggregateSleepData(data.sleepRecords);
 
   for (const [date, sleepData] of aggregatedSleep) {

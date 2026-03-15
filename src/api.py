@@ -55,7 +55,7 @@ def handle_api_error(error: APIError):
     return jsonify(error.to_problem_detail(instance=request.path)), error.status
 
 
-@api.route("/version")
+@api.route("/version", methods=["GET"])
 def get_version():
     s = get_settings()
     return jsonify(
@@ -360,7 +360,9 @@ def api_save_thresholds():
     }
     for key, (min_val, max_val) in int_thresholds.items():
         if key in data and data[key] is not None:
-            validated[key] = int(_validate_threshold(data[key], key, min_val, max_val))
+            result = _validate_threshold(data[key], key, min_val, max_val)
+            if result is not None:
+                validated[key] = int(result)
 
     float_thresholds = {
         "total_sleep_good_threshold": (0, 24),
@@ -404,14 +406,16 @@ def api_get_credentials():
     whoop_client_id = os.getenv("WHOOP_CLIENT_ID")
     whoop_auth_url = "/whoop/authorize" if whoop_client_id else None
 
-    whoop_has_token = bool(creds and creds.encrypted_whoop_access_token)
+    whoop_has_token = False
     whoop_token_expired = False
 
-    if whoop_has_token and creds.whoop_token_expires_at:
-        expires_at = creds.whoop_token_expires_at
-        if expires_at.tzinfo is None:
-            expires_at = expires_at.replace(tzinfo=UTC)
-        whoop_token_expired = expires_at < datetime.now(UTC)
+    if creds is not None:
+        whoop_has_token = bool(creds.encrypted_whoop_access_token)
+        if whoop_has_token and creds.whoop_token_expires_at:
+            expires_at = creds.whoop_token_expires_at
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=UTC)
+            whoop_token_expired = expires_at < datetime.now(UTC)
 
         if whoop_token_expired and creds.encrypted_whoop_refresh_token:
             logger.info("whoop_token_expired_refreshing", user_id=current_user.id)
@@ -510,7 +514,7 @@ def _update_data_sync(
 
 
 def _run_two_phase_sync(
-    user_id: int, sync_func: Callable[..., dict[str, Any]], source: str
+    user_id: int, sync_func: Callable[..., dict[str, Any] | None], source: str
 ) -> None:
     """Run quick 90-day sync, then trigger full historical sync in background."""
     try:
@@ -521,7 +525,7 @@ def _run_two_phase_sync(
             phase="quick",
             days=90,
         )
-        result = sync_func(user_id, days=90, full_sync=False)
+        result: dict[str, Any] = sync_func(user_id, days=90, full_sync=False) or {}
 
         if result.get("success", False):
             logger.info(
@@ -535,14 +539,13 @@ def _run_two_phase_sync(
             )
             _update_data_sync(user_id, source, result, success=True)
 
-            # Trigger full sync in background after quick sync
             logger.info(
                 "sync_phase_started",
                 source=source,
                 user_id=user_id,
                 phase="full",
             )
-            full_result = sync_func(user_id, full_sync=True)
+            full_result: dict[str, Any] = sync_func(user_id, full_sync=True) or {}
             full_success = full_result.get("success", False)
             logger.info(
                 "sync_phase_completed",

@@ -24,10 +24,10 @@ function dateToTimestamp(dateStr: string): number {
 }
 
 interface StepsChartProps {
-  data: StepsData[];
-  showTrends?: boolean;
-  bandwidthShort?: number;
-  bandwidthLong?: number;
+  readonly data: StepsData[];
+  readonly showTrends?: boolean;
+  readonly bandwidthShort?: number;
+  readonly bandwidthLong?: number;
   height?: number;
   dateRange?: { start: string; end: string };
   stepsFloor?: number;

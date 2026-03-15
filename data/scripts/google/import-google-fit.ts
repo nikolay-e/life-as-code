@@ -1,6 +1,6 @@
 import { config } from "dotenv";
-import { join } from "path";
-import { existsSync } from "fs";
+import { join } from "node:path";
+import { existsSync } from "node:fs";
 import pg from "pg";
 import {
   parseCSVFile,
@@ -63,9 +63,7 @@ function printResult(result: ImportResult): void {
   }
 }
 
-async function main(): Promise<void> {
-  const options = parseArgs();
-
+function printOptions(options: ImportOptions): void {
   console.log("╔════════════════════════════════════════════╗");
   console.log("║     Google Fit Data Import (v2.0)          ║");
   console.log("╠════════════════════════════════════════════╣");
@@ -77,6 +75,158 @@ async function main(): Promise<void> {
   console.log(`║ Skip Sess:  ${options.skipSessions.toString().padEnd(30)}║`);
   console.log("╚════════════════════════════════════════════╝");
   console.log("");
+}
+
+function printSummary(results: ImportResult[]): void {
+  let totalProcessed = 0;
+  let totalInserted = 0;
+  let totalUpdated = 0;
+  let totalSkipped = 0;
+  let totalErrors = 0;
+
+  for (const r of results) {
+    totalProcessed += r.processed;
+    totalInserted += r.inserted;
+    totalUpdated += r.updated;
+    totalSkipped += r.skipped;
+    totalErrors += r.errors.length;
+  }
+
+  console.log("╔════════════════════════════════════════════╗");
+  console.log("║           Import Summary                   ║");
+  console.log("╠════════════════════════════════════════════╣");
+  console.log(`║ Total Processed: ${totalProcessed.toString().padEnd(24)}║`);
+  console.log(`║ Total Inserted:  ${totalInserted.toString().padEnd(24)}║`);
+  console.log(`║ Total Updated:   ${totalUpdated.toString().padEnd(24)}║`);
+  console.log(`║ Total Skipped:   ${totalSkipped.toString().padEnd(24)}║`);
+  console.log(`║ Total Errors:    ${totalErrors.toString().padEnd(24)}║`);
+  console.log("╚════════════════════════════════════════════╝");
+}
+
+async function importCsvMetrics(
+  pool: pg.Pool | null,
+  options: ImportOptions,
+  takeoutDirs: string[]
+): Promise<ImportResult> {
+  console.log("═══ Importing Daily Metrics (CSV) ═══");
+  const allDailyData: DailyAggregated[] = [];
+
+  for (const takeoutDir of takeoutDirs) {
+    const csvDir = join(takeoutDir, "Fit", "Daily activity metrics");
+    const csvFiles = getCSVFilesWithDates(csvDir);
+
+    console.log(`  Found ${csvFiles.length} CSV files in ${csvDir}`);
+
+    for (const { filePath, date } of csvFiles) {
+      try {
+        const rows = parseCSVFile(filePath);
+        allDailyData.push(aggregateDailyCSV(rows, date));
+      } catch (error) {
+        console.error(`  Error parsing ${filePath}: ${(error as Error).message}`);
+      }
+    }
+  }
+
+  console.log(`  Total daily records: ${allDailyData.length}`);
+  const result = await importDailyMetrics(pool, options.userId, allDailyData, options.dryRun, "google");
+  printResult(result);
+  console.log("");
+  return result;
+}
+
+async function importSleepMetrics(
+  pool: pg.Pool | null,
+  options: ImportOptions,
+  takeoutDirs: string[]
+): Promise<ImportResult[]> {
+  console.log("═══ Importing Sleep Data (JSON) ═══");
+  const results: ImportResult[] = [];
+
+  for (const takeoutDir of takeoutDirs) {
+    const allDataDir = join(takeoutDir, "Fit", "All Data");
+    if (!existsSync(allDataDir)) continue;
+
+    console.log(`  Parsing sleep segments from ${allDataDir}`);
+    const sleepData = parseSleepSegments(allDataDir);
+    console.log(`  Found ${sleepData.size} days with sleep data`);
+
+    if (sleepData.size > 0) {
+      const result = await importSleepData(pool, options.userId, sleepData, options.dryRun, "google");
+      results.push(result);
+      printResult(result);
+    }
+  }
+
+  console.log("");
+  return results;
+}
+
+async function importBodyMetrics(
+  pool: pg.Pool | null,
+  options: ImportOptions,
+  takeoutDirs: string[]
+): Promise<ImportResult[]> {
+  console.log("═══ Importing Body Composition (JSON) ═══");
+  const results: ImportResult[] = [];
+
+  for (const takeoutDir of takeoutDirs) {
+    const allDataDir = join(takeoutDir, "Fit", "All Data");
+    if (!existsSync(allDataDir)) continue;
+
+    console.log(`  Parsing body composition from ${allDataDir}`);
+    const bodyData = parseBodyComposition(allDataDir);
+    console.log(`  Found ${bodyData.size} days with body composition data`);
+
+    if (bodyData.size > 0) {
+      const result = await importBodyComposition(pool, options.userId, bodyData, options.dryRun, "google");
+      results.push(result);
+      printResult(result);
+    }
+  }
+
+  console.log("");
+  return results;
+}
+
+async function importSessionMetrics(
+  pool: pg.Pool | null,
+  options: ImportOptions,
+  takeoutDirs: string[]
+): Promise<ImportResult[]> {
+  console.log("═══ Importing Session Activities (JSON) ═══");
+  const results: ImportResult[] = [];
+
+  for (const takeoutDir of takeoutDirs) {
+    const sessionsDir = join(takeoutDir, "Fit", "All Sessions");
+    if (!existsSync(sessionsDir)) continue;
+
+    console.log(`  Parsing sessions from ${sessionsDir}`);
+    const activities = parseSessionActivities(sessionsDir);
+    console.log(`  Found ${activities.length} activity sessions`);
+
+    const byType = new Map<string, number>();
+    for (const act of activities) {
+      byType.set(act.activityType, (byType.get(act.activityType) || 0) + 1);
+    }
+    console.log("  Activity types:");
+    for (const [type, count] of [...byType.entries()].toSorted((a, b) => b[1] - a[1]).slice(0, 10)) {
+      console.log(`    ${type}: ${count}`);
+    }
+
+    if (activities.length > 0) {
+      const result = await importSessionActivities(pool, options.userId, activities, options.dryRun, "google");
+      results.push(result);
+      printResult(result);
+    }
+  }
+
+  console.log("");
+  return results;
+}
+
+async function main(): Promise<void> {
+  const options = parseArgs();
+  printOptions(options);
 
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl && !options.dryRun) {
@@ -93,147 +243,32 @@ async function main(): Promise<void> {
   const takeoutDirs = [
     join(baseDir, "Takeout"),
     join(baseDir, "Takeout 2"),
-  ].filter(existsSync);
+  ].filter((d) => existsSync(d));
 
   const results: ImportResult[] = [];
 
   try {
-    // 1. Import Daily Metrics from CSV
     if (!options.skipCsv) {
-      console.log("═══ Importing Daily Metrics (CSV) ═══");
-      const allDailyData: DailyAggregated[] = [];
-
-      for (const takeoutDir of takeoutDirs) {
-        const csvDir = join(takeoutDir, "Fit", "Daily activity metrics");
-        const csvFiles = getCSVFilesWithDates(csvDir);
-
-        console.log(`  Found ${csvFiles.length} CSV files in ${csvDir}`);
-
-        for (const { filePath, date } of csvFiles) {
-          try {
-            const rows = parseCSVFile(filePath);
-            const aggregated = aggregateDailyCSV(rows, date);
-            allDailyData.push(aggregated);
-          } catch (error) {
-            console.error(`  Error parsing ${filePath}: ${(error as Error).message}`);
-          }
-        }
-      }
-
-      console.log(`  Total daily records: ${allDailyData.length}`);
-      const csvResult = await importDailyMetrics(pool, options.userId, allDailyData, options.dryRun, "google");
-      results.push(csvResult);
-      printResult(csvResult);
-      console.log("");
+      results.push(await importCsvMetrics(pool, options, takeoutDirs));
     }
 
-    // 2. Import Sleep Data from JSON
     if (!options.skipSleep) {
-      console.log("═══ Importing Sleep Data (JSON) ═══");
-
-      for (const takeoutDir of takeoutDirs) {
-        const allDataDir = join(takeoutDir, "Fit", "All Data");
-        if (!existsSync(allDataDir)) continue;
-
-        console.log(`  Parsing sleep segments from ${allDataDir}`);
-        const sleepData = parseSleepSegments(allDataDir);
-        console.log(`  Found ${sleepData.size} days with sleep data`);
-
-        if (sleepData.size > 0) {
-          const sleepResult = await importSleepData(pool, options.userId, sleepData, options.dryRun, "google");
-          results.push(sleepResult);
-          printResult(sleepResult);
-        }
-      }
-      console.log("");
+      results.push(...await importSleepMetrics(pool, options, takeoutDirs));
     }
 
-    // 3. Import Body Composition from JSON
     if (!options.skipBodyComp) {
-      console.log("═══ Importing Body Composition (JSON) ═══");
-
-      for (const takeoutDir of takeoutDirs) {
-        const allDataDir = join(takeoutDir, "Fit", "All Data");
-        if (!existsSync(allDataDir)) continue;
-
-        console.log(`  Parsing body composition from ${allDataDir}`);
-        const bodyData = parseBodyComposition(allDataDir);
-        console.log(`  Found ${bodyData.size} days with body composition data`);
-
-        if (bodyData.size > 0) {
-          const bodyResult = await importBodyComposition(pool, options.userId, bodyData, options.dryRun, "google");
-          results.push(bodyResult);
-          printResult(bodyResult);
-        }
-      }
-      console.log("");
+      results.push(...await importBodyMetrics(pool, options, takeoutDirs));
     }
 
-    // 4. Import Session Activities from JSON
     if (!options.skipSessions) {
-      console.log("═══ Importing Session Activities (JSON) ═══");
-
-      for (const takeoutDir of takeoutDirs) {
-        const sessionsDir = join(takeoutDir, "Fit", "All Sessions");
-        if (!existsSync(sessionsDir)) continue;
-
-        console.log(`  Parsing sessions from ${sessionsDir}`);
-        const activities = parseSessionActivities(sessionsDir);
-        console.log(`  Found ${activities.length} activity sessions`);
-
-        // Count by type
-        const byType = new Map<string, number>();
-        for (const act of activities) {
-          byType.set(act.activityType, (byType.get(act.activityType) || 0) + 1);
-        }
-        console.log("  Activity types:");
-        for (const [type, count] of [...byType.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10)) {
-          console.log(`    ${type}: ${count}`);
-        }
-
-        if (activities.length > 0) {
-          const sessResult = await importSessionActivities(pool, options.userId, activities, options.dryRun, "google");
-          results.push(sessResult);
-          printResult(sessResult);
-        }
-      }
-      console.log("");
+      results.push(...await importSessionMetrics(pool, options, takeoutDirs));
     }
 
-    // Summary
-    console.log("╔════════════════════════════════════════════╗");
-    console.log("║           Import Summary                   ║");
-    console.log("╠════════════════════════════════════════════╣");
-
-    let totalProcessed = 0;
-    let totalInserted = 0;
-    let totalUpdated = 0;
-    let totalSkipped = 0;
-    let totalErrors = 0;
-
-    for (const r of results) {
-      totalProcessed += r.processed;
-      totalInserted += r.inserted;
-      totalUpdated += r.updated;
-      totalSkipped += r.skipped;
-      totalErrors += r.errors.length;
-    }
-
-    console.log(`║ Total Processed: ${totalProcessed.toString().padEnd(24)}║`);
-    console.log(`║ Total Inserted:  ${totalInserted.toString().padEnd(24)}║`);
-    console.log(`║ Total Updated:   ${totalUpdated.toString().padEnd(24)}║`);
-    console.log(`║ Total Skipped:   ${totalSkipped.toString().padEnd(24)}║`);
-    console.log(`║ Total Errors:    ${totalErrors.toString().padEnd(24)}║`);
-    console.log("╚════════════════════════════════════════════╝");
+    printSummary(results);
 
   } finally {
-    if (pool) {
-      await pool.end();
-    }
+    if (pool) await pool.end();
   }
 }
 
-main().catch((error) => {
-  console.error("Fatal error:", error);
-  process.exit(1);
-});
+await main();

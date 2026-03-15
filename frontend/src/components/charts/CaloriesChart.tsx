@@ -5,18 +5,18 @@ import { MultiProviderLineChart } from "./MultiProviderLineChart";
 import { mergeProviderData } from "../../lib/chart-utils";
 
 interface GarminCaloriesData {
-  date: string;
-  total_kilocalories: number | null;
+  readonly date: string;
+  readonly total_kilocalories: number | null;
 }
 
 interface CaloriesChartProps {
-  garminData: GarminCaloriesData[];
-  whoopData?: WhoopCycleData[];
-  energyData?: EnergyData[];
-  showTrends?: boolean;
-  bandwidthShort?: number;
-  bandwidthLong?: number;
-  dateRange?: { start: string; end: string };
+  readonly garminData: GarminCaloriesData[];
+  readonly whoopData?: WhoopCycleData[];
+  readonly energyData?: EnergyData[];
+  readonly showTrends?: boolean;
+  readonly bandwidthShort?: number;
+  readonly bandwidthLong?: number;
+  readonly dateRange?: { start: string; end: string };
 }
 
 export const CaloriesChart = memo(

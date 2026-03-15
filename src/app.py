@@ -52,8 +52,9 @@ server = Flask(__name__)
 # x_prefix=1: Trust X-Forwarded-Prefix (fixes URL generation)
 server.wsgi_app = ProxyFix(server.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)  # type: ignore[method-assign]
 
-server.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
-server.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16MB max request size
+flask_secret = os.getenv("SECRET_KEY")
+server.config["SECRET_KEY"] = flask_secret
+server.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 
 # Security: Session cookie configuration
 server.config["SESSION_COOKIE_SECURE"] = os.getenv("FLASK_ENV") == "production"
@@ -153,7 +154,7 @@ def load_user(user_id):
 
 
 # Health check endpoint for Kubernetes probes
-@server.route("/health")
+@server.route("/health", methods=["GET"])
 @limiter.exempt
 def health():
     try:
@@ -287,9 +288,9 @@ app = server
 
 if __name__ == "__main__":
     debug_mode = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
-    # nosemgrep: python.flask.security.audit.app-run-param-config.avoid_app_run_with_bad_host
+    bind_host = os.environ.get("FLASK_HOST", "127.0.0.1")
     server.run(
-        host="0.0.0.0",  # nosec B104 - Required for Docker
+        host=bind_host,
         port=8080,
         debug=debug_mode,
     )

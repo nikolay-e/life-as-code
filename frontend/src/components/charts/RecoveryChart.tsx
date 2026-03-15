@@ -7,12 +7,12 @@ import { SOURCE_COLORS } from "./chart-config";
 import { MultiProviderLineChart } from "./MultiProviderLineChart";
 
 interface RecoveryChartProps {
-  whoopData: WhoopRecoveryData[];
-  garminData?: GarminTrainingStatusData[];
-  showTrends?: boolean;
-  bandwidthShort?: number;
-  bandwidthLong?: number;
-  dateRange?: { start: string; end: string };
+  readonly whoopData: WhoopRecoveryData[];
+  readonly garminData?: GarminTrainingStatusData[];
+  readonly showTrends?: boolean;
+  readonly bandwidthShort?: number;
+  readonly bandwidthLong?: number;
+  readonly dateRange?: { start: string; end: string };
 }
 
 export const RecoveryChart = memo(

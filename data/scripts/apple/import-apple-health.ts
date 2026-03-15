@@ -1,8 +1,8 @@
 import { config } from "dotenv";
-import { join } from "path";
-import { existsSync, mkdtempSync, rmSync } from "fs";
-import { execSync } from "child_process";
-import { tmpdir } from "os";
+import { join } from "node:path";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { execSync } from "node:child_process";
+import { tmpdir } from "node:os";
 import pg from "pg";
 import { parseAppleHealthExport, aggregateAppleHealthData } from "./parsers";
 import {
@@ -67,40 +67,39 @@ async function importHRVData(
       console.log(`[DRY-RUN] HRV: ${date} - ${hrv}ms`);
       result.processed++;
     }
-    return result;
-  }
+  } else if (pool) {
+    const batchSize = 100;
+    for (let i = 0; i < entries.length; i += batchSize) {
+      const batch = entries.slice(i, i + batchSize);
 
-  const batchSize = 100;
-  for (let i = 0; i < entries.length; i += batchSize) {
-    const batch = entries.slice(i, i + batchSize);
+      await withTransaction(pool, async (client) => {
+        for (const [date, hrv] of batch) {
+          try {
+            await client.query("SAVEPOINT sp");
+            const query = `
+              INSERT INTO hrv (user_id, date, source, hrv_avg, created_at)
+              VALUES ($1, $2, $3, $4, NOW())
+              ON CONFLICT (user_id, date, source) DO UPDATE SET
+                hrv_avg = COALESCE(EXCLUDED.hrv_avg, hrv.hrv_avg)
+              RETURNING (xmax = 0) AS inserted
+            `;
 
-    await withTransaction(pool!, async (client) => {
-      for (const [date, hrv] of batch) {
-        try {
-          await client.query("SAVEPOINT sp");
-          const query = `
-            INSERT INTO hrv (user_id, date, source, hrv_avg, created_at)
-            VALUES ($1, $2, $3, $4, NOW())
-            ON CONFLICT (user_id, date, source) DO UPDATE SET
-              hrv_avg = COALESCE(EXCLUDED.hrv_avg, hrv.hrv_avg)
-            RETURNING (xmax = 0) AS inserted
-          `;
+            const res = await client.query(query, [userId, date, source, hrv]);
 
-          const res = await client.query(query, [userId, date, source, hrv]);
-
-          if (res.rows[0]?.inserted) {
-            result.inserted++;
-          } else {
-            result.updated++;
+            if (res.rows[0]?.inserted) {
+              result.inserted++;
+            } else {
+              result.updated++;
+            }
+            result.processed++;
+            await client.query("RELEASE SAVEPOINT sp");
+          } catch (error) {
+            await client.query("ROLLBACK TO SAVEPOINT sp");
+            result.errors.push(`HRV ${date}: ${(error as Error).message}`);
           }
-          result.processed++;
-          await client.query("RELEASE SAVEPOINT sp");
-        } catch (error) {
-          await client.query("ROLLBACK TO SAVEPOINT sp");
-          result.errors.push(`HRV ${date}: ${(error as Error).message}`);
         }
-      }
-    });
+      });
+    }
   }
 
   return result;
@@ -121,43 +120,148 @@ async function importRHRData(
       console.log(`[DRY-RUN] RHR: ${date} - ${rhr}bpm`);
       result.processed++;
     }
-    return result;
-  }
+  } else if (pool) {
+    const batchSize = 100;
+    for (let i = 0; i < entries.length; i += batchSize) {
+      const batch = entries.slice(i, i + batchSize);
 
-  const batchSize = 100;
-  for (let i = 0; i < entries.length; i += batchSize) {
-    const batch = entries.slice(i, i + batchSize);
+      await withTransaction(pool, async (client) => {
+        for (const [date, rhr] of batch) {
+          try {
+            await client.query("SAVEPOINT sp");
+            const query = `
+              INSERT INTO heart_rate (user_id, date, source, resting_hr, created_at)
+              VALUES ($1, $2, $3, $4, NOW())
+              ON CONFLICT (user_id, date, source) DO UPDATE SET
+                resting_hr = LEAST(COALESCE(heart_rate.resting_hr, EXCLUDED.resting_hr), EXCLUDED.resting_hr)
+              RETURNING (xmax = 0) AS inserted
+            `;
 
-    await withTransaction(pool!, async (client) => {
-      for (const [date, rhr] of batch) {
-        try {
-          await client.query("SAVEPOINT sp");
-          const query = `
-            INSERT INTO heart_rate (user_id, date, source, resting_hr, created_at)
-            VALUES ($1, $2, $3, $4, NOW())
-            ON CONFLICT (user_id, date, source) DO UPDATE SET
-              resting_hr = LEAST(COALESCE(heart_rate.resting_hr, EXCLUDED.resting_hr), EXCLUDED.resting_hr)
-            RETURNING (xmax = 0) AS inserted
-          `;
+            const res = await client.query(query, [userId, date, source, rhr]);
 
-          const res = await client.query(query, [userId, date, source, rhr]);
-
-          if (res.rows[0]?.inserted) {
-            result.inserted++;
-          } else {
-            result.updated++;
+            if (res.rows[0]?.inserted) {
+              result.inserted++;
+            } else {
+              result.updated++;
+            }
+            result.processed++;
+            await client.query("RELEASE SAVEPOINT sp");
+          } catch (error) {
+            await client.query("ROLLBACK TO SAVEPOINT sp");
+            result.errors.push(`RHR ${date}: ${(error as Error).message}`);
           }
-          result.processed++;
-          await client.query("RELEASE SAVEPOINT sp");
-        } catch (error) {
-          await client.query("ROLLBACK TO SAVEPOINT sp");
-          result.errors.push(`RHR ${date}: ${(error as Error).message}`);
         }
-      }
-    });
+      });
+    }
   }
 
   return result;
+}
+
+function resolveXmlPath(exportPath: string): string {
+  const baseDir = join(process.cwd(), "..", "apple");
+  const candidate = join(baseDir, exportPath);
+  if (existsSync(candidate)) return candidate;
+  if (existsSync(exportPath)) return exportPath;
+  return "";
+}
+
+function extractZip(zipPath: string): { tempDir: string; xmlPath: string } | null {
+  console.log("═══ Extracting ZIP archive ═══");
+  const tempDir = mkdtempSync(join(tmpdir(), "apple-health-"));
+  execSync(`unzip -o "${zipPath}" -d "${tempDir}"`, { stdio: "inherit" });
+
+  const primary = join(tempDir, "apple_health_export", "export.xml");
+  if (existsSync(primary)) {
+    console.log(`  Extracted to: ${primary}`);
+    return { tempDir, xmlPath: primary };
+  }
+
+  const fallback = join(tempDir, "export.xml");
+  if (existsSync(fallback)) {
+    console.log(`  Extracted to: ${fallback}`);
+    return { tempDir, xmlPath: fallback };
+  }
+
+  rmSync(tempDir, { recursive: true, force: true });
+  return null;
+}
+
+function printSummary(results: ImportResult[]): void {
+  let totalProcessed = 0;
+  let totalInserted = 0;
+  let totalUpdated = 0;
+  let totalSkipped = 0;
+  let totalErrors = 0;
+
+  for (const r of results) {
+    totalProcessed += r.processed;
+    totalInserted += r.inserted;
+    totalUpdated += r.updated;
+    totalSkipped += r.skipped;
+    totalErrors += r.errors.length;
+  }
+
+  console.log("╔════════════════════════════════════════════╗");
+  console.log("║           Import Summary                   ║");
+  console.log("╠════════════════════════════════════════════╣");
+  console.log(`║ Total Processed: ${totalProcessed.toString().padEnd(24)}║`);
+  console.log(`║ Total Inserted:  ${totalInserted.toString().padEnd(24)}║`);
+  console.log(`║ Total Updated:   ${totalUpdated.toString().padEnd(24)}║`);
+  console.log(`║ Total Skipped:   ${totalSkipped.toString().padEnd(24)}║`);
+  console.log(`║ Total Errors:    ${totalErrors.toString().padEnd(24)}║`);
+  console.log("╚════════════════════════════════════════════╝");
+}
+
+async function runImports(
+  pool: pg.Pool | null,
+  options: ImportOptions,
+  actualXmlPath: string
+): Promise<void> {
+  console.log("═══ Parsing Apple Health Export ═══");
+  const rawData = await parseAppleHealthExport(actualXmlPath);
+  const aggregated = aggregateAppleHealthData(rawData);
+
+  console.log(`  Daily records: ${aggregated.daily.length}`);
+  console.log(`  Sleep records: ${aggregated.sleep.size}`);
+  console.log(`  Body records: ${aggregated.body.size}`);
+  console.log(`  HRV records: ${aggregated.hrv.size}`);
+  console.log(`  RHR records: ${aggregated.rhr.size}`);
+  console.log("");
+
+  const results: ImportResult[] = [];
+
+  console.log("═══ Importing Daily Metrics ═══");
+  const dailyResult = await importDailyMetrics(pool, options.userId, aggregated.daily, options.dryRun, "apple_health");
+  results.push(dailyResult);
+  printResult(dailyResult);
+  console.log("");
+
+  console.log("═══ Importing Sleep Data ═══");
+  const sleepResult = await importSleepData(pool, options.userId, aggregated.sleep, options.dryRun, "apple_health");
+  results.push(sleepResult);
+  printResult(sleepResult);
+  console.log("");
+
+  console.log("═══ Importing Body Composition ═══");
+  const bodyResult = await importBodyComposition(pool, options.userId, aggregated.body, options.dryRun, "apple_health");
+  results.push(bodyResult);
+  printResult(bodyResult);
+  console.log("");
+
+  console.log("═══ Importing HRV Data ═══");
+  const hrvResult = await importHRVData(pool, options.userId, aggregated.hrv, options.dryRun, "apple_health");
+  results.push(hrvResult);
+  printResult(hrvResult);
+  console.log("");
+
+  console.log("═══ Importing RHR Data ═══");
+  const rhrResult = await importRHRData(pool, options.userId, aggregated.rhr, options.dryRun, "apple_health");
+  results.push(rhrResult);
+  printResult(rhrResult);
+  console.log("");
+
+  printSummary(results);
 }
 
 async function main(): Promise<void> {
@@ -179,135 +283,43 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const baseDir = join(process.cwd(), "..", "apple");
-  let xmlPath = join(baseDir, options.exportPath);
-
-  if (!existsSync(xmlPath)) {
-    xmlPath = options.exportPath;
-  }
-
-  if (!existsSync(xmlPath)) {
-    console.error(`ERROR: Export file not found: ${xmlPath}`);
+  const resolvedPath = resolveXmlPath(options.exportPath);
+  if (!resolvedPath) {
+    console.error(`ERROR: Export file not found: ${options.exportPath}`);
     process.exit(1);
   }
 
   let tempDir: string | null = null;
-  let actualXmlPath = xmlPath;
+  let actualXmlPath = resolvedPath;
 
-  if (xmlPath.endsWith(".zip")) {
-    console.log("═══ Extracting ZIP archive ═══");
-    tempDir = mkdtempSync(join(tmpdir(), "apple-health-"));
-    execSync(`unzip -o "${xmlPath}" -d "${tempDir}"`, { stdio: "inherit" });
-
-    const extractedXml = join(tempDir, "apple_health_export", "export.xml");
-    if (existsSync(extractedXml)) {
-      actualXmlPath = extractedXml;
-    } else {
-      const altXml = join(tempDir, "export.xml");
-      if (existsSync(altXml)) {
-        actualXmlPath = altXml;
-      } else {
-        console.error("ERROR: Could not find export.xml in ZIP archive");
-        if (tempDir) rmSync(tempDir, { recursive: true, force: true });
-        process.exit(1);
-      }
+  if (resolvedPath.endsWith(".zip")) {
+    const extracted = extractZip(resolvedPath);
+    if (!extracted) {
+      console.error("ERROR: Could not find export.xml in ZIP archive");
+      process.exit(1);
     }
-    console.log(`  Extracted to: ${actualXmlPath}`);
+    tempDir = extracted.tempDir;
+    actualXmlPath = extracted.xmlPath;
     console.log("");
   }
 
-  const results: ImportResult[] = [];
-  let pool: pg.Pool | null = null;
+  const pool: pg.Pool | null = options.dryRun
+    ? null
+    : new Pool({
+        connectionString: databaseUrl,
+        keepAlive: true,
+        keepAliveInitialDelayMillis: 5000,
+        max: 3,
+        idleTimeoutMillis: 0,
+        connectionTimeoutMillis: 10000,
+      });
 
   try {
-    console.log("═══ Parsing Apple Health Export ═══");
-    const rawData = await parseAppleHealthExport(actualXmlPath);
-    const aggregated = aggregateAppleHealthData(rawData);
-
-    console.log(`  Daily records: ${aggregated.daily.length}`);
-    console.log(`  Sleep records: ${aggregated.sleep.size}`);
-    console.log(`  Body records: ${aggregated.body.size}`);
-    console.log(`  HRV records: ${aggregated.hrv.size}`);
-    console.log(`  RHR records: ${aggregated.rhr.size}`);
-    console.log("");
-
-    pool = options.dryRun
-      ? null
-      : new Pool({
-          connectionString: databaseUrl,
-          keepAlive: true,
-          keepAliveInitialDelayMillis: 5000,
-          max: 3,
-          idleTimeoutMillis: 0,
-          connectionTimeoutMillis: 10000,
-        });
-
-    console.log("═══ Importing Daily Metrics ═══");
-    const dailyResult = await importDailyMetrics(pool, options.userId, aggregated.daily, options.dryRun, "apple_health");
-    results.push(dailyResult);
-    printResult(dailyResult);
-    console.log("");
-
-    console.log("═══ Importing Sleep Data ═══");
-    const sleepResult = await importSleepData(pool, options.userId, aggregated.sleep, options.dryRun, "apple_health");
-    results.push(sleepResult);
-    printResult(sleepResult);
-    console.log("");
-
-    console.log("═══ Importing Body Composition ═══");
-    const bodyResult = await importBodyComposition(pool, options.userId, aggregated.body, options.dryRun, "apple_health");
-    results.push(bodyResult);
-    printResult(bodyResult);
-    console.log("");
-
-    console.log("═══ Importing HRV Data ═══");
-    const hrvResult = await importHRVData(pool, options.userId, aggregated.hrv, options.dryRun, "apple_health");
-    results.push(hrvResult);
-    printResult(hrvResult);
-    console.log("");
-
-    console.log("═══ Importing RHR Data ═══");
-    const rhrResult = await importRHRData(pool, options.userId, aggregated.rhr, options.dryRun, "apple_health");
-    results.push(rhrResult);
-    printResult(rhrResult);
-    console.log("");
-
-    console.log("╔════════════════════════════════════════════╗");
-    console.log("║           Import Summary                   ║");
-    console.log("╠════════════════════════════════════════════╣");
-
-    let totalProcessed = 0;
-    let totalInserted = 0;
-    let totalUpdated = 0;
-    let totalSkipped = 0;
-    let totalErrors = 0;
-
-    for (const r of results) {
-      totalProcessed += r.processed;
-      totalInserted += r.inserted;
-      totalUpdated += r.updated;
-      totalSkipped += r.skipped;
-      totalErrors += r.errors.length;
-    }
-
-    console.log(`║ Total Processed: ${totalProcessed.toString().padEnd(24)}║`);
-    console.log(`║ Total Inserted:  ${totalInserted.toString().padEnd(24)}║`);
-    console.log(`║ Total Updated:   ${totalUpdated.toString().padEnd(24)}║`);
-    console.log(`║ Total Skipped:   ${totalSkipped.toString().padEnd(24)}║`);
-    console.log(`║ Total Errors:    ${totalErrors.toString().padEnd(24)}║`);
-    console.log("╚════════════════════════════════════════════╝");
-
+    await runImports(pool, options, actualXmlPath);
   } finally {
-    if (pool) {
-      await pool.end();
-    }
-    if (tempDir) {
-      rmSync(tempDir, { recursive: true, force: true });
-    }
+    if (pool) await pool.end();
+    if (tempDir) rmSync(tempDir, { recursive: true, force: true });
   }
 }
 
-main().catch((error) => {
-  console.error("Fatal error:", error);
-  process.exit(1);
-});
+await main();

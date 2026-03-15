@@ -5,12 +5,12 @@ import { MultiProviderLineChart } from "./MultiProviderLineChart";
 import { mergeProviderData } from "../../lib/chart-utils";
 
 interface HRVChartProps {
-  garminData: HRVData[];
-  whoopData?: WhoopRecoveryData[];
-  showTrends?: boolean;
-  bandwidthShort?: number;
-  bandwidthLong?: number;
-  dateRange?: { start: string; end: string };
+  readonly garminData: HRVData[];
+  readonly whoopData?: WhoopRecoveryData[];
+  readonly showTrends?: boolean;
+  readonly bandwidthShort?: number;
+  readonly bandwidthLong?: number;
+  readonly dateRange?: { start: string; end: string };
 }
 
 export const HRVChart = memo(

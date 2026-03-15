@@ -243,7 +243,7 @@ export function calculateBiologicalWeightSmoothing<
   }
 
   const firstMeasurement = measurements[0];
-  const lastMeasurement = measurements[measurements.length - 1];
+  const lastMeasurement = measurements.at(-1) ?? measurements[0];
 
   return sortedData.map((point) => {
     const rawValue = point[valueKey] as number | null;
@@ -314,7 +314,7 @@ export function loessSmooth<
       .sort((a, b) => a.dist - b.dist)
       .slice(0, windowSize);
 
-    const maxDist = distances[distances.length - 1].dist || 1;
+    const maxDist = distances.at(-1)?.dist || 1;
 
     let sumW = 0,
       sumWX = 0,

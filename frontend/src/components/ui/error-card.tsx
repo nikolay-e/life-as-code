@@ -1,7 +1,7 @@
 import { Card, CardContent } from "./card";
 
 interface ErrorCardProps {
-  message: string;
+  readonly message: string;
 }
 
 export function ErrorCard({ message }: ErrorCardProps) {

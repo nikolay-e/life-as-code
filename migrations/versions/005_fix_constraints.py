@@ -10,7 +10,6 @@ incorrect expressions, ensuring reps=0 is allowed.
 
 from alembic import op
 
-
 revision = "005_fix_constraints"
 down_revision = "004_sync_progress"
 branch_labels = None
@@ -56,4 +55,5 @@ def upgrade():
 
 
 def downgrade():
-    pass
+    op.execute("ALTER TABLE workout_sets DROP CONSTRAINT IF EXISTS valid_reps")
+    op.execute("ALTER TABLE workout_sets DROP CONSTRAINT IF EXISTS valid_weight_kg")

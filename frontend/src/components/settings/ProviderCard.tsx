@@ -11,17 +11,17 @@ import {
 import type { SyncResponse } from "../../types/api";
 
 interface ProviderCardProps {
-  name: string;
-  shortName: string;
-  colorClass: string;
-  isConfigured: boolean;
-  isConnected?: boolean;
-  isTokenExpired?: boolean;
-  syncMutation: UseMutationResult<SyncResponse, Error, void>;
-  onSync: () => void;
-  authUrl?: string;
-  showOAuthNotConfigured?: boolean;
-  isLastItem?: boolean;
+  readonly name: string;
+  readonly shortName: string;
+  readonly colorClass: string;
+  readonly isConfigured: boolean;
+  readonly isConnected?: boolean;
+  readonly isTokenExpired?: boolean;
+  readonly syncMutation: UseMutationResult<SyncResponse, Error, void>;
+  readonly onSync: () => void;
+  readonly authUrl?: string;
+  readonly showOAuthNotConfigured?: boolean;
+  readonly isLastItem?: boolean;
 }
 
 function getStatusText(

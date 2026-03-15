@@ -1,5 +1,5 @@
 interface EmptyChartMessageProps {
-  message: string;
+  readonly message: string;
 }
 
 export function EmptyChartMessage({ message }: EmptyChartMessageProps) {

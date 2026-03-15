@@ -1,6 +1,6 @@
 import { config } from "dotenv";
-import { spawn } from "child_process";
-import { join } from "path";
+import { spawn } from "node:child_process";
+import { join } from "node:path";
 
 config();
 
@@ -100,7 +100,4 @@ async function main(): Promise<void> {
   console.log("╚════════════════════════════════════════════╝");
 }
 
-main().catch((error) => {
-  console.error("Fatal error:", error);
-  process.exit(1);
-});
+await main();

@@ -157,12 +157,11 @@ def update_sync_progress(
         elif status == SyncWindowStatus.COMPLETED.value:
             progress.last_sync_completed_at = utcnow()
             progress.mark_window_completed(window, datetime.date.today())
-            if oldest_date:
-                if (
-                    not progress.oldest_synced_date
-                    or oldest_date < progress.oldest_synced_date
-                ):
-                    progress.oldest_synced_date = oldest_date
+            if oldest_date and (
+                not progress.oldest_synced_date
+                or oldest_date < progress.oldest_synced_date
+            ):
+                progress.oldest_synced_date = oldest_date
             if newest_date:
                 progress.newest_synced_date = newest_date
         elif status == SyncWindowStatus.FAILED.value:

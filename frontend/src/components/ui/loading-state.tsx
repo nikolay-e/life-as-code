@@ -1,7 +1,7 @@
 import { Spinner } from "./spinner";
 
 interface LoadingStateProps {
-  message?: string;
+  readonly message?: string;
 }
 
 export function LoadingState({ message = "Loading..." }: LoadingStateProps) {

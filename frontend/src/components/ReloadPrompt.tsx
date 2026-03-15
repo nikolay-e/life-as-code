@@ -12,7 +12,7 @@ export function ReloadPrompt() {
       if (registration) {
         setInterval(
           () => {
-            void registration.update();
+            registration.update().catch(console.error);
           },
           60 * 60 * 1000,
         );
@@ -29,7 +29,7 @@ export function ReloadPrompt() {
   }, [setOfflineReady, setNeedRefresh]);
 
   const handleUpdate = useCallback(() => {
-    void updateServiceWorker(true);
+    updateServiceWorker(true).catch(console.error);
   }, [updateServiceWorker]);
 
   if (!offlineReady && !needRefresh) return null;

@@ -159,7 +159,7 @@ export function mapTechnicalError(errorMessage: string): UserFriendlyError {
 
 function sanitizeErrorMessage(message: string): string {
   const sanitized = message
-    .replace(/password=[^&\s]+/gi, "password=[REDACTED]")
+    .replace(/password=[^&\s]+/gi, "password=[REDACTED]") // NOSONAR: regex pattern redacts secrets from URLs, not a hardcoded password
     .replace(/api_key=[^&\s]+/gi, "api_key=[REDACTED]")
     .replace(/token=[^&\s]+/gi, "token=[REDACTED]");
 

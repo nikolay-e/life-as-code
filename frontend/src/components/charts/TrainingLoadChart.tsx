@@ -116,11 +116,10 @@ function getAcwrZone(acwr: number): string {
 }
 
 interface TrainingLoadChartProps {
-  whoopData: WhoopCycleData[];
-  garminData: GarminTrainingStatusData[];
-  showTrends?: boolean;
-  height?: number;
-  dateRange?: { start: string; end: string };
+  readonly whoopData: WhoopCycleData[];
+  readonly garminData: GarminTrainingStatusData[];
+  readonly height?: number;
+  readonly dateRange?: { start: string; end: string };
 }
 
 export const TrainingLoadChart = memo(
@@ -189,7 +188,7 @@ export const TrainingLoadChart = memo(
 
       return {
         yDomainLoad: [0, loadCeiling] as [number, number],
-        yDomainAcwr: [0.4, 2.0] as [number, number],
+        yDomainAcwr: [0.4, 2] as [number, number],
       };
     }, [chartData]);
 

@@ -2,9 +2,9 @@ import { Loader2 } from "lucide-react";
 import { cn } from "../../lib/utils";
 
 interface SpinnerProps {
-  className?: string;
-  size?: "sm" | "md" | "lg";
-  label?: string;
+  readonly className?: string;
+  readonly size?: "sm" | "md" | "lg";
+  readonly label?: string;
 }
 
 const sizeClasses = {
