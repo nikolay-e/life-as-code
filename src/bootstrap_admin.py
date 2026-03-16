@@ -45,6 +45,13 @@ def create_default_admin():
         if admin:
             logger.info("admin_user_exists", username=admin_username)
 
+            from security import verify_password
+
+            if not verify_password(admin_password, admin.password_hash):
+                admin.password_hash = get_password_hash(admin_password)
+                db.commit()
+                logger.info("admin_password_updated", username=admin_username)
+
             if any([garmin_email, garmin_password, hevy_api_key]):
                 _update_admin_credentials(
                     db, admin.id, garmin_email, garmin_password, hevy_api_key
