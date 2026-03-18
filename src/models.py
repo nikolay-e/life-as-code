@@ -113,6 +113,18 @@ class User(Base):
     clinical_alert_events = relationship(
         "ClinicalAlertEvent", back_populates="user", cascade=CASCADE_ALL_DELETE
     )
+    blood_biomarkers = relationship(
+        "BloodBiomarker", back_populates="user", cascade=CASCADE_ALL_DELETE
+    )
+    interventions = relationship(
+        "Intervention", back_populates="user", cascade=CASCADE_ALL_DELETE
+    )
+    functional_tests = relationship(
+        "FunctionalTest", back_populates="user", cascade=CASCADE_ALL_DELETE
+    )
+    longevity_goals = relationship(
+        "LongevityGoal", back_populates="user", cascade=CASCADE_ALL_DELETE
+    )
 
     def __repr__(self):
         return f"<User(username={self.username})>"
@@ -145,7 +157,9 @@ class UserSettings(Base):
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, unique=True)
 
-    # Personalized HRV thresholds
+    birth_date = Column(Date)
+    gender = Column(String(10))
+
     hrv_good_threshold = Column(Integer, default=45)
     hrv_moderate_threshold = Column(Integer, default=35)
 
@@ -1250,3 +1264,105 @@ class ClinicalAlertEvent(Base):
             name="valid_alert_status",
         ),
     )
+
+
+class BloodBiomarker(Base):
+    __tablename__ = "blood_biomarkers"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
+    date = Column(Date, nullable=False, index=True)
+    marker_name = Column(String(100), nullable=False)
+    value = Column(Float, nullable=False)
+    unit = Column(String(50), nullable=False)
+    reference_range_low = Column(Float)
+    reference_range_high = Column(Float)
+    longevity_optimal_low = Column(Float)
+    longevity_optimal_high = Column(Float)
+    lab_name = Column(String(200))
+    notes = Column(Text)
+    created_at = Column(DateTime, default=utcnow)
+
+    user = relationship("User", back_populates="blood_biomarkers")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "date", "marker_name", name="_user_biomarker_date_marker_uc"
+        ),
+        Index("idx_biomarker_user_date", "user_id", "date"),
+        Index("idx_biomarker_user_marker", "user_id", "marker_name"),
+    )
+
+
+class Intervention(Base):
+    __tablename__ = "interventions"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
+    name = Column(String(200), nullable=False)
+    category = Column(String(50), nullable=False)
+    start_date = Column(Date, nullable=False)
+    end_date = Column(Date)
+    dosage = Column(String(100))
+    frequency = Column(String(100))
+    target_metrics = Column(JSON)
+    notes = Column(Text)
+    active = Column(Integer, nullable=False, default=1)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+
+    user = relationship("User", back_populates="interventions")
+
+    __table_args__ = (
+        Index("idx_intervention_user_active", "user_id", "active"),
+        CheckConstraint(
+            "category IN ('supplement', 'protocol', 'medication', 'lifestyle', 'diet')",
+            name="valid_intervention_category",
+        ),
+        CheckConstraint(
+            "active IN (0, 1)",
+            name="valid_intervention_active",
+        ),
+    )
+
+
+class FunctionalTest(Base):
+    __tablename__ = "functional_tests"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
+    date = Column(Date, nullable=False, index=True)
+    test_name = Column(String(100), nullable=False)
+    value = Column(Float, nullable=False)
+    unit = Column(String(50), nullable=False)
+    notes = Column(Text)
+    created_at = Column(DateTime, default=utcnow)
+
+    user = relationship("User", back_populates="functional_tests")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "date", "test_name", name="_user_functest_date_name_uc"
+        ),
+        Index("idx_functest_user_date", "user_id", "date"),
+        Index("idx_functest_user_test", "user_id", "test_name"),
+    )
+
+
+class LongevityGoal(Base):
+    __tablename__ = "longevity_goals"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
+    category = Column(String(100), nullable=False)
+    description = Column(Text, nullable=False)
+    target_value = Column(Float)
+    current_value = Column(Float)
+    unit = Column(String(50))
+    target_age = Column(Integer)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+
+    user = relationship("User", back_populates="longevity_goals")
+
+    __table_args__ = (Index("idx_longevity_goal_user", "user_id"),)

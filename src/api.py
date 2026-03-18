@@ -1,3 +1,4 @@
+import math
 import os
 import threading
 from collections.abc import Callable
@@ -26,11 +27,20 @@ from errors import (
     InvalidCredentialsError,
     InvalidDateFormatError,
     NotAuthenticatedError,
+    NotFoundError,
     ValidationError,
 )
 from limiter import limiter
 from logging_config import get_logger
-from models import DataSync, User, UserSettings
+from models import (
+    BloodBiomarker,
+    DataSync,
+    FunctionalTest,
+    Intervention,
+    LongevityGoal,
+    User,
+    UserSettings,
+)
 from pull_whoop_data import refresh_whoop_token_for_user
 from routes import UserModel
 from security import verify_password
@@ -158,6 +168,8 @@ def api_analytics():
         result = analysis.model_dump(exclude_none=True)
         if analysis.advanced_insights is not None:
             result["advanced_insights"] = analysis.advanced_insights.model_dump()
+        if analysis.longevity_insights is not None:
+            result["longevity_insights"] = analysis.longevity_insights.model_dump()
         return jsonify(result)
 
 
@@ -684,3 +696,508 @@ def api_sync_whoop():
         return sync_whoop_data_for_user
 
     return _handle_sync_request(DataSource.WHOOP, "Whoop", get_sync_func)
+
+
+@api.route("/settings/profile", methods=["GET"])
+@login_required
+def api_get_profile():
+    with get_db_session_context() as db:
+        settings = db.scalars(
+            select(UserSettings).filter_by(user_id=current_user.id)
+        ).first()
+        return jsonify(
+            {
+                "birth_date": (
+                    settings.birth_date.isoformat()
+                    if settings and settings.birth_date
+                    else None
+                ),
+                "gender": settings.gender if settings else None,
+            }
+        )
+
+
+@api.route("/settings/profile", methods=["PUT"])
+@login_required
+def api_update_profile():
+    data = request.get_json()
+    if not data:
+        raise ValidationError("Request body is required")
+
+    with get_db_session_context() as db:
+        settings = db.scalars(
+            select(UserSettings).filter_by(user_id=current_user.id)
+        ).first()
+        if not settings:
+            settings = UserSettings(user_id=current_user.id)
+            db.add(settings)
+
+        if "birth_date" in data:
+            if data["birth_date"]:
+                try:
+                    settings.birth_date = parse_date_string(data["birth_date"])
+                except ValueError:
+                    raise InvalidDateFormatError(data["birth_date"]) from None
+            else:
+                settings.birth_date = None
+
+        if "gender" in data:
+            if data["gender"] and data["gender"] not in ("male", "female"):
+                raise ValidationError(
+                    "Gender must be 'male' or 'female'",
+                    field="gender",
+                    provided_value=data["gender"],
+                )
+            settings.gender = data["gender"]
+
+        db.commit()
+        return jsonify(
+            {
+                "birth_date": (
+                    settings.birth_date.isoformat() if settings.birth_date else None
+                ),
+                "gender": settings.gender,
+            }
+        )
+
+
+VALID_INTERVENTION_CATEGORIES = {
+    "supplement",
+    "protocol",
+    "medication",
+    "lifestyle",
+    "diet",
+}
+
+
+def _validate_finite_float(value: Any, field_name: str) -> float:
+    try:
+        num = float(value)
+    except (ValueError, TypeError):
+        raise ValidationError(
+            f"{field_name} must be a number", field=field_name
+        ) from None
+    if math.isnan(num) or math.isinf(num):
+        raise ValidationError(f"{field_name} must be a finite number", field=field_name)
+    return num
+
+
+def _serialize_model(obj, fields: list[str]) -> dict:
+    result = {}
+    for f in fields:
+        val = getattr(obj, f)
+        if hasattr(val, "isoformat"):
+            result[f] = val.isoformat()
+        else:
+            result[f] = val
+    return result
+
+
+BIOMARKER_FIELDS = [
+    "id",
+    "date",
+    "marker_name",
+    "value",
+    "unit",
+    "reference_range_low",
+    "reference_range_high",
+    "longevity_optimal_low",
+    "longevity_optimal_high",
+    "lab_name",
+    "notes",
+]
+
+
+@api.route("/longevity/biomarkers", methods=["GET"])
+@login_required
+def api_get_biomarkers():
+    marker = request.args.get("marker")
+    with get_db_session_context() as db:
+        query = select(BloodBiomarker).filter_by(user_id=current_user.id)
+        if marker:
+            query = query.filter_by(marker_name=marker)
+        query = query.order_by(BloodBiomarker.date.desc())
+        rows = db.scalars(query).all()
+        return jsonify([_serialize_model(r, BIOMARKER_FIELDS) for r in rows])
+
+
+@api.route("/longevity/biomarkers", methods=["POST"])
+@login_required
+def api_create_biomarker():
+    data = request.get_json()
+    if not data:
+        raise ValidationError("Request body is required")
+
+    for field in ("date", "marker_name", "unit"):
+        if not data.get(field):
+            raise ValidationError(f"{field} is required", field=field)
+    if data.get("value") is None:
+        raise ValidationError("value is required", field="value")
+
+    try:
+        parsed_date = parse_date_string(data["date"])
+    except ValueError:
+        raise InvalidDateFormatError(data["date"]) from None
+
+    validated_value = _validate_finite_float(data["value"], "value")
+
+    with get_db_session_context() as db:
+        biomarker = BloodBiomarker(
+            user_id=current_user.id,
+            date=parsed_date,
+            marker_name=data["marker_name"],
+            value=validated_value,
+            unit=data["unit"],
+            reference_range_low=(
+                _validate_finite_float(
+                    data["reference_range_low"], "reference_range_low"
+                )
+                if data.get("reference_range_low") is not None
+                else None
+            ),
+            reference_range_high=(
+                _validate_finite_float(
+                    data["reference_range_high"], "reference_range_high"
+                )
+                if data.get("reference_range_high") is not None
+                else None
+            ),
+            longevity_optimal_low=(
+                _validate_finite_float(
+                    data["longevity_optimal_low"], "longevity_optimal_low"
+                )
+                if data.get("longevity_optimal_low") is not None
+                else None
+            ),
+            longevity_optimal_high=(
+                _validate_finite_float(
+                    data["longevity_optimal_high"], "longevity_optimal_high"
+                )
+                if data.get("longevity_optimal_high") is not None
+                else None
+            ),
+            lab_name=data.get("lab_name"),
+            notes=data.get("notes"),
+        )
+        db.add(biomarker)
+        db.commit()
+        return jsonify(_serialize_model(biomarker, BIOMARKER_FIELDS)), 201
+
+
+@api.route("/longevity/biomarkers/<int:biomarker_id>", methods=["DELETE"])
+@login_required
+def api_delete_biomarker(biomarker_id: int):
+    with get_db_session_context() as db:
+        row = db.scalars(
+            select(BloodBiomarker).filter_by(id=biomarker_id, user_id=current_user.id)
+        ).first()
+        if not row:
+            raise NotFoundError("Biomarker")
+        db.delete(row)
+        db.commit()
+        return jsonify({"deleted": True})
+
+
+INTERVENTION_FIELDS = [
+    "id",
+    "name",
+    "category",
+    "start_date",
+    "end_date",
+    "dosage",
+    "frequency",
+    "target_metrics",
+    "notes",
+    "active",
+]
+
+
+@api.route("/longevity/interventions", methods=["GET"])
+@login_required
+def api_get_interventions():
+    active_only = request.args.get("active", "").lower() == "true"
+    with get_db_session_context() as db:
+        query = select(Intervention).filter_by(user_id=current_user.id)
+        if active_only:
+            query = query.filter_by(active=1)
+        query = query.order_by(Intervention.start_date.desc())
+        rows = db.scalars(query).all()
+        return jsonify([_serialize_model(r, INTERVENTION_FIELDS) for r in rows])
+
+
+@api.route("/longevity/interventions", methods=["POST"])
+@login_required
+def api_create_intervention():
+    data = request.get_json()
+    if not data:
+        raise ValidationError("Request body is required")
+
+    for field in ("name", "category", "start_date"):
+        if not data.get(field):
+            raise ValidationError(f"{field} is required", field=field)
+
+    if data["category"] not in VALID_INTERVENTION_CATEGORIES:
+        raise ValidationError(
+            f"category must be one of: {', '.join(sorted(VALID_INTERVENTION_CATEGORIES))}",
+            field="category",
+        )
+
+    try:
+        start = parse_date_string(data["start_date"])
+    except ValueError:
+        raise InvalidDateFormatError(data["start_date"]) from None
+
+    end = None
+    if data.get("end_date"):
+        try:
+            end = parse_date_string(data["end_date"])
+        except ValueError:
+            raise InvalidDateFormatError(data["end_date"]) from None
+
+    with get_db_session_context() as db:
+        intervention = Intervention(
+            user_id=current_user.id,
+            name=data["name"],
+            category=data["category"],
+            start_date=start,
+            end_date=end,
+            dosage=data.get("dosage"),
+            frequency=data.get("frequency"),
+            target_metrics=data.get("target_metrics"),
+            notes=data.get("notes"),
+            active=1,
+        )
+        db.add(intervention)
+        db.commit()
+        return jsonify(_serialize_model(intervention, INTERVENTION_FIELDS)), 201
+
+
+@api.route("/longevity/interventions/<int:intervention_id>", methods=["PUT"])
+@login_required
+def api_update_intervention(intervention_id: int):
+    data = request.get_json()
+    if not data:
+        raise ValidationError("Request body is required")
+
+    with get_db_session_context() as db:
+        row = db.scalars(
+            select(Intervention).filter_by(id=intervention_id, user_id=current_user.id)
+        ).first()
+        if not row:
+            raise NotFoundError("Intervention")
+
+        if "category" in data and data["category"] not in VALID_INTERVENTION_CATEGORIES:
+            raise ValidationError(
+                f"category must be one of: {', '.join(sorted(VALID_INTERVENTION_CATEGORIES))}",
+                field="category",
+            )
+
+        for field in ("name", "category", "dosage", "frequency", "notes"):
+            if field in data:
+                setattr(row, field, data[field])
+
+        if "active" in data:
+            row.active = 1 if data["active"] else 0
+
+        if "end_date" in data:
+            if data["end_date"]:
+                try:
+                    row.end_date = parse_date_string(data["end_date"])
+                except ValueError:
+                    raise InvalidDateFormatError(data["end_date"]) from None
+            else:
+                row.end_date = None
+
+        if "target_metrics" in data:
+            row.target_metrics = data["target_metrics"]
+
+        db.commit()
+        return jsonify(_serialize_model(row, INTERVENTION_FIELDS))
+
+
+@api.route("/longevity/interventions/<int:intervention_id>", methods=["DELETE"])
+@login_required
+def api_delete_intervention(intervention_id: int):
+    with get_db_session_context() as db:
+        row = db.scalars(
+            select(Intervention).filter_by(id=intervention_id, user_id=current_user.id)
+        ).first()
+        if not row:
+            raise NotFoundError("Intervention")
+        db.delete(row)
+        db.commit()
+        return jsonify({"deleted": True})
+
+
+FUNCTIONAL_TEST_FIELDS = ["id", "date", "test_name", "value", "unit", "notes"]
+
+
+@api.route("/longevity/functional-tests", methods=["GET"])
+@login_required
+def api_get_functional_tests():
+    test_name = request.args.get("test_name")
+    with get_db_session_context() as db:
+        query = select(FunctionalTest).filter_by(user_id=current_user.id)
+        if test_name:
+            query = query.filter_by(test_name=test_name)
+        query = query.order_by(FunctionalTest.date.desc())
+        rows = db.scalars(query).all()
+        return jsonify([_serialize_model(r, FUNCTIONAL_TEST_FIELDS) for r in rows])
+
+
+@api.route("/longevity/functional-tests", methods=["POST"])
+@login_required
+def api_create_functional_test():
+    data = request.get_json()
+    if not data:
+        raise ValidationError("Request body is required")
+
+    for field in ("date", "test_name", "unit"):
+        if not data.get(field):
+            raise ValidationError(f"{field} is required", field=field)
+    if data.get("value") is None:
+        raise ValidationError("value is required", field="value")
+
+    try:
+        parsed_date = parse_date_string(data["date"])
+    except ValueError:
+        raise InvalidDateFormatError(data["date"]) from None
+
+    validated_value = _validate_finite_float(data["value"], "value")
+
+    with get_db_session_context() as db:
+        test = FunctionalTest(
+            user_id=current_user.id,
+            date=parsed_date,
+            test_name=data["test_name"],
+            value=validated_value,
+            unit=data["unit"],
+            notes=data.get("notes"),
+        )
+        db.add(test)
+        db.commit()
+        return jsonify(_serialize_model(test, FUNCTIONAL_TEST_FIELDS)), 201
+
+
+@api.route("/longevity/functional-tests/<int:test_id>", methods=["DELETE"])
+@login_required
+def api_delete_functional_test(test_id: int):
+    with get_db_session_context() as db:
+        row = db.scalars(
+            select(FunctionalTest).filter_by(id=test_id, user_id=current_user.id)
+        ).first()
+        if not row:
+            raise NotFoundError("Functional test")
+        db.delete(row)
+        db.commit()
+        return jsonify({"deleted": True})
+
+
+GOAL_FIELDS = [
+    "id",
+    "category",
+    "description",
+    "target_value",
+    "current_value",
+    "unit",
+    "target_age",
+]
+
+
+@api.route("/longevity/goals", methods=["GET"])
+@login_required
+def api_get_goals():
+    with get_db_session_context() as db:
+        rows = db.scalars(
+            select(LongevityGoal)
+            .filter_by(user_id=current_user.id)
+            .order_by(LongevityGoal.category)
+        ).all()
+        return jsonify([_serialize_model(r, GOAL_FIELDS) for r in rows])
+
+
+@api.route("/longevity/goals", methods=["POST"])
+@login_required
+def api_create_goal():
+    data = request.get_json()
+    if not data:
+        raise ValidationError("Request body is required")
+
+    for field in ("category", "description"):
+        if not data.get(field):
+            raise ValidationError(f"{field} is required", field=field)
+
+    with get_db_session_context() as db:
+        goal = LongevityGoal(
+            user_id=current_user.id,
+            category=data["category"],
+            description=data["description"],
+            target_value=(
+                _validate_finite_float(data["target_value"], "target_value")
+                if data.get("target_value") is not None
+                else None
+            ),
+            current_value=(
+                _validate_finite_float(data["current_value"], "current_value")
+                if data.get("current_value") is not None
+                else None
+            ),
+            unit=data.get("unit"),
+            target_age=data.get("target_age"),
+        )
+        db.add(goal)
+        db.commit()
+        return jsonify(_serialize_model(goal, GOAL_FIELDS)), 201
+
+
+@api.route("/longevity/goals/<int:goal_id>", methods=["PUT"])
+@login_required
+def api_update_goal(goal_id: int):
+    data = request.get_json()
+    if not data:
+        raise ValidationError("Request body is required")
+
+    with get_db_session_context() as db:
+        row = db.scalars(
+            select(LongevityGoal).filter_by(id=goal_id, user_id=current_user.id)
+        ).first()
+        if not row:
+            raise NotFoundError("Goal")
+
+        for field in ("category", "description", "unit"):
+            if field in data:
+                setattr(row, field, data[field])
+
+        for float_field in ("target_value", "current_value"):
+            if float_field in data:
+                setattr(
+                    row,
+                    float_field,
+                    (
+                        _validate_finite_float(data[float_field], float_field)
+                        if data[float_field] is not None
+                        else None
+                    ),
+                )
+
+        if "target_age" in data:
+            row.target_age = (
+                int(data["target_age"]) if data["target_age"] is not None else None
+            )
+
+        db.commit()
+        return jsonify(_serialize_model(row, GOAL_FIELDS))
+
+
+@api.route("/longevity/goals/<int:goal_id>", methods=["DELETE"])
+@login_required
+def api_delete_goal(goal_id: int):
+    with get_db_session_context() as db:
+        row = db.scalars(
+            select(LongevityGoal).filter_by(id=goal_id, user_id=current_user.id)
+        ).first()
+        if not row:
+            raise NotFoundError("Goal")
+        db.delete(row)
+        db.commit()
+        return jsonify({"deleted": True})

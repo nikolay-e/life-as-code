@@ -1,9 +1,16 @@
 from .service import compute_health_analysis
-from .types import HealthAnalysis, MLInsights, TrendMode, TrendModeConfig
+from .types import (
+    HealthAnalysis,
+    LongevityInsights,
+    MLInsights,
+    TrendMode,
+    TrendModeConfig,
+)
 
 __all__ = [
     "compute_health_analysis",
     "HealthAnalysis",
+    "LongevityInsights",
     "MLInsights",
     "TrendMode",
     "TrendModeConfig",

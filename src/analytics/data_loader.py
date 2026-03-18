@@ -45,6 +45,11 @@ class RawHealthData:
     workout_dates: list[DataPoint] = field(default_factory=list)
     vo2_max: list[DataPoint] = field(default_factory=list)
     training_readiness: list[DataPoint] = field(default_factory=list)
+    fitness_age: list[DataPoint] = field(default_factory=list)
+    body_fat: list[DataPoint] = field(default_factory=list)
+    zone2_minutes: list[DataPoint] = field(default_factory=list)
+    zone5_minutes: list[DataPoint] = field(default_factory=list)
+    total_training_minutes: list[DataPoint] = field(default_factory=list)
 
 
 SOURCE_PRIORITY = {"garmin": 1, "whoop": 2, "apple_health": 3, "google": 4}
@@ -85,6 +90,7 @@ def load_raw_health_data(
     from models import (
         HRV,
         Energy,
+        GarminActivity,
         GarminTrainingStatus,
         HeartRate,
         Sleep,
@@ -270,6 +276,62 @@ def load_raw_health_data(
     raw.calories_garmin = _to_points(garmin_training, "total_kilocalories")
     raw.vo2_max = _to_points(garmin_training, "vo2_max")
     raw.training_readiness = _to_points(garmin_training, "training_readiness_score")
+    raw.fitness_age = [
+        DataPoint(date=row.date.isoformat(), value=float(row.fitness_age))
+        for row in garmin_training
+        if row.fitness_age is not None
+    ]
+
+    weight_all = (
+        db.query(Weight)
+        .filter(
+            Weight.user_id == user_id,
+            Weight.date >= cutoff,
+            Weight.date <= anchor,
+        )
+        .order_by(Weight.date)
+        .all()
+    )
+    raw.body_fat = [
+        DataPoint(date=row.date.isoformat(), value=row.body_fat_pct)
+        for row in weight_all
+        if row.body_fat_pct is not None
+    ]
+
+    garmin_activities = (
+        db.query(GarminActivity)
+        .filter(
+            GarminActivity.user_id == user_id,
+            GarminActivity.date >= cutoff,
+            GarminActivity.date <= anchor,
+        )
+        .order_by(GarminActivity.date)
+        .all()
+    )
+    raw.zone2_minutes = [
+        DataPoint(
+            date=row.date.isoformat(),
+            value=round(row.hr_zone_two_seconds / 60, 1),
+        )
+        for row in garmin_activities
+        if row.hr_zone_two_seconds is not None
+    ]
+    raw.zone5_minutes = [
+        DataPoint(
+            date=row.date.isoformat(),
+            value=round(row.hr_zone_five_seconds / 60, 1),
+        )
+        for row in garmin_activities
+        if row.hr_zone_five_seconds is not None
+    ]
+    raw.total_training_minutes = [
+        DataPoint(
+            date=row.date.isoformat(),
+            value=round(row.duration_seconds / 60, 1),
+        )
+        for row in garmin_activities
+        if row.duration_seconds is not None
+    ]
 
     workout_dates_raw = (
         db.query(WorkoutSet.date)

@@ -21,6 +21,7 @@ from .fusion import (
     get_data_source_summary,
     get_latest_fused_input,
 )
+from .longevity import calculate_longevity_insights
 from .metric_series import FusedHealthData, MetricSeries
 from .metrics import (
     baseline_cache_scope,
@@ -50,6 +51,22 @@ from .types import (
     TrendMode,
     TrendModeConfig,
 )
+
+
+def _get_chronological_age(
+    db: Session, user_id: int, ref_date: date | None = None
+) -> float | None:
+    from models import UserSettings
+
+    from .date_utils import local_today
+
+    settings = db.query(UserSettings).filter_by(user_id=user_id).first()
+    if not settings or not settings.birth_date:
+        return None
+    anchor = ref_date or local_today()
+    birth = settings.birth_date
+    delta = anchor - birth
+    return float(delta.days / 365.25)
 
 
 def get_baseline_options(mode: TrendMode, config: TrendModeConfig) -> BaselineOptions:
@@ -419,6 +436,26 @@ def _compute_health_analysis_impl(
 
     ml_insights = load_ml_insights(db, user_id, ref_date=target_date)
 
+    chronological_age = _get_chronological_age(db, user_id, target_date)
+    longevity_insights = calculate_longevity_insights(
+        hrv_data=hrv_data,
+        rhr_data=rhr_data,
+        vo2_max_data=raw.vo2_max,
+        fitness_age_data=raw.fitness_age,
+        recovery_data=recovery_data,
+        sleep_data=sleep_data,
+        weight_data=weight_data,
+        body_fat_data=raw.body_fat,
+        steps_data=steps_data,
+        workout_dates=raw.workout_dates,
+        zone2_data=raw.zone2_minutes,
+        zone5_data=raw.zone5_minutes,
+        total_training_data=raw.total_training_minutes,
+        chronological_age=chronological_age,
+        baseline_window=config.baseline,
+        ref_date=target_date,
+    )
+
     metric_baselines = _compute_metric_baselines(
         {
             "hrv": hrv_data,
@@ -468,6 +505,7 @@ def _compute_health_analysis_impl(
         day_over_day=day_over_day,
         recent_days=recent_days,
         advanced_insights=advanced_insights,
+        longevity_insights=longevity_insights,
         day_completeness=calculate_day_completeness(ref_date=target_date),
         data_source_summary=data_source_summary,
         metric_baselines=metric_baselines,

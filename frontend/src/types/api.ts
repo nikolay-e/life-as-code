@@ -584,6 +584,104 @@ export interface MLInsights {
   has_recent_ml_anomalies: boolean;
 }
 
+export interface BiologicalAgeComponent {
+  name: string;
+  estimated_age: number | null;
+  chronological_age: number;
+  delta: number | null;
+  confidence: number;
+  data_source: string | null;
+}
+
+export interface BiologicalAgeMetrics {
+  composite_biological_age: number | null;
+  chronological_age: number;
+  age_delta: number | null;
+  components: BiologicalAgeComponent[];
+  pace_of_aging: number | null;
+  pace_trend: number | null;
+}
+
+export interface TrainingZoneMetrics {
+  zone2_minutes_7d: number | null;
+  zone2_minutes_30d: number | null;
+  zone2_pct_of_total: number | null;
+  zone5_minutes_7d: number | null;
+  zone5_minutes_30d: number | null;
+  zone5_pct_of_total: number | null;
+  total_training_minutes_7d: number | null;
+  total_training_minutes_30d: number | null;
+  zone2_target_met: boolean | null;
+  zone5_target_met: boolean | null;
+}
+
+export interface LongevityScore {
+  overall: number | null;
+  cardiorespiratory: number | null;
+  recovery_resilience: number | null;
+  sleep_optimization: number | null;
+  body_composition: number | null;
+  activity_consistency: number | null;
+  trend: number | null;
+}
+
+export interface LongevityInsights {
+  biological_age: BiologicalAgeMetrics;
+  training_zones: TrainingZoneMetrics;
+  longevity_score: LongevityScore;
+}
+
+export interface BloodBiomarkerData {
+  id: number;
+  date: string;
+  marker_name: string;
+  value: number;
+  unit: string;
+  reference_range_low: number | null;
+  reference_range_high: number | null;
+  longevity_optimal_low: number | null;
+  longevity_optimal_high: number | null;
+  lab_name: string | null;
+  notes: string | null;
+}
+
+export interface InterventionData {
+  id: number;
+  name: string;
+  category: "supplement" | "protocol" | "medication" | "lifestyle" | "diet";
+  start_date: string;
+  end_date: string | null;
+  dosage: string | null;
+  frequency: string | null;
+  target_metrics: Record<string, unknown> | null;
+  notes: string | null;
+  active: number;
+}
+
+export interface FunctionalTestData {
+  id: number;
+  date: string;
+  test_name: string;
+  value: number;
+  unit: string;
+  notes: string | null;
+}
+
+export interface LongevityGoalData {
+  id: number;
+  category: string;
+  description: string;
+  target_value: number | null;
+  current_value: number | null;
+  unit: string | null;
+  target_age: number | null;
+}
+
+export interface UserProfile {
+  birth_date: string | null;
+  gender: string | null;
+}
+
 export interface AnalyticsResponse {
   health_score: HealthScore;
   recovery_metrics: RecoveryMetrics;
@@ -608,6 +706,7 @@ export interface AnalyticsResponse {
   raw_series: Record<string, DataPoint[]>;
   advanced_insights?: AdvancedInsights;
   ml_insights?: MLInsights;
+  longevity_insights?: LongevityInsights;
   mode: string;
   mode_config: {
     range_days: number;

@@ -2,6 +2,12 @@
 
 > Extends [../CLAUDE.md](../CLAUDE.md)
 
+## Ultimate Goal
+
+**Build software that helps people live to 150 years.**
+
+Every feature, metric, and insight in this platform serves one mission: give people the data and tools to understand their biology deeply enough to extend healthy human lifespan to 150 years. Longevity is not a side effect — it is the purpose.
+
 Privacy-first, multi-user health analytics platform aggregating Garmin, Hevy, and Whoop data.
 
 ## Tech Stack

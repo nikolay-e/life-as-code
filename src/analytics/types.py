@@ -385,6 +385,53 @@ class AdvancedInsights(BaseModel):
     recovery_enhanced: RecoveryEnhancedMetrics
 
 
+class BiologicalAgeComponent(BaseModel):
+    name: str
+    estimated_age: float | None
+    chronological_age: float
+    delta: float | None
+    confidence: float
+    data_source: str | None = None
+
+
+class BiologicalAgeMetrics(BaseModel):
+    composite_biological_age: float | None
+    chronological_age: float
+    age_delta: float | None
+    components: list[BiologicalAgeComponent]
+    pace_of_aging: float | None
+    pace_trend: float | None
+
+
+class TrainingZoneMetrics(BaseModel):
+    zone2_minutes_7d: float | None
+    zone2_minutes_30d: float | None
+    zone2_pct_of_total: float | None
+    zone5_minutes_7d: float | None
+    zone5_minutes_30d: float | None
+    zone5_pct_of_total: float | None
+    total_training_minutes_7d: float | None
+    total_training_minutes_30d: float | None
+    zone2_target_met: bool | None
+    zone5_target_met: bool | None
+
+
+class LongevityScore(BaseModel):
+    overall: float | None
+    cardiorespiratory: float | None
+    recovery_resilience: float | None
+    sleep_optimization: float | None
+    body_composition: float | None
+    activity_consistency: float | None
+    trend: float | None
+
+
+class LongevityInsights(BaseModel):
+    biological_age: BiologicalAgeMetrics
+    training_zones: TrainingZoneMetrics
+    longevity_score: LongevityScore
+
+
 class UnifiedMetricPoint(BaseModel):
     date: str
     value: float | None
@@ -453,5 +500,6 @@ class HealthAnalysis(BaseModel):
     raw_series: dict[str, list[DataPoint]] = {}
     advanced_insights: AdvancedInsights | None = None
     ml_insights: MLInsights | None = None
+    longevity_insights: LongevityInsights | None = None
     mode: TrendMode
     mode_config: TrendModeConfig

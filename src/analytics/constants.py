@@ -113,3 +113,33 @@ MIN_STEPS_FLOOR_DATA = 14
 STEPS_FLOOR_PERCENTILE = 10
 
 SCORE_QUALITY_WINDOW = 30
+
+HRV_AGE_DECAY_RATE = 0.03
+HRV_AGE_BASELINE_HRV = 80.0
+HRV_AGE_BASELINE_AGE = 20
+
+RHR_REFERENCE = 60
+RHR_HAZARD_PER_10BPM = 1.09
+
+VO2MAX_NORMATIVE_MALE: dict[int, dict[str, float]] = {
+    20: {"p90": 55.0, "p50": 43.0, "p10": 33.0},
+    30: {"p90": 52.0, "p50": 40.0, "p10": 30.0},
+    40: {"p90": 48.0, "p50": 36.0, "p10": 27.0},
+    50: {"p90": 44.0, "p50": 33.0, "p10": 24.0},
+    60: {"p90": 39.0, "p50": 29.0, "p10": 21.0},
+    70: {"p90": 35.0, "p50": 25.0, "p10": 18.0},
+}
+
+LONGEVITY_SCORE_WEIGHTS = {
+    "cardiorespiratory": 0.30,
+    "recovery_resilience": 0.25,
+    "sleep_optimization": 0.20,
+    "body_composition": 0.15,
+    "activity_consistency": 0.10,
+}
+
+ZONE2_WEEKLY_TARGET_MINUTES = 150
+ZONE5_WEEKLY_TARGET_MINUTES = 4
+
+MIN_BIO_AGE_DATA_DAYS = 14
+PACE_OF_AGING_LOOKBACK_DAYS = 365
