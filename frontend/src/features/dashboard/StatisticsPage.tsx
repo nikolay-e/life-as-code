@@ -209,7 +209,7 @@ function DataQualityBadge({ baseline }: { baseline: MetricBaseline }) {
       <Icon className={cn("h-3 w-3", color)} />
       <span className={color}>{confidencePercent}% conf</span>
       <span className="text-muted-foreground">({coveragePercent}% cov)</span>
-      {baseline.latency_days !== null && baseline.latency_days > 1 && (
+      {baseline.latency_days != null && baseline.latency_days > 1 && (
         <span className="text-muted-foreground">
           · {baseline.latency_days}d ago
         </span>
@@ -249,7 +249,7 @@ function MetricCard({
     ? baseline.shifted_z_score
     : baseline.z_score;
   const displayZScore =
-    invertZScore && rawZScore !== null ? -rawZScore : rawZScore;
+    invertZScore && rawZScore != null ? -rawZScore : rawZScore;
 
   const zScoreLabel = useShiftedZScore ? "period z" : "z-score";
 
@@ -327,7 +327,7 @@ function MetricCard({
                 <div className="flex items-center gap-1">
                   {trendIcon}
                   <span className="font-medium">
-                    {baseline.trend_slope !== null
+                    {baseline.trend_slope != null
                       ? `${signPrefix(baseline.trend_slope)}${baseline.trend_slope.toFixed(2)}/d`
                       : "—"}
                   </span>
@@ -401,7 +401,7 @@ function HealthScoreCard({
           <div>
             <CardTitle>Health Status Score</CardTitle>
             <CardDescription>
-              {healthScore.training_load !== null
+              {healthScore.training_load != null
                 ? "Composite: recovery core (60%) + training load (20%) + behavior (20%)"
                 : "Composite: recovery core (75%) + behavior support (25%)"}
             </CardDescription>
@@ -412,7 +412,7 @@ function HealthScoreCard({
         <div
           className={cn(
             "grid gap-6 md:grid-cols-2",
-            healthScore.training_load !== null
+            healthScore.training_load != null
               ? "lg:grid-cols-4"
               : "lg:grid-cols-3",
           )}
@@ -425,7 +425,7 @@ function HealthScoreCard({
                 getHealthScoreColor(healthScore.overall),
               )}
             >
-              {healthScore.overall !== null
+              {healthScore.overall != null
                 ? healthScore.overall.toFixed(2)
                 : "—"}
             </p>
@@ -446,7 +446,7 @@ function HealthScoreCard({
                 getHealthScoreColor(healthScore.recovery_core),
               )}
             >
-              {healthScore.recovery_core !== null
+              {healthScore.recovery_core != null
                 ? healthScore.recovery_core.toFixed(2)
                 : "—"}
             </p>
@@ -454,7 +454,7 @@ function HealthScoreCard({
               HRV + RHR + Sleep + Stress
             </p>
           </div>
-          {healthScore.training_load !== null && (
+          {healthScore.training_load != null && (
             <div className="text-center">
               <p className="text-sm text-muted-foreground mb-1">
                 Training Load
@@ -482,7 +482,7 @@ function HealthScoreCard({
                 getHealthScoreColor(healthScore.behavior_support),
               )}
             >
-              {healthScore.behavior_support !== null
+              {healthScore.behavior_support != null
                 ? healthScore.behavior_support.toFixed(2)
                 : "—"}
             </p>
@@ -537,7 +537,7 @@ function HealthScoreCard({
                 >
                   conf: {(c.confidence * 100).toFixed(0)}%
                 </p>
-                {c.long_term_percentile !== null && (
+                {c.long_term_percentile != null && (
                   <p className="text-[10px] text-muted-foreground/50">
                     P{c.long_term_percentile.toFixed(0)} all-time
                   </p>
@@ -622,7 +622,7 @@ function SummaryMetricCards({
               getHrvRhrColor(recoveryMetrics.hrv_rhr_imbalance),
             )}
           >
-            {recoveryMetrics.hrv_rhr_imbalance !== null
+            {recoveryMetrics.hrv_rhr_imbalance != null
               ? recoveryMetrics.hrv_rhr_imbalance.toFixed(2)
               : "—"}
           </p>
@@ -664,7 +664,7 @@ function SummaryMetricCards({
               getAcwrColor(activityMetrics.acwr),
             )}
           >
-            {activityMetrics.acwr !== null
+            {activityMetrics.acwr != null
               ? activityMetrics.acwr.toFixed(2)
               : "—"}
           </p>
@@ -685,7 +685,7 @@ function SummaryMetricCards({
               getStepsChangeColor(activityMetrics.steps_change),
             )}
           >
-            {activityMetrics.steps_change !== null
+            {activityMetrics.steps_change != null
               ? `${signPrefix(activityMetrics.steps_change)}${Math.round(activityMetrics.steps_change).toLocaleString()}`
               : "—"}
           </p>
@@ -744,7 +744,7 @@ function AnalysisGrid({
                 {formatDaysLabel(shortTermDays)} Average
               </p>
               <p className="font-medium">
-                {sleepMetrics.avg_sleep_short !== null
+                {sleepMetrics.avg_sleep_short != null
                   ? formatSleepMinutes(sleepMetrics.avg_sleep_short)
                   : "—"}
               </p>
@@ -754,7 +754,7 @@ function AnalysisGrid({
                 {formatDaysLabel(baselineDays)} Average
               </p>
               <p className="font-medium">
-                {sleepMetrics.avg_sleep_long !== null
+                {sleepMetrics.avg_sleep_long != null
                   ? formatSleepMinutes(sleepMetrics.avg_sleep_long)
                   : "—"}
               </p>
@@ -793,7 +793,7 @@ function AnalysisGrid({
                 Steps {formatDaysLabel(shortTermDays)} avg
               </p>
               <p className="font-medium">
-                {activityMetrics.steps_avg_short !== null
+                {activityMetrics.steps_avg_short != null
                   ? Math.round(activityMetrics.steps_avg_short).toLocaleString()
                   : "—"}
               </p>
@@ -803,7 +803,7 @@ function AnalysisGrid({
                 Steps {formatDaysLabel(baselineDays)} avg
               </p>
               <p className="font-medium">
-                {activityMetrics.steps_avg_long !== null
+                {activityMetrics.steps_avg_long != null
                   ? Math.round(activityMetrics.steps_avg_long).toLocaleString()
                   : "—"}
               </p>
@@ -854,7 +854,7 @@ function AnalysisGrid({
                 EMA {formatDaysLabel(shortTermDays)}
               </p>
               <p className="font-medium">
-                {weightMetrics.ema_short !== null
+                {weightMetrics.ema_short != null
                   ? `${weightMetrics.ema_short.toFixed(1)} kg`
                   : "—"}
               </p>
@@ -864,7 +864,7 @@ function AnalysisGrid({
                 EMA {formatDaysLabel(baselineDays)}
               </p>
               <p className="font-medium">
-                {weightMetrics.ema_long !== null
+                {weightMetrics.ema_long != null
                   ? `${weightMetrics.ema_long.toFixed(1)} kg`
                   : "—"}
               </p>
@@ -879,7 +879,7 @@ function AnalysisGrid({
                   getWeightChangeColor(weightMetrics.period_change),
                 )}
               >
-                {weightMetrics.period_change !== null
+                {weightMetrics.period_change != null
                   ? `${signPrefix(weightMetrics.period_change)}${weightMetrics.period_change.toFixed(2)} kg`
                   : "—"}
               </p>
@@ -910,7 +910,7 @@ function AnalysisGrid({
                 {formatDaysLabel(shortTermDays)} load
               </p>
               <p className="font-medium">
-                {recoveryMetrics.stress_load_short !== null
+                {recoveryMetrics.stress_load_short != null
                   ? Math.round(recoveryMetrics.stress_load_short)
                   : "—"}
               </p>
@@ -920,7 +920,7 @@ function AnalysisGrid({
                 {formatDaysLabel(baselineDays)} load
               </p>
               <p className="font-medium">
-                {recoveryMetrics.stress_load_long !== null
+                {recoveryMetrics.stress_load_long != null
                   ? Math.round(recoveryMetrics.stress_load_long)
                   : "—"}
               </p>
@@ -933,7 +933,7 @@ function AnalysisGrid({
                   getStressTrendColor(recoveryMetrics.stress_trend),
                 )}
               >
-                {recoveryMetrics.stress_trend !== null
+                {recoveryMetrics.stress_trend != null
                   ? `${signPrefix(recoveryMetrics.stress_trend)}${recoveryMetrics.stress_trend.toFixed(1)}`
                   : "—"}
               </p>
@@ -941,7 +941,7 @@ function AnalysisGrid({
             <div>
               <p className="text-xs text-muted-foreground">Recovery CV</p>
               <p className="font-medium">
-                {recoveryMetrics.recovery_cv !== null
+                {recoveryMetrics.recovery_cv != null
                   ? `${(recoveryMetrics.recovery_cv * 100).toFixed(1)}%`
                   : "—"}
               </p>
@@ -1001,7 +1001,7 @@ function ClinicalAlertsCard({ clinicalAlerts }: ClinicalAlertsCardProps) {
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">
-                {clinicalAlerts.hrv_drop_percent !== null
+                {clinicalAlerts.hrv_drop_percent != null
                   ? `${(clinicalAlerts.hrv_drop_percent * 100).toFixed(0)}%`
                   : "—"}{" "}
                 drop from previous day
@@ -1017,7 +1017,7 @@ function ClinicalAlertsCard({ clinicalAlerts }: ClinicalAlertsCardProps) {
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">
-                {clinicalAlerts.weight_loss_percent !== null
+                {clinicalAlerts.weight_loss_percent != null
                   ? `${(clinicalAlerts.weight_loss_percent * 100).toFixed(1)}%`
                   : "—"}{" "}
                 loss over 30 days
@@ -1067,7 +1067,7 @@ function OverreachingCard({ overreaching }: OverreachingCardProps) {
               overreaching.risk_level === "critical" && "text-red-500",
             )}
           >
-            {overreaching.score !== null ? overreaching.score.toFixed(2) : "—"}
+            {overreaching.score != null ? overreaching.score.toFixed(2) : "—"}
           </span>
           {overreaching.risk_level && (
             <span
@@ -1142,7 +1142,7 @@ function CorrelationsCard({ correlations }: CorrelationsCardProps) {
                 getCorrelationColor(correlations.hrv_rhr_correlation),
               )}
             >
-              {correlations.hrv_rhr_correlation !== null
+              {correlations.hrv_rhr_correlation != null
                 ? correlations.hrv_rhr_correlation.toFixed(2)
                 : "—"}
             </span>
@@ -1152,13 +1152,13 @@ function CorrelationsCard({ correlations }: CorrelationsCardProps) {
             <span
               className={cn(
                 "font-mono text-sm",
-                correlations.sleep_hrv_lag_correlation !== null &&
+                correlations.sleep_hrv_lag_correlation != null &&
                   correlations.sleep_hrv_lag_correlation > 0.3
                   ? "text-green-500"
                   : "text-muted-foreground",
               )}
             >
-              {correlations.sleep_hrv_lag_correlation !== null
+              {correlations.sleep_hrv_lag_correlation != null
                 ? correlations.sleep_hrv_lag_correlation.toFixed(2)
                 : "—"}
             </span>
@@ -1170,13 +1170,13 @@ function CorrelationsCard({ correlations }: CorrelationsCardProps) {
             <span
               className={cn(
                 "font-mono text-sm",
-                correlations.strain_recovery_correlation !== null &&
+                correlations.strain_recovery_correlation != null &&
                   correlations.strain_recovery_correlation < -0.2
                   ? "text-green-500"
                   : "text-muted-foreground",
               )}
             >
-              {correlations.strain_recovery_correlation !== null
+              {correlations.strain_recovery_correlation != null
                 ? correlations.strain_recovery_correlation.toFixed(2)
                 : "—"}
             </span>
@@ -1235,7 +1235,7 @@ function VelocityCard({ velocity }: VelocityCardProps) {
               <span className="text-sm text-muted-foreground">{label}</span>
               <div className="flex items-center gap-2">
                 <span className="font-mono text-sm">
-                  {value !== null
+                  {value != null
                     ? `${signPrefix(value)}${value.toFixed(2)} ${unit}`
                     : "—"}
                 </span>
@@ -1384,7 +1384,7 @@ function RecoveryCapacityCard({ recoveryCapacity }: RecoveryCapacityCardProps) {
           <div>
             <p className="text-xs text-muted-foreground">Avg Recovery Days</p>
             <p className="text-lg font-semibold">
-              {recoveryCapacity.avg_recovery_days !== null
+              {recoveryCapacity.avg_recovery_days != null
                 ? `${recoveryCapacity.avg_recovery_days.toFixed(1)} days`
                 : "—"}
             </p>
@@ -1392,7 +1392,7 @@ function RecoveryCapacityCard({ recoveryCapacity }: RecoveryCapacityCardProps) {
           <div>
             <p className="text-xs text-muted-foreground">Recovery Efficiency</p>
             <p className="text-lg font-semibold">
-              {recoveryCapacity.recovery_efficiency !== null
+              {recoveryCapacity.recovery_efficiency != null
                 ? recoveryCapacity.recovery_efficiency.toFixed(2)
                 : "—"}
             </p>
@@ -1477,7 +1477,7 @@ function IllnessRiskCard({ illnessRisk }: IllnessRiskCardProps) {
               Combined Deviation
             </span>
             <span className="font-mono text-sm">
-              {illnessRisk.combined_deviation !== null
+              {illnessRisk.combined_deviation != null
                 ? illnessRisk.combined_deviation.toFixed(2)
                 : "—"}
             </span>
@@ -1517,7 +1517,7 @@ function DecorrelationCard({
   decorrelation,
   baselineDays,
 }: DecorrelationCardProps) {
-  if (decorrelation.current_correlation === null) return null;
+  if (decorrelation.current_correlation == null) return null;
   return (
     <Card
       className={decorrelation.is_decorrelated ? "border-orange-500/50" : ""}
@@ -1559,7 +1559,7 @@ function DecorrelationCard({
               r = {decorrelation.baseline_correlation?.toFixed(2) ?? "—"}
             </span>
           </div>
-          {decorrelation.correlation_delta !== null && (
+          {decorrelation.correlation_delta != null && (
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Delta</span>
               <span
@@ -1661,7 +1661,7 @@ function SleepQualityCard({ insights }: { insights: AdvancedInsights }) {
             <span
               className={cn(
                 "font-mono text-sm",
-                sq.deep_sleep_pct !== null && sq.deep_sleep_pct >= 15
+                sq.deep_sleep_pct != null && sq.deep_sleep_pct >= 15
                   ? "text-green-500"
                   : "text-yellow-500",
               )}
@@ -1674,7 +1674,7 @@ function SleepQualityCard({ insights }: { insights: AdvancedInsights }) {
             <span
               className={cn(
                 "font-mono text-sm",
-                sq.rem_sleep_pct !== null && sq.rem_sleep_pct >= 20
+                sq.rem_sleep_pct != null && sq.rem_sleep_pct >= 20
                   ? "text-green-500"
                   : "text-yellow-500",
               )}
@@ -1693,7 +1693,7 @@ function SleepQualityCard({ insights }: { insights: AdvancedInsights }) {
               <span>Sleep→HRV</span>
               <span className="font-mono">
                 r {sq.sleep_hrv_responsiveness?.toFixed(2) ?? "—"}
-                {sq.sleep_hrv_p_value !== null &&
+                {sq.sleep_hrv_p_value != null &&
                   sq.sleep_hrv_p_value < 0.05 && (
                     <span className="text-green-500 ml-1">*</span>
                   )}
@@ -1729,13 +1729,13 @@ function FitnessCard({ insights }: { insights: AdvancedInsights }) {
             <span
               className={cn(
                 "font-mono text-sm",
-                f.days_since_last_workout !== null &&
+                f.days_since_last_workout != null &&
                   f.days_since_last_workout > 7
                   ? "text-red-500"
                   : "text-green-500",
               )}
             >
-              {f.days_since_last_workout !== null
+              {f.days_since_last_workout != null
                 ? `${String(f.days_since_last_workout)}d ago`
                 : "—"}
             </span>
@@ -1757,7 +1757,7 @@ function FitnessCard({ insights }: { insights: AdvancedInsights }) {
               </span>
             </span>
           </div>
-          {f.vo2_max_current !== null && (
+          {f.vo2_max_current != null && (
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">VO2 Max</span>
               <span className="font-mono text-sm">
@@ -1820,7 +1820,7 @@ function AllostaticLoadCard({ insights }: { insights: AdvancedInsights }) {
 
 function HrvResidualCard({ insights }: { insights: AdvancedInsights }) {
   const residual = insights.cross_domain.hrv_residual;
-  if (residual.r_squared === null) return null;
+  if (residual.r_squared == null) return null;
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -1865,7 +1865,7 @@ function HrvResidualCard({ insights }: { insights: AdvancedInsights }) {
 
 function CrossDomainCard({ insights }: { insights: AdvancedInsights }) {
   const cd = insights.cross_domain;
-  if (cd.weight_hrv_coupling === null) return null;
+  if (cd.weight_hrv_coupling == null) return null;
   return (
     <Card>
       <CardHeader className="pb-2">

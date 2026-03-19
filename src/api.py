@@ -165,12 +165,7 @@ def api_analytics():
 
     with get_db_session_context() as db:
         analysis = get_or_compute_snapshot(db, current_user.id, mode=mode)
-        result = analysis.model_dump(exclude_none=True)
-        if analysis.advanced_insights is not None:
-            result["advanced_insights"] = analysis.advanced_insights.model_dump()
-        if analysis.longevity_insights is not None:
-            result["longevity_insights"] = analysis.longevity_insights.model_dump()
-        return jsonify(result)
+        return jsonify(analysis.model_dump())
 
 
 @api.route("/ml/anomalies", methods=["GET"])
