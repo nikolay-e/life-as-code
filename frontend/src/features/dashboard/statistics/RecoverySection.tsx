@@ -47,9 +47,9 @@ export function RecoverySection({
               getHrvRhrColor(recoveryMetrics.hrv_rhr_imbalance),
             )}
           >
-            {recoveryMetrics.hrv_rhr_imbalance != null
-              ? recoveryMetrics.hrv_rhr_imbalance.toFixed(2)
-              : "—"}
+            {recoveryMetrics.hrv_rhr_imbalance == null
+              ? "—"
+              : recoveryMetrics.hrv_rhr_imbalance.toFixed(2)}
           </p>
           <p className="text-xs text-muted-foreground">
             {getHrvRhrLabel(recoveryMetrics.hrv_rhr_imbalance)}
@@ -89,9 +89,9 @@ export function RecoverySection({
               getAcwrColor(activityMetrics.acwr),
             )}
           >
-            {activityMetrics.acwr != null
-              ? activityMetrics.acwr.toFixed(2)
-              : "—"}
+            {activityMetrics.acwr == null
+              ? "—"
+              : activityMetrics.acwr.toFixed(2)}
           </p>
           <p className="text-xs text-muted-foreground">
             {getAcwrLabel(activityMetrics.acwr)}
@@ -110,9 +110,9 @@ export function RecoverySection({
               getStepsChangeColor(activityMetrics.steps_change),
             )}
           >
-            {activityMetrics.steps_change != null
-              ? `${signPrefix(activityMetrics.steps_change)}${Math.round(activityMetrics.steps_change).toLocaleString()}`
-              : "—"}
+            {activityMetrics.steps_change == null
+              ? "—"
+              : `${signPrefix(activityMetrics.steps_change)}${Math.round(activityMetrics.steps_change).toLocaleString()}`}
           </p>
           <p className="text-xs text-muted-foreground">
             {formatDaysLabel(trendWindow)} vs prev{" "}

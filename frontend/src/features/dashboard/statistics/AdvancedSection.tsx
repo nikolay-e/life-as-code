@@ -69,7 +69,7 @@ function OverreachingCard({
               overreaching.risk_level === "critical" && "text-red-500",
             )}
           >
-            {overreaching.score != null ? overreaching.score.toFixed(2) : "—"}
+            {overreaching.score == null ? "—" : overreaching.score.toFixed(2)}
           </span>
           {overreaching.risk_level && (
             <span
@@ -144,9 +144,9 @@ function CorrelationsCard({
                 getCorrelationColor(correlations.hrv_rhr_correlation),
               )}
             >
-              {correlations.hrv_rhr_correlation != null
-                ? correlations.hrv_rhr_correlation.toFixed(2)
-                : "—"}
+              {correlations.hrv_rhr_correlation == null
+                ? "—"
+                : correlations.hrv_rhr_correlation.toFixed(2)}
             </span>
           </div>
           <div className="flex justify-between items-center">
@@ -160,9 +160,9 @@ function CorrelationsCard({
                   : "text-muted-foreground",
               )}
             >
-              {correlations.sleep_hrv_lag_correlation != null
-                ? correlations.sleep_hrv_lag_correlation.toFixed(2)
-                : "—"}
+              {correlations.sleep_hrv_lag_correlation == null
+                ? "—"
+                : correlations.sleep_hrv_lag_correlation.toFixed(2)}
             </span>
           </div>
           <div className="flex justify-between items-center">
@@ -178,9 +178,9 @@ function CorrelationsCard({
                   : "text-muted-foreground",
               )}
             >
-              {correlations.strain_recovery_correlation != null
-                ? correlations.strain_recovery_correlation.toFixed(2)
-                : "—"}
+              {correlations.strain_recovery_correlation == null
+                ? "—"
+                : correlations.strain_recovery_correlation.toFixed(2)}
             </span>
           </div>
           <p className="text-xs text-muted-foreground pt-1 border-t">
@@ -233,9 +233,9 @@ function VelocityCard({ velocity }: Readonly<{ velocity: VelocityMetrics }>) {
               <span className="text-sm text-muted-foreground">{label}</span>
               <div className="flex items-center gap-2">
                 <span className="font-mono text-sm">
-                  {value != null
-                    ? `${signPrefix(value)}${value.toFixed(2)} ${unit}`
-                    : "—"}
+                  {value == null
+                    ? "—"
+                    : `${signPrefix(value)}${value.toFixed(2)} ${unit}`}
                 </span>
                 {status && (
                   <span
@@ -358,17 +358,17 @@ function RecoveryCapacityCard({
           <div>
             <p className="text-xs text-muted-foreground">Avg Recovery Days</p>
             <p className="text-lg font-semibold">
-              {recoveryCapacity.avg_recovery_days != null
-                ? `${recoveryCapacity.avg_recovery_days.toFixed(1)} days`
-                : "—"}
+              {recoveryCapacity.avg_recovery_days == null
+                ? "—"
+                : `${recoveryCapacity.avg_recovery_days.toFixed(1)} days`}
             </p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Recovery Efficiency</p>
             <p className="text-lg font-semibold">
-              {recoveryCapacity.recovery_efficiency != null
-                ? recoveryCapacity.recovery_efficiency.toFixed(2)
-                : "—"}
+              {recoveryCapacity.recovery_efficiency == null
+                ? "—"
+                : recoveryCapacity.recovery_efficiency.toFixed(2)}
             </p>
           </div>
           <div>
@@ -449,9 +449,9 @@ function IllnessRiskCard({
               Combined Deviation
             </span>
             <span className="font-mono text-sm">
-              {illnessRisk.combined_deviation != null
-                ? illnessRisk.combined_deviation.toFixed(2)
-                : "—"}
+              {illnessRisk.combined_deviation == null
+                ? "—"
+                : illnessRisk.combined_deviation.toFixed(2)}
             </span>
           </div>
           <div className="flex justify-between items-center">
@@ -705,9 +705,9 @@ function FitnessCard({ insights }: Readonly<{ insights: AdvancedInsights }>) {
                   : "text-green-500",
               )}
             >
-              {f.days_since_last_workout != null
-                ? `${String(f.days_since_last_workout)}d ago`
-                : "—"}
+              {f.days_since_last_workout == null
+                ? "—"
+                : `${String(f.days_since_last_workout)}d ago`}
             </span>
           </div>
           <div className="flex justify-between items-center">

@@ -49,9 +49,11 @@ export function ActivitySection({
                 Steps {formatDaysLabel(shortTermDays)} avg
               </p>
               <p className="font-medium">
-                {activityMetrics.steps_avg_short != null
-                  ? Math.round(activityMetrics.steps_avg_short).toLocaleString()
-                  : "—"}
+                {activityMetrics.steps_avg_short == null
+                  ? "—"
+                  : Math.round(
+                      activityMetrics.steps_avg_short,
+                    ).toLocaleString()}
               </p>
             </div>
             <div>
@@ -59,9 +61,9 @@ export function ActivitySection({
                 Steps {formatDaysLabel(baselineDays)} avg
               </p>
               <p className="font-medium">
-                {activityMetrics.steps_avg_long != null
-                  ? Math.round(activityMetrics.steps_avg_long).toLocaleString()
-                  : "—"}
+                {activityMetrics.steps_avg_long == null
+                  ? "—"
+                  : Math.round(activityMetrics.steps_avg_long).toLocaleString()}
               </p>
             </div>
             <div>
@@ -110,9 +112,9 @@ export function ActivitySection({
                 EMA {formatDaysLabel(shortTermDays)}
               </p>
               <p className="font-medium">
-                {weightMetrics.ema_short != null
-                  ? `${weightMetrics.ema_short.toFixed(1)} kg`
-                  : "—"}
+                {weightMetrics.ema_short == null
+                  ? "—"
+                  : `${weightMetrics.ema_short.toFixed(1)} kg`}
               </p>
             </div>
             <div>
@@ -120,9 +122,9 @@ export function ActivitySection({
                 EMA {formatDaysLabel(baselineDays)}
               </p>
               <p className="font-medium">
-                {weightMetrics.ema_long != null
-                  ? `${weightMetrics.ema_long.toFixed(1)} kg`
-                  : "—"}
+                {weightMetrics.ema_long == null
+                  ? "—"
+                  : `${weightMetrics.ema_long.toFixed(1)} kg`}
               </p>
             </div>
             <div>
@@ -135,9 +137,9 @@ export function ActivitySection({
                   getWeightChangeColor(weightMetrics.period_change),
                 )}
               >
-                {weightMetrics.period_change != null
-                  ? `${signPrefix(weightMetrics.period_change)}${weightMetrics.period_change.toFixed(2)} kg`
-                  : "—"}
+                {weightMetrics.period_change == null
+                  ? "—"
+                  : `${signPrefix(weightMetrics.period_change)}${weightMetrics.period_change.toFixed(2)} kg`}
               </p>
             </div>
             <div>
@@ -166,9 +168,9 @@ export function ActivitySection({
                 {formatDaysLabel(shortTermDays)} load
               </p>
               <p className="font-medium">
-                {recoveryMetrics.stress_load_short != null
-                  ? Math.round(recoveryMetrics.stress_load_short)
-                  : "—"}
+                {recoveryMetrics.stress_load_short == null
+                  ? "—"
+                  : Math.round(recoveryMetrics.stress_load_short)}
               </p>
             </div>
             <div>
@@ -176,9 +178,9 @@ export function ActivitySection({
                 {formatDaysLabel(baselineDays)} load
               </p>
               <p className="font-medium">
-                {recoveryMetrics.stress_load_long != null
-                  ? Math.round(recoveryMetrics.stress_load_long)
-                  : "—"}
+                {recoveryMetrics.stress_load_long == null
+                  ? "—"
+                  : Math.round(recoveryMetrics.stress_load_long)}
               </p>
             </div>
             <div>
@@ -189,17 +191,17 @@ export function ActivitySection({
                   getStressTrendColor(recoveryMetrics.stress_trend),
                 )}
               >
-                {recoveryMetrics.stress_trend != null
-                  ? `${signPrefix(recoveryMetrics.stress_trend)}${recoveryMetrics.stress_trend.toFixed(1)}`
-                  : "—"}
+                {recoveryMetrics.stress_trend == null
+                  ? "—"
+                  : `${signPrefix(recoveryMetrics.stress_trend)}${recoveryMetrics.stress_trend.toFixed(1)}`}
               </p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Recovery CV</p>
               <p className="font-medium">
-                {recoveryMetrics.recovery_cv != null
-                  ? `${(recoveryMetrics.recovery_cv * 100).toFixed(1)}%`
-                  : "—"}
+                {recoveryMetrics.recovery_cv == null
+                  ? "—"
+                  : `${(recoveryMetrics.recovery_cv * 100).toFixed(1)}%`}
               </p>
             </div>
           </div>

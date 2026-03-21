@@ -57,9 +57,9 @@ export function LongevitySection({ longevityInsights }: LongevitySectionProps) {
                   getLongevityScoreColor(longevity_score.overall),
                 )}
               >
-                {longevity_score.overall != null
-                  ? longevity_score.overall.toFixed(0)
-                  : "—"}
+                {longevity_score.overall == null
+                  ? "—"
+                  : longevity_score.overall.toFixed(0)}
               </p>
               <p className="text-xs text-muted-foreground mt-1">out of 100</p>
               {longevity_score.trend != null && (
@@ -111,7 +111,7 @@ export function LongevitySection({ longevityInsights }: LongevitySectionProps) {
                       getLongevityScoreColor(value),
                     )}
                   >
-                    {value != null ? value.toFixed(0) : "—"}
+                    {value == null ? "—" : value.toFixed(0)}
                   </span>
                 </div>
               ))}
@@ -132,9 +132,9 @@ export function LongevitySection({ longevityInsights }: LongevitySectionProps) {
                   getAgeDeltaColor(biological_age.age_delta),
                 )}
               >
-                {biological_age.composite_biological_age != null
-                  ? biological_age.composite_biological_age.toFixed(1)
-                  : "—"}
+                {biological_age.composite_biological_age == null
+                  ? "—"
+                  : biological_age.composite_biological_age.toFixed(1)}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 Chronological: {biological_age.chronological_age}
@@ -178,9 +178,9 @@ export function LongevitySection({ longevityInsights }: LongevitySectionProps) {
                   <span
                     className={cn("font-mono", getAgeDeltaColor(comp.delta))}
                   >
-                    {comp.estimated_age != null
-                      ? comp.estimated_age.toFixed(1)
-                      : "—"}
+                    {comp.estimated_age == null
+                      ? "—"
+                      : comp.estimated_age.toFixed(1)}
                     {comp.delta != null && (
                       <span className="ml-1">
                         ({signPrefix(comp.delta)}
@@ -205,17 +205,17 @@ export function LongevitySection({ longevityInsights }: LongevitySectionProps) {
                 <div className="flex justify-between text-sm mb-1">
                   <span className="text-muted-foreground">Zone 2 (7d)</span>
                   <span className="font-mono">
-                    {training_zones.zone2_minutes_7d != null
-                      ? `${String(Math.round(training_zones.zone2_minutes_7d))} min`
-                      : "—"}
+                    {training_zones.zone2_minutes_7d == null
+                      ? "—"
+                      : `${String(Math.round(training_zones.zone2_minutes_7d))} min`}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Zone 2 (30d)</span>
                   <span className="font-mono">
-                    {training_zones.zone2_minutes_30d != null
-                      ? `${String(Math.round(training_zones.zone2_minutes_30d))} min`
-                      : "—"}
+                    {training_zones.zone2_minutes_30d == null
+                      ? "—"
+                      : `${String(Math.round(training_zones.zone2_minutes_30d))} min`}
                     {training_zones.zone2_pct_of_total != null && (
                       <span className="text-muted-foreground ml-1">
                         ({training_zones.zone2_pct_of_total.toFixed(0)}%)
@@ -242,17 +242,17 @@ export function LongevitySection({ longevityInsights }: LongevitySectionProps) {
                 <div className="flex justify-between text-sm mb-1">
                   <span className="text-muted-foreground">Zone 5 (7d)</span>
                   <span className="font-mono">
-                    {training_zones.zone5_minutes_7d != null
-                      ? `${String(Math.round(training_zones.zone5_minutes_7d))} min`
-                      : "—"}
+                    {training_zones.zone5_minutes_7d == null
+                      ? "—"
+                      : `${String(Math.round(training_zones.zone5_minutes_7d))} min`}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Zone 5 (30d)</span>
                   <span className="font-mono">
-                    {training_zones.zone5_minutes_30d != null
-                      ? `${String(Math.round(training_zones.zone5_minutes_30d))} min`
-                      : "—"}
+                    {training_zones.zone5_minutes_30d == null
+                      ? "—"
+                      : `${String(Math.round(training_zones.zone5_minutes_30d))} min`}
                     {training_zones.zone5_pct_of_total != null && (
                       <span className="text-muted-foreground ml-1">
                         ({training_zones.zone5_pct_of_total.toFixed(0)}%)

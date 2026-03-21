@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass, field
 from datetime import date
 
 from .constants import (
@@ -152,9 +153,7 @@ def _recovery_component(
     )
     if not rec_vals:
         return None
-    rec_mean = mean_or_none(rec_vals)
-    if rec_mean is None:
-        return None
+    rec_mean = sum(rec_vals) / len(rec_vals)
     recovery_offset = (50 - rec_mean) / 10 * 2
     return BiologicalAgeComponent(
         name="recovery_age",
@@ -459,53 +458,56 @@ def calculate_longevity_score(
     )
 
 
-def calculate_longevity_insights(
-    hrv_data: list[DataPoint],
-    rhr_data: list[DataPoint],
-    vo2_max_data: list[DataPoint],
-    fitness_age_data: list[DataPoint],
-    recovery_data: list[DataPoint],
-    sleep_data: list[DataPoint],
-    weight_data: list[DataPoint],
-    body_fat_data: list[DataPoint],
-    steps_data: list[DataPoint],
-    workout_dates: list[DataPoint],
-    zone2_data: list[DataPoint],
-    zone5_data: list[DataPoint],
-    total_training_data: list[DataPoint],
-    chronological_age: float | None,
-    baseline_window: int = 90,
-    ref_date: date | None = None,
-) -> LongevityInsights:
-    chrono_age = chronological_age or 30.0
+@dataclass
+class LongevityInsightsInput:
+    hrv_data: list[DataPoint] = field(default_factory=list)
+    rhr_data: list[DataPoint] = field(default_factory=list)
+    vo2_max_data: list[DataPoint] = field(default_factory=list)
+    fitness_age_data: list[DataPoint] = field(default_factory=list)
+    recovery_data: list[DataPoint] = field(default_factory=list)
+    sleep_data: list[DataPoint] = field(default_factory=list)
+    weight_data: list[DataPoint] = field(default_factory=list)
+    body_fat_data: list[DataPoint] = field(default_factory=list)
+    steps_data: list[DataPoint] = field(default_factory=list)
+    workout_dates: list[DataPoint] = field(default_factory=list)
+    zone2_data: list[DataPoint] = field(default_factory=list)
+    zone5_data: list[DataPoint] = field(default_factory=list)
+    total_training_data: list[DataPoint] = field(default_factory=list)
+    chronological_age: float | None = None
+    baseline_window: int = 90
+    ref_date: date | None = None
+
+
+def calculate_longevity_insights(inp: LongevityInsightsInput) -> LongevityInsights:
+    chrono_age = inp.chronological_age or 30.0
 
     bio_age = calculate_biological_age(
-        hrv_data,
-        vo2_max_data,
-        rhr_data,
-        fitness_age_data,
-        recovery_data,
-        chronological_age,
-        ref_date,
+        inp.hrv_data,
+        inp.vo2_max_data,
+        inp.rhr_data,
+        inp.fitness_age_data,
+        inp.recovery_data,
+        inp.chronological_age,
+        inp.ref_date,
     )
     training_zones = calculate_training_zones(
-        zone2_data,
-        zone5_data,
-        total_training_data,
-        ref_date,
+        inp.zone2_data,
+        inp.zone5_data,
+        inp.total_training_data,
+        inp.ref_date,
     )
     longevity_score = calculate_longevity_score(
-        vo2_max_data,
-        hrv_data,
-        recovery_data,
-        sleep_data,
-        weight_data,
-        body_fat_data,
-        steps_data,
-        workout_dates,
+        inp.vo2_max_data,
+        inp.hrv_data,
+        inp.recovery_data,
+        inp.sleep_data,
+        inp.weight_data,
+        inp.body_fat_data,
+        inp.steps_data,
+        inp.workout_dates,
         chrono_age,
-        baseline_window,
-        ref_date,
+        inp.baseline_window,
+        inp.ref_date,
     )
 
     return LongevityInsights(

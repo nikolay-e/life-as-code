@@ -4,7 +4,7 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
-from .advanced import calculate_advanced_insights
+from .advanced import AdvancedInsightsInput, calculate_advanced_insights
 from .clinical import (
     calculate_clinical_alerts,
     calculate_decorrelation_alert,
@@ -21,9 +21,10 @@ from .fusion import (
     get_data_source_summary,
     get_latest_fused_input,
 )
-from .longevity import calculate_longevity_insights
+from .longevity import LongevityInsightsInput, calculate_longevity_insights
 from .metric_series import FusedHealthData, MetricSeries
 from .metrics import (
+    HealthScoreInput,
     baseline_cache_scope,
     calculate_activity_metrics,
     calculate_baseline_metrics,
@@ -278,27 +279,29 @@ def _compute_health_analysis_impl(
     )
 
     health_score = calculate_health_score(
-        adjusted_hrv,
-        adjusted_rhr,
-        adjusted_sleep,
-        adjusted_stress,
-        adjusted_steps,
-        adjusted_strain,
-        hrv_q,
-        rhr_q,
-        sleep_q,
-        stress_q,
-        steps_q,
-        strain_q,
-        fused_inputs,
-        calories_data,
-        weight_data,
-        config.baseline,
-        config.short_term,
-        config.trend_window,
-        options,
-        config.use_shifted_z_score,
-        ref_date=target_date,
+        HealthScoreInput(
+            hrv_data=adjusted_hrv,
+            rhr_data=adjusted_rhr,
+            sleep_data=adjusted_sleep,
+            stress_data=adjusted_stress,
+            steps_data=adjusted_steps,
+            strain_data=adjusted_strain,
+            hrv_quality=hrv_q,
+            rhr_quality=rhr_q,
+            sleep_quality=sleep_q,
+            stress_quality=stress_q,
+            steps_quality=steps_q,
+            strain_quality=strain_q,
+            fused_inputs=fused_inputs,
+            calories_data=calories_data,
+            weight_data=weight_data,
+            baseline_window=config.baseline,
+            short_term_window=config.short_term,
+            trend_window=config.trend_window,
+            options=options,
+            use_shifted_z_score=config.use_shifted_z_score,
+            ref_date=target_date,
+        )
     )
 
     recovery_metrics = calculate_recovery_metrics(
@@ -428,45 +431,49 @@ def _compute_health_analysis_impl(
     sleep_eff = raw.sleep_efficiency_garmin or raw.sleep_efficiency_whoop
 
     advanced_insights = calculate_advanced_insights(
-        hrv_data=hrv_data,
-        rhr_data=rhr_data,
-        sleep_data=sleep_data,
-        sleep_deep=sleep_deep,
-        sleep_rem=sleep_rem,
-        sleep_awake_count=sleep_awake,
-        sleep_efficiency=sleep_eff,
-        strain_data=strain_data,
-        stress_data=stress_data,
-        steps_data=steps_data,
-        weight_data=weight_data,
-        recovery_data=recovery_data,
-        workout_dates=raw.workout_dates,
-        vo2_max_data=raw.vo2_max,
-        short_window=config.short_term,
-        baseline_window=config.baseline,
-        ref_date=target_date,
+        AdvancedInsightsInput(
+            hrv_data=hrv_data,
+            rhr_data=rhr_data,
+            sleep_data=sleep_data,
+            sleep_deep=sleep_deep,
+            sleep_rem=sleep_rem,
+            sleep_awake_count=sleep_awake,
+            sleep_efficiency=sleep_eff,
+            strain_data=strain_data,
+            stress_data=stress_data,
+            steps_data=steps_data,
+            weight_data=weight_data,
+            recovery_data=recovery_data,
+            workout_dates=raw.workout_dates,
+            vo2_max_data=raw.vo2_max,
+            short_window=config.short_term,
+            baseline_window=config.baseline,
+            ref_date=target_date,
+        )
     )
 
     ml_insights = load_ml_insights(db, user_id, ref_date=target_date)
 
     chronological_age = _get_chronological_age(db, user_id, target_date)
     longevity_insights = calculate_longevity_insights(
-        hrv_data=hrv_data,
-        rhr_data=rhr_data,
-        vo2_max_data=raw.vo2_max,
-        fitness_age_data=raw.fitness_age,
-        recovery_data=recovery_data,
-        sleep_data=sleep_data,
-        weight_data=weight_data,
-        body_fat_data=raw.body_fat,
-        steps_data=steps_data,
-        workout_dates=raw.workout_dates,
-        zone2_data=raw.zone2_minutes,
-        zone5_data=raw.zone5_minutes,
-        total_training_data=raw.total_training_minutes,
-        chronological_age=chronological_age,
-        baseline_window=config.baseline,
-        ref_date=target_date,
+        LongevityInsightsInput(
+            hrv_data=hrv_data,
+            rhr_data=rhr_data,
+            vo2_max_data=raw.vo2_max,
+            fitness_age_data=raw.fitness_age,
+            recovery_data=recovery_data,
+            sleep_data=sleep_data,
+            weight_data=weight_data,
+            body_fat_data=raw.body_fat,
+            steps_data=steps_data,
+            workout_dates=raw.workout_dates,
+            zone2_data=raw.zone2_minutes,
+            zone5_data=raw.zone5_minutes,
+            total_training_data=raw.total_training_minutes,
+            chronological_age=chronological_age,
+            baseline_window=config.baseline,
+            ref_date=target_date,
+        )
     )
 
     metric_baselines = _compute_metric_baselines(

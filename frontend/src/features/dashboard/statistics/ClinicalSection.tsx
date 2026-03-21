@@ -56,9 +56,9 @@ export function ClinicalSection({ clinicalAlerts }: ClinicalSectionProps) {
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">
-                {clinicalAlerts.hrv_drop_percent != null
-                  ? `${(clinicalAlerts.hrv_drop_percent * 100).toFixed(0)}%`
-                  : "—"}{" "}
+                {clinicalAlerts.hrv_drop_percent == null
+                  ? "—"
+                  : `${(clinicalAlerts.hrv_drop_percent * 100).toFixed(0)}%`}{" "}
                 drop from previous day
               </p>
             </div>
@@ -72,9 +72,9 @@ export function ClinicalSection({ clinicalAlerts }: ClinicalSectionProps) {
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">
-                {clinicalAlerts.weight_loss_percent != null
-                  ? `${(clinicalAlerts.weight_loss_percent * 100).toFixed(1)}%`
-                  : "—"}{" "}
+                {clinicalAlerts.weight_loss_percent == null
+                  ? "—"
+                  : `${(clinicalAlerts.weight_loss_percent * 100).toFixed(1)}%`}{" "}
                 loss over 30 days
               </p>
             </div>

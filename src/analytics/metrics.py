@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 from contextlib import contextmanager
 from contextvars import ContextVar
+from dataclasses import dataclass, field
 from datetime import date
 from typing import Literal
 
@@ -1154,58 +1155,61 @@ def _build_health_contributors(
     ]
 
 
-def calculate_health_score(
-    hrv_data: list[DataPoint],
-    rhr_data: list[DataPoint],
-    sleep_data: list[DataPoint],
-    stress_data: list[DataPoint],
-    steps_data: list[DataPoint],
-    strain_data: list[DataPoint],
-    hrv_quality: DataQuality | None = None,
-    rhr_quality: DataQuality | None = None,
-    sleep_quality: DataQuality | None = None,
-    stress_quality: DataQuality | None = None,
-    steps_quality: DataQuality | None = None,
-    strain_quality: DataQuality | None = None,
-    fused_inputs: dict[str, FusedZScoreInput] | None = None,
-    calories_data: list[DataPoint] | None = None,
-    weight_data: list[DataPoint] | None = None,
-    baseline_window: int = 30,
-    short_term_window: int = 7,
-    trend_window: int = 7,
-    options: BaselineOptions | None = None,
-    use_shifted_z_score: bool = False,
-    ref_date: date | None = None,
-) -> HealthScore:
+@dataclass
+class HealthScoreInput:
+    hrv_data: list[DataPoint] = field(default_factory=list)
+    rhr_data: list[DataPoint] = field(default_factory=list)
+    sleep_data: list[DataPoint] = field(default_factory=list)
+    stress_data: list[DataPoint] = field(default_factory=list)
+    steps_data: list[DataPoint] = field(default_factory=list)
+    strain_data: list[DataPoint] = field(default_factory=list)
+    hrv_quality: DataQuality | None = None
+    rhr_quality: DataQuality | None = None
+    sleep_quality: DataQuality | None = None
+    stress_quality: DataQuality | None = None
+    steps_quality: DataQuality | None = None
+    strain_quality: DataQuality | None = None
+    fused_inputs: dict[str, FusedZScoreInput] | None = None
+    calories_data: list[DataPoint] | None = None
+    weight_data: list[DataPoint] | None = None
+    baseline_window: int = 30
+    short_term_window: int = 7
+    trend_window: int = 7
+    options: BaselineOptions | None = None
+    use_shifted_z_score: bool = False
+    ref_date: date | None = None
+
+
+def calculate_health_score(inp: HealthScoreInput) -> HealthScore:
     steps_ok, adjusted_steps, steps_reason = should_use_today_metric(
-        steps_data, "steps", ref_date=ref_date
+        inp.steps_data, "steps", ref_date=inp.ref_date
     )
     _, adjusted_strain, _ = should_use_today_metric(
-        strain_data, "strain", ref_date=ref_date
+        inp.strain_data, "strain", ref_date=inp.ref_date
     )
     _, adjusted_stress, _ = should_use_today_metric(
-        stress_data, "stress", ref_date=ref_date
+        inp.stress_data, "stress", ref_date=inp.ref_date
     )
     adjusted_calories: list[DataPoint] = []
-    if calories_data:
+    if inp.calories_data:
         _, adjusted_calories, _ = should_use_today_metric(
-            calories_data, "calories", ref_date=ref_date
+            inp.calories_data, "calories", ref_date=inp.ref_date
         )
 
     baselines = _compute_health_score_baselines(
-        hrv_data,
-        rhr_data,
-        sleep_data,
+        inp.hrv_data,
+        inp.rhr_data,
+        inp.sleep_data,
         adjusted_stress,
         adjusted_steps,
         adjusted_strain,
         adjusted_calories,
-        weight_data,
-        baseline_window,
-        short_term_window,
-        trend_window,
-        options,
-        ref_date,
+        inp.weight_data,
+        inp.baseline_window,
+        inp.short_term_window,
+        inp.trend_window,
+        inp.options,
+        inp.ref_date,
     )
     bl_hrv = baselines["hrv"]
     bl_rhr = baselines["rhr"]
@@ -1216,15 +1220,15 @@ def calculate_health_score(
     bl_calories = baselines["calories"]
     bl_weight = baselines["weight"]
 
-    fi = fused_inputs or {}
+    fi = inp.fused_inputs or {}
     confs = _resolve_metric_confidences(
         fi,
-        hrv_quality,
-        rhr_quality,
-        sleep_quality,
-        stress_quality,
-        steps_quality,
-        strain_quality,
+        inp.hrv_quality,
+        inp.rhr_quality,
+        inp.sleep_quality,
+        inp.stress_quality,
+        inp.steps_quality,
+        inp.strain_quality,
         bl_calories,
         bl_weight,
     )
@@ -1232,7 +1236,7 @@ def calculate_health_score(
     def select_z(bl_item: BaselineMetrics | None) -> float | None:
         if bl_item is None:
             return None
-        return bl_item.shifted_z_score if use_shifted_z_score else bl_item.z_score
+        return bl_item.shifted_z_score if inp.use_shifted_z_score else bl_item.z_score
 
     raw_z_hrv = _clamp_z(select_z(bl_hrv))
     raw_z_rhr = _clamp_z(select_z(bl_rhr))

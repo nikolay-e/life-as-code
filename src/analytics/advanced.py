@@ -793,46 +793,8 @@ class AdvancedInsightsInput:
     ref_date: date | None = None
 
 
-def calculate_advanced_insights(
-    hrv_data: list[DataPoint],
-    rhr_data: list[DataPoint],
-    sleep_data: list[DataPoint],
-    sleep_deep: list[DataPoint],
-    sleep_rem: list[DataPoint],
-    sleep_awake_count: list[DataPoint],
-    sleep_efficiency: list[DataPoint],
-    strain_data: list[DataPoint],
-    stress_data: list[DataPoint],
-    steps_data: list[DataPoint],
-    weight_data: list[DataPoint],
-    recovery_data: list[DataPoint],
-    workout_dates: list[DataPoint],
-    vo2_max_data: list[DataPoint],
-    short_window: int = 7,
-    baseline_window: int = 90,
-    ref_date: date | None = None,
-) -> AdvancedInsights:
-    return _calculate_advanced_insights_impl(
-        AdvancedInsightsInput(
-            hrv_data=hrv_data,
-            rhr_data=rhr_data,
-            sleep_data=sleep_data,
-            sleep_deep=sleep_deep,
-            sleep_rem=sleep_rem,
-            sleep_awake_count=sleep_awake_count,
-            sleep_efficiency=sleep_efficiency,
-            strain_data=strain_data,
-            stress_data=stress_data,
-            steps_data=steps_data,
-            weight_data=weight_data,
-            recovery_data=recovery_data,
-            workout_dates=workout_dates,
-            vo2_max_data=vo2_max_data,
-            short_window=short_window,
-            baseline_window=baseline_window,
-            ref_date=ref_date,
-        )
-    )
+def calculate_advanced_insights(inp: AdvancedInsightsInput) -> AdvancedInsights:
+    return _calculate_advanced_insights_impl(inp)
 
 
 def _calculate_advanced_insights_impl(inp: AdvancedInsightsInput) -> AdvancedInsights:

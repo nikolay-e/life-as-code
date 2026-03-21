@@ -47,9 +47,9 @@ export function SleepSection({
               {formatDaysLabel(shortTermDays)} Average
             </p>
             <p className="font-medium">
-              {sleepMetrics.avg_sleep_short != null
-                ? formatSleepMinutes(sleepMetrics.avg_sleep_short)
-                : "—"}
+              {sleepMetrics.avg_sleep_short == null
+                ? "—"
+                : formatSleepMinutes(sleepMetrics.avg_sleep_short)}
             </p>
           </div>
           <div>
@@ -57,9 +57,9 @@ export function SleepSection({
               {formatDaysLabel(baselineDays)} Average
             </p>
             <p className="font-medium">
-              {sleepMetrics.avg_sleep_long != null
-                ? formatSleepMinutes(sleepMetrics.avg_sleep_long)
-                : "—"}
+              {sleepMetrics.avg_sleep_long == null
+                ? "—"
+                : formatSleepMinutes(sleepMetrics.avg_sleep_long)}
             </p>
           </div>
         </div>

@@ -176,9 +176,9 @@ function MetricCard({
                 <div className="flex items-center gap-1">
                   {trendIcon}
                   <span className="font-medium">
-                    {baseline.trend_slope != null
-                      ? `${signPrefix(baseline.trend_slope)}${baseline.trend_slope.toFixed(2)}/d`
-                      : "—"}
+                    {baseline.trend_slope == null
+                      ? "—"
+                      : `${signPrefix(baseline.trend_slope)}${baseline.trend_slope.toFixed(2)}/d`}
                   </span>
                 </div>
               </div>
@@ -229,9 +229,9 @@ export function HealthScoreSection({
             <div>
               <CardTitle>Health Status Score</CardTitle>
               <CardDescription>
-                {healthScore.training_load != null
-                  ? "Composite: recovery core (60%) + training load (20%) + behavior (20%)"
-                  : "Composite: recovery core (75%) + behavior support (25%)"}
+                {healthScore.training_load == null
+                  ? "Composite: recovery core (75%) + behavior support (25%)"
+                  : "Composite: recovery core (60%) + training load (20%) + behavior (20%)"}
               </CardDescription>
             </div>
           </div>
@@ -240,9 +240,9 @@ export function HealthScoreSection({
           <div
             className={cn(
               "grid gap-6 md:grid-cols-2",
-              healthScore.training_load != null
-                ? "lg:grid-cols-4"
-                : "lg:grid-cols-3",
+              healthScore.training_load == null
+                ? "lg:grid-cols-3"
+                : "lg:grid-cols-4",
             )}
           >
             <div className="text-center">
@@ -253,9 +253,9 @@ export function HealthScoreSection({
                   getHealthScoreColor(healthScore.overall),
                 )}
               >
-                {healthScore.overall != null
-                  ? healthScore.overall.toFixed(2)
-                  : "—"}
+                {healthScore.overall == null
+                  ? "—"
+                  : healthScore.overall.toFixed(2)}
               </p>
               <p
                 className={cn(
@@ -276,9 +276,9 @@ export function HealthScoreSection({
                   getHealthScoreColor(healthScore.recovery_core),
                 )}
               >
-                {healthScore.recovery_core != null
-                  ? healthScore.recovery_core.toFixed(2)
-                  : "—"}
+                {healthScore.recovery_core == null
+                  ? "—"
+                  : healthScore.recovery_core.toFixed(2)}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 HRV + RHR + Sleep + Stress
@@ -312,9 +312,9 @@ export function HealthScoreSection({
                   getHealthScoreColor(healthScore.behavior_support),
                 )}
               >
-                {healthScore.behavior_support != null
-                  ? healthScore.behavior_support.toFixed(2)
-                  : "—"}
+                {healthScore.behavior_support == null
+                  ? "—"
+                  : healthScore.behavior_support.toFixed(2)}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 Steps + Calories + Weight
