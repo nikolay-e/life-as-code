@@ -42,6 +42,7 @@ import {
   getAllostaticScoreColor,
   getCrossCorrelationColor,
   signPrefix,
+  formatMetricLabel,
 } from "./stat-utils";
 
 function OverreachingCard({
@@ -762,7 +763,7 @@ function AllostaticLoadCard({ insights }: { insights: AdvancedInsights }) {
           <div className="text-xs text-muted-foreground pt-2 border-t space-y-1">
             {Object.entries(al.breach_rates).map(([metric, rate]) => (
               <div key={metric} className="flex justify-between">
-                <span>{metric}</span>
+                <span>{formatMetricLabel(metric)}</span>
                 <span
                   className={cn(
                     "font-mono",
@@ -853,7 +854,7 @@ function CrossDomainCard({ insights }: { insights: AdvancedInsights }) {
           <div className="text-xs text-muted-foreground pt-2 border-t space-y-1">
             {Object.entries(cd.weekday_weekend).map(([metric, split]) => (
               <div key={metric} className="flex justify-between">
-                <span>{metric}</span>
+                <span>{formatMetricLabel(metric)}</span>
                 <span className="font-mono">
                   {split.weekday_mean?.toFixed(0) ?? "—"} /{" "}
                   {split.weekend_mean?.toFixed(0) ?? "—"}

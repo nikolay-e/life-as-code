@@ -119,7 +119,12 @@ export const MultiProviderLineChart = memo(
             scale="time"
             domain={xDomain ?? ["dataMin", "dataMax"]}
           />
-          <YAxis domain={yDomain} className="text-xs" />
+          <YAxis
+            domain={yDomain}
+            className="text-xs"
+            allowDecimals={false}
+            tickFormatter={(v: number) => Math.round(v).toString()}
+          />
           <Tooltip
             labelFormatter={(value) =>
               format(new Date(value as number), "MMM d")

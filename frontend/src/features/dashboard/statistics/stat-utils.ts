@@ -98,6 +98,29 @@ export function signPrefix(value: number): string {
   return value > 0 ? "+" : "";
 }
 
+const METRIC_LABELS: Record<string, string> = {
+  hrv: "HRV",
+  rhr: "RHR",
+  sleep: "Sleep",
+  stress: "Stress",
+  weight: "Weight",
+  steps: "Steps",
+  strain: "Strain",
+  recovery: "Recovery",
+  calories: "Calories",
+  hrv_age: "HRV Age",
+  fitness_age: "Fitness Age",
+  rhr_age: "RHR Age",
+  recovery_age: "Recovery Age",
+};
+
+export function formatMetricLabel(key: string): string {
+  return (
+    METRIC_LABELS[key] ??
+    key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+  );
+}
+
 export function formatDaysLabel(days: number): string {
   if (days >= 365) {
     const years = Math.round(days / 365);

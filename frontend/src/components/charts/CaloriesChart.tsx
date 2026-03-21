@@ -74,7 +74,7 @@ export const CaloriesChart = memo(
         garminLabel="Active"
         whoopLabel="Whoop"
         unit="kcal"
-        yDomain={["dataMin - 100", "dataMax + 100"]}
+        yDomain={[0, "dataMax + 100"]}
         valueFormatter={(v) => v.toLocaleString()}
         showTrends={showTrends}
         bandwidthShort={bandwidthShort}

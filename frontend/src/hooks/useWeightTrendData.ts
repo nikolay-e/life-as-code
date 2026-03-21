@@ -65,10 +65,16 @@ export function useWeightTrendData(
       };
     }
 
-    const normalizedData = data.map((d) => ({
-      date: d.date,
-      weight_kg: d.weight_kg,
-    }));
+    const byDate = new Map<string, number>();
+    for (const d of data) {
+      if (d.weight_kg != null) {
+        byDate.set(d.date, d.weight_kg);
+      }
+    }
+    const normalizedData = Array.from(byDate, ([date, weight_kg]) => ({
+      date,
+      weight_kg,
+    })).sort((a, b) => a.date.localeCompare(b.date));
 
     const smoothedData = calculateBiologicalWeightSmoothing(
       normalizedData,

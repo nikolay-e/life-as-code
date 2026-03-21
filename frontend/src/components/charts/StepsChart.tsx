@@ -161,7 +161,16 @@ export const StepsChart = memo(
             />
           )}
 
-          {showTrends && <Legend />}
+          {showTrends && (
+            <Legend
+              formatter={(value: string) => {
+                if (value === "value") return "Steps";
+                if (value === "trendShort") return "Short trend";
+                if (value === "trendLong") return "Long trend";
+                return value;
+              }}
+            />
+          )}
         </ComposedChart>
       </ResponsiveContainer>
     );

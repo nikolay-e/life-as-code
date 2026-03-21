@@ -37,7 +37,7 @@ function formatDefault(
 
 function formatWithLocale(value: number | null): string {
   if (value === null) return "—";
-  return value.toLocaleString();
+  return Math.round(value).toLocaleString();
 }
 
 export const METRIC_REGISTRY: MetricDef[] = [
@@ -187,7 +187,8 @@ export const METRIC_REGISTRY: MetricDef[] = [
         d?.garmin_training_status ?? [],
         (r) => r.total_kilocalories,
       ),
-    format: (v) => (v === null ? "—" : `${v.toLocaleString()} kcal`),
+    format: (v) =>
+      v === null ? "—" : `${Math.round(v).toLocaleString()} kcal`,
   },
   {
     key: "dailyStrain",

@@ -8,7 +8,7 @@ import {
 import type { LongevityInsights } from "../../../types/api";
 import { Heart, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { cn } from "../../../lib/utils";
-import { signPrefix } from "./stat-utils";
+import { signPrefix, formatMetricLabel } from "./stat-utils";
 
 function getLongevityScoreColor(score: number | null): string {
   if (score === null) return "text-muted-foreground";
@@ -172,7 +172,9 @@ export function LongevitySection({ longevityInsights }: LongevitySectionProps) {
                   key={comp.name}
                   className="flex justify-between items-center text-xs"
                 >
-                  <span className="text-muted-foreground">{comp.name}</span>
+                  <span className="text-muted-foreground">
+                    {formatMetricLabel(comp.name)}
+                  </span>
                   <span
                     className={cn("font-mono", getAgeDeltaColor(comp.delta))}
                   >
