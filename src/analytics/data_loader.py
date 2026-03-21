@@ -216,13 +216,15 @@ def load_raw_health_data(
         ]
     )
 
-    weight_rows = (
-        db.query(Weight.date, Weight.source, Weight.weight_kg)
+    weight_all_rows = (
+        db.query(Weight)
         .filter(Weight.user_id == user_id, Weight.date >= cutoff, Weight.date <= anchor)
         .order_by(Weight.date)
         .all()
     )
-    raw.weight = _best_per_date([(r.date, r.source, r.weight_kg) for r in weight_rows])
+    raw.weight = _best_per_date(
+        [(r.date, r.source, r.weight_kg) for r in weight_all_rows]
+    )
 
     energy_rows = (
         db.query(Energy.date, Energy.source, Energy.active_energy, Energy.basal_energy)
@@ -282,19 +284,9 @@ def load_raw_health_data(
         if row.fitness_age is not None
     ]
 
-    weight_all = (
-        db.query(Weight)
-        .filter(
-            Weight.user_id == user_id,
-            Weight.date >= cutoff,
-            Weight.date <= anchor,
-        )
-        .order_by(Weight.date)
-        .all()
-    )
     raw.body_fat = [
         DataPoint(date=row.date.isoformat(), value=row.body_fat_pct)
-        for row in weight_all
+        for row in weight_all_rows
         if row.body_fat_pct is not None
     ]
 

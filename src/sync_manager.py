@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from database import bulk_upsert_records, get_db_session_context
@@ -13,7 +13,6 @@ from errors import CredentialsDecryptionError, CredentialsNotFoundError
 from logging_config import get_logger
 from models import DataSync
 from security import decrypt_data_for_user
-from sync_coordinator import acquire_sync_lock, is_sync_locked, release_sync_lock
 from utils import get_user_credentials
 
 logger = get_logger(__name__)
@@ -127,10 +126,16 @@ def get_provider_credentials(user_id: int, provider: DataSource) -> ProviderCred
     )
 
 
+def _sync_lock_id(user_id: int, source: str) -> int:
+    import hashlib
+
+    digest = hashlib.sha256(f"sync:{user_id}:{source}".encode()).digest()
+    return int.from_bytes(digest[:8], "big") & 0x7FFFFFFFFFFFFFFF
+
+
 def is_sync_in_progress(user_id: int, source: str | DataSource) -> bool:
     source_str = source.value if isinstance(source, DataSource) else source
-    result: bool = is_sync_locked(user_id, source_str)
-    return result
+    return is_sync_recently_active(user_id, source_str)
 
 
 def is_sync_recently_active(user_id: int, source: str, stale_minutes: int = 30) -> bool:
@@ -336,55 +341,64 @@ def extract_and_parse(
 ) -> SyncResult:
     sync_result = SyncResult(source, data_type, user_id)
 
-    if not acquire_sync_lock(user_id, source):
-        sync_result.add_error(f"Sync already in progress for {source}")
-        sync_result.finish(False)
-        return sync_result
-
-    try:
-        with get_db_session_context() as db:
-            _set_sync_in_progress(db, user_id, source, data_type)
-
-        logger.info("sync_started", source=source, data_type=data_type, user_id=user_id)
-        api_response = api_call_func(**api_kwargs)
-
-        if api_response is None:
-            sync_result.add_error("No data returned from API")
+    with get_db_session_context() as lock_db:
+        lock_id = _sync_lock_id(user_id, source)
+        acquired = lock_db.execute(
+            text("SELECT pg_try_advisory_lock(:id)"), {"id": lock_id}
+        ).scalar()
+        if not acquired:
+            sync_result.add_error(f"Sync already in progress for {source}")
             sync_result.finish(False)
-            with get_db_session_context() as db:
-                update_sync_status(db, user_id, source, data_type, sync_result)
             return sync_result
 
-        if not isinstance(api_response, list):
-            api_response = [api_response]
-
-        all_records = _collect_parsed_records(api_response, parser_class, sync_result)
-        _apply_bulk_upsert(
-            all_records, model_class, unique_fields, user_id, source, sync_result
-        )
-
-        with get_db_session_context() as db:
-            update_sync_status(db, user_id, source, data_type, sync_result)
-
-        sync_result.finish(True)
-
-    except Exception as e:
-        sync_result.add_error(f"Fatal error in {source} {data_type} sync: {str(e)}")
-        sync_result.finish(False)
         try:
-            with get_db_session_context() as db:
-                update_sync_status(db, user_id, source, data_type, sync_result)
-        except Exception as e:
-            logger.error(
-                "sync_status_update_after_fatal_error",
-                user_id=user_id,
-                source=source,
-                data_type=data_type,
-                error=str(e),
+            _set_sync_in_progress(lock_db, user_id, source, data_type)
+            lock_db.commit()
+
+            logger.info(
+                "sync_started", source=source, data_type=data_type, user_id=user_id
+            )
+            api_response = api_call_func(**api_kwargs)
+
+            if api_response is None:
+                sync_result.add_error("No data returned from API")
+                sync_result.finish(False)
+                with get_db_session_context() as db:
+                    update_sync_status(db, user_id, source, data_type, sync_result)
+                return sync_result
+
+            if not isinstance(api_response, list):
+                api_response = [api_response]
+
+            all_records = _collect_parsed_records(
+                api_response, parser_class, sync_result
+            )
+            _apply_bulk_upsert(
+                all_records, model_class, unique_fields, user_id, source, sync_result
             )
 
-    finally:
-        release_sync_lock(user_id, source)
+            with get_db_session_context() as db:
+                update_sync_status(db, user_id, source, data_type, sync_result)
+
+            sync_result.finish(True)
+
+        except Exception as e:
+            sync_result.add_error(f"Fatal error in {source} {data_type} sync: {str(e)}")
+            sync_result.finish(False)
+            try:
+                with get_db_session_context() as db:
+                    update_sync_status(db, user_id, source, data_type, sync_result)
+            except Exception as update_err:
+                logger.error(
+                    "sync_status_update_after_fatal_error",
+                    user_id=user_id,
+                    source=source,
+                    data_type=data_type,
+                    error=str(update_err),
+                )
+
+        finally:
+            lock_db.execute(text("SELECT pg_advisory_unlock(:id)"), {"id": lock_id})
 
     return sync_result
 
@@ -529,8 +543,10 @@ def get_sync_statistics(user_id: int, source: str | None = None) -> dict[str, An
 
             stats: dict[str, Any] = {
                 "total_syncs": len(syncs),
-                "successful_syncs": len([s for s in syncs if s.status == "completed"]),
-                "failed_syncs": len([s for s in syncs if s.status == "failed"]),
+                "successful_syncs": len(
+                    [s for s in syncs if s.status == SyncStatus.SUCCESS]
+                ),
+                "failed_syncs": len([s for s in syncs if s.status == SyncStatus.ERROR]),
                 "total_records_synced": sum(s.records_synced or 0 for s in syncs),
                 "last_sync": None,
                 "sync_details": [],

@@ -5,7 +5,7 @@ services:
       target: web
       args:
         - VERSION=${VERSION:-dev}
-        - BUILD_DATE=${BUILD_DATE:-$(date -u +"%Y-%m-%dT%H:%M:%SZ")}
+        - BUILD_DATE=${BUILD_DATE:-unknown}
         - VCS_REF=${VCS_REF:-unknown}
     ports:
       - "8080:8080"
@@ -53,7 +53,7 @@ services:
       target: web
       args:
         - VERSION=${VERSION:-dev}
-        - BUILD_DATE=${BUILD_DATE:-$(date -u +"%Y-%m-%dT%H:%M:%SZ")}
+        - BUILD_DATE=${BUILD_DATE:-unknown}
         - VCS_REF=${VCS_REF:-unknown}
     command: ["python", "src/scheduler.py"]
     environment:
@@ -85,7 +85,7 @@ services:
       context: ./frontend
       args:
         - VITE_APP_VERSION=${VERSION:-dev}
-        - VITE_BUILD_DATE=${BUILD_DATE:-$(date -u +"%Y-%m-%dT%H:%M:%SZ")}
+        - VITE_BUILD_DATE=${BUILD_DATE:-unknown}
         - VITE_COMMIT_SHA=${VCS_REF:-unknown}
     ports:
       - "3000:80"
@@ -114,7 +114,7 @@ services:
       target: ml
       args:
         - VERSION=${VERSION:-dev}
-        - BUILD_DATE=${BUILD_DATE:-$(date -u +"%Y-%m-%dT%H:%M:%SZ")}
+        - BUILD_DATE=${BUILD_DATE:-unknown}
         - VCS_REF=${VCS_REF:-unknown}
     command: >
       sh -c "
@@ -151,7 +151,7 @@ services:
       target: bot
       args:
         - VERSION=${VERSION:-dev}
-        - BUILD_DATE=${BUILD_DATE:-$(date -u +"%Y-%m-%dT%H:%M:%SZ")}
+        - BUILD_DATE=${BUILD_DATE:-unknown}
         - VCS_REF=${VCS_REF:-unknown}
     environment:
       - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-life_as_code_user}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-life_as_code_db}

@@ -264,12 +264,10 @@ def _compute_training_load_metrics(
 def _compute_vo2_trend(vo2_vals: list[float]) -> float | None:
     if len(vo2_vals) < 7:
         return None
-    n = len(vo2_vals)
-    x_mean = (n - 1) / 2
-    y_mean = sum(vo2_vals) / n
-    num = sum((i - x_mean) * (vo2_vals[i] - y_mean) for i in range(n))
-    den = sum((i - x_mean) ** 2 for i in range(n))
-    return num / den * 7 if den > 0 else None
+    from scipy import stats as scipy_stats
+
+    result = scipy_stats.linregress(range(len(vo2_vals)), vo2_vals)
+    return float(result.slope) * 7
 
 
 def calculate_fitness_metrics(

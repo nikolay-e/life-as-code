@@ -1,15 +1,11 @@
 import { useMemo } from "react";
-import { parseISO, startOfDay } from "date-fns";
 import {
   calculateBiologicalWeightSmoothing,
   calculateBaseline,
   loessSmooth,
 } from "../lib/statistics";
 import type { WeightData } from "../types/api";
-
-function dateToTimestamp(dateStr: string): number {
-  return startOfDay(parseISO(dateStr)).getTime();
-}
+import { dateToTimestamp } from "../lib/chart-utils";
 
 interface WeightTrendOptions {
   bandwidthShort?: number;

@@ -67,13 +67,9 @@ def _calculate_source_weight(
 def _get_percentile(value: float, sorted_values: list[float]) -> float:
     if not sorted_values:
         return 0.5
-    count = 0.0
-    for v in sorted_values:
-        if v < value:
-            count += 1
-        elif v == value:
-            count += 0.5
-    return count / len(sorted_values)
+    from scipy.stats import percentileofscore
+
+    return float(percentileofscore(sorted_values, value, kind="mean")) / 100.0
 
 
 def _get_value_at_percentile(percentile: float, sorted_values: list[float]) -> float:

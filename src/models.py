@@ -1,5 +1,4 @@
-import datetime
-from typing import Any, cast
+from typing import Any
 
 from sqlalchemy import (
     Boolean,
@@ -19,7 +18,7 @@ from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import declarative_base, relationship, validates
 
 from date_utils import utcnow
-from enums import DataSource, SyncStatus, SyncWindow, SyncWindowStatus
+from enums import DataSource, SyncStatus
 
 Base: Any = declarative_base()
 
@@ -77,9 +76,6 @@ class User(Base):
     )
     data_syncs = relationship(
         "DataSync", back_populates="user", cascade=CASCADE_ALL_DELETE
-    )
-    sync_progress = relationship(
-        "SyncProgress", back_populates="user", cascade=CASCADE_ALL_DELETE
     )
     whoop_recoveries = relationship(
         "WhoopRecovery", back_populates="user", cascade=CASCADE_ALL_DELETE
@@ -657,112 +653,6 @@ class DataSync(Base):
         return f"<DataSync(user_id={self.user_id}, source={self.source}, type={self.data_type}, last_sync={self.last_sync_date})>"
 
 
-class SyncProgress(Base):
-    __tablename__ = "sync_progress"
-
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
-    source = Column(String(50), nullable=False)
-
-    oldest_synced_date = Column(Date)
-    newest_synced_date = Column(Date)
-
-    current_window = Column(String(20), default=SyncWindow.DAY.value)
-    window_status = Column(String(20), default=SyncWindowStatus.PENDING.value)
-
-    day_completed = Column(Date)
-    week_completed = Column(Date)
-    month_completed = Column(Date)
-    year_completed = Column(Date)
-    full_sync_completed = Column(Date)
-
-    last_sync_started_at = Column(DateTime)
-    last_sync_completed_at = Column(DateTime)
-    error_message = Column(Text)
-    created_at = Column(DateTime, default=utcnow)
-    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
-
-    user = relationship("User", back_populates="sync_progress")
-
-    __table_args__ = (
-        UniqueConstraint("user_id", "source", name="_user_sync_progress_source_uc"),
-        CheckConstraint(
-            f"source IN ('{DataSource.GARMIN.value}', '{DataSource.HEVY.value}', '{DataSource.WHOOP.value}', '{DataSource.GOOGLE.value}', '{DataSource.APPLE_HEALTH.value}')",
-            name="valid_sync_progress_source",
-        ),
-        CheckConstraint(
-            f"current_window IN ('{SyncWindow.DAY.value}', '{SyncWindow.WEEK.value}', "
-            f"'{SyncWindow.MONTH.value}', '{SyncWindow.YEAR.value}', '{SyncWindow.ALL.value}')",
-            name="valid_current_window",
-        ),
-        CheckConstraint(
-            f"window_status IN ('{SyncWindowStatus.PENDING.value}', '{SyncWindowStatus.IN_PROGRESS.value}', "
-            f"'{SyncWindowStatus.COMPLETED.value}', '{SyncWindowStatus.FAILED.value}')",
-            name="valid_window_status",
-        ),
-    )
-
-    def __repr__(self):
-        return f"<SyncProgress(user_id={self.user_id}, source={self.source}, window={self.current_window})>"
-
-    def _normalize_window(self, window: Any) -> SyncWindow | None:
-        if isinstance(window, SyncWindow):
-            return window
-        if isinstance(window, str):
-            try:
-                return SyncWindow(window)
-            except ValueError:
-                return None
-        return None
-
-    def get_next_window(self) -> str | None:
-        window_order: list[SyncWindow] = [
-            SyncWindow.DAY,
-            SyncWindow.WEEK,
-            SyncWindow.MONTH,
-            SyncWindow.YEAR,
-            SyncWindow.ALL,
-        ]
-        try:
-            current = self._normalize_window(self.current_window)
-            if current is None:
-                return None
-            current_index = window_order.index(current)
-            if current_index < len(window_order) - 1:
-                return cast(str, window_order[current_index + 1].value)
-        except ValueError:
-            pass
-        return None
-
-    def is_window_completed(self, window: Any) -> bool:
-        normalized = self._normalize_window(window)
-        if normalized is None:
-            return False
-        completion_map = {
-            SyncWindow.DAY: self.day_completed,
-            SyncWindow.WEEK: self.week_completed,
-            SyncWindow.MONTH: self.month_completed,
-            SyncWindow.YEAR: self.year_completed,
-            SyncWindow.ALL: self.full_sync_completed,
-        }
-        return completion_map.get(normalized) is not None
-
-    def mark_window_completed(self, window: Any, completed_date: datetime.date):
-        normalized = self._normalize_window(window)
-        if normalized is None:
-            return
-        completion_map = {
-            SyncWindow.DAY: "day_completed",
-            SyncWindow.WEEK: "week_completed",
-            SyncWindow.MONTH: "month_completed",
-            SyncWindow.YEAR: "year_completed",
-            SyncWindow.ALL: "full_sync_completed",
-        }
-        attr_name = completion_map.get(normalized)
-        if attr_name:
-            setattr(self, attr_name, completed_date)
-
-
 class WhoopRecovery(Base):
     __tablename__ = "whoop_recovery"
 
@@ -774,7 +664,7 @@ class WhoopRecovery(Base):
     hrv_rmssd = Column(Float)
     spo2_percentage = Column(Float)
     skin_temp_celsius = Column(Float)
-    user_calibrating = Column(Integer, default=0)
+    user_calibrating = Column(Boolean, default=False)
     created_at = Column(DateTime, default=utcnow)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
@@ -1273,8 +1163,7 @@ class ClinicalAlertEvent(Base):
             "user_id",
             "alert_type",
             "status",
-            "first_detected_at",
-            name="_clinical_alert_user_type_status_detected_uc",
+            name="_clinical_alert_user_type_status_uc",
         ),
         Index("idx_alert_user_status", "user_id", "status"),
         Index("idx_alert_user_type", "user_id", "alert_type"),

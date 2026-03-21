@@ -195,6 +195,7 @@ def _process_upsert_records(
 
 
 def _build_upsert_stmt(model_class, processed_records: list[dict], unique_fields: list):
+    from sqlalchemy import literal_column
     from sqlalchemy.dialects.postgresql import insert
 
     stmt = insert(model_class).values(processed_records)
@@ -204,7 +205,9 @@ def _build_upsert_stmt(model_class, processed_records: list[dict], unique_fields
         for col in processed_records[0].keys()
         if col not in ["id", "created_at", "user_id", "source"]
     }
-    return stmt.on_conflict_do_update(index_elements=conflict_columns, set_=update_dict)
+    return stmt.on_conflict_do_update(
+        index_elements=conflict_columns, set_=update_dict
+    ).returning(literal_column("(xmax = 0)").label("is_insert"))
 
 
 def bulk_upsert_records(
@@ -231,8 +234,10 @@ def bulk_upsert_records(
                 return result
 
             stmt = _build_upsert_stmt(model_class, processed_records, unique_fields)
-            db.execute(stmt)
-            result["created"] = len(processed_records)
+            rows = db.execute(stmt).fetchall()
+            created = sum(1 for row in rows if row.is_insert)
+            result["created"] = created
+            result["updated"] = len(rows) - created
 
         logger.info(
             "bulk_upsert_completed",

@@ -7,8 +7,8 @@ from database import get_db_session_context
 from enums import DataSource
 from logging_config import configure_logging, get_logger
 from models import User
-from progressive_sync import has_credentials_for_source
 from sync_manager import is_sync_recently_active
+from utils import has_credentials_for_source
 
 configure_logging()
 logger = get_logger("scheduler")

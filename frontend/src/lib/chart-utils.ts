@@ -1,4 +1,10 @@
+import { parseISO, startOfDay } from "date-fns";
+
 import { toLocalDayKey, toTimeMs } from "./health";
+
+export function dateToTimestamp(dateStr: string): number {
+  return startOfDay(parseISO(dateStr)).getTime();
+}
 
 export function sortByDateAsc<T extends { date: string }>(items: T[]): T[] {
   return [...items].sort((a, b) => toTimeMs(a.date) - toTimeMs(b.date));

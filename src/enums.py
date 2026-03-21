@@ -21,18 +21,3 @@ class DataType(StrEnum):
     WORKOUTS = "workouts"
     RECOVERY = "recovery"
     CYCLES = "cycles"
-
-
-class SyncWindow(StrEnum):
-    DAY = "day"
-    WEEK = "week"
-    MONTH = "month"
-    YEAR = "year"
-    ALL = "all"
-
-
-class SyncWindowStatus(StrEnum):
-    PENDING = "pending"
-    IN_PROGRESS = "in_progress"
-    COMPLETED = "completed"
-    FAILED = "failed"

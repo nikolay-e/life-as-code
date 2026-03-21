@@ -55,6 +55,7 @@ def _authenticate_user(form):
             and form.password.data
             and verify_password(form.password.data, user.password_hash)
         ):
+            session.clear()
             user_model = UserModel(user.id, user.username)
             login_user(user_model)
             logger.info(

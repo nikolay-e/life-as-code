@@ -10,16 +10,15 @@ import {
   ReferenceLine,
   Legend,
 } from "recharts";
-import { format, parseISO, startOfDay } from "date-fns";
+import { format } from "date-fns";
 import { EmptyChartMessage } from "./shared";
 import { chartTooltipStyle } from "./chart-config";
 import { renderTrendLines } from "./TrendLines";
-import type { MultiProviderDataPoint } from "../../lib/chart-utils";
+import {
+  dateToTimestamp,
+  type MultiProviderDataPoint,
+} from "../../lib/chart-utils";
 import { loessSmooth } from "../../lib/statistics";
-
-function dateToTimestamp(dateStr: string): number {
-  return startOfDay(parseISO(dateStr)).getTime();
-}
 
 interface MultiProviderLineChartProps {
   readonly data: MultiProviderDataPoint[];

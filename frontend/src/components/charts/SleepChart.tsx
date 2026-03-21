@@ -11,15 +11,12 @@ import {
   ComposedChart,
   Line,
 } from "recharts";
-import { format, parseISO, startOfDay } from "date-fns";
+import { format } from "date-fns";
 import type { SleepData, WhoopSleepData } from "../../types/api";
 import { EmptyChartMessage } from "./shared";
 import { chartTooltipStyle, MULTI_PROVIDER_CONFIGS } from "./chart-config";
 import { loessSmooth } from "../../lib/statistics";
-
-function dateToTimestamp(dateStr: string): number {
-  return startOfDay(parseISO(dateStr)).getTime();
-}
+import { dateToTimestamp } from "../../lib/chart-utils";
 
 interface SleepChartProps {
   readonly garminData: SleepData[];

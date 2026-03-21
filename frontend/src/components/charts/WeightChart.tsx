@@ -10,16 +10,13 @@ import {
   ReferenceLine,
   Legend,
 } from "recharts";
-import { format, parseISO, startOfDay } from "date-fns";
+import { format } from "date-fns";
 import type { WeightData } from "../../types/api";
 import { EmptyChartMessage } from "./shared";
 import { chartTooltipStyle, TREND_CONFIGS } from "./chart-config";
 import { renderTrendLines } from "./TrendLines";
 import { useWeightTrendData } from "../../hooks/useWeightTrendData";
-
-function dateToTimestamp(dateStr: string): number {
-  return startOfDay(parseISO(dateStr)).getTime();
-}
+import { dateToTimestamp } from "../../lib/chart-utils";
 
 interface WeightChartProps {
   readonly data: WeightData[];

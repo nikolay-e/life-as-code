@@ -21,7 +21,7 @@ class WhoopRecoveryParser(BaseModel):
     skin_temp_celsius: float | None = Field(
         None, description="Skin temperature in Celsius"
     )
-    user_calibrating: int = 0
+    user_calibrating: bool = False
 
     @classmethod
     def from_whoop_response(
@@ -41,7 +41,7 @@ class WhoopRecoveryParser(BaseModel):
                 hrv_rmssd=score_data.get("hrv_rmssd_milli"),
                 spo2_percentage=score_data.get("spo2_percentage"),
                 skin_temp_celsius=score_data.get("skin_temp_celsius"),
-                user_calibrating=1 if calibrating else 0,
+                user_calibrating=bool(calibrating),
             )
         except Exception as e:
             logger.error("whoop_recovery_parse_error", error=str(e))

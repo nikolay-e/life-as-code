@@ -50,22 +50,8 @@ repos:
         name: Lint GitHub Actions
 
   # ============================================================================
-  # PYTHON FORMATTING (Order: isort → black to avoid conflicts)
+  # PYTHON FORMATTING (ruff-format handles formatting + import sorting)
   # ============================================================================
-  - repo: https://github.com/pycqa/isort
-    rev: 7.0.0
-    hooks:
-      - id: isort
-        args: ['--profile', 'black']
-        files: ^src/
-
-  - repo: https://github.com/psf/black
-    rev: 25.1.0
-    hooks:
-      - id: black
-        language_version: python3
-        files: ^src/
-
   - repo: https://github.com/asottile/pyupgrade
     rev: v3.21.1
     hooks:

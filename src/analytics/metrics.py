@@ -20,6 +20,7 @@ from .constants import (
     MIN_STEPS_FLOOR_DATA,
     STEP_FLOOR_FALLBACK,
     STEPS_FLOOR_PERCENTILE,
+    WEIGHT_MIN_BASELINE,
     WEIGHT_TREND_THRESHOLD,
 )
 from .date_utils import (
@@ -142,7 +143,7 @@ def calculate_data_quality(
     freshness_score = _calculate_freshness_score(latency_days)
     outlier_penalty = 1 - outlier_rate
 
-    min_points_for_stats = 14
+    min_points_for_stats = MIN_SAMPLE_SIZE
     data_sufficiency = min(1.0, days_with_data / min_points_for_stats)
     effective_coverage = 0.7 * coverage + 0.3 * data_sufficiency
     raw_confidence = effective_coverage * outlier_penalty * freshness_score
@@ -271,10 +272,12 @@ def _build_cache_key(
     options: BaselineOptions | None,
     ref_date: date | None,
 ) -> tuple:
+    sample = data[:10] + data[-10:] if len(data) > 20 else data
     data_fingerprint = (
         len(data),
         data[0].date if data else None,
         data[-1].date if data else None,
+        hash(tuple((d.date, d.value) for d in sample)),
     )
     opts_key = (
         (
@@ -383,44 +386,19 @@ def _compute_trend_slope(
         for d in filter_by_window(daily, trend_window, ref_date=ref_date)
         if d.value is not None
     ]
-    prev_trend_data = [
-        d
-        for d in filter_by_window_range(
-            daily, trend_window * 2, trend_window, ref_date=ref_date
-        )
-        if d.value is not None
-    ]
     raw_trend_values: list[float] = [d.value for d in trend_data if d.value is not None]
-    raw_prev_trend_values: list[float] = [
-        d.value for d in prev_trend_data if d.value is not None
-    ]
     trend_values = (
         winsorize(raw_trend_values, 5, 95) if opts.winsorize_trend else raw_trend_values
     )
-    prev_trend_values = (
-        winsorize(raw_prev_trend_values, 5, 95)
-        if opts.winsorize_trend
-        else raw_prev_trend_values
-    )
     min_data_for_trend = max(3, int(trend_window * 0.7))
-    has_valid_trend = (
-        len(trend_values) >= min_data_for_trend
-        and len(prev_trend_values) >= min_data_for_trend
-    )
-    if not has_valid_trend:
+    if len(trend_values) < min_data_for_trend:
         return None
-    if trend_window > 14 and len(trend_values) >= 7:
-        if opts.regression_uses_real_days:
-            return _linear_slope_per_day(
-                trend_data,
-                (5, 95) if opts.winsorize_trend else None,
-            )
-        return float(
-            scipy_stats.linregress(range(len(trend_values)), trend_values).slope
+    if opts.regression_uses_real_days:
+        return _linear_slope_per_day(
+            trend_data,
+            (5, 95) if opts.winsorize_trend else None,
         )
-    current_median = calculate_median(trend_values)
-    prev_median = calculate_median(prev_trend_values)
-    return (current_median - prev_median) / trend_window
+    return float(scipy_stats.linregress(range(len(trend_values)), trend_values).slope)
 
 
 def _compute_long_term_percentile(
@@ -986,7 +964,6 @@ def _compute_health_score_baselines(
     options: BaselineOptions | None,
     ref_date: date | None,
 ) -> dict[str, BaselineMetrics | None]:
-    WEIGHT_MIN_BASELINE = 180
     weight_baseline_window = max(baseline_window, WEIGHT_MIN_BASELINE)
 
     def bl(

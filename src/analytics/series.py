@@ -32,7 +32,7 @@ def to_daily_series(data: list[DataPoint], method: str = "last") -> list[DataPoi
 
     return [
         DataPoint(date=row["date"].strftime("%Y-%m-%d"), value=float(row["value"]))
-        for _, row in daily.iterrows()
+        for row in daily.to_dict("records")
     ]
 
 

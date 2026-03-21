@@ -11,16 +11,13 @@ import {
   Line,
   ReferenceLine,
 } from "recharts";
-import { format, parseISO, startOfDay } from "date-fns";
+import { format } from "date-fns";
 import type { WhoopCycleData, GarminTrainingStatusData } from "../../types/api";
 import { EmptyChartMessage } from "./shared";
 import { chartTooltipStyle } from "./chart-config";
 import { toLocalDayKey } from "../../lib/health/date";
 import { fuseStrainValues } from "../../lib/health/strain-fusion";
-
-function dateToTimestamp(dateStr: string): number {
-  return startOfDay(parseISO(dateStr)).getTime();
-}
+import { dateToTimestamp } from "../../lib/chart-utils";
 
 interface TrainingLoadPoint {
   timestamp: number;

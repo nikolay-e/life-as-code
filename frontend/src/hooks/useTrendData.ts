@@ -1,16 +1,11 @@
 import { useMemo } from "react";
-import { parseISO, startOfDay } from "date-fns";
 import {
   calculateEMA,
   calculateSMA,
   calculateBaseline,
   loessSmooth,
 } from "../lib/statistics";
-import { sortByDateAsc } from "../lib/chart-utils";
-
-function dateToTimestamp(dateStr: string): number {
-  return startOfDay(parseISO(dateStr)).getTime();
-}
+import { sortByDateAsc, dateToTimestamp } from "../lib/chart-utils";
 
 type TrendMethod = "ema" | "sma" | "loess";
 

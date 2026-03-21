@@ -29,9 +29,11 @@ def winsorize(
 ) -> list[float]:
     if len(values) < 4:
         return list(values)
-    lower_bound = float(np.percentile(values, lower_pct, method="linear"))
-    upper_bound = float(np.percentile(values, upper_pct, method="linear"))
-    return [min(max(v, lower_bound), upper_bound) for v in values]
+    arr = np.array(values)
+    lower_bound = float(np.percentile(arr, lower_pct, method="linear"))
+    upper_bound = float(np.percentile(arr, upper_pct, method="linear"))
+    result: list[float] = np.clip(arr, lower_bound, upper_bound).tolist()
+    return result
 
 
 def calculate_median(values: list[float]) -> float:
@@ -73,9 +75,11 @@ def calculate_robust_stats(values: list[float]) -> dict:
 def calculate_ema_value(values: list[float], span: int) -> float | None:
     if not values:
         return None
-    import pandas as pd
-
-    return float(pd.Series(values).ewm(span=span, adjust=False).mean().iloc[-1])
+    alpha = 2.0 / (span + 1)
+    ema = values[0]
+    for v in values[1:]:
+        ema = alpha * v + (1 - alpha) * ema
+    return float(ema)
 
 
 def pearson_correlation(x: list[float], y: list[float]) -> float | None:

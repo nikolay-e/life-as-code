@@ -11,6 +11,9 @@ from .constants import (
     LONGEVITY_SCORE_WEIGHTS,
     MIN_BIO_AGE_DATA_DAYS,
     RHR_REFERENCE,
+    SLEEP_OPTIMAL_HOURS,
+    SLEEP_OVERSLEEP_HOURS,
+    SLEEP_QUADRATIC_FACTOR,
     VO2MAX_NORMATIVE_MALE,
     ZONE2_WEEKLY_TARGET_MINUTES,
     ZONE5_WEEKLY_TARGET_MINUTES,
@@ -303,14 +306,18 @@ def _score_sleep(
     if avg_min is None:
         return None
     avg_hours = avg_min / 60
-    optimal = 7.5
-    if avg_hours < optimal:
-        duration_score = max(0.0, avg_hours / optimal * 100)
-    elif avg_hours <= 9.0:
-        duration_score = max(0.0, 100 - (avg_hours - optimal) ** 2 * 4.5)
+    if avg_hours < SLEEP_OPTIMAL_HOURS:
+        duration_score = max(0.0, avg_hours / SLEEP_OPTIMAL_HOURS * 100)
+    elif avg_hours <= SLEEP_OVERSLEEP_HOURS:
+        duration_score = max(
+            0.0,
+            100 - (avg_hours - SLEEP_OPTIMAL_HOURS) ** 2 * SLEEP_QUADRATIC_FACTOR,
+        )
     else:
-        base_penalty = (9.0 - optimal) ** 2 * 4.5
-        extra_penalty = (avg_hours - 9.0) ** 2 * 15
+        base_penalty = (
+            SLEEP_OVERSLEEP_HOURS - SLEEP_OPTIMAL_HOURS
+        ) ** 2 * SLEEP_QUADRATIC_FACTOR
+        extra_penalty = (avg_hours - SLEEP_OVERSLEEP_HOURS) ** 2 * 15
         duration_score = max(0.0, 100 - base_penalty - extra_penalty)
 
     sleep_cv = calculate_std(vals) / avg_min * 100 if avg_min > 0 else 50
