@@ -291,9 +291,9 @@ function formatLastWorkouts(workouts: WorkoutData[], now: Date): string[] {
     const daysAgoStr =
       strength.daysAgo === 0 ? "today" : `${String(strength.daysAgo)} days ago`;
     const volumeStr =
-      strength.volume !== null
-        ? `, ${String(Math.round(strength.volume / 1000))}k kg`
-        : "";
+      strength.volume === null
+        ? ""
+        : `, ${String(Math.round(strength.volume / 1000))}k kg`;
     lines.push(`- Strength: ${dateStr} (${daysAgoStr})${volumeStr}`);
   } else {
     lines.push(`- Strength: No data`);
@@ -344,10 +344,11 @@ function formatTrendsSummaryTable(
 
     const trendSlope =
       allAnalytics.recent?.metric_baselines[key]?.trend_slope ?? null;
-    const trendStr =
-      trendSlope === null
-        ? "N/A"
-        : `${trendSlope >= 0 ? "+" : ""}${trendSlope.toFixed(2)}/d`;
+    let trendStr = "N/A";
+    if (trendSlope !== null) {
+      const sign = trendSlope >= 0 ? "+" : "";
+      trendStr = `${sign}${trendSlope.toFixed(2)}/d`;
+    }
 
     const pad = (s: string, len: number) => s.padEnd(len);
     return `| ${pad(name, 8)} | ${pad(formatter(values[0]), 7)} | ${pad(formatter(values[1]), 8)} | ${pad(formatter(values[2]), 8)} | ${pad(formatter(values[3]), 8)} | ${pad(trendStr, 10)} |`;
@@ -497,10 +498,11 @@ function formatAnalysisDetails(analytics: AnalyticsResponse): string[] {
     weight_metrics.ema_long === null
       ? "N/A"
       : `${weight_metrics.ema_long.toFixed(1)} kg`;
-  const periodChange =
-    weight_metrics.period_change === null
-      ? "N/A"
-      : `${weight_metrics.period_change >= 0 ? "+" : ""}${weight_metrics.period_change.toFixed(2)} kg`;
+  let periodChange = "N/A";
+  if (weight_metrics.period_change !== null) {
+    const sign = weight_metrics.period_change >= 0 ? "+" : "";
+    periodChange = `${sign}${weight_metrics.period_change.toFixed(2)} kg`;
+  }
 
   return [
     `### ${analytics.mode} Analysis Details`,
@@ -617,7 +619,8 @@ function formatGarminActivities(
     const name =
       activity.activity_name ?? activity.activity_type ?? DEFAULT_ACTIVITY_NAME;
 
-    lines.push(`### ${dateStr}${timeStr ? ` at ${timeStr}` : ""}: ${name}`);
+    const timePart = timeStr ? ` at ${timeStr}` : "";
+    lines.push(`### ${dateStr}${timePart}: ${name}`);
 
     for (const detail of collectGarminActivityDetails(activity)) {
       lines.push(`- ${detail}`);
@@ -778,8 +781,8 @@ function formatDayStrengthSection(day: DailyStrengthWorkout): string[] {
   const volumeStr = formatVolumeStr(day.totalVolume);
   lines.push(
     `### ${dateStr} - ${String(day.exercises.length)} exercises, ${String(day.totalSets)} sets, ${volumeStr} total`,
+    ``,
   );
-  lines.push(``);
 
   for (const exercise of day.exercises) {
     const exerciseVolumeStr = formatVolumeStr(exercise.total_volume);
@@ -861,8 +864,8 @@ function formatStrengthWorkoutsDetailed(
 
     lines.push(
       `### ${dateStr}: ${String(sets)} sets, ${String(volumeKg)} kg total volume`,
+      ``,
     );
-    lines.push(``);
   }
 
   return lines;
@@ -922,10 +925,11 @@ function formatFitnessSection(insights: AdvancedInsights): string[] {
   const lines: string[] = [``, `## Cardio Fitness & Training Load`, ``];
 
   if (fitness.vo2_max_current !== null) {
-    const vo2Trend =
-      fitness.vo2_max_trend === null
-        ? ""
-        : ` (trend: ${fitness.vo2_max_trend >= 0 ? "+" : ""}${fitness.vo2_max_trend.toFixed(2)}/wk)`;
+    let vo2Trend = "";
+    if (fitness.vo2_max_trend !== null) {
+      const sign = fitness.vo2_max_trend >= 0 ? "+" : "";
+      vo2Trend = ` (trend: ${sign}${fitness.vo2_max_trend.toFixed(2)}/wk)`;
+    }
     lines.push(`- VO2 Max: ${fitness.vo2_max_current.toFixed(1)}${vo2Trend}`);
   }
 
@@ -987,10 +991,11 @@ function _formatWeekdayWeekendRow(
     split.weekday_mean === null ? "—" : split.weekday_mean.toFixed(1);
   const weStr =
     split.weekend_mean === null ? "—" : split.weekend_mean.toFixed(1);
-  const dStr =
-    split.delta === null
-      ? "—"
-      : `${split.delta >= 0 ? "+" : ""}${split.delta.toFixed(1)}`;
+  let dStr = "—";
+  if (split.delta !== null) {
+    const sign = split.delta >= 0 ? "+" : "";
+    dStr = `${sign}${split.delta.toFixed(1)}`;
+  }
   return `| ${metric} | ${wdStr} | ${weStr} | ${dStr} |`;
 }
 
@@ -1027,9 +1032,7 @@ function formatCrossDomainSection(insights: AdvancedInsights): string[] {
   if (residual.model_features.length > 0) {
     lines.push(`- Features: ${residual.model_features.join(", ")}`);
   }
-  lines.push(``);
-
-  lines.push(..._formatWeightHrvSection(cross_domain));
+  lines.push(``, ..._formatWeightHrvSection(cross_domain));
 
   const weekdayWeekend = cross_domain.weekday_weekend;
   if (Object.keys(weekdayWeekend).length > 0) {
@@ -1116,34 +1119,30 @@ export function formatCombinedReport(
         recentAnalytics.day_completeness,
         now,
       ),
-    );
-    sections.push(``);
-
-    sections.push(...formatLastDaysTable(recentAnalytics.recent_days));
-    sections.push(``);
-
-    sections.push(
+      ``,
+      ...formatLastDaysTable(recentAnalytics.recent_days),
+      ``,
       ...formatAlerts(
         recentAnalytics.illness_risk,
         recentAnalytics.decorrelation,
       ),
-    );
-    sections.push(``);
-
-    sections.push(
+      ``,
       ...formatReadiness(
         recentAnalytics.recovery_metrics,
         recentAnalytics.activity_metrics,
         recentAnalytics.illness_risk.risk_level,
       ),
+      ``,
     );
-    sections.push(``);
   }
 
-  sections.push(...formatLastWorkouts(data.workouts, now));
-  sections.push(``);
-
-  sections.push(`---`, `# Detailed Training Log`, ``);
+  sections.push(
+    ...formatLastWorkouts(data.workouts, now),
+    ``,
+    `---`,
+    `# Detailed Training Log`,
+    ``,
+  );
 
   if (detailedWorkouts && detailedWorkouts.length > 0) {
     sections.push(
@@ -1152,35 +1151,34 @@ export function formatCombinedReport(
   } else {
     sections.push(...formatStrengthWorkoutsDetailed(data.workouts, now));
   }
-  sections.push(``);
-
-  sections.push(...formatGarminActivities(data.garmin_activity, now));
-  sections.push(``);
-
-  sections.push(...formatWhoopWorkouts(data.whoop_workout, now));
-  sections.push(``, `---`, ``);
-
-  sections.push(...formatAnalysisWindows(now));
-  sections.push(``);
+  sections.push(
+    ``,
+    ...formatGarminActivities(data.garmin_activity, now),
+    ``,
+    ...formatWhoopWorkouts(data.whoop_workout, now),
+    ``,
+    `---`,
+    ``,
+    ...formatAnalysisWindows(now),
+    ``,
+  );
 
   if (allAnalytics) {
-    sections.push(`---`, ``);
-
-    sections.push(...formatTrendsSummaryTable(allAnalytics));
-    sections.push(``);
+    sections.push(`---`, ``, ...formatTrendsSummaryTable(allAnalytics), ``);
 
     if (recentAnalytics) {
-      sections.push(...formatHealthScoreSummary(recentAnalytics));
-      sections.push(``, `---`, ``);
-
       sections.push(
+        ...formatHealthScoreSummary(recentAnalytics),
+        ``,
+        `---`,
+        ``,
         ...formatClinicalMetrics(
           recentAnalytics.recovery_capacity,
           recentAnalytics.illness_risk,
           recentAnalytics.decorrelation,
         ),
+        ``,
       );
-      sections.push(``);
     }
 
     sections.push(`---`, `# Detailed Analysis by Timeframe`, ``);
@@ -1188,15 +1186,17 @@ export function formatCombinedReport(
     for (const m of ["recent", "quarter", "year", "all"] as const) {
       const modeData = allAnalytics[m];
       if (modeData) {
-        sections.push(...formatAnalysisDetails(modeData));
-        sections.push(``);
+        sections.push(...formatAnalysisDetails(modeData), ``);
       }
     }
   }
 
   if (recentAnalytics?.advanced_insights) {
-    sections.push(`---`, ``);
-    sections.push(...formatAdvancedInsights(recentAnalytics.advanced_insights));
+    sections.push(
+      `---`,
+      ``,
+      ...formatAdvancedInsights(recentAnalytics.advanced_insights),
+    );
   }
 
   sections.push(

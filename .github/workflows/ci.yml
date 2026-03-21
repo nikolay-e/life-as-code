@@ -35,7 +35,7 @@ jobs:
     env:
       TEST_DATABASE_URL: "postgresql+psycopg2://life_as_code_user:testpass@localhost:5434/life_as_code_test"
       SECRET_KEY: "ci-test-secret-key-for-testing-only"
-      FERNET_KEY: "54BnS4pmP4MQBDxKfAIZ1PJ0SMH01c58kdpPv1q0YC8="
+      FERNET_KEY: ${{ secrets.CI_TEST_FERNET_KEY }}
       ADMIN_USERNAME: "admin@test.com"
       ADMIN_PASSWORD: "ci-test-admin-password-123"
       POSTGRES_PASSWORD: "testpass"
