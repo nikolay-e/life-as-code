@@ -9,6 +9,7 @@ os.environ.setdefault(
 )
 os.environ.setdefault("ADMIN_USERNAME", "admin@test.com")
 os.environ.setdefault("ADMIN_PASSWORD", "test-admin-password-123")  # pragma: allowlist secret
+os.environ.setdefault("POSTGRES_PASSWORD", "testpass")  # pragma: allowlist secret
 os.environ.setdefault(
     "DATABASE_URL",
     "postgresql+psycopg2://life_as_code_user:testpass@localhost:5434/life_as_code_test",  # pragma: allowlist secret

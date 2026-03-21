@@ -38,6 +38,7 @@ jobs:
       FERNET_KEY: "54BnS4pmP4MQBDxKfAIZ1PJ0SMH01c58kdpPv1q0YC8="
       ADMIN_USERNAME: "admin@test.com"
       ADMIN_PASSWORD: "ci-test-admin-password-123"
+      POSTGRES_PASSWORD: "testpass"
       DATABASE_URL: "postgresql+psycopg2://life_as_code_user:testpass@localhost:5434/life_as_code_test"
     steps:
       - name: Checkout code
