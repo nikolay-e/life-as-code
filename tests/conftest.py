@@ -2,11 +2,10 @@ import os
 import sys
 from datetime import date, timedelta
 
+from cryptography.fernet import Fernet
+
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-testing-only-32chars")  # pragma: allowlist secret
-os.environ.setdefault(
-    "FERNET_KEY",
-    "54BnS4pmP4MQBDxKfAIZ1PJ0SMH01c58kdpPv1q0YC8=",  # pragma: allowlist secret
-)
+os.environ.setdefault("FERNET_KEY", Fernet.generate_key().decode())
 os.environ.setdefault("ADMIN_USERNAME", "admin@test.com")
 os.environ.setdefault("ADMIN_PASSWORD", "test-admin-password-123")  # pragma: allowlist secret
 os.environ.setdefault("POSTGRES_PASSWORD", "testpass")  # pragma: allowlist secret
