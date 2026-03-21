@@ -8,13 +8,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 @pytest.fixture
 def app():
-    from cryptography.fernet import Fernet
-
-    os.environ["SECRET_KEY"] = "test-secret-key-for-testing-only-32chars"  # pragma: allowlist secret
-    os.environ["FERNET_KEY"] = Fernet.generate_key().decode()
-    os.environ.setdefault("ADMIN_USERNAME", "admin@test.com")
-    os.environ.setdefault("ADMIN_PASSWORD", "test-admin-password-123")
-
     from app import server
 
     server.config["TESTING"] = True
@@ -31,13 +24,38 @@ class TestHealthEndpoint:
         response = client.get("/health")
         data = response.get_json()
         assert "status" in data
-        assert "version" in data
+        assert "database" in data
         assert "timestamp" in data
 
     def test_health_has_timestamp(self, client):
         response = client.get("/health")
         data = response.get_json()
         assert data["timestamp"] is not None
+
+    def test_health_does_not_expose_version(self, client):
+        response = client.get("/health")
+        data = response.get_json()
+        assert "version" not in data
+        assert "build_date" not in data
+        assert "commit" not in data
+
+
+class TestCSRFProtection:
+    def test_api_post_without_csrf_header_rejected(self, client):
+        response = client.post("/api/auth/login", json={"username": "a", "password": "b"})
+        assert response.status_code == 403
+
+    def test_api_post_with_csrf_header_allowed(self, client):
+        response = client.post(
+            "/api/auth/login",
+            json={"username": "a", "password": "b"},
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
+        assert response.status_code != 403
+
+    def test_api_get_without_csrf_header_allowed(self, client):
+        response = client.get("/api/analytics", query_string={"mode": "recent"})
+        assert response.status_code != 403
 
 
 class TestAuthRequired:

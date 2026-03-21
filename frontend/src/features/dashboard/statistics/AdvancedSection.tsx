@@ -292,9 +292,9 @@ function AnomaliesCard({ anomalies }: { anomalies: AnomalyMetrics }) {
       </CardHeader>
       <CardContent>
         <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-4">
-          {anomalies.anomalies.slice(0, 8).map((anomaly, i) => (
+          {anomalies.anomalies.slice(0, 8).map((anomaly) => (
             <div
-              key={`${anomaly.date}-${anomaly.metric}-${String(i)}`}
+              key={`${anomaly.date}-${anomaly.metric}`}
               className={cn(
                 "p-2 rounded-lg border text-sm",
                 anomaly.severity === "critical" &&

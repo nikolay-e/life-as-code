@@ -1,5 +1,4 @@
 import datetime
-import threading
 from dataclasses import dataclass
 from typing import Any
 
@@ -14,6 +13,7 @@ from errors import CredentialsDecryptionError, CredentialsNotFoundError
 from logging_config import get_logger
 from models import DataSync
 from security import decrypt_data_for_user
+from sync_coordinator import acquire_sync_lock, is_sync_locked, release_sync_lock
 from utils import get_user_credentials
 
 logger = get_logger(__name__)
@@ -127,44 +127,10 @@ def get_provider_credentials(user_id: int, provider: DataSource) -> ProviderCred
     )
 
 
-_sync_locks: dict[tuple[int, str], threading.Lock] = {}
-_locks_lock = threading.Lock()
-_MAX_SYNC_LOCKS = 100
-_lock_access_order: list[tuple[int, str]] = []
-
-
-def _evict_oldest_locks():
-    to_evict = len(_sync_locks) // 2
-    evicted = 0
-    while _lock_access_order and evicted < to_evict:
-        key = _lock_access_order.pop(0)
-        lock = _sync_locks.get(key)
-        if lock and lock.acquire(blocking=False):
-            lock.release()
-            del _sync_locks[key]
-            evicted += 1
-
-
-def _get_sync_lock(user_id: int, source: str) -> threading.Lock:
-    key = (user_id, source)
-    with _locks_lock:
-        if key not in _sync_locks:
-            if len(_sync_locks) >= _MAX_SYNC_LOCKS:
-                _evict_oldest_locks()
-            _sync_locks[key] = threading.Lock()
-        if key in _lock_access_order:
-            _lock_access_order.remove(key)
-        _lock_access_order.append(key)
-        return _sync_locks[key]
-
-
-def is_sync_in_progress(user_id: int, source: str) -> bool:
-    lock = _get_sync_lock(user_id, source)
-    acquired = lock.acquire(blocking=False)
-    if acquired:
-        lock.release()
-        return False
-    return True
+def is_sync_in_progress(user_id: int, source: str | DataSource) -> bool:
+    source_str = source.value if isinstance(source, DataSource) else source
+    result: bool = is_sync_locked(user_id, source_str)
+    return result
 
 
 def is_sync_recently_active(user_id: int, source: str, stale_minutes: int = 30) -> bool:
@@ -369,9 +335,8 @@ def extract_and_parse(
     **api_kwargs,
 ) -> SyncResult:
     sync_result = SyncResult(source, data_type, user_id)
-    lock = _get_sync_lock(user_id, source)
 
-    if not lock.acquire(blocking=False):
+    if not acquire_sync_lock(user_id, source):
         sync_result.add_error(f"Sync already in progress for {source}")
         sync_result.finish(False)
         return sync_result
@@ -419,7 +384,7 @@ def extract_and_parse(
             )
 
     finally:
-        lock.release()
+        release_sync_lock(user_id, source)
 
     return sync_result
 

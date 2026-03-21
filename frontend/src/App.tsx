@@ -4,6 +4,7 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import { ErrorBoundary } from "./components/ui/error-boundary";
 import { Spinner } from "./components/ui/spinner";
 import { ReloadPrompt } from "./components/ReloadPrompt";
+import { DateProvider, useDateProviderValue } from "./hooks/useToday";
 
 const LoginPage = lazy(() =>
   import("./features/auth/LoginPage").then((m) => ({ default: m.LoginPage })),
@@ -46,30 +47,36 @@ function PageLoader() {
 }
 
 export default function App() {
+  const today = useDateProviderValue();
   return (
     <ErrorBoundary>
-      <Suspense fallback={<PageLoader />}>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route element={<ProtectedRoute />}>
-            <Route element={<DashboardLayout />}>
-              <Route path="/dashboard" element={<DashboardOverview />} />
-              <Route
-                path="/dashboard/statistics"
-                element={<StatisticsPage />}
-              />
-              <Route path="/dashboard/trainings" element={<TrainingsPage />} />
-              <Route
-                path="/dashboard/data-status"
-                element={<DataStatusPage />}
-              />
-              <Route path="/dashboard/settings" element={<SettingsPage />} />
+      <DateProvider value={today}>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route element={<ProtectedRoute />}>
+              <Route element={<DashboardLayout />}>
+                <Route path="/dashboard" element={<DashboardOverview />} />
+                <Route
+                  path="/dashboard/statistics"
+                  element={<StatisticsPage />}
+                />
+                <Route
+                  path="/dashboard/trainings"
+                  element={<TrainingsPage />}
+                />
+                <Route
+                  path="/dashboard/data-status"
+                  element={<DataStatusPage />}
+                />
+                <Route path="/dashboard/settings" element={<SettingsPage />} />
+              </Route>
             </Route>
-          </Route>
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
-      </Suspense>
-      <ReloadPrompt />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        </Suspense>
+        <ReloadPrompt />
+      </DateProvider>
     </ErrorBoundary>
   );
 }

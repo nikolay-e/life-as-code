@@ -175,6 +175,9 @@ class CorrelationMetrics(BaseModel):
     strain_recovery_correlation: float | None
     strain_recovery_p_value: float | None = None
     sample_size: int
+    sample_size_hrv_rhr: int = 0
+    sample_size_sleep_hrv: int = 0
+    sample_size_strain_recovery: int = 0
     is_significant: bool = False
 
 

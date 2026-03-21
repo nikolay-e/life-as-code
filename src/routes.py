@@ -154,7 +154,10 @@ def _build_whoop_auth_url(client_id, redirect_uri, state):
 
 
 def _validate_whoop_callback_state(state):
+    import time
+
     stored_state = session.pop("whoop_oauth_state", None)
+    state_ts = session.pop("whoop_oauth_state_ts", None)
     if not state or state != stored_state:
         logger.error(
             "whoop_oauth_state_mismatch",
@@ -162,6 +165,10 @@ def _validate_whoop_callback_state(state):
             has_stored_state=bool(stored_state),
         )
         flash("Invalid OAuth state - please try again")
+        return False
+    if state_ts and (time.time() - state_ts) > 300:
+        logger.error("whoop_oauth_state_expired")
+        flash("OAuth session expired - please try again")
         return False
     return True
 
@@ -313,8 +320,11 @@ def register_routes(server, limiter):
             flash("Whoop integration not configured")
             return redirect(SETTINGS_REDIRECT)
 
+        import time
+
         state = secrets.token_urlsafe(32)
         session["whoop_oauth_state"] = state
+        session["whoop_oauth_state_ts"] = time.time()
         return redirect(_build_whoop_auth_url(client_id, redirect_uri, state))
 
     @server.route("/whoop/callback", methods=["GET"])

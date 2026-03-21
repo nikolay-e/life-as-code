@@ -9,6 +9,7 @@ from typing import Literal
 from scipy import stats as scipy_stats
 
 from .constants import (
+    CALORIES_TREND_THRESHOLD,
     INSTANTANEOUS_METRICS,
     MAD_SCALE_FACTOR,
     MAX_SLEEP_TARGET_WINDOW,
@@ -19,6 +20,7 @@ from .constants import (
     MIN_STEPS_FLOOR_DATA,
     STEP_FLOOR_FALLBACK,
     STEPS_FLOOR_PERCENTILE,
+    WEIGHT_TREND_THRESHOLD,
 )
 from .date_utils import (
     dates_in_window,
@@ -353,7 +355,7 @@ def _get_baseline_slice(
         return filter_by_window_range(
             daily,
             baseline_window + exclude_days,
-            exclude_days - 1,
+            exclude_days,
             ref_date=ref_date,
         )
     return filter_by_window(daily, baseline_window, ref_date=ref_date)
@@ -792,7 +794,10 @@ def calculate_weight_metrics(
 
 
 def calculate_calories_metrics(
-    calories_data: list[DataPoint], ref_date: date | None = None
+    calories_data: list[DataPoint],
+    short_term_window: int = 7,
+    baseline_window: int = 30,
+    ref_date: date | None = None,
 ) -> CaloriesMetrics:
     daily = to_daily_series(calories_data, "last")
     if not daily:
@@ -800,14 +805,18 @@ def calculate_calories_metrics(
             avg_7=None, avg_30=None, delta=None, cv_30=0, z_score=None, trend=None
         )
 
-    last7 = get_window_values(daily, 7, ref_date=ref_date)
-    last30 = get_window_values(daily, 30, ref_date=ref_date)
-    avg7 = mean_or_none(last7)
-    avg30 = mean_or_none(last30)
-    delta = (avg7 - avg30) if avg7 is not None and avg30 is not None else None
-    mean30 = avg30 or 0
-    std30 = calculate_std(last30)
-    cv30 = std30 / abs(mean30) if mean30 != 0 else 0
+    last_short = get_window_values(daily, short_term_window, ref_date=ref_date)
+    last_baseline = get_window_values(daily, baseline_window, ref_date=ref_date)
+    avg_short = mean_or_none(last_short)
+    avg_baseline = mean_or_none(last_baseline)
+    delta = (
+        (avg_short - avg_baseline)
+        if avg_short is not None and avg_baseline is not None
+        else None
+    )
+    mean_bl = avg_baseline or 0
+    std_bl = calculate_std(last_baseline)
+    cv_bl = std_bl / abs(mean_bl) if mean_bl != 0 else 0
 
     if ref_date is not None:
         ref_str = ref_date.isoformat()
@@ -817,22 +826,27 @@ def calculate_calories_metrics(
     sorted_daily = sorted(filtered_daily, key=lambda d: d.date)
     current_value = sorted_daily[-1].value if sorted_daily else None
     z_score = (
-        (current_value - mean30) / std30
-        if current_value is not None and std30 > 0
+        (current_value - mean_bl) / std_bl
+        if current_value is not None and std_bl > 0
         else None
     )
 
     trend = None
     if delta is not None:
-        if delta > mean30 * 0.05:
+        if delta > CALORIES_TREND_THRESHOLD:
             trend = "increasing"
-        elif delta < -mean30 * 0.05:
+        elif delta < -CALORIES_TREND_THRESHOLD:
             trend = "decreasing"
         else:
             trend = "stable"
 
     return CaloriesMetrics(
-        avg_7=avg7, avg_30=avg30, delta=delta, cv_30=cv30, z_score=z_score, trend=trend
+        avg_7=avg_short,
+        avg_30=avg_baseline,
+        delta=delta,
+        cv_30=cv_bl,
+        z_score=z_score,
+        trend=trend,
     )
 
 
@@ -844,9 +858,9 @@ def calculate_calories_metrics(
 def _classify_calories_trend(
     cal_delta: float,
 ) -> Literal["surplus", "deficit", "maintenance"]:
-    if cal_delta > 100:
+    if cal_delta > CALORIES_TREND_THRESHOLD:
         return "surplus"
-    if cal_delta < -100:
+    if cal_delta < -CALORIES_TREND_THRESHOLD:
         return "deficit"
     return "maintenance"
 
@@ -854,9 +868,9 @@ def _classify_calories_trend(
 def _classify_weight_trend(
     weight_delta: float,
 ) -> Literal["gaining", "losing", "stable"]:
-    if weight_delta > 0.2:
+    if weight_delta > WEIGHT_TREND_THRESHOLD:
         return "gaining"
-    if weight_delta < -0.2:
+    if weight_delta < -WEIGHT_TREND_THRESHOLD:
         return "losing"
     return "stable"
 
@@ -915,7 +929,7 @@ def _strain_goodness(z: float) -> float:
     deviation = abs(z - STRAIN_OPTIMAL_Z)
     if deviation <= 0.5:
         return 0.3 * (1.0 - deviation / 0.5)
-    return -(deviation - 0.5)
+    return max(-0.3, -(deviation - 0.5) * 0.3)
 
 
 def _calories_goodness(raw_z: float) -> float:

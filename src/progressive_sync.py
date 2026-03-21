@@ -324,6 +324,13 @@ def start_progressive_sync(
                 results[source] = "already_running"
                 continue
 
+            # Clean up completed threads
+            completed = [
+                k for k, t in _progressive_sync_threads.items() if not t.is_alive()
+            ]
+            for k in completed:
+                del _progressive_sync_threads[k]
+
             sync_func = sync_funcs.get(source)
             if not sync_func:
                 results[source] = "no_sync_func"
@@ -352,6 +359,10 @@ def start_background_progressive_sync(user_id: int) -> str:
         if existing_thread and existing_thread.is_alive():
             logger.info("background_progressive_sync_already_running", user_id=user_id)
             return "already_running"
+
+        completed = [k for k, t in _background_sync_threads.items() if not t.is_alive()]
+        for k in completed:
+            del _background_sync_threads[k]
 
         thread = threading.Thread(
             target=_run_full_progressive_sync, args=(user_id,), daemon=True

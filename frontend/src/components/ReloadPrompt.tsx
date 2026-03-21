@@ -1,8 +1,10 @@
 import { useRegisterSW } from "virtual:pwa-register/react";
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { X, RefreshCw, Wifi } from "lucide-react";
 
 export function ReloadPrompt() {
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const {
     offlineReady: [offlineReady, setOfflineReady],
     needRefresh: [needRefresh, setNeedRefresh],
@@ -10,7 +12,7 @@ export function ReloadPrompt() {
   } = useRegisterSW({
     onRegistered(registration) {
       if (registration) {
-        setInterval(
+        intervalRef.current = setInterval(
           () => {
             registration.update().catch(console.error);
           },
@@ -22,6 +24,12 @@ export function ReloadPrompt() {
       console.error("SW registration error:", error);
     },
   });
+
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, []);
 
   const close = useCallback(() => {
     setOfflineReady(false);

@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import date
 
 from .constants import METRIC_AGGREGATION
-from .date_utils import filter_by_window, filter_by_window_range, to_day_key
+from .date_utils import filter_by_window, filter_by_window_range
 from .types import BaselineMetrics, BaselineOptions, DataPoint, UnifiedMetricPoint
 
 
@@ -86,13 +86,6 @@ class MetricSeries:
             if p.value is not None:
                 return p
         return None
-
-    def by_day_map(self) -> dict[str, float]:
-        result: dict[str, float] = {}
-        for p in self.points:
-            if p.value is not None:
-                result[to_day_key(p.date)] = p.value
-        return result
 
     def baseline(
         self,

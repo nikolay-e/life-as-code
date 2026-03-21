@@ -835,7 +835,9 @@ class GarminAPIWrapper:
                 )
                 return start_dt.date()
             if isinstance(start_time_str, (int, float)):
-                start_dt = datetime.datetime.fromtimestamp(start_time_str / 1000)
+                start_dt = datetime.datetime.fromtimestamp(
+                    start_time_str / 1000, tz=datetime.UTC
+                )
                 return start_dt.date()
         except (ValueError, OSError):
             return None

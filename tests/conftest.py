@@ -2,6 +2,18 @@ import os
 import sys
 from datetime import date, timedelta
 
+os.environ.setdefault("SECRET_KEY", "test-secret-key-for-testing-only-32chars")  # pragma: allowlist secret
+os.environ.setdefault(
+    "FERNET_KEY",
+    "54BnS4pmP4MQBDxKfAIZ1PJ0SMH01c58kdpPv1q0YC8=",  # pragma: allowlist secret
+)
+os.environ.setdefault("ADMIN_USERNAME", "admin@test.com")
+os.environ.setdefault("ADMIN_PASSWORD", "test-admin-password-123")  # pragma: allowlist secret
+os.environ.setdefault(
+    "DATABASE_URL",
+    "postgresql+psycopg2://life_as_code_user:testpass@localhost:5434/life_as_code_test",  # pragma: allowlist secret
+)
+
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker

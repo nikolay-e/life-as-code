@@ -51,6 +51,69 @@ from utils import get_user_credentials
 api = Blueprint("api", __name__, url_prefix="/api")
 logger = get_logger(__name__)
 
+_login_attempts: dict[str, tuple[int, float, float]] = {}
+_LOCKOUT_THRESHOLD = 5
+_LOCKOUT_WINDOW = 600
+_MAX_LOCKOUT_SECONDS = 3600
+_MAX_TRACKED_USERNAMES = 10000
+
+
+def _check_account_lockout(username: str) -> float:
+    import time
+
+    entry = _login_attempts.get(username)
+    if not entry:
+        return 0
+    count, last_attempt, locked_until = entry
+    now = time.time()
+    if now < locked_until:
+        return locked_until - now
+    if count < _LOCKOUT_THRESHOLD and now - last_attempt > _LOCKOUT_WINDOW:
+        del _login_attempts[username]
+        return 0
+    return 0
+
+
+def _record_failed_login(username: str):
+    import time
+
+    now = time.time()
+    entry = _login_attempts.get(username)
+    if entry:
+        count, last_attempt, locked_until = entry
+        if now < locked_until:
+            count += 1
+        elif now - last_attempt > _LOCKOUT_WINDOW:
+            count = 1
+        else:
+            count += 1
+    else:
+        count = 1
+    locked_until = 0.0
+    if count >= _LOCKOUT_THRESHOLD:
+        delay = min(2 ** (count - _LOCKOUT_THRESHOLD), _MAX_LOCKOUT_SECONDS)
+        locked_until = now + delay
+    if (
+        len(_login_attempts) >= _MAX_TRACKED_USERNAMES
+        and username not in _login_attempts
+    ):
+        _evict_stale_entries(now)
+    _login_attempts[username] = (count, now, locked_until)
+
+
+def _evict_stale_entries(now: float):
+    stale = [
+        k
+        for k, (_, last, locked) in _login_attempts.items()
+        if now > locked and now - last > _LOCKOUT_WINDOW
+    ]
+    for k in stale:
+        del _login_attempts[k]
+
+
+def _clear_login_attempts(username: str):
+    _login_attempts.pop(username, None)
+
 
 @api.errorhandler(APIError)
 def handle_api_error(error: APIError):
@@ -79,7 +142,7 @@ def get_version():
 
 
 @api.route("/auth/login", methods=["POST"])
-@limiter.limit("3000 per hour")
+@limiter.limit("10 per minute")
 def api_login():
     data = request.get_json()
     if not data:
@@ -91,10 +154,18 @@ def api_login():
     if not username or not password:
         raise ValidationError("Username and password are required")
 
+    remaining = _check_account_lockout(username)
+    if remaining > 0:
+        logger.warning(
+            "login_locked_out", username=username, remaining_seconds=remaining
+        )
+        raise InvalidCredentialsError()
+
     try:
         with get_db_session_context() as db:
             user = db.scalars(select(User).filter_by(username=username)).first()
             if user and verify_password(password, user.password_hash):
+                _clear_login_attempts(username)
                 user_model = UserModel(user.id, user.username)
                 login_user(user_model)
                 logger.info("login_success", username=username, user_id=user.id)
@@ -106,15 +177,16 @@ def api_login():
                         }
                     }
                 )
+            _record_failed_login(username)
             logger.warning(
                 "login_failed", username=username, reason="invalid_credentials"
             )
             raise InvalidCredentialsError()
     except APIError:
         raise
-    except Exception as e:
-        logger.exception("login_error", username=username, error=str(e))
-        raise
+    except Exception:
+        logger.exception("login_error", username=username)
+        raise InvalidCredentialsError() from None
 
 
 @api.route("/auth/logout", methods=["POST"])
@@ -923,7 +995,7 @@ def api_get_interventions():
     with get_db_session_context() as db:
         query = select(Intervention).filter_by(user_id=current_user.id)
         if active_only:
-            query = query.filter_by(active=1)
+            query = query.filter_by(active=True)
         query = query.order_by(Intervention.start_date.desc())
         rows = db.scalars(query).all()
         return jsonify([_serialize_model(r, INTERVENTION_FIELDS) for r in rows])
@@ -969,7 +1041,7 @@ def api_create_intervention():
             frequency=data.get("frequency"),
             target_metrics=data.get("target_metrics"),
             notes=data.get("notes"),
-            active=1,
+            active=True,
         )
         db.add(intervention)
         db.commit()
@@ -1001,7 +1073,7 @@ def api_update_intervention(intervention_id: int):
                 setattr(row, field, data[field])
 
         if "active" in data:
-            row.active = 1 if data["active"] else 0
+            row.active = bool(data["active"])
 
         if "end_date" in data:
             if data["end_date"]:

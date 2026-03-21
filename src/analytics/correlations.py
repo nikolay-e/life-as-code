@@ -93,7 +93,18 @@ def calculate_correlation_metrics(
         sleep_hrv_p_value=sleep_hrv_p,
         strain_recovery_correlation=strain_recovery_corr,
         strain_recovery_p_value=strain_recovery_p,
-        sample_size=min(len(hrv_rhr_x), len(sleep_hrv_x)),
+        sample_size=(
+            min(
+                s
+                for s in [len(hrv_rhr_x), len(sleep_hrv_x), len(strain_hrv_x)]
+                if s > 0
+            )
+            if any([hrv_rhr_x, sleep_hrv_x, strain_hrv_x])
+            else 0
+        ),
+        sample_size_hrv_rhr=len(hrv_rhr_x),
+        sample_size_sleep_hrv=len(sleep_hrv_x),
+        sample_size_strain_recovery=len(strain_hrv_x),
         is_significant=is_sig,
     )
 

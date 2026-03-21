@@ -139,13 +139,18 @@ csrf = CSRFProtect(server)
 
 @server.before_request
 def csrf_protect():
-    # Skip CSRF for API routes (already handled by blueprint exemption)
     if request.path.startswith("/api/"):
+        if request.method not in ("GET", "HEAD", "OPTIONS"):
+            if request.headers.get("X-Requested-With") != "XMLHttpRequest":
+                return _create_problem_response(
+                    error_type="csrf-rejected",
+                    title="CSRF Check Failed",
+                    status=403,
+                    detail="Missing X-Requested-With header",
+                )
         return None
-    # Skip CSRF for GET, HEAD, OPTIONS, TRACE
     if request.method in ("GET", "HEAD", "OPTIONS", "TRACE"):
         return None
-    # Apply CSRF protection for other routes
     csrf.protect()
 
 
@@ -154,8 +159,13 @@ def csrf_protect():
 def load_user(user_id):
     from database import get_db_session_context
 
+    try:
+        uid = int(user_id)
+    except (ValueError, TypeError):
+        return None
+
     with get_db_session_context() as db:
-        user = db.scalars(select(User).filter_by(id=int(user_id))).first()
+        user = db.scalars(select(User).filter_by(id=uid)).first()
         if user:
             return UserModel(user.id, user.username)
         return None
@@ -174,9 +184,6 @@ def health():
 
         return {
             "status": "healthy",
-            "version": _settings.app_version,
-            "build_date": _settings.build_date,
-            "commit": _settings.commit_short,
             "database": "connected",
             "timestamp": datetime.now(UTC).isoformat(),
         }, 200
@@ -184,8 +191,7 @@ def health():
         logger.error("health_check_failed", error=str(e))
         return {
             "status": "unhealthy",
-            "version": _settings.app_version,
-            "error": "database_unavailable",
+            "database": "unavailable",
             "timestamp": datetime.now(UTC).isoformat(),
         }, 503
 
@@ -297,7 +303,7 @@ csrf.exempt(api)
 app = server
 
 if __name__ == "__main__":
-    debug_mode = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
+    debug_mode = os.environ.get("FLASK_DEBUG", "false").lower() in ("true", "1", "yes")
     bind_host = os.environ.get("FLASK_HOST", "127.0.0.1")
     server.run(
         host=bind_host,

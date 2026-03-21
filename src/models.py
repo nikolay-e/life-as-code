@@ -2,6 +2,7 @@ import datetime
 from typing import Any, cast
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Column,
     Date,
@@ -1268,6 +1269,13 @@ class ClinicalAlertEvent(Base):
     user = relationship("User", back_populates="clinical_alert_events")
 
     __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "alert_type",
+            "status",
+            "first_detected_at",
+            name="_clinical_alert_user_type_status_detected_uc",
+        ),
         Index("idx_alert_user_status", "user_id", "status"),
         Index("idx_alert_user_type", "user_id", "alert_type"),
         CheckConstraint(
@@ -1322,21 +1330,28 @@ class Intervention(Base):
     frequency = Column(String(100))
     target_metrics = Column(JSON)
     notes = Column(Text)
-    active = Column(Integer, nullable=False, default=1)
+    active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime, default=utcnow)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     user = relationship("User", back_populates="interventions")
 
     __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "name",
+            "start_date",
+            "category",
+            name="_intervention_user_name_start_category_uc",
+        ),
         Index("idx_intervention_user_active", "user_id", "active"),
         CheckConstraint(
             "category IN ('supplement', 'protocol', 'medication', 'lifestyle', 'diet')",
             name="valid_intervention_category",
         ),
         CheckConstraint(
-            "active IN (0, 1)",
-            name="valid_intervention_active",
+            "end_date IS NULL OR end_date >= start_date",
+            name="valid_intervention_dates",
         ),
     )
 
@@ -1380,4 +1395,9 @@ class LongevityGoal(Base):
 
     user = relationship("User", back_populates="longevity_goals")
 
-    __table_args__ = (Index("idx_longevity_goal_user", "user_id"),)
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "category", name="_longevity_goal_user_category_uc"
+        ),
+        Index("idx_longevity_goal_user", "user_id"),
+    )

@@ -329,7 +329,12 @@ def _compute_health_analysis_impl(
         config.trend_window,
         ref_date=target_date,
     )
-    calories_metrics = calculate_calories_metrics(calories_data, ref_date=target_date)
+    calories_metrics = calculate_calories_metrics(
+        calories_data,
+        short_term_window=config.short_term,
+        baseline_window=config.baseline,
+        ref_date=target_date,
+    )
     energy_balance = calculate_energy_balance(calories_metrics, weight_metrics)
 
     correlations = calculate_correlation_metrics(

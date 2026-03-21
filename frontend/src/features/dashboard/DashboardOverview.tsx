@@ -43,6 +43,7 @@ import { DASHBOARD_METRIC_KEYS } from "../../lib/metrics/keys";
 import { toTimeMs } from "../../lib/health";
 import { getLatestSyncDate } from "../../lib/sync-utils";
 import { useAnalytics } from "../../hooks/useAnalytics";
+import { useToday } from "../../hooks/useToday";
 
 const DASHBOARD_KEYS = new Set<string>(DASHBOARD_METRIC_KEYS);
 
@@ -82,7 +83,7 @@ function MetricCard({
 }
 
 export function DashboardOverview() {
-  const today = new Date();
+  const today = useToday();
   const [selectedRange, setSelectedRange] = useState<ViewMode>("recent");
   const [customStartDate, setCustomStartDate] = useState(
     format(subDays(today, 90), "yyyy-MM-dd"),
