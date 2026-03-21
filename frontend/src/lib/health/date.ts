@@ -1,3 +1,5 @@
+import { startOfDay } from "date-fns";
+
 export function getLocalDateString(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -16,9 +18,7 @@ export function extractDatePart(dateStr: string): string {
 }
 
 export function getLocalToday(): Date {
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  return now;
+  return startOfDay(new Date());
 }
 
 export function normalizeDateTimeString(s: string): string {

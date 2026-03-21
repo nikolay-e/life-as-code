@@ -17,6 +17,10 @@ import { EmptyChartMessage } from "./shared";
 import { chartTooltipStyle, MULTI_PROVIDER_CONFIGS } from "./chart-config";
 import { loessSmooth } from "../../lib/statistics";
 import { dateToTimestamp } from "../../lib/chart-utils";
+import {
+  LOESS_BANDWIDTH_SHORT,
+  LOESS_BANDWIDTH_LONG,
+} from "../../lib/constants";
 
 interface SleepChartProps {
   readonly garminData: SleepData[];
@@ -42,8 +46,8 @@ export const SleepChart = memo(
     whoopData = [],
     showBreakdown = false,
     showTrends = false,
-    bandwidthShort = 0.17,
-    bandwidthLong = 0.33,
+    bandwidthShort = LOESS_BANDWIDTH_SHORT,
+    bandwidthLong = LOESS_BANDWIDTH_LONG,
     height = 250,
     dateRange,
   }: SleepChartProps) => {

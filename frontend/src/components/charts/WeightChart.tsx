@@ -17,6 +17,10 @@ import { chartTooltipStyle, TREND_CONFIGS } from "./chart-config";
 import { renderTrendLines } from "./TrendLines";
 import { useWeightTrendData } from "../../hooks/useWeightTrendData";
 import { dateToTimestamp } from "../../lib/chart-utils";
+import {
+  LOESS_BANDWIDTH_SHORT,
+  LOESS_BANDWIDTH_LONG,
+} from "../../lib/constants";
 
 interface WeightChartProps {
   readonly data: WeightData[];
@@ -33,8 +37,8 @@ export const WeightChart = memo(
     data,
     showTrends = false,
     showBaseline = false,
-    bandwidthShort = 0.17,
-    bandwidthLong = 0.33,
+    bandwidthShort = LOESS_BANDWIDTH_SHORT,
+    bandwidthLong = LOESS_BANDWIDTH_LONG,
     height = 250,
     dateRange,
   }: WeightChartProps) => {

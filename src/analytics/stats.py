@@ -4,6 +4,8 @@ import math
 
 import numpy as np
 from scipy import stats as scipy_stats
+from scipy.stats import median_abs_deviation
+from scipy.stats.mstats import winsorize as _scipy_winsorize
 
 from .constants import MAD_SCALE_FACTOR
 
@@ -29,11 +31,10 @@ def winsorize(
 ) -> list[float]:
     if len(values) < 4:
         return list(values)
-    arr = np.array(values)
-    lower_bound = float(np.percentile(arr, lower_pct, method="linear"))
-    upper_bound = float(np.percentile(arr, upper_pct, method="linear"))
-    result: list[float] = np.clip(arr, lower_bound, upper_bound).tolist()
-    return result
+    result = _scipy_winsorize(
+        np.array(values), limits=(lower_pct / 100.0, 1.0 - upper_pct / 100.0)
+    )
+    return list(result.astype(float))
 
 
 def calculate_median(values: list[float]) -> float:
@@ -45,8 +46,7 @@ def calculate_median(values: list[float]) -> float:
 def calculate_mad(values: list[float]) -> float:
     if len(values) < 2:
         return 0.0
-    median = float(np.median(values))
-    return float(np.median(np.abs(np.array(values) - median)))
+    return float(median_abs_deviation(values, scale=1.0))
 
 
 def calculate_std(values: list[float]) -> float:
@@ -62,7 +62,7 @@ def calculate_robust_stats(values: list[float]) -> dict:
     mean = float(np.mean(arr))
     std = float(np.std(arr, ddof=1)) if len(values) >= 2 else 0.0
     median = float(np.median(arr))
-    mad = float(np.median(np.abs(arr - median)))
+    mad = float(median_abs_deviation(arr, scale=1.0))
     return {
         "median": median,
         "mad": mad,
@@ -99,9 +99,11 @@ def pearson_correlation_with_pvalue(
     if np.std(x) < MIN_STD_THRESHOLD or np.std(y) < MIN_STD_THRESHOLD:
         return None, None
     try:
-        r, p = scipy_stats.pearsonr(x, y)
-        r_val = float(r) if math.isfinite(r) else None
-        p_val = float(p) if math.isfinite(p) else None
+        result = scipy_stats.pearsonr(x, y)
+        r_f = float(result[0])  # type: ignore[arg-type]  # scipy stubs
+        p_f = float(result[1])  # type: ignore[arg-type]  # scipy stubs
+        r_val = r_f if math.isfinite(r_f) else None
+        p_val = p_f if math.isfinite(p_f) else None
         return r_val, p_val
     except Exception:
         return None, None

@@ -267,7 +267,7 @@ def _compute_vo2_trend(vo2_vals: list[float]) -> float | None:
     from scipy import stats as scipy_stats
 
     result = scipy_stats.linregress(range(len(vo2_vals)), vo2_vals)
-    return float(result.slope) * 7
+    return float(result[0]) * 7  # type: ignore[arg-type]  # scipy stubs
 
 
 def calculate_fitness_metrics(

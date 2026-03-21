@@ -144,14 +144,10 @@ def api_me():
 
 
 def sanitize_for_json(records: list[dict]) -> list[dict]:
-    import math
-    import numbers
-
     for record in records:
         for key, value in record.items():
-            if isinstance(value, numbers.Real) and not isinstance(value, (int, bool)):
-                if math.isnan(value) or math.isinf(value):
-                    record[key] = None
+            if isinstance(value, float) and not math.isfinite(value):
+                record[key] = None
     return records
 
 

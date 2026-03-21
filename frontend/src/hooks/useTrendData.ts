@@ -6,10 +6,12 @@ import {
   loessSmooth,
 } from "../lib/statistics";
 import { sortByDateAsc, dateToTimestamp } from "../lib/chart-utils";
+import { extractDatePart } from "../lib/health/date";
+import { LOESS_BANDWIDTH_SHORT, LOESS_BANDWIDTH_LONG } from "../lib/constants";
 
 type TrendMethod = "ema" | "sma" | "loess";
 
-interface TrendOptions {
+export interface TrendOptions<T extends { date: string }> {
   method?: TrendMethod;
   shortTermWindow?: number;
   longTermWindow?: number;
@@ -17,6 +19,11 @@ interface TrendOptions {
   baselineWindow?: number;
   bandwidthShort?: number;
   bandwidthLong?: number;
+  trendValueKey?: string;
+  baselineValueKey?: string;
+  preprocessor?: (
+    deduped: T[],
+  ) => ({ date: string } & Record<string, unknown>)[];
 }
 
 export interface TrendDataPoint {
@@ -33,16 +40,59 @@ export type BaselineData = {
   deviation: number;
 };
 
-interface TrendResult<T> {
+export interface TrendResult<T> {
   chartData: (T & TrendDataPoint)[];
   baseline: BaselineData | null;
   hasData: boolean;
 }
 
+function deduplicateByDate<T extends { date: string }>(sortedData: T[]): T[] {
+  const deduped = new Map<string, T>();
+  for (const d of sortedData) {
+    deduped.set(extractDatePart(d.date), d);
+  }
+  return Array.from(deduped.values());
+}
+
+function computeTrends(
+  data: ({ date: string } & Record<string, unknown>)[],
+  trendKey: string,
+  method: TrendMethod,
+  shortTermWindow: number,
+  longTermWindow: number,
+  bandwidthShort: number,
+  bandwidthLong: number,
+): { trendShort: number | null; trendLong: number | null }[] {
+  if (method === "loess") {
+    const shortResult = loessSmooth(data, trendKey, bandwidthShort);
+    const longResult = loessSmooth(data, trendKey, bandwidthLong);
+    return data.map((_, idx) => ({
+      trendShort: shortResult[idx]?.loess ?? null,
+      trendLong: longResult[idx]?.loess ?? null,
+    }));
+  }
+
+  if (method === "ema") {
+    const shortResult = calculateEMA(data, shortTermWindow, trendKey);
+    const longResult = calculateEMA(data, longTermWindow, trendKey);
+    return data.map((_, idx) => ({
+      trendShort: shortResult[idx]?.ema ?? null,
+      trendLong: longResult[idx]?.ema ?? null,
+    }));
+  }
+
+  const shortResult = calculateSMA(data, shortTermWindow, trendKey);
+  const longResult = calculateSMA(data, longTermWindow, trendKey);
+  return data.map((_, idx) => ({
+    trendShort: shortResult[idx]?.sma ?? null,
+    trendLong: longResult[idx]?.sma ?? null,
+  }));
+}
+
 export function useTrendData<T extends { date: string }>(
   data: T[],
   valueKey: keyof T,
-  options: TrendOptions = {},
+  options: TrendOptions<T> = {},
 ): TrendResult<T> {
   const {
     method = "loess",
@@ -50,8 +100,11 @@ export function useTrendData<T extends { date: string }>(
     longTermWindow = 30,
     showBaseline = false,
     baselineWindow = 14,
-    bandwidthShort = 0.17,
-    bandwidthLong = 0.33,
+    bandwidthShort = LOESS_BANDWIDTH_SHORT,
+    bandwidthLong = LOESS_BANDWIDTH_LONG,
+    trendValueKey,
+    baselineValueKey,
+    preprocessor,
   } = options;
 
   return useMemo(() => {
@@ -60,71 +113,49 @@ export function useTrendData<T extends { date: string }>(
     }
 
     const sortedData = sortByDateAsc(data);
+    const dedupedData = deduplicateByDate(sortedData);
 
-    const deduped = new Map<string, T>();
-    for (const d of sortedData) {
-      const dateKey = d.date.split("T")[0];
-      deduped.set(dateKey, d);
-    }
+    const processed = preprocessor
+      ? preprocessor(dedupedData)
+      : (dedupedData as ({ date: string } & Record<string, unknown>)[]);
 
-    const normalized = Array.from(deduped.values()).map((d) => {
-      const dateOnly = d.date.split("T")[0];
+    const effectiveTrendKey = trendValueKey ?? "value";
+
+    const normalized = processed.map((d) => {
+      const dateOnly = extractDatePart(d.date);
       return {
         ...d,
         date: dateOnly,
         timestamp: dateToTimestamp(dateOnly),
-        value: d[valueKey] as number | null,
+        value: trendValueKey
+          ? (d[trendValueKey] as number | null)
+          : (d[valueKey as string] as number | null),
       };
     });
 
-    let withTrends: Array<
-      (typeof normalized)[number] & {
-        trendShort: number | null;
-        trendLong: number | null;
-      }
-    >;
+    const trends = computeTrends(
+      normalized,
+      effectiveTrendKey,
+      method,
+      shortTermWindow,
+      longTermWindow,
+      bandwidthShort,
+      bandwidthLong,
+    );
 
-    if (method === "loess") {
-      const shortTermResult = loessSmooth(normalized, "value", bandwidthShort);
-      const longTermResult = loessSmooth(normalized, "value", bandwidthLong);
+    const chartData = normalized.map((d, idx) => ({
+      ...d,
+      trendShort: trends[idx].trendShort,
+      trendLong: trends[idx].trendLong,
+    })) as (T & TrendDataPoint)[];
 
-      withTrends = normalized.map((d, idx) => ({
-        ...d,
-        trendShort: shortTermResult[idx]?.loess ?? null,
-        trendLong: longTermResult[idx]?.loess ?? null,
-      }));
-    } else if (method === "ema") {
-      const shortTermResult = calculateEMA(
-        normalized,
-        shortTermWindow,
-        "value",
-      );
-      const longTermResult = calculateEMA(normalized, longTermWindow, "value");
-
-      withTrends = normalized.map((d, idx) => ({
-        ...d,
-        trendShort: shortTermResult[idx]?.ema ?? null,
-        trendLong: longTermResult[idx]?.ema ?? null,
-      }));
-    } else {
-      const shortTermResult = calculateSMA(
-        normalized,
-        shortTermWindow,
-        "value",
-      );
-      const longTermResult = calculateSMA(normalized, longTermWindow, "value");
-
-      withTrends = normalized.map((d, idx) => ({
-        ...d,
-        trendShort: shortTermResult[idx]?.sma ?? null,
-        trendLong: longTermResult[idx]?.sma ?? null,
-      }));
-    }
-
-    const chartData = withTrends as (T & TrendDataPoint)[];
-
+    const effectiveBaselineKey = baselineValueKey ?? (valueKey as string);
     const baseline = showBaseline
-      ? calculateBaseline(normalized, baselineWindow, "value")
+      ? calculateBaseline(
+          preprocessor ? processed : normalized,
+          baselineWindow,
+          effectiveBaselineKey,
+        )
       : null;
 
     const hasData = chartData.some((d) => d.value !== null);
@@ -140,5 +171,8 @@ export function useTrendData<T extends { date: string }>(
     baselineWindow,
     bandwidthShort,
     bandwidthLong,
+    trendValueKey,
+    baselineValueKey,
+    preprocessor,
   ]);
 }

@@ -31,6 +31,7 @@ RUN chown -R nginx:nginx /var/cache/nginx /var/run && \
 
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY security-headers.conf /etc/nginx/snippets/security-headers.conf
 
 RUN chown -R nginx:nginx /usr/share/nginx/html
 

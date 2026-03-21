@@ -4,6 +4,9 @@ export const SYNC_REFETCH_INTERVAL = 30_000;
 export const HEALTH_DATA_STALE_TIME = 5 * 60 * 1000;
 export const DEFAULT_SYNC_DAYS = 90;
 
+export const LOESS_BANDWIDTH_SHORT = 0.17;
+export const LOESS_BANDWIDTH_LONG = 0.33;
+
 export const WHOOP_MAX_STRAIN = 21;
 export const DEFAULT_ACTIVITY_NAME = "Workout";
 

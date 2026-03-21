@@ -1,6 +1,6 @@
 import pandas as pd
 import structlog
-from scipy.stats import percentileofscore
+from scipy.stats import rankdata
 from sklearn.ensemble import IsolationForest
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
@@ -25,9 +25,8 @@ def detect_anomalies(
     scores_raw = model.decision_function(numeric_df)
     labels = model.predict(numeric_df)
 
-    scores = [
-        1 - percentileofscore(scores_raw, s, kind="rank") / 100.0 for s in scores_raw
-    ]
+    ranks = rankdata(scores_raw)
+    scores = (1 - ranks / len(ranks)).tolist()
 
     means = numeric_df.mean()
     stds = numeric_df.std()

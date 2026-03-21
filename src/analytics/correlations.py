@@ -128,7 +128,7 @@ def _calc_metric_slope(
         return None
     xs = [day_number(d.date) for d in recent]
     ys: list[float] = [d.value for d in recent if d.value is not None]
-    return float(scipy_stats.linregress(xs, ys).slope)
+    return float(scipy_stats.linregress(xs, ys)[0])  # type: ignore[arg-type]  # scipy stubs
 
 
 def _interpret_velocity(

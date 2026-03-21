@@ -1,11 +1,8 @@
-import { useMemo } from "react";
-import {
-  calculateBiologicalWeightSmoothing,
-  calculateBaseline,
-  loessSmooth,
-} from "../lib/statistics";
+import { useCallback, useMemo } from "react";
+import { calculateBiologicalWeightSmoothing } from "../lib/statistics";
 import type { WeightData } from "../types/api";
-import { dateToTimestamp } from "../lib/chart-utils";
+import { useTrendData, type BaselineData } from "./useTrendData";
+import { LOESS_BANDWIDTH_SHORT, LOESS_BANDWIDTH_LONG } from "../lib/constants";
 
 interface WeightTrendOptions {
   bandwidthShort?: number;
@@ -23,11 +20,7 @@ export interface WeightTrendDataPoint {
   trendLong: number | null;
 }
 
-export interface WeightBaselineData {
-  baseline: number;
-  median: number;
-  deviation: number;
-}
+export type WeightBaselineData = BaselineData;
 
 interface WeightTrendResult {
   chartData: WeightTrendDataPoint[];
@@ -38,19 +31,44 @@ interface WeightTrendResult {
   hasData: boolean;
 }
 
+const WEIGHT_PADDING_FACTOR = 0.15;
+const WEIGHT_PADDING_FALLBACK = 2;
+
 export function useWeightTrendData(
   data: WeightData[],
   options: WeightTrendOptions = {},
 ): WeightTrendResult {
   const {
-    bandwidthShort = 0.17,
-    bandwidthLong = 0.33,
+    bandwidthShort = LOESS_BANDWIDTH_SHORT,
+    bandwidthLong = LOESS_BANDWIDTH_LONG,
     showBaseline = false,
     baselineWindow = 14,
   } = options;
 
+  const preprocessor = useCallback((deduped: WeightData[]) => {
+    const withWeights = deduped
+      .filter((d) => d.weight_kg != null)
+      .map((d) => ({ date: d.date, weight_kg: d.weight_kg as number }));
+    return calculateBiologicalWeightSmoothing(withWeights, "weight_kg");
+  }, []);
+
+  const {
+    chartData: rawChartData,
+    baseline,
+    hasData,
+  } = useTrendData<WeightData>(data, "weight_kg", {
+    method: "loess",
+    bandwidthShort,
+    bandwidthLong,
+    showBaseline,
+    baselineWindow,
+    trendValueKey: "rawWeight",
+    baselineValueKey: "rawWeight",
+    preprocessor,
+  });
+
   return useMemo(() => {
-    if (data.length === 0) {
+    if (!hasData) {
       return {
         chartData: [],
         baseline: null,
@@ -61,27 +79,13 @@ export function useWeightTrendData(
       };
     }
 
-    const byDate = new Map<string, number>();
-    for (const d of data) {
-      if (d.weight_kg != null) {
-        byDate.set(d.date, d.weight_kg);
-      }
+    const validWeights: number[] = [];
+    for (const d of rawChartData) {
+      const raw = (d as unknown as Record<string, unknown>).rawWeight as
+        | number
+        | null;
+      if (raw !== null) validWeights.push(raw);
     }
-    const normalizedData = Array.from(byDate, ([date, weight_kg]) => ({
-      date,
-      weight_kg,
-    })).sort((a, b) => a.date.localeCompare(b.date));
-
-    const smoothedData = calculateBiologicalWeightSmoothing(
-      normalizedData,
-      "weight_kg",
-    );
-
-    const validWeights = smoothedData
-      .filter(
-        (d): d is typeof d & { rawWeight: number } => d.rawWeight !== null,
-      )
-      .map((d) => d.rawWeight);
 
     if (validWeights.length === 0) {
       return {
@@ -96,26 +100,9 @@ export function useWeightTrendData(
 
     const min = Math.min(...validWeights);
     const max = Math.max(...validWeights);
-    const pad = (max - min) * 0.15 || 2;
+    const pad = (max - min) * WEIGHT_PADDING_FACTOR || WEIGHT_PADDING_FALLBACK;
 
-    const baseline = showBaseline
-      ? calculateBaseline(normalizedData, baselineWindow, "weight_kg")
-      : null;
-
-    const dataForLoess = smoothedData as unknown as ({
-      date: string;
-    } & Record<string, unknown>)[];
-    const loessShort = loessSmooth(dataForLoess, "rawWeight", bandwidthShort);
-    const loessLong = loessSmooth(dataForLoess, "rawWeight", bandwidthLong);
-
-    const chartData: WeightTrendDataPoint[] = smoothedData.map((d, i) => ({
-      date: d.date,
-      timestamp: dateToTimestamp(d.date),
-      rawWeight: d.rawWeight,
-      smoothedWeight: d.smoothedWeight,
-      trendShort: loessShort[i]?.loess ?? null,
-      trendLong: loessLong[i]?.loess ?? null,
-    }));
+    const chartData = rawChartData as unknown as WeightTrendDataPoint[];
 
     return {
       chartData,
@@ -125,5 +112,5 @@ export function useWeightTrendData(
       padding: pad,
       hasData: true,
     };
-  }, [data, bandwidthShort, bandwidthLong, showBaseline, baselineWindow]);
+  }, [rawChartData, baseline, hasData]);
 }

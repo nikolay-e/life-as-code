@@ -5,6 +5,7 @@ import type {
   TrendConfig,
 } from "./types";
 import { METRIC_REGISTRY, resolveMetric } from "./registry";
+import { LOESS_BANDWIDTH_SHORT, LOESS_BANDWIDTH_LONG } from "../constants";
 
 export const TREND_MODES: Record<TrendMode, TrendModeConfig> = {
   recent: {
@@ -14,8 +15,8 @@ export const TREND_MODES: Record<TrendMode, TrendModeConfig> = {
     longTerm: 14,
     baseline: 42,
     trendWindow: 7,
-    bandwidthShort: 0.17,
-    bandwidthLong: 0.33,
+    bandwidthShort: LOESS_BANDWIDTH_SHORT,
+    bandwidthLong: LOESS_BANDWIDTH_LONG,
     useShiftedZScore: false,
     description: "Daily",
   },

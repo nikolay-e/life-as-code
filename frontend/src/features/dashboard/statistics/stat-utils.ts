@@ -1,15 +1,163 @@
-export function getConfidenceColor(confidence: number): string {
-  if (confidence >= 0.8) return "text-green-500";
-  if (confidence >= 0.6) return "text-yellow-500";
-  return "text-red-500";
+type Comparator = "<" | ">";
+type ColorRule = readonly [Comparator, number, string];
+
+interface ColorConfig {
+  readonly nullColor: string;
+  readonly rules: readonly ColorRule[];
+  readonly defaultColor: string;
 }
 
-export function getHrvRhrColor(value: number | null): string {
-  if (value === null) return "text-muted-foreground";
-  if (value > 1) return "text-red-500";
-  if (value < -1) return "text-green-500";
-  return "text-blue-500";
+function colorByThresholds(value: number | null, config: ColorConfig): string {
+  if (value === null) return config.nullColor;
+  for (const [op, threshold, color] of config.rules) {
+    if (op === "<" ? value < threshold : value > threshold) return color;
+  }
+  return config.defaultColor;
 }
+
+const CONFIDENCE: ColorConfig = {
+  nullColor: "",
+  rules: [
+    ["<", 0.6, "text-red-500"],
+    ["<", 0.8, "text-yellow-500"],
+  ],
+  defaultColor: "text-green-500",
+};
+
+const HRV_RHR: ColorConfig = {
+  nullColor: "text-muted-foreground",
+  rules: [
+    [">", 1, "text-red-500"],
+    ["<", -1, "text-green-500"],
+  ],
+  defaultColor: "text-blue-500",
+};
+
+const SLEEP_DEBT: ColorConfig = {
+  nullColor: "",
+  rules: [
+    [">", 120, "text-red-500"],
+    [">", 60, "text-yellow-500"],
+  ],
+  defaultColor: "text-green-500",
+};
+
+const ACWR: ColorConfig = {
+  nullColor: "text-muted-foreground",
+  rules: [
+    [">", 1.5, "text-red-500"],
+    ["<", 0.8, "text-yellow-500"],
+  ],
+  defaultColor: "text-green-500",
+};
+
+const STEPS_CHANGE: ColorConfig = {
+  nullColor: "text-muted-foreground",
+  rules: [
+    ["<", -1000, "text-red-500"],
+    [">", 1000, "text-green-500"],
+  ],
+  defaultColor: "text-blue-500",
+};
+
+const WEIGHT_CHANGE: ColorConfig = {
+  nullColor: "",
+  rules: [
+    [">", 0.5, "text-red-500"],
+    ["<", -0.5, "text-green-500"],
+  ],
+  defaultColor: "text-blue-500",
+};
+
+const STRESS_TREND: ColorConfig = {
+  nullColor: "",
+  rules: [
+    [">", 5, "text-red-500"],
+    ["<", -5, "text-green-500"],
+  ],
+  defaultColor: "text-blue-500",
+};
+
+const CORRELATION: ColorConfig = {
+  nullColor: "text-muted-foreground",
+  rules: [
+    ["<", -0.3, "text-green-500"],
+    [">", 0, "text-red-500"],
+  ],
+  defaultColor: "text-muted-foreground",
+};
+
+const HRV_SD: ColorConfig = {
+  nullColor: "",
+  rules: [
+    ["<", 0.1, "text-green-500"],
+    [">", 0.15, "text-red-500"],
+  ],
+  defaultColor: "",
+};
+
+const TSB: ColorConfig = {
+  nullColor: "",
+  rules: [
+    [">", 0, "text-green-500"],
+    ["<", -10, "text-red-500"],
+  ],
+  defaultColor: "",
+};
+
+const ALLOSTATIC_SCORE: ColorConfig = {
+  nullColor: "text-yellow-500",
+  rules: [
+    ["<", 20, "text-green-500"],
+    [">", 40, "text-red-500"],
+  ],
+  defaultColor: "text-yellow-500",
+};
+
+const CROSS_CORRELATION: ColorConfig = {
+  nullColor: "",
+  rules: [
+    [">", 0.3, "text-green-500"],
+    ["<", -0.3, "text-red-500"],
+  ],
+  defaultColor: "",
+};
+
+export const getConfidenceColor = (value: number): string =>
+  colorByThresholds(value, CONFIDENCE);
+
+export const getHrvRhrColor = (value: number | null): string =>
+  colorByThresholds(value, HRV_RHR);
+
+export const getSleepDebtColor = (value: number): string =>
+  colorByThresholds(value, SLEEP_DEBT);
+
+export const getAcwrColor = (value: number | null): string =>
+  colorByThresholds(value, ACWR);
+
+export const getStepsChangeColor = (value: number | null): string =>
+  colorByThresholds(value, STEPS_CHANGE);
+
+export const getWeightChangeColor = (value: number | null): string =>
+  colorByThresholds(value, WEIGHT_CHANGE);
+
+export const getStressTrendColor = (value: number | null): string =>
+  colorByThresholds(value, STRESS_TREND);
+
+export const getCorrelationColor = (value: number | null): string =>
+  colorByThresholds(value, CORRELATION);
+
+export const getHrvSdColor = (value: number | null): string =>
+  colorByThresholds(value, HRV_SD);
+
+export const getTsbColor = (value: number | null): string =>
+  colorByThresholds(value, TSB);
+
+export const getAllostaticScoreColor = (value: number | null): string =>
+  colorByThresholds(value, ALLOSTATIC_SCORE);
+
+export const getCrossCorrelationColor = (value: number | null): string =>
+  colorByThresholds(value, CROSS_CORRELATION);
 
 export function getHrvRhrLabel(value: number | null): string {
   if (value === null) return "Insufficient data";
@@ -18,80 +166,11 @@ export function getHrvRhrLabel(value: number | null): string {
   return "Balanced";
 }
 
-export function getSleepDebtColor(value: number): string {
-  if (value > 120) return "text-red-500";
-  if (value > 60) return "text-yellow-500";
-  return "text-green-500";
-}
-
-export function getAcwrColor(value: number | null): string {
-  if (value === null) return "text-muted-foreground";
-  if (value > 1.5) return "text-red-500";
-  if (value < 0.8) return "text-yellow-500";
-  return "text-green-500";
-}
-
 export function getAcwrLabel(value: number | null): string {
   if (value === null) return "Insufficient strain data";
   if (value > 1.5) return "Injury risk - reduce load";
   if (value < 0.8) return "Detraining risk";
   return "Sweet spot";
-}
-
-export function getStepsChangeColor(value: number | null): string {
-  if (value === null) return "text-muted-foreground";
-  if (value < -1000) return "text-red-500";
-  if (value > 1000) return "text-green-500";
-  return "text-blue-500";
-}
-
-export function getWeightChangeColor(value: number | null): string {
-  if (value === null) return "";
-  if (value > 0.5) return "text-red-500";
-  if (value < -0.5) return "text-green-500";
-  return "text-blue-500";
-}
-
-export function getStressTrendColor(value: number | null): string {
-  if (value === null) return "";
-  if (value > 5) return "text-red-500";
-  if (value < -5) return "text-green-500";
-  return "text-blue-500";
-}
-
-export function getCorrelationColor(value: number | null): string {
-  if (value === null) return "text-muted-foreground";
-  if (value < -0.3) return "text-green-500";
-  if (value > 0) return "text-red-500";
-  return "text-muted-foreground";
-}
-
-export function getHrvSdColor(value: number | null): string {
-  if (value === null) return "";
-  if (value < 0.1) return "text-green-500";
-  if (value > 0.15) return "text-red-500";
-  return "";
-}
-
-export function getTsbColor(value: number | null): string {
-  if (value === null) return "";
-  if (value > 0) return "text-green-500";
-  if (value < -10) return "text-red-500";
-  return "";
-}
-
-export function getAllostaticScoreColor(value: number | null): string {
-  if (value === null) return "text-yellow-500";
-  if (value < 20) return "text-green-500";
-  if (value > 40) return "text-red-500";
-  return "text-yellow-500";
-}
-
-export function getCrossCorrelationColor(value: number | null): string {
-  if (value === null) return "";
-  if (value > 0.3) return "text-green-500";
-  if (value < -0.3) return "text-red-500";
-  return "";
 }
 
 export function signPrefix(value: number): string {

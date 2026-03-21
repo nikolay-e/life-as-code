@@ -1,3 +1,4 @@
+import { differenceInCalendarDays } from "date-fns";
 import {
   getLocalToday,
   toLocalDayKey,
@@ -11,14 +12,8 @@ import {
   sumOrNull,
 } from "./health/stats";
 
-function getDaysBetween(date1: string, date2: string): number {
-  const d1 = new Date(date1);
-  const d2 = new Date(date2);
-  return Math.abs(
-    Math.round((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24)),
-  );
-}
-
+// Intentionally differs from backend's simple EMA (alpha * v + (1-alpha) * ema):
+// uses time-weighted exponential decay to handle irregular gaps between health measurements.
 export function calculateEMA<
   T extends { date: string } & Record<string, unknown>,
 >(
@@ -53,7 +48,9 @@ export function calculateEMA<
       return { ...point, ema: validCount < warmupPeriod ? null : ema };
     }
 
-    const daysDelta = getDaysBetween(prevDate, currentDate);
+    const daysDelta = Math.abs(
+      differenceInCalendarDays(new Date(currentDate), new Date(prevDate)),
+    );
 
     if (daysDelta > maxGapDays) {
       ema = value;

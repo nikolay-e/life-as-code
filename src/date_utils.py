@@ -10,7 +10,7 @@ def parse_iso_datetime(iso_string: str) -> datetime.datetime:
 
 
 def parse_iso_date(iso_string: str) -> datetime.date:
-    return parse_iso_datetime(iso_string).date()
+    return datetime.date.fromisoformat(iso_string[:10])
 
 
 def parse_date_string(date_string: str) -> datetime.date:

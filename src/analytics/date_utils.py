@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import re
-from datetime import UTC, date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from .types import DataPoint
 
@@ -32,10 +32,6 @@ def to_day_date(day_key: str) -> date:
 def day_number(date_str: str) -> int:
     d = to_day_date(to_day_key(date_str))
     return d.toordinal()
-
-
-def utcnow() -> datetime:
-    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def local_today() -> date:

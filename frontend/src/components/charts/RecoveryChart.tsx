@@ -5,6 +5,10 @@ import type {
 } from "../../types/api";
 import { SOURCE_COLORS } from "./chart-config";
 import { MultiProviderLineChart } from "./MultiProviderLineChart";
+import {
+  LOESS_BANDWIDTH_SHORT,
+  LOESS_BANDWIDTH_LONG,
+} from "../../lib/constants";
 
 interface RecoveryChartProps {
   readonly whoopData: WhoopRecoveryData[];
@@ -20,8 +24,8 @@ export const RecoveryChart = memo(
     whoopData,
     garminData = [],
     showTrends = false,
-    bandwidthShort = 0.17,
-    bandwidthLong = 0.33,
+    bandwidthShort = LOESS_BANDWIDTH_SHORT,
+    bandwidthLong = LOESS_BANDWIDTH_LONG,
     dateRange,
   }: RecoveryChartProps) => {
     const config = {

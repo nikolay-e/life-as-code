@@ -1,5 +1,6 @@
 import time
 from typing import Any
+from urllib.parse import urljoin
 
 import requests
 from tenacity import (
@@ -58,8 +59,7 @@ class HTTPClient:
         self.session.headers.update(self.headers)
 
     def _build_url(self, endpoint: str) -> str:
-        endpoint = endpoint.lstrip("/")
-        return f"{self.base_url}/{endpoint}"
+        return urljoin(self.base_url + "/", endpoint.lstrip("/"))
 
     def _handle_response(self, response: requests.Response) -> dict | list | None:
         if response.status_code == 200:
@@ -93,7 +93,7 @@ class HTTPClient:
         @retry(
             stop=stop_after_attempt(self.max_retries),
             wait=wait_exponential(multiplier=1, min=2, max=30),
-            retry=retry_if_exception_type((requests.RequestException, RateLimitError)),
+            retry=retry_if_exception_type(requests.RequestException),
             before_sleep=log_retry_attempt,
             reraise=True,
         )

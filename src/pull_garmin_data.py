@@ -4,7 +4,13 @@ from collections.abc import Callable
 from typing import Any
 
 from dotenv import load_dotenv
-from garminconnect import Garmin, GarminConnectAuthenticationError
+from garminconnect import (
+    Garmin,
+    GarminConnectAuthenticationError,
+    GarminConnectConnectionError,
+    GarminConnectTooManyRequestsError,
+)
+from requests.exceptions import RequestException
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -85,7 +91,12 @@ def init_api(email: str, password: str, user_id: int) -> Garmin:
             error=str(e),
         )
         raise
-    except Exception as e:
+    except (
+        GarminConnectConnectionError,
+        GarminConnectTooManyRequestsError,
+        RequestException,
+        OSError,
+    ) as e:
         logger.error(
             "garmin_init_failed",
             user_id=user_id,
@@ -252,7 +263,7 @@ def sync_garmin_data_for_user(
         )
         return summary
 
-    except Exception as e:
+    except Exception as e:  # catch-all for sync resilience
         logger.error("garmin_sync_failed", user_id=user_id, error=str(e))
         return {"error": str(e), "user_id": user_id}
 
@@ -273,7 +284,15 @@ class GarminAPIWrapper:
                 self._summary_cache[date_str] = (
                     result if result and isinstance(result, dict) else None
                 )
-            except Exception as e:
+            except (
+                GarminConnectConnectionError,
+                GarminConnectTooManyRequestsError,
+                GarminConnectAuthenticationError,
+                RequestException,
+                KeyError,
+                ValueError,
+                TypeError,
+            ) as e:
                 logger.warning(
                     "garmin_user_summary_error",
                     date=date_str,
@@ -321,7 +340,15 @@ class GarminAPIWrapper:
                 date_str = current_date.strftime("%Y-%m-%d")
                 data = _fetch_with_retry(date_str, current_date)
                 self._append_fetched_data(results, data)
-            except Exception as e:
+            except (
+                GarminConnectConnectionError,
+                GarminConnectTooManyRequestsError,
+                GarminConnectAuthenticationError,
+                RequestException,
+                KeyError,
+                ValueError,
+                TypeError,
+            ) as e:
                 logger.warning(
                     "garmin_api_error",
                     data_type=data_type,
@@ -533,7 +560,14 @@ class GarminAPIWrapper:
                 if spo2_data and isinstance(spo2_data, dict):
                     result["averageSpO2"] = spo2_data.get("averageSpO2")
                     result["lowestSpO2"] = spo2_data.get("lowestSpO2")
-            except Exception as e:
+            except (
+                GarminConnectConnectionError,
+                GarminConnectTooManyRequestsError,
+                RequestException,
+                KeyError,
+                ValueError,
+                TypeError,
+            ) as e:
                 logger.debug("garmin_spo2_error", date=date_str, error=str(e))
 
             try:
@@ -549,7 +583,14 @@ class GarminAPIWrapper:
                     result["highestRespirationValue"] = resp_data.get(
                         "highestRespirationValue"
                     )
-            except Exception as e:
+            except (
+                GarminConnectConnectionError,
+                GarminConnectTooManyRequestsError,
+                RequestException,
+                KeyError,
+                ValueError,
+                TypeError,
+            ) as e:
                 logger.debug("garmin_respiration_error", date=date_str, error=str(e))
 
             return result
@@ -651,7 +692,14 @@ class GarminAPIWrapper:
             combined_data["anaerobicTrainingEffect"] = training_status.get(
                 "anaerobicTrainingEffect"
             )
-        except Exception as e:
+        except (
+            GarminConnectConnectionError,
+            GarminConnectTooManyRequestsError,
+            RequestException,
+            KeyError,
+            ValueError,
+            TypeError,
+        ) as e:
             logger.warning(
                 "garmin_training_status_error",
                 date=date_str,
@@ -679,7 +727,14 @@ class GarminAPIWrapper:
                 date=date_str,
                 vo2_max=combined_data.get("vo2MaxValue"),
             )
-        except Exception as e:
+        except (
+            GarminConnectConnectionError,
+            GarminConnectTooManyRequestsError,
+            RequestException,
+            KeyError,
+            ValueError,
+            TypeError,
+        ) as e:
             logger.warning(
                 "garmin_max_metrics_error",
                 date=date_str,
@@ -700,7 +755,14 @@ class GarminAPIWrapper:
                 date=date_str,
                 fitness_age=combined_data.get("fitnessAge"),
             )
-        except Exception as e:
+        except (
+            GarminConnectConnectionError,
+            GarminConnectTooManyRequestsError,
+            RequestException,
+            KeyError,
+            ValueError,
+            TypeError,
+        ) as e:
             logger.warning(
                 "garmin_fitnessage_error",
                 date=date_str,
@@ -717,7 +779,14 @@ class GarminAPIWrapper:
                 combined_data["enduranceScore"] = endurance.get(
                     "overallScore"
                 ) or endurance.get("enduranceScore")
-        except Exception as e:
+        except (
+            GarminConnectConnectionError,
+            GarminConnectTooManyRequestsError,
+            RequestException,
+            KeyError,
+            ValueError,
+            TypeError,
+        ) as e:
             logger.warning(
                 "garmin_endurance_score_error",
                 date=date_str,
@@ -746,7 +815,14 @@ class GarminAPIWrapper:
                     combined_data["trainingReadinessScore"] = morning_entry.get("score")
             elif isinstance(readiness, dict):
                 combined_data["trainingReadinessScore"] = readiness.get("score")
-        except Exception as e:
+        except (
+            GarminConnectConnectionError,
+            GarminConnectTooManyRequestsError,
+            RequestException,
+            KeyError,
+            ValueError,
+            TypeError,
+        ) as e:
             logger.warning(
                 "garmin_training_readiness_error",
                 date=date_str,
@@ -808,7 +884,14 @@ class GarminAPIWrapper:
                     if key.startswith("hr_zone_") and not key.startswith("hr_zone__"):
                         zone_map[key] = int(secs)
             return zone_map
-        except Exception as e:
+        except (
+            GarminConnectConnectionError,
+            GarminConnectTooManyRequestsError,
+            RequestException,
+            KeyError,
+            ValueError,
+            TypeError,
+        ) as e:
             logger.debug(
                 "garmin_hr_zones_error",
                 activity_id=activity_id,
@@ -881,7 +964,15 @@ class GarminAPIWrapper:
                 count=len(results),
             )
 
-        except Exception as e:
+        except (
+            GarminConnectConnectionError,
+            GarminConnectTooManyRequestsError,
+            GarminConnectAuthenticationError,
+            RequestException,
+            KeyError,
+            ValueError,
+            TypeError,
+        ) as e:
             logger.warning(
                 "garmin_activities_error",
                 error_type=type(e).__name__,
@@ -952,7 +1043,15 @@ class GarminAPIWrapper:
 
             return []
 
-        except Exception as e:
+        except (
+            GarminConnectConnectionError,
+            GarminConnectTooManyRequestsError,
+            GarminConnectAuthenticationError,
+            RequestException,
+            KeyError,
+            ValueError,
+            TypeError,
+        ) as e:
             logger.warning(
                 "garmin_race_predictions_error",
                 error_type=type(e).__name__,

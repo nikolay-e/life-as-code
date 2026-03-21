@@ -10,19 +10,51 @@ from typing import Literal
 from scipy import stats as scipy_stats
 
 from .constants import (
+    CALORIES_FALLBACK_CONFIDENCE,
+    CALORIES_GOODNESS_DEFICIT_RATE,
+    CALORIES_GOODNESS_EXCESS_DEAD_ZONE,
+    CALORIES_GOODNESS_EXCESS_PENALTY_RATE,
     CALORIES_TREND_THRESHOLD,
+    CONFIDENCE_GATE_STEEPNESS,
+    CONFIDENCE_GATE_THRESHOLD,
+    CONFIDENCE_GATE_WIDTH,
+    DATA_QUALITY_COVERAGE_WEIGHT,
+    DATA_QUALITY_SUFFICIENCY_WEIGHT,
+    HEALTH_SCORE_CORE_WEIGHTS,
+    HEALTH_SCORE_SUPPORT_WEIGHTS,
     INSTANTANEOUS_METRICS,
     MAD_SCALE_FACTOR,
     MAX_SLEEP_TARGET_WINDOW,
     MAX_STEPS_FLOOR_WINDOW,
     METRIC_COMPLETENESS_THRESHOLDS,
+    MIN_CORE_METRICS,
     MIN_SAMPLE_SIZE,
     MIN_STD_THRESHOLD,
     MIN_STEPS_FLOOR_DATA,
+    OVERALL_RECOVERY_WEIGHT_WITH_TRAINING,
+    OVERALL_RECOVERY_WEIGHT_WITHOUT_TRAINING,
+    OVERALL_SUPPORT_WEIGHT_WITH_TRAINING,
+    OVERALL_SUPPORT_WEIGHT_WITHOUT_TRAINING,
+    OVERALL_TRAINING_LOAD_WEIGHT,
     STEP_FLOOR_FALLBACK,
     STEPS_FLOOR_PERCENTILE,
+    STEPS_RECOVERY_CAP_HRV_THRESHOLDS,
+    STEPS_RECOVERY_CAP_MULTIPLIERS,
+    STEPS_TODAY_MIN_MULTIPLIER,
+    STRAIN_GOODNESS_INNER_RADIUS,
+    STRAIN_GOODNESS_MAX_BONUS,
+    STRAIN_GOODNESS_PENALTY_RATE,
+    STRAIN_OPTIMAL_Z,
+    TRAINING_LOAD_GATE_THRESHOLD,
+    TREND_MIN_DATA_CAP,
+    TREND_MIN_DATA_FACTOR,
+    TREND_MIN_DATA_FLOOR,
+    WEIGHT_FALLBACK_CONFIDENCE,
+    WEIGHT_GOODNESS_GAIN_PENALTY_RATE,
+    WEIGHT_GOODNESS_LOSS_PENALTY_RATE,
     WEIGHT_MIN_BASELINE,
     WEIGHT_TREND_THRESHOLD,
+    Z_SCORE_CLAMP,
 )
 from .date_utils import (
     dates_in_window,
@@ -146,7 +178,10 @@ def calculate_data_quality(
 
     min_points_for_stats = MIN_SAMPLE_SIZE
     data_sufficiency = min(1.0, days_with_data / min_points_for_stats)
-    effective_coverage = 0.7 * coverage + 0.3 * data_sufficiency
+    effective_coverage = (
+        DATA_QUALITY_COVERAGE_WEIGHT * coverage
+        + DATA_QUALITY_SUFFICIENCY_WEIGHT * data_sufficiency
+    )
     raw_confidence = effective_coverage * outlier_penalty * freshness_score
     confidence = min(1.0, raw_confidence)
 
@@ -209,7 +244,7 @@ def should_use_today_metric(
         return True, data, f"{metric_type} is instantaneous - always valid"
 
     if completeness >= threshold:
-        steps_min_threshold = STEP_FLOOR_FALLBACK * 0.15
+        steps_min_threshold = STEP_FLOOR_FALLBACK * STEPS_TODAY_MIN_MULTIPLIER
         if (
             metric_type == "steps"
             and today_entry.value is not None
@@ -261,7 +296,7 @@ def _linear_slope_per_day(
         else ys_raw
     )
     result = scipy_stats.linregress(xs, ys)
-    return float(result.slope)
+    return float(result[0])  # type: ignore[arg-type]  # scipy stubs
 
 
 def _build_cache_key(
@@ -391,7 +426,9 @@ def _compute_trend_slope(
     trend_values = (
         winsorize(raw_trend_values, 5, 95) if opts.winsorize_trend else raw_trend_values
     )
-    min_data_for_trend = max(3, int(trend_window * 0.7))
+    min_data_for_trend = max(
+        TREND_MIN_DATA_FLOOR, int(trend_window * TREND_MIN_DATA_FACTOR)
+    )
     if len(trend_values) < min_data_for_trend:
         return None
     if opts.regression_uses_real_days:
@@ -399,7 +436,7 @@ def _compute_trend_slope(
             trend_data,
             (5, 95) if opts.winsorize_trend else None,
         )
-    return float(scipy_stats.linregress(range(len(trend_values)), trend_values).slope)
+    return float(scipy_stats.linregress(range(len(trend_values)), trend_values)[0])  # type: ignore[arg-type]  # scipy stubs
 
 
 def _compute_long_term_percentile(
@@ -564,7 +601,10 @@ def calculate_recovery_metrics(
     stress_trend_mean = mean_or_none(stress_trend_vals)
     stress_prev_mean = mean_or_none(stress_prev_vals)
 
-    min_data = min(14, max(3, int(trend_window * 0.7)))
+    min_data = min(
+        TREND_MIN_DATA_CAP,
+        max(TREND_MIN_DATA_FLOOR, int(trend_window * TREND_MIN_DATA_FACTOR)),
+    )
     has_valid = (
         stress_trend_mean is not None
         and stress_prev_mean is not None
@@ -688,7 +728,10 @@ def calculate_activity_metrics(
     steps_trend_mean = mean_or_none(steps_trend_vals)
     steps_prev_mean = mean_or_none(steps_prev_vals)
 
-    min_data = min(14, max(3, int(trend_window * 0.7)))
+    min_data = min(
+        TREND_MIN_DATA_CAP,
+        max(TREND_MIN_DATA_FLOOR, int(trend_window * TREND_MIN_DATA_FACTOR)),
+    )
     has_valid = (
         steps_trend_mean is not None
         and steps_prev_mean is not None
@@ -894,9 +937,6 @@ def calculate_energy_balance(
 # HEALTH SCORE
 # ============================================
 
-Z_SCORE_CLAMP = 3.0
-STRAIN_OPTIMAL_Z = 0.3
-
 
 def _clamp_z(z: float | None, limit: float = Z_SCORE_CLAMP) -> float | None:
     if z is None:
@@ -906,38 +946,51 @@ def _clamp_z(z: float | None, limit: float = Z_SCORE_CLAMP) -> float | None:
 
 def _strain_goodness(z: float) -> float:
     deviation = abs(z - STRAIN_OPTIMAL_Z)
-    if deviation <= 0.5:
-        return 0.3 * (1.0 - deviation / 0.5)
-    return max(-0.3, -(deviation - 0.5) * 0.3)
+    if deviation <= STRAIN_GOODNESS_INNER_RADIUS:
+        return STRAIN_GOODNESS_MAX_BONUS * (
+            1.0 - deviation / STRAIN_GOODNESS_INNER_RADIUS
+        )
+    return max(
+        -STRAIN_GOODNESS_MAX_BONUS,
+        -(deviation - STRAIN_GOODNESS_INNER_RADIUS) * STRAIN_GOODNESS_PENALTY_RATE,
+    )
 
 
 def _calories_goodness(raw_z: float) -> float:
     if raw_z >= 0:
-        return -0.3 * max(0.0, raw_z - 0.5)
-    return 0.4 * raw_z
+        return -CALORIES_GOODNESS_EXCESS_PENALTY_RATE * max(
+            0.0, raw_z - CALORIES_GOODNESS_EXCESS_DEAD_ZONE
+        )
+    return CALORIES_GOODNESS_DEFICIT_RATE * raw_z
 
 
 def _weight_goodness(raw_z: float) -> float:
     if raw_z > 0:
-        return -0.6 * raw_z
-    return -0.3 * raw_z
+        return -WEIGHT_GOODNESS_GAIN_PENALTY_RATE * raw_z
+    return -WEIGHT_GOODNESS_LOSS_PENALTY_RATE * raw_z
 
 
 def _steps_recovery_cap(z_steps: float, z_hrv: float | None) -> float:
     if z_hrv is None or z_steps <= 0:
         return z_steps
-    if z_hrv >= -0.5:
+    hrv_thresholds = STEPS_RECOVERY_CAP_HRV_THRESHOLDS
+    multipliers = STEPS_RECOVERY_CAP_MULTIPLIERS
+    if z_hrv >= hrv_thresholds[0]:
         return z_steps
-    if z_hrv >= -1.0:
-        return 0.7 * z_steps
-    if z_hrv >= -1.5:
-        return 0.4 * z_steps
-    return 0.2 * z_steps
+    if z_hrv >= hrv_thresholds[1]:
+        return multipliers[0] * z_steps
+    if z_hrv >= hrv_thresholds[2]:
+        return multipliers[1] * z_steps
+    return multipliers[2] * z_steps
 
 
-def _confidence_gate(conf: float, threshold: float = 0.6, width: float = 0.15) -> float:
+def _confidence_gate(
+    conf: float,
+    threshold: float = CONFIDENCE_GATE_THRESHOLD,
+    width: float = CONFIDENCE_GATE_WIDTH,
+) -> float:
     x = (conf - threshold) / width
-    return 1.0 / (1.0 + math.exp(-5 * x))
+    return 1.0 / (1.0 + math.exp(-CONFIDENCE_GATE_STEEPNESS * x))
 
 
 def _cap_confidence(conf: float) -> float:
@@ -996,7 +1049,7 @@ def _compute_health_score_baselines(
 
 def _calories_fallback_confidence(bl_calories: BaselineMetrics | None) -> float:
     if bl_calories and bl_calories.z_score is not None:
-        return 0.7
+        return CALORIES_FALLBACK_CONFIDENCE
     return 0
 
 
@@ -1034,7 +1087,9 @@ def _resolve_metric_confidences(
             cal_fi.confidence if cal_fi else _calories_fallback_confidence(bl_calories)
         ),
         "weight": _cap_confidence(
-            0.8 if bl_weight and bl_weight.z_score is not None else 0
+            WEIGHT_FALLBACK_CONFIDENCE
+            if bl_weight and bl_weight.z_score is not None
+            else 0
         ),
     }
 
@@ -1083,9 +1138,17 @@ def _compute_overall_score(
     training_load: float | None,
     behavior_support: float | None,
 ) -> float | None:
-    recovery_weight = 0.75 if training_load is None else 0.6
-    training_weight = 0.2
-    support_weight = 0.25 if training_load is None else 0.2
+    recovery_weight = (
+        OVERALL_RECOVERY_WEIGHT_WITHOUT_TRAINING
+        if training_load is None
+        else OVERALL_RECOVERY_WEIGHT_WITH_TRAINING
+    )
+    training_weight = OVERALL_TRAINING_LOAD_WEIGHT
+    support_weight = (
+        OVERALL_SUPPORT_WEIGHT_WITHOUT_TRAINING
+        if training_load is None
+        else OVERALL_SUPPORT_WEIGHT_WITH_TRAINING
+    )
     scored_parts: list[tuple[float, float]] = []
     if recovery_core is not None:
         scored_parts.append((recovery_core, recovery_weight))
@@ -1272,22 +1335,26 @@ def calculate_health_score(inp: HealthScoreInput) -> HealthScore:
         "weight": _weight_goodness(raw_z_weight) if raw_z_weight is not None else None,
     }
 
-    core_weights = {"hrv": 0.35, "rhr": 0.25, "sleep": 0.25, "stress": 0.15}
-    support_weights = {"steps": 0.35, "calories": 0.35, "weight": 0.30}
+    core_weights = HEALTH_SCORE_CORE_WEIGHTS
+    support_weights = HEALTH_SCORE_SUPPORT_WEIGHTS
     total_core_weight = sum(core_weights.values())
     total_support_weight = sum(support_weights.values())
 
     gates = {k: _confidence_gate(v) for k, v in confs.items()}
 
     recovery_core, core_weight_sum = _compute_gated_core_score(
-        goodness_z, gates, core_weights, min_core_metrics=2
+        goodness_z, gates, core_weights, min_core_metrics=MIN_CORE_METRICS
     )
     behavior_support, support_weight_sum = _compute_gated_support_score(
         goodness_z, gates, support_weights
     )
 
     z_load = goodness_z["strain"]
-    training_load = z_load if z_load is not None and gates["strain"] > 0.1 else None
+    training_load = (
+        z_load
+        if z_load is not None and gates["strain"] > TRAINING_LOAD_GATE_THRESHOLD
+        else None
+    )
     overall = _compute_overall_score(recovery_core, training_load, behavior_support)
 
     total_possible_weight = total_core_weight + total_support_weight

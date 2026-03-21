@@ -5,7 +5,8 @@ from collections.abc import Callable
 
 from sqlalchemy.orm import Session
 
-from .date_utils import utcnow
+from date_utils import utcnow
+
 from .types import HealthAnalysis
 
 logger = logging.getLogger(__name__)

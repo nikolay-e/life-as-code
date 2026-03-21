@@ -1116,7 +1116,7 @@ class HealthSnapshot(Base):
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
     date = Column(Date, nullable=False)
-    mode = Column(String(20), nullable=False, default="recent")
+    mode = Column(String(20), nullable=False, default="short")
     snapshot_json = Column(JSON, nullable=False)
     health_score = Column(Float)
     computed_at = Column(DateTime, nullable=False, default=utcnow)
@@ -1162,8 +1162,8 @@ class ClinicalAlertEvent(Base):
         UniqueConstraint(
             "user_id",
             "alert_type",
-            "status",
-            name="_clinical_alert_user_type_status_uc",
+            "first_detected_at",
+            name="_clinical_alert_user_type_detected_uc",
         ),
         Index("idx_alert_user_status", "user_id", "status"),
         Index("idx_alert_user_type", "user_id", "alert_type"),

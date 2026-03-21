@@ -44,6 +44,10 @@ import { toTimeMs } from "../../lib/health";
 import { getLatestSyncDate } from "../../lib/sync-utils";
 import { useAnalytics } from "../../hooks/useAnalytics";
 import { useToday } from "../../hooks/useToday";
+import {
+  LOESS_BANDWIDTH_SHORT,
+  LOESS_BANDWIDTH_LONG,
+} from "../../lib/constants";
 
 const DASHBOARD_KEYS = new Set<string>(DASHBOARD_METRIC_KEYS);
 
@@ -99,8 +103,8 @@ export function DashboardOverview() {
       ? TREND_MODES[selectedRange]
       : null;
   const rangeDays = modeConfig?.rangeDays ?? 42;
-  const bandwidthShort = modeConfig?.bandwidthShort ?? 0.17;
-  const bandwidthLong = modeConfig?.bandwidthLong ?? 0.33;
+  const bandwidthShort = modeConfig?.bandwidthShort ?? LOESS_BANDWIDTH_SHORT;
+  const bandwidthLong = modeConfig?.bandwidthLong ?? LOESS_BANDWIDTH_LONG;
 
   const startDate = (() => {
     if (isCustom) return customStartDate;

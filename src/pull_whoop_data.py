@@ -7,6 +7,7 @@ from typing import Any
 import requests
 from dotenv import load_dotenv
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -116,7 +117,7 @@ class WhoopAPIClient:
             )
             return False
 
-        except Exception as e:
+        except (requests.RequestException, SQLAlchemyError, KeyError, ValueError) as e:
             logger.error("whoop_token_refresh_error", error=str(e))
             return False
 
@@ -171,7 +172,7 @@ class WhoopAPIClient:
         except (AuthenticationError, RateLimitError) as e:
             logger.error("whoop_api_error", error=str(e))
             return None
-        except Exception as e:
+        except (requests.RequestException, ValueError, KeyError) as e:
             logger.error("whoop_api_request_error", error=str(e))
             return None
 
@@ -415,7 +416,7 @@ def _upsert_whoop_item(
             counters["skipped"] += 1
             if error:
                 sync_result.add_error(error)
-    except Exception as e:
+    except (ValueError, KeyError, TypeError, SQLAlchemyError) as e:
         sync_result.add_error(f"Error processing {config.data_type}: {str(e)}")
         counters["skipped"] += 1
 
@@ -446,7 +447,13 @@ def _sync_whoop_data_type(
             sync_result.records_skipped = counters["skipped"]
             sync_result.success = True
 
-    except Exception as e:
+    except (
+        requests.RequestException,
+        SQLAlchemyError,
+        ValueError,
+        KeyError,
+        TypeError,
+    ) as e:
         sync_result.add_error(f"Sync error: {str(e)}")
 
     return sync_result
@@ -511,7 +518,7 @@ def sync_whoop_data_for_user(
         )
         return summary
 
-    except Exception as e:
+    except Exception as e:  # catch-all for sync resilience
         logger.error("whoop_sync_failed", user_id=user_id, error=str(e))
         return {"error": str(e), "user_id": user_id}
 
@@ -531,7 +538,7 @@ def refresh_whoop_token_for_user(user_id: int) -> bool:
             creds.whoop_access_token, creds.whoop_refresh_token, user_id
         )
         return client._refresh_access_token()
-    except Exception as e:
+    except (requests.RequestException, SQLAlchemyError, ValueError, KeyError) as e:
         logger.error("whoop_token_refresh_failed", user_id=user_id, error=str(e))
         return False
 

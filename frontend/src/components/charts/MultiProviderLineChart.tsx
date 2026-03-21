@@ -19,6 +19,10 @@ import {
   type MultiProviderDataPoint,
 } from "../../lib/chart-utils";
 import { loessSmooth } from "../../lib/statistics";
+import {
+  LOESS_BANDWIDTH_SHORT,
+  LOESS_BANDWIDTH_LONG,
+} from "../../lib/constants";
 
 interface MultiProviderLineChartProps {
   readonly data: MultiProviderDataPoint[];
@@ -53,8 +57,8 @@ export const MultiProviderLineChart = memo(
     valueFormatter = (v) => v.toFixed(0),
     baselineValue,
     showTrends = false,
-    bandwidthShort = 0.17,
-    bandwidthLong = 0.33,
+    bandwidthShort = LOESS_BANDWIDTH_SHORT,
+    bandwidthLong = LOESS_BANDWIDTH_LONG,
     dateRange,
   }: MultiProviderLineChartProps) => {
     const hasData = data.some(

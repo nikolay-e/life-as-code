@@ -3,6 +3,10 @@ import type { HRVData, WhoopRecoveryData } from "../../types/api";
 import { MULTI_PROVIDER_CONFIGS } from "./chart-config";
 import { MultiProviderLineChart } from "./MultiProviderLineChart";
 import { mergeProviderData } from "../../lib/chart-utils";
+import {
+  LOESS_BANDWIDTH_SHORT,
+  LOESS_BANDWIDTH_LONG,
+} from "../../lib/constants";
 
 interface HRVChartProps {
   readonly garminData: HRVData[];
@@ -18,8 +22,8 @@ export const HRVChart = memo(
     garminData,
     whoopData = [],
     showTrends = false,
-    bandwidthShort = 0.17,
-    bandwidthLong = 0.33,
+    bandwidthShort = LOESS_BANDWIDTH_SHORT,
+    bandwidthLong = LOESS_BANDWIDTH_LONG,
     dateRange,
   }: HRVChartProps) => {
     const config = MULTI_PROVIDER_CONFIGS.hrv;

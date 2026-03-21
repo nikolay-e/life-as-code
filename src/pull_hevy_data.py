@@ -88,11 +88,11 @@ class HevyWorkoutData(BaseModel):
                         )
                         workout_sets.append(workout_set)
 
-                    except Exception as e:
+                    except (ValueError, TypeError, KeyError) as e:
                         logger.warning("hevy_workout_set_parse_error", error=str(e))
                         continue
 
-        except Exception as e:
+        except (KeyError, ValueError, TypeError) as e:
             logger.error("hevy_workout_data_parse_error", error=str(e))
 
         return workout_sets
@@ -203,7 +203,12 @@ class HevyAPIClient:
                 )
                 if not should_continue:
                     break
-            except Exception as e:
+            except (
+                requests.RequestException,
+                RateLimitError,
+                ValueError,
+                KeyError,
+            ) as e:
                 logger.error("hevy_fetch_error", page=page, error=str(e))
                 break
 
@@ -273,7 +278,7 @@ def sync_hevy_data_for_user(
         )
         return summary
 
-    except Exception as e:
+    except Exception as e:  # catch-all for sync resilience
         logger.error("hevy_sync_failed", user_id=user_id, error=str(e))
         return {"error": str(e), "user_id": user_id}
 

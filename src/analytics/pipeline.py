@@ -6,8 +6,10 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
+from date_utils import utcnow
+
 from .constants import TREND_MODES
-from .date_utils import local_today, utcnow
+from .date_utils import local_today
 from .service import compute_health_analysis
 from .types import HealthAnalysis, TrendMode
 
