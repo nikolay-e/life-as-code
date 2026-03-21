@@ -62,6 +62,8 @@ export const MultiProviderLineChart = memo(
       (d) => d.garminValue !== null || d.whoopValue !== null,
     );
 
+    const yMin = typeof yDomain[0] === "number" ? yDomain[0] : null;
+
     const chartData = useMemo(() => {
       const baseData = data.map((d) => ({
         ...d,
@@ -81,12 +83,15 @@ export const MultiProviderLineChart = memo(
       const loessShort = loessSmooth(withAvg, "avgValue", bandwidthShort);
       const loessLong = loessSmooth(withAvg, "avgValue", bandwidthLong);
 
+      const clamp = (v: number | null) =>
+        v !== null && yMin !== null ? Math.max(yMin, v) : v;
+
       return withAvg.map((d, i) => ({
         ...d,
-        trendShort: loessShort[i]?.loess ?? null,
-        trendLong: loessLong[i]?.loess ?? null,
+        trendShort: clamp(loessShort[i]?.loess ?? null),
+        trendLong: clamp(loessLong[i]?.loess ?? null),
       }));
-    }, [data, showTrends, bandwidthShort, bandwidthLong]);
+    }, [data, showTrends, bandwidthShort, bandwidthLong, yMin]);
 
     const xDomain = useMemo(() => {
       if (dateRange) {
