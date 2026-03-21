@@ -139,6 +139,7 @@ export function calculateBaseline<
 }
 
 export interface WeightSmoothedPoint {
+  [key: string]: string | number | null;
   date: string;
   rawWeight: number | null;
   smoothedWeight: number | null;
