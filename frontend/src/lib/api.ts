@@ -124,7 +124,13 @@ export const api = {
   },
 
   sync: {
-    getStatus: (): Promise<SyncStatus[]> => request("/sync/status"),
+    getStatus: (): Promise<SyncStatus[]> =>
+      request<{
+        items: SyncStatus[];
+        total: number;
+        limit: number;
+        offset: number;
+      }>("/sync/status").then((r) => r.items),
 
     garmin: (days?: number): Promise<{ message: string }> =>
       request(`/sync/garmin${days ? `?days=${String(days)}` : "?full=true"}`, {

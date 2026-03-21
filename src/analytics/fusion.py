@@ -7,6 +7,7 @@ from .constants import (
     MIN_OVERLAP_FOR_NORMALIZATION,
     MIN_STD_THRESHOLD,
     SOURCE_STATS_WINDOW,
+    WHOOP_MAX_STRAIN,
 )
 from .date_utils import filter_by_window, to_day_key
 from .metric_series import FusedHealthData, FusedMetric, MetricSeries
@@ -122,7 +123,9 @@ def normalize_garmin_strain_to_whoop_scale(
             continue
         pct = _get_percentile(gv.value, sorted_overlap_garmin)
         normalized = _get_value_at_percentile(pct, sorted_overlap_whoop)
-        result.append(DataPoint(date=gv.date, value=normalized))
+        result.append(
+            DataPoint(date=gv.date, value=max(0.0, min(WHOOP_MAX_STRAIN, normalized)))
+        )
     return result, True
 
 
@@ -236,6 +239,9 @@ def blended_merge(
         fused_value, fused_z, confidence, provider = _fuse_point(
             g_val, w_val, g_weight, w_weight, g_z, w_z, has_enough_overlap
         )
+
+        if metric_type == "strain" and fused_value is not None:
+            fused_value = max(0.0, min(WHOOP_MAX_STRAIN, fused_value))
 
         result.append(
             UnifiedMetricPoint(

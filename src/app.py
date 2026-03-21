@@ -1,4 +1,5 @@
 import os
+from datetime import UTC, datetime
 
 from flask import Flask, jsonify, request
 from flask_login import LoginManager
@@ -32,13 +33,20 @@ def _validate_required_env_vars():
     missing = []
     if not os.getenv("SECRET_KEY"):
         missing.append("SECRET_KEY")
-    if not os.getenv("FERNET_KEY"):
+    fernet_key = os.getenv("FERNET_KEY")
+    if not fernet_key:
         missing.append("FERNET_KEY")
     if missing:
         raise ValueError(
             f"Required environment variables not set: {', '.join(missing)}. "
             "Please set them in your .env file."
         )
+    from cryptography.fernet import Fernet
+
+    try:
+        Fernet(fernet_key.encode())  # type: ignore[union-attr]
+    except Exception as e:
+        raise SystemExit(f"Invalid FERNET_KEY: {e}") from None
 
 
 _validate_required_env_vars()
@@ -170,13 +178,15 @@ def health():
             "build_date": _settings.build_date,
             "commit": _settings.commit_short,
             "database": "connected",
+            "timestamp": datetime.now(UTC).isoformat(),
         }, 200
     except Exception as e:
         logger.error("health_check_failed", error=str(e))
         return {
             "status": "unhealthy",
             "version": _settings.app_version,
-            "error": str(e),
+            "error": "database_unavailable",
+            "timestamp": datetime.now(UTC).isoformat(),
         }, 503
 
 

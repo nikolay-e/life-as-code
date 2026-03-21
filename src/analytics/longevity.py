@@ -4,12 +4,12 @@ import math
 from datetime import date
 
 from .constants import (
+    BIO_AGE_METRIC_RELIABILITY,
     HRV_AGE_BASELINE_AGE,
     HRV_AGE_BASELINE_HRV,
     HRV_AGE_DECAY_RATE,
     LONGEVITY_SCORE_WEIGHTS,
     MIN_BIO_AGE_DATA_DAYS,
-    RHR_HAZARD_PER_10BPM,
     RHR_REFERENCE,
     VO2MAX_NORMATIVE_MALE,
     ZONE2_WEEKLY_TARGET_MINUTES,
@@ -55,7 +55,7 @@ def _vo2max_to_age(vo2max: float) -> float | None:
 
 
 def _rhr_to_age_offset(rhr: float) -> float:
-    return (rhr - RHR_REFERENCE) / 10 * math.log(RHR_HAZARD_PER_10BPM) * 15
+    return (rhr - RHR_REFERENCE) / 10.0
 
 
 def calculate_biological_age(
@@ -86,7 +86,8 @@ def calculate_biological_age(
                         estimated_age=hrv_age,
                         chronological_age=chronological_age,
                         delta=hrv_age - chronological_age,
-                        confidence=min(1.0, len(hrv_vals) / 30),
+                        confidence=min(1.0, len(hrv_vals) / 30)
+                        * BIO_AGE_METRIC_RELIABILITY["hrv_age"],
                         data_source="garmin/whoop",
                     )
                 )
@@ -104,7 +105,7 @@ def calculate_biological_age(
                     estimated_age=vo2_age,
                     chronological_age=chronological_age,
                     delta=vo2_age - chronological_age,
-                    confidence=0.9,
+                    confidence=BIO_AGE_METRIC_RELIABILITY["fitness_age"],
                     data_source="garmin_vo2max",
                 )
             )
@@ -120,7 +121,7 @@ def calculate_biological_age(
                 estimated_age=garmin_fa,
                 chronological_age=chronological_age,
                 delta=garmin_fa - chronological_age,
-                confidence=0.85,
+                confidence=BIO_AGE_METRIC_RELIABILITY["fitness_age_native"],
                 data_source="garmin_native",
             )
         )
@@ -139,7 +140,8 @@ def calculate_biological_age(
                     estimated_age=rhr_age,
                     chronological_age=chronological_age,
                     delta=rhr_offset,
-                    confidence=min(1.0, len(rhr_vals) / 30) * 0.7,
+                    confidence=min(1.0, len(rhr_vals) / 30)
+                    * BIO_AGE_METRIC_RELIABILITY["rhr_age"],
                     data_source="garmin/whoop",
                 )
             )
@@ -158,7 +160,8 @@ def calculate_biological_age(
                     estimated_age=recovery_age,
                     chronological_age=chronological_age,
                     delta=recovery_offset,
-                    confidence=min(1.0, len(rec_vals) / 30) * 0.6,
+                    confidence=min(1.0, len(rec_vals) / 30)
+                    * BIO_AGE_METRIC_RELIABILITY["recovery_age"],
                     data_source="whoop",
                 )
             )
@@ -301,10 +304,14 @@ def _score_sleep(
         return None
     avg_hours = avg_min / 60
     optimal = 7.5
-    if avg_hours >= optimal:
-        duration_score = max(0, 100 - (avg_hours - optimal) * 20)
+    if avg_hours < optimal:
+        duration_score = max(0.0, avg_hours / optimal * 100)
+    elif avg_hours <= 9.0:
+        duration_score = max(0.0, 100 - (avg_hours - optimal) ** 2 * 4.5)
     else:
-        duration_score = max(0, avg_hours / optimal * 100)
+        base_penalty = (9.0 - optimal) ** 2 * 4.5
+        extra_penalty = (avg_hours - 9.0) ** 2 * 15
+        duration_score = max(0.0, 100 - base_penalty - extra_penalty)
 
     sleep_cv = calculate_std(vals) / avg_min * 100 if avg_min > 0 else 50
     consistency_score = max(0, min(100, 100 - sleep_cv * 3))

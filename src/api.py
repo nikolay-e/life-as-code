@@ -8,7 +8,7 @@ from typing import Any
 import pandas as pd
 from flask import Blueprint, jsonify, request
 from flask_login import current_user, login_required, login_user, logout_user
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from analytics import TrendMode
 from analytics.pipeline import get_or_compute_snapshot
@@ -464,32 +464,41 @@ def api_get_credentials():
 @api.route("/sync/status", methods=["GET"])
 @login_required
 def api_sync_status():
+    limit = max(1, min(request.args.get("limit", 50, type=int), 200))
+    offset = max(0, request.args.get("offset", 0, type=int))
     with get_db_session_context() as db:
-        syncs = db.scalars(
+        base_query = (
             select(DataSync)
             .filter_by(user_id=current_user.id)
             .order_by(DataSync.last_sync_timestamp.desc())
-        ).all()
+        )
+        total = db.scalar(select(func.count()).select_from(base_query.subquery()))
+        syncs = db.scalars(base_query.offset(offset).limit(limit)).all()
 
         return jsonify(
-            [
-                {
-                    "source": s.source,
-                    "data_type": s.data_type,
-                    "last_sync_date": (
-                        s.last_sync_date.isoformat() if s.last_sync_date else None
-                    ),
-                    "last_sync_timestamp": (
-                        s.last_sync_timestamp.isoformat() + "Z"
-                        if s.last_sync_timestamp
-                        else None
-                    ),
-                    "records_synced": s.records_synced,
-                    "status": s.status,
-                    "error_message": s.error_message,
-                }
-                for s in syncs
-            ]
+            {
+                "items": [
+                    {
+                        "source": s.source,
+                        "data_type": s.data_type,
+                        "last_sync_date": (
+                            s.last_sync_date.isoformat() if s.last_sync_date else None
+                        ),
+                        "last_sync_timestamp": (
+                            s.last_sync_timestamp.isoformat() + "Z"
+                            if s.last_sync_timestamp
+                            else None
+                        ),
+                        "records_synced": s.records_synced,
+                        "status": s.status,
+                        "error_message": s.error_message,
+                    }
+                    for s in syncs
+                ],
+                "total": total,
+                "limit": limit,
+                "offset": offset,
+            }
         )
 
 

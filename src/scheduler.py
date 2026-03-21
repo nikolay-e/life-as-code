@@ -1,6 +1,7 @@
 import os
 import signal
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from database import get_db_session_context
 from enums import DataSource
@@ -109,12 +110,24 @@ def sync_all_users():
 
     logger.info("scheduler_found_users", count=len(user_ids))
 
-    for user_id in user_ids:
-        if shutdown_requested:
-            break
-        _sync_user_sources(user_id, sync_funcs)
-        if not shutdown_requested:
-            _recompute_analytics_for_user(user_id)
+    with ThreadPoolExecutor(max_workers=min(4, max(1, len(user_ids)))) as executor:
+        futures = {
+            executor.submit(_sync_and_recompute, uid, sync_funcs): uid
+            for uid in user_ids
+            if not shutdown_requested
+        }
+        for future in as_completed(futures):
+            uid = futures[future]
+            try:
+                future.result()
+            except Exception:
+                logger.exception("scheduler_user_sync_error", user_id=uid)
+
+
+def _sync_and_recompute(user_id, sync_funcs):
+    _sync_user_sources(user_id, sync_funcs)
+    if not shutdown_requested:
+        _recompute_analytics_for_user(user_id)
 
 
 def main():

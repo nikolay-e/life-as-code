@@ -129,13 +129,32 @@ def get_provider_credentials(user_id: int, provider: DataSource) -> ProviderCred
 
 _sync_locks: dict[tuple[int, str], threading.Lock] = {}
 _locks_lock = threading.Lock()
+_MAX_SYNC_LOCKS = 100
+_lock_access_order: list[tuple[int, str]] = []
+
+
+def _evict_oldest_locks():
+    to_evict = len(_sync_locks) // 2
+    evicted = 0
+    while _lock_access_order and evicted < to_evict:
+        key = _lock_access_order.pop(0)
+        lock = _sync_locks.get(key)
+        if lock and lock.acquire(blocking=False):
+            lock.release()
+            del _sync_locks[key]
+            evicted += 1
 
 
 def _get_sync_lock(user_id: int, source: str) -> threading.Lock:
     key = (user_id, source)
     with _locks_lock:
         if key not in _sync_locks:
+            if len(_sync_locks) >= _MAX_SYNC_LOCKS:
+                _evict_oldest_locks()
             _sync_locks[key] = threading.Lock()
+        if key in _lock_access_order:
+            _lock_access_order.remove(key)
+        _lock_access_order.append(key)
         return _sync_locks[key]
 
 

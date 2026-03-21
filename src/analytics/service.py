@@ -252,10 +252,18 @@ def _compute_health_analysis_impl(
     sleep_q = calculate_data_quality(
         sleep_data, SCORE_QUALITY_WINDOW, "sleep", ref_date=target_date
     )
-    stress_q = calculate_data_quality(
-        stress_data, SCORE_QUALITY_WINDOW, "stress", ref_date=target_date
-    )
 
+    _, adjusted_hrv, _ = should_use_today_metric(hrv_data, "hrv", ref_date=target_date)
+    _, adjusted_rhr, _ = should_use_today_metric(rhr_data, "rhr", ref_date=target_date)
+    _, adjusted_sleep, _ = should_use_today_metric(
+        sleep_data, "sleep", ref_date=target_date
+    )
+    _, adjusted_stress, _ = should_use_today_metric(
+        stress_data, "stress", ref_date=target_date
+    )
+    stress_q = calculate_data_quality(
+        adjusted_stress, SCORE_QUALITY_WINDOW, "stress", ref_date=target_date
+    )
     _, adjusted_steps, _ = should_use_today_metric(
         steps_data, "steps", ref_date=target_date
     )
@@ -270,12 +278,12 @@ def _compute_health_analysis_impl(
     )
 
     health_score = calculate_health_score(
-        hrv_data,
-        rhr_data,
-        sleep_data,
-        stress_data,
-        steps_data,
-        strain_data,
+        adjusted_hrv,
+        adjusted_rhr,
+        adjusted_sleep,
+        adjusted_stress,
+        adjusted_steps,
+        adjusted_strain,
         hrv_q,
         rhr_q,
         sleep_q,

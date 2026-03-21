@@ -9,6 +9,7 @@ from typing import Literal
 from scipy import stats as scipy_stats
 
 from .constants import (
+    INSTANTANEOUS_METRICS,
     MAD_SCALE_FACTOR,
     MAX_SLEEP_TARGET_WINDOW,
     MAX_STEPS_FLOOR_WINDOW,
@@ -199,6 +200,9 @@ def should_use_today_metric(
 
     if not has_today or today_entry is None:
         return False, data, f"No {metric_type} data for {today_str}"
+
+    if metric_type in INSTANTANEOUS_METRICS:
+        return True, data, f"{metric_type} is instantaneous - always valid"
 
     if completeness >= threshold:
         steps_min_threshold = STEP_FLOOR_FALLBACK * 0.15
@@ -479,7 +483,7 @@ def _calculate_baseline_metrics_impl(
     median = stats["median"]
     cv = std / abs(mean) if mean != 0 else 0
 
-    adaptive_min_samples = min(MIN_SAMPLE_SIZE, max(3, baseline_window // 2))
+    adaptive_min_samples = max(MIN_SAMPLE_SIZE, min(21, baseline_window // 3))
     has_sufficient_data = len(baseline_values) >= adaptive_min_samples
     has_valid_std = std >= MIN_STD_THRESHOLD
 

@@ -18,6 +18,7 @@ import { RecoveryChart } from "../../components/charts/RecoveryChart";
 import { TrainingLoadChart } from "../../components/charts/TrainingLoadChart";
 import { CaloriesChart } from "../../components/charts/CaloriesChart";
 import { ChartCard } from "../../components/charts/ChartCard";
+import { ChartErrorBoundary } from "../../components/charts/ChartErrorBoundary";
 import { format, subDays, differenceInDays, parseISO } from "date-fns";
 import {
   Activity,
@@ -291,14 +292,16 @@ export function DashboardOverview() {
           iconColorClass="text-hrv"
           iconBgClass="bg-hrv-muted"
         >
-          <HRVChart
-            garminData={data?.hrv ?? []}
-            whoopData={data?.whoop_recovery ?? []}
-            showTrends
-            bandwidthShort={bandwidthShort}
-            bandwidthLong={bandwidthLong}
-            dateRange={dateRange}
-          />
+          <ChartErrorBoundary resetKeys={[startDate, endDate]}>
+            <HRVChart
+              garminData={data?.hrv ?? []}
+              whoopData={data?.whoop_recovery ?? []}
+              showTrends
+              bandwidthShort={bandwidthShort}
+              bandwidthLong={bandwidthLong}
+              dateRange={dateRange}
+            />
+          </ChartErrorBoundary>
         </ChartCard>
 
         <ChartCard
@@ -307,14 +310,16 @@ export function DashboardOverview() {
           iconColorClass="text-sleep"
           iconBgClass="bg-sleep-muted"
         >
-          <SleepChart
-            garminData={data?.sleep ?? []}
-            whoopData={data?.whoop_sleep ?? []}
-            showTrends
-            bandwidthShort={bandwidthShort}
-            bandwidthLong={bandwidthLong}
-            dateRange={dateRange}
-          />
+          <ChartErrorBoundary resetKeys={[startDate, endDate]}>
+            <SleepChart
+              garminData={data?.sleep ?? []}
+              whoopData={data?.whoop_sleep ?? []}
+              showTrends
+              bandwidthShort={bandwidthShort}
+              bandwidthLong={bandwidthLong}
+              dateRange={dateRange}
+            />
+          </ChartErrorBoundary>
         </ChartCard>
 
         <ChartCard
@@ -323,13 +328,15 @@ export function DashboardOverview() {
           iconColorClass="text-weight"
           iconBgClass="bg-weight-muted"
         >
-          <WeightChart
-            data={data?.weight ?? []}
-            showTrends
-            bandwidthShort={bandwidthShort}
-            bandwidthLong={bandwidthLong}
-            dateRange={dateRange}
-          />
+          <ChartErrorBoundary resetKeys={[startDate, endDate]}>
+            <WeightChart
+              data={data?.weight ?? []}
+              showTrends
+              bandwidthShort={bandwidthShort}
+              bandwidthLong={bandwidthLong}
+              dateRange={dateRange}
+            />
+          </ChartErrorBoundary>
         </ChartCard>
 
         <ChartCard
@@ -338,14 +345,16 @@ export function DashboardOverview() {
           iconColorClass="text-heart"
           iconBgClass="bg-heart-muted"
         >
-          <HeartRateChart
-            garminData={data?.heart_rate ?? []}
-            whoopData={data?.whoop_recovery ?? []}
-            showTrends
-            bandwidthShort={bandwidthShort}
-            bandwidthLong={bandwidthLong}
-            dateRange={dateRange}
-          />
+          <ChartErrorBoundary resetKeys={[startDate, endDate]}>
+            <HeartRateChart
+              garminData={data?.heart_rate ?? []}
+              whoopData={data?.whoop_recovery ?? []}
+              showTrends
+              bandwidthShort={bandwidthShort}
+              bandwidthLong={bandwidthLong}
+              dateRange={dateRange}
+            />
+          </ChartErrorBoundary>
         </ChartCard>
       </div>
 
@@ -356,14 +365,16 @@ export function DashboardOverview() {
           iconColorClass="text-steps"
           iconBgClass="bg-steps-muted"
         >
-          <StepsChart
-            data={data?.steps ?? []}
-            showTrends
-            bandwidthShort={bandwidthShort}
-            bandwidthLong={bandwidthLong}
-            dateRange={dateRange}
-            stepsFloor={stepsFloor}
-          />
+          <ChartErrorBoundary resetKeys={[startDate, endDate]}>
+            <StepsChart
+              data={data?.steps ?? []}
+              showTrends
+              bandwidthShort={bandwidthShort}
+              bandwidthLong={bandwidthLong}
+              dateRange={dateRange}
+              stepsFloor={stepsFloor}
+            />
+          </ChartErrorBoundary>
         </ChartCard>
 
         <ChartCard
@@ -372,14 +383,16 @@ export function DashboardOverview() {
           iconColorClass="text-whoop"
           iconBgClass="bg-whoop-muted"
         >
-          <RecoveryChart
-            whoopData={data?.whoop_recovery ?? []}
-            garminData={data?.garmin_training_status ?? []}
-            showTrends
-            bandwidthShort={bandwidthShort}
-            bandwidthLong={bandwidthLong}
-            dateRange={dateRange}
-          />
+          <ChartErrorBoundary resetKeys={[startDate, endDate]}>
+            <RecoveryChart
+              whoopData={data?.whoop_recovery ?? []}
+              garminData={data?.garmin_training_status ?? []}
+              showTrends
+              bandwidthShort={bandwidthShort}
+              bandwidthLong={bandwidthLong}
+              dateRange={dateRange}
+            />
+          </ChartErrorBoundary>
         </ChartCard>
 
         <ChartCard
@@ -388,11 +401,13 @@ export function DashboardOverview() {
           iconColorClass="text-training"
           iconBgClass="bg-training-muted"
         >
-          <TrainingLoadChart
-            whoopData={data?.whoop_cycle ?? []}
-            garminData={data?.garmin_training_status ?? []}
-            dateRange={dateRange}
-          />
+          <ChartErrorBoundary resetKeys={[startDate, endDate]}>
+            <TrainingLoadChart
+              whoopData={data?.whoop_cycle ?? []}
+              garminData={data?.garmin_training_status ?? []}
+              dateRange={dateRange}
+            />
+          </ChartErrorBoundary>
         </ChartCard>
 
         <ChartCard
@@ -401,15 +416,17 @@ export function DashboardOverview() {
           iconColorClass="text-calories"
           iconBgClass="bg-calories-muted"
         >
-          <CaloriesChart
-            garminData={data?.garmin_training_status ?? []}
-            whoopData={data?.whoop_cycle ?? []}
-            energyData={data?.energy ?? []}
-            showTrends
-            bandwidthShort={bandwidthShort}
-            bandwidthLong={bandwidthLong}
-            dateRange={dateRange}
-          />
+          <ChartErrorBoundary resetKeys={[startDate, endDate]}>
+            <CaloriesChart
+              garminData={data?.garmin_training_status ?? []}
+              whoopData={data?.whoop_cycle ?? []}
+              energyData={data?.energy ?? []}
+              showTrends
+              bandwidthShort={bandwidthShort}
+              bandwidthLong={bandwidthLong}
+              dateRange={dateRange}
+            />
+          </ChartErrorBoundary>
         </ChartCard>
       </div>
     </div>

@@ -4,7 +4,7 @@ STEP_GOAL_DEFAULT = 10000
 STEP_FLOOR_FALLBACK = 4000
 WHOOP_MAX_STRAIN = 21
 
-MIN_SAMPLE_SIZE = 10
+MIN_SAMPLE_SIZE = 14
 MIN_CORRELATION_PAIRS = 7
 MIN_LAG_SAMPLE_SIZE = 30
 MIN_STD_THRESHOLD = 1e-6
@@ -67,6 +67,8 @@ METRIC_COMPLETENESS_THRESHOLDS: dict[str, float] = {
     "stress": 0.9,
 }
 
+INSTANTANEOUS_METRICS = {"hrv", "rhr", "sleep", "recovery", "weight"}
+
 PHYSIOLOGICAL_LIMITS: dict[str, dict[str, float]] = {
     "hrv": {"min": 5, "max": 300, "typical_min": 15, "typical_max": 150},
     "sleep": {"min": 0, "max": 840, "typical_min": 240, "typical_max": 660},
@@ -119,7 +121,6 @@ HRV_AGE_BASELINE_HRV = 80.0
 HRV_AGE_BASELINE_AGE = 20
 
 RHR_REFERENCE = 60
-RHR_HAZARD_PER_10BPM = 1.09
 
 VO2MAX_NORMATIVE_MALE: dict[int, dict[str, float]] = {
     20: {"p90": 55.0, "p50": 43.0, "p10": 33.0},
@@ -143,3 +144,11 @@ ZONE5_WEEKLY_TARGET_MINUTES = 4
 
 MIN_BIO_AGE_DATA_DAYS = 14
 PACE_OF_AGING_LOOKBACK_DAYS = 365
+
+BIO_AGE_METRIC_RELIABILITY = {
+    "hrv_age": 0.85,
+    "fitness_age": 0.90,
+    "fitness_age_native": 0.75,
+    "rhr_age": 0.60,
+    "recovery_age": 0.50,
+}

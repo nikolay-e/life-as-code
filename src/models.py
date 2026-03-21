@@ -207,6 +207,7 @@ class Sleep(Base):
     spo2_min = Column(Float)
     respiratory_rate = Column(Float)
     created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     # Relationships
     user = relationship("User", back_populates="sleep_data")
@@ -269,6 +270,7 @@ class HRV(Base):
     baseline_high_ms = Column(Float)
     feedback_phrase = Column(String(200))
     created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     # Relationships
     user = relationship("User", back_populates="hrv_data")
@@ -308,6 +310,7 @@ class Weight(Base):
     bone_mass_kg = Column(Float)
     water_pct = Column(Float)
     created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     # Relationships
     user = relationship("User", back_populates="weight_data")
@@ -363,6 +366,7 @@ class HeartRate(Base):
     lowest_respiratory_rate = Column(Float)
     highest_respiratory_rate = Column(Float)
     created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     # Relationships
     user = relationship("User", back_populates="heart_rate_data")
@@ -428,6 +432,7 @@ class Stress(Base):
     rest_stress = Column(Float)
     activity_stress = Column(Float)
     created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     __table_args__ = (
         UniqueConstraint(
@@ -477,6 +482,7 @@ class Energy(Base):
     active_energy = Column(Float, default=0)
     basal_energy = Column(Float, default=0)
     created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     user = relationship("User", back_populates="energy_data")
 
@@ -525,6 +531,7 @@ class Steps(Base):
     active_minutes = Column(Integer, default=0)
     floors_climbed = Column(Integer, default=0)
     created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     user = relationship("User", back_populates="steps")
 
@@ -584,6 +591,7 @@ class WorkoutSet(Base):
     duration_seconds = Column(Integer)
     distance_meters = Column(Float)
     created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     # Relationships
     user = relationship("User", back_populates="workout_sets")
@@ -767,6 +775,7 @@ class WhoopRecovery(Base):
     skin_temp_celsius = Column(Float)
     user_calibrating = Column(Integer, default=0)
     created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     user = relationship("User", back_populates="whoop_recoveries")
 
@@ -823,6 +832,7 @@ class WhoopSleep(Base):
     disturbance_count = Column(Integer)
     no_data_minutes = Column(Integer)
     created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     user = relationship("User", back_populates="whoop_sleeps")
 
@@ -884,6 +894,7 @@ class WhoopWorkout(Base):
     zone_four_millis = Column(Integer)
     zone_five_millis = Column(Integer)
     created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     user = relationship("User", back_populates="whoop_workouts")
 
@@ -927,6 +938,7 @@ class WhoopCycle(Base):
     avg_heart_rate = Column(Integer)
     max_heart_rate = Column(Integer)
     created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     user = relationship("User", back_populates="whoop_cycles")
 
@@ -974,6 +986,7 @@ class GarminTrainingStatus(Base):
     total_kilocalories = Column(Float)
     active_kilocalories = Column(Float)
     created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     user = relationship("User", back_populates="garmin_training_status")
 
@@ -1053,6 +1066,7 @@ class GarminActivity(Base):
     hr_zone_four_seconds = Column(Integer)
     hr_zone_five_seconds = Column(Integer)
     created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     user = relationship("User", back_populates="garmin_activities")
 
@@ -1104,6 +1118,7 @@ class GarminRacePrediction(Base):
     prediction_marathon_seconds = Column(Integer)
     vo2_max_value = Column(Float)
     created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     user = relationship("User", back_populates="garmin_race_predictions")
 
