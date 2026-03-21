@@ -26,8 +26,8 @@ function mins(v: number | null): string {
   return h > 0 ? `${String(h)}h${String(m)}m` : `${String(m)}m`;
 }
 
-function steps(v: number | null): string {
-  return v === null ? "N/A" : Math.round(v).toLocaleString();
+function fmtSteps(v: number | null): string {
+  return v === null ? "" : Math.round(v).toLocaleString();
 }
 
 function delta(v: number | null, d = 0, suffix = ""): string {
@@ -106,11 +106,13 @@ function formatToday(analytics: AnalyticsResponse, now: Date): string[] {
   if (dod.rhr.latest !== null) {
     parts.push(`RHR: ${n(dod.rhr.latest, 0)}${delta(dod.rhr.delta, 0)}`);
   }
-  if (dod.sleep.latest !== null) parts.push(`Sleep: ${mins(dod.sleep.latest)}`);
+  if (dod.sleep.latest !== null) {
+    parts.push(`Sleep: ${mins(dod.sleep.latest)}`);
+  }
   if (dod.steps.latest !== null) {
     const incomplete =
       analytics.day_completeness < 1 ? `[${format(now, "HH:mm")}]` : "";
-    parts.push(`Steps: ${steps(dod.steps.latest)}${incomplete}`);
+    parts.push(`Steps: ${fmtSteps(dod.steps.latest)}${incomplete}`);
   }
   if (dod.weight.latest !== null) {
     parts.push(
@@ -167,7 +169,9 @@ function formatStatus(analytics: AnalyticsResponse): string[] {
     if (clinical.severe_overtraining) {
       alerts.push(`Overtraining score=${n(clinical.overtraining_score, 1)}`);
     }
-    if (alerts.length > 0) lines.push(`⚠ Clinical: ${alerts.join(" | ")}`);
+    if (alerts.length > 0) {
+      lines.push(`⚠ Clinical: ${alerts.join(" | ")}`);
+    }
   }
 
   if (overreaching.risk_level && overreaching.risk_level !== "low") {
@@ -181,13 +185,22 @@ function formatStatus(analytics: AnalyticsResponse): string[] {
 
 function formatDayTableRow(day: DayMetrics): string {
   const dateStr = format(parseISO(day.date), "MMM d(EEE)");
-  return `| ${pad(dateStr, 10)} | ${pad(day.recovery === null ? "—" : `${day.recovery.toFixed(0)}%`, 4)} | ${pad(day.hrv === null ? "—" : day.hrv.toFixed(0), 3)} | ${pad(day.rhr === null ? "—" : day.rhr.toFixed(0), 3)} | ${pad(day.sleep === null ? "—" : mins(day.sleep), 5)} | ${pad(day.steps === null ? "—" : steps(day.steps), 6)} | ${pad(day.strain === null ? "—" : day.strain.toFixed(1), 4)} | ${pad(day.stress === null ? "—" : day.stress.toFixed(0), 4)} | ${pad(day.calories === null ? "—" : day.calories.toFixed(0), 5)} | ${pad(day.weight === null ? "—" : day.weight.toFixed(1), 4)} |`;
+  const rec = day.recovery === null ? "" : `${day.recovery.toFixed(0)}%`;
+  const hrv = day.hrv === null ? "" : day.hrv.toFixed(0);
+  const rhr = day.rhr === null ? "" : day.rhr.toFixed(0);
+  const slp = day.sleep === null ? "" : mins(day.sleep);
+  const stp = day.steps === null ? "" : fmtSteps(day.steps);
+  const str = day.strain === null ? "" : day.strain.toFixed(1);
+  const strs = day.stress === null ? "" : day.stress.toFixed(0);
+  const cal = day.calories === null ? "" : day.calories.toFixed(0);
+  const wt = day.weight === null ? "" : day.weight.toFixed(1);
+  return `| ${pad(dateStr, 10)} | ${pad(rec, 4)} | ${pad(hrv, 3)} | ${pad(rhr, 3)} | ${pad(slp, 5)} | ${pad(stp, 6)} | ${pad(str, 4)} | ${pad(strs, 4)} | ${pad(cal, 5)} | ${pad(wt, 4)} |`;
 }
 
 function formatLastDays(lastDays: DayMetrics[]): string[] {
   const lines: string[] = [
     `## Last ${String(lastDays.length)} Days`,
-    `| Date       | Rec  | HRV | RHR | Sleep | Steps  | Str  | Strs | Cal   | Wt   |`,
+    `| Date       | Rec% | HRV | RHR | Sleep | Steps  | Str  | Strs | Cal   | Wt   |`,
     `|------------|------|-----|-----|-------|--------|------|------|-------|------|`,
   ];
   for (const day of lastDays) {
@@ -219,7 +232,9 @@ function formatLongevity(analytics: AnalyticsResponse): string[] {
       .filter((c) => c.estimated_age !== null)
       .map((c) => `${c.name}→${(c.estimated_age ?? 0).toFixed(0)}y`)
       .join(" ");
-    if (comps) lines.push(`Components: ${comps}`);
+    if (comps) {
+      lines.push(`Components: ${comps}`);
+    }
   }
 
   if (zones.zone2_minutes_7d !== null || zones.zone5_minutes_7d !== null) {
@@ -251,7 +266,9 @@ function formatLongevity(analytics: AnalyticsResponse): string[] {
       ? `activity=${score.activity_consistency.toFixed(0)}`
       : null,
   ].filter(Boolean);
-  if (scoreParts.length > 0) lines.push(`Breakdown: ${scoreParts.join(" ")}`);
+  if (scoreParts.length > 0) {
+    lines.push(`Breakdown: ${scoreParts.join(" ")}`);
+  }
 
   return lines;
 }
@@ -273,62 +290,28 @@ function formatTrendsTable(
 
     const recent = allAnalytics.recent?.metric_baselines[key];
     const trendSlope = recent?.trend_slope ?? null;
-    const zScore = recent?.z_score ?? null;
     const percentile = recent?.percentile ?? null;
 
     const trend =
       trendSlope !== null
-        ? `${trendSlope >= 0 ? "+" : ""}${trendSlope.toFixed(2)}/d`
-        : "—";
-    const z = zScore !== null ? zScore.toFixed(1) : "—";
-    const pctl =
-      percentile !== null ? `${(percentile * 100).toFixed(0)}%` : "—";
+        ? `${trendSlope >= 0 ? "+" : ""}${trendSlope.toFixed(2)}/d ${arrow(trendSlope)}`
+        : "";
+    const pctl = percentile !== null ? percentile.toFixed(0) : "";
 
-    return `| ${pad(name, 8)} | ${pad(fmt(vals[0]), 6)} | ${pad(fmt(vals[1]), 6)} | ${pad(fmt(vals[2]), 6)} | ${pad(fmt(vals[3]), 6)} | ${pad(trend, 8)} | ${pad(z, 4)} | ${pad(pctl, 4)} |`;
+    return `| ${pad(name, 10)} | ${pad(fmt(vals[0]), 6)} | ${pad(fmt(vals[1]), 6)} | ${pad(fmt(vals[2]), 6)} | ${pad(fmt(vals[3]), 6)} | ${pad(trend, 12)} | ${pad(pctl, 4)} |`;
   };
 
   return [
     `## Trends`,
-    `| Metric   | 6W     | 6M     | 2Y     | 5Y     | Trend    | Z    | %ile |`,
-    `|----------|--------|--------|--------|--------|----------|------|------|`,
-    row("HRV", "hrv", (v) => (v === null ? "—" : v.toFixed(1))),
-    row("RHR", "rhr", (v) => (v === null ? "—" : v.toFixed(1))),
-    row("Sleep", "sleep", (v) => (v === null ? "—" : mins(v))),
-    row("Steps", "steps", (v) => (v === null ? "—" : steps(v))),
-    row("Weight", "weight", (v) => (v === null ? "—" : v.toFixed(1))),
-    row("Recovery", "recovery", (v) => (v === null ? "—" : `${v.toFixed(0)}%`)),
+    `| Metric     | 6W     | 6M     | 2Y     | 5Y     | Trend        | %ile |`,
+    `|------------|--------|--------|--------|--------|--------------|------|`,
+    row("HRV (ms)", "hrv", (v) => (v === null ? "" : v.toFixed(1))),
+    row("RHR (bpm)", "rhr", (v) => (v === null ? "" : v.toFixed(1))),
+    row("Sleep", "sleep", (v) => (v === null ? "" : mins(v))),
+    row("Steps", "steps", (v) => (v === null ? "" : fmtSteps(v))),
+    row("Weight(kg)", "weight", (v) => (v === null ? "" : v.toFixed(1))),
+    row("Recovery%", "recovery", (v) => (v === null ? "" : v.toFixed(0))),
   ];
-}
-
-function formatVelocity(analytics: AnalyticsResponse): string[] {
-  const v = analytics.velocity;
-  if (
-    isAllNull(
-      v.hrv_velocity,
-      v.rhr_velocity,
-      v.sleep_velocity,
-      v.weight_velocity,
-    )
-  ) {
-    return [];
-  }
-
-  const parts = [
-    v.hrv_velocity !== null
-      ? `HRV: ${v.hrv_velocity >= 0 ? "+" : ""}${v.hrv_velocity.toFixed(2)}/d ${arrow(v.hrv_velocity)}`
-      : null,
-    v.rhr_velocity !== null
-      ? `RHR: ${v.rhr_velocity >= 0 ? "+" : ""}${v.rhr_velocity.toFixed(2)}/d ${arrow(-v.rhr_velocity)}`
-      : null,
-    v.sleep_velocity !== null
-      ? `Sleep: ${v.sleep_velocity >= 0 ? "+" : ""}${v.sleep_velocity.toFixed(1)}min/d ${arrow(v.sleep_velocity)}`
-      : null,
-    v.weight_velocity !== null
-      ? `Weight: ${v.weight_velocity >= 0 ? "+" : ""}${v.weight_velocity.toFixed(3)}kg/d ${arrow(-v.weight_velocity)}`
-      : null,
-  ].filter(Boolean);
-
-  return [`## Velocity`, parts.join(" | ")];
 }
 
 function formatAnomalies(analytics: AnalyticsResponse): string[] {
@@ -356,7 +339,7 @@ function formatTimeframeTable(
     getter: (a: AnalyticsResponse) => string,
   ): string => {
     const data = allAnalytics[mode];
-    return data ? getter(data) : "—";
+    return data ? getter(data) : "";
   };
 
   const row = (
@@ -373,23 +356,24 @@ function formatTimeframeTable(
     `|-----------------|--------|--------|--------|--------|`,
     row("Recovery CV", (a) =>
       a.recovery_metrics.recovery_cv === null
-        ? "—"
+        ? ""
         : pct(a.recovery_metrics.recovery_cv),
     ),
     row("Stress Load", (a) => n(a.recovery_metrics.stress_load_short, 0)),
     row("Sleep Debt", (a) => mins(a.sleep_metrics.sleep_debt_short)),
+    row("Sleep Surplus", (a) => mins(a.sleep_metrics.sleep_surplus_short)),
     row("Sleep CV", (a) => `${(a.sleep_metrics.sleep_cv * 100).toFixed(1)}%`),
     row("Acute Load", (a) => n(a.activity_metrics.acute_load, 1)),
     row("ACWR", (a) => n(a.activity_metrics.acwr)),
-    row("Weight EMA", (a) =>
+    row("Weight EMA(kg)", (a) =>
       a.weight_metrics.ema_short === null
-        ? "—"
-        : `${a.weight_metrics.ema_short.toFixed(1)}kg`,
+        ? ""
+        : a.weight_metrics.ema_short.toFixed(1),
     ),
-    row("Weight Δ", (a) =>
+    row("Weight Δ(kg)", (a) =>
       a.weight_metrics.period_change === null
-        ? "—"
-        : `${a.weight_metrics.period_change >= 0 ? "+" : ""}${a.weight_metrics.period_change.toFixed(2)}kg`,
+        ? ""
+        : `${a.weight_metrics.period_change >= 0 ? "+" : ""}${a.weight_metrics.period_change.toFixed(2)}`,
     ),
   ];
 }
@@ -431,153 +415,145 @@ function formatEnergyBalance(analytics: AnalyticsResponse): string[] {
   }
 
   const parts: string[] = [];
-  if (cal.avg_7 !== null) parts.push(`cal avg ${cal.avg_7.toFixed(0)}`);
-  if (cal.trend) parts.push(`trend ${cal.trend}`);
+  if (cal.avg_7 !== null) {
+    parts.push(`cal avg ${cal.avg_7.toFixed(0)}`);
+  }
+  if (cal.trend) {
+    parts.push(`trend ${cal.trend}`);
+  }
   if (eb.weight_delta !== null) {
     parts.push(
       `weight ${eb.weight_delta >= 0 ? "+" : ""}${eb.weight_delta.toFixed(2)}kg/7d`,
     );
   }
-  if (eb.balance_signal) parts.push(eb.balance_signal.replaceAll("_", " "));
+  if (eb.balance_signal) {
+    parts.push(eb.balance_signal.replaceAll("_", " "));
+  }
 
   return [`## Energy`, `Energy: ${parts.join(", ")}`];
 }
 
-interface UnifiedWorkout {
+interface DayAggregatedWorkout {
   date: string;
-  sortKey: string;
-  name: string;
-  source: string;
+  activities: string[];
+  totalStrain: number;
+  peakHr: number | null;
+  totalVolume: number;
+  totalSets: number;
   duration: string;
-  load: string;
-  hr: string;
-  notes: string;
+  distance: string;
+  notes: string[];
 }
 
-function buildUnifiedTrainingLog(
+function buildDayAggregatedLog(
   data: HealthData,
   detailedWorkouts: WorkoutExerciseDetail[] | null,
   now: Date,
-): UnifiedWorkout[] {
+): DayAggregatedWorkout[] {
   const thirtyDaysAgo = new Date(now);
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const result: UnifiedWorkout[] = [];
 
-  const hevyByDate = new Map<
-    string,
-    { totalVolume: number; totalSets: number; exerciseCount: number }
-  >();
+  const byDate = new Map<string, DayAggregatedWorkout>();
+
+  const getOrCreate = (date: string): DayAggregatedWorkout => {
+    const existing = byDate.get(date);
+    if (existing) return existing;
+    const entry: DayAggregatedWorkout = {
+      date,
+      activities: [],
+      totalStrain: 0,
+      peakHr: null,
+      totalVolume: 0,
+      totalSets: 0,
+      duration: "",
+      distance: "",
+      notes: [],
+    };
+    byDate.set(date, entry);
+    return entry;
+  };
+
   if (detailedWorkouts && detailedWorkouts.length > 0) {
     for (const w of detailedWorkouts) {
       const wDate = parseISO(w.date);
       if (wDate < thirtyDaysAgo || wDate > now) continue;
-      const existing = hevyByDate.get(w.date);
-      if (existing) {
-        existing.totalVolume += w.total_volume;
-        existing.totalSets += w.total_sets;
-        existing.exerciseCount += 1;
-      } else {
-        hevyByDate.set(w.date, {
-          totalVolume: w.total_volume,
-          totalSets: w.total_sets,
-          exerciseCount: 1,
-        });
+      const day = getOrCreate(w.date);
+      if (!day.activities.includes("Strength")) {
+        day.activities.push("Strength");
       }
+      day.totalVolume += w.total_volume;
+      day.totalSets += w.total_sets;
     }
   } else {
     for (const w of data.workouts) {
       const wDate = parseISO(w.date);
       if (wDate < thirtyDaysAgo || wDate > now) continue;
       if (w.total_volume === null && w.total_sets === null) continue;
-      hevyByDate.set(w.date, {
-        totalVolume: w.total_volume ?? 0,
-        totalSets: w.total_sets ?? 0,
-        exerciseCount: 0,
-      });
+      const day = getOrCreate(w.date);
+      if (!day.activities.includes("Strength")) {
+        day.activities.push("Strength");
+      }
+      day.totalVolume += w.total_volume ?? 0;
+      day.totalSets += w.total_sets ?? 0;
     }
-  }
-
-  for (const [date, info] of hevyByDate) {
-    result.push({
-      date,
-      sortKey: date,
-      name: "Strength",
-      source: "Hevy",
-      duration: "—",
-      load: `${formatVolumeStr(info.totalVolume)}/${String(info.totalSets)}sets`,
-      hr: "—",
-      notes:
-        info.exerciseCount > 0 ? `${String(info.exerciseCount)} exercises` : "",
-    });
   }
 
   for (const a of data.garmin_activity) {
     const aDate = parseISO(a.date);
     if (aDate < thirtyDaysAgo || aDate > now) continue;
     if (a.distance_meters !== null && a.distance_meters < 1000) continue;
-
+    const day = getOrCreate(a.date);
     const name = a.activity_name ?? a.activity_type ?? DEFAULT_ACTIVITY_NAME;
-    const dur =
-      a.duration_seconds !== null ? formatDuration(a.duration_seconds) : "—";
-    const dist =
-      a.distance_meters !== null && a.distance_meters > 0
-        ? `${(a.distance_meters / 1000).toFixed(1)}km`
-        : "—";
-    const hr = a.avg_heart_rate !== null ? String(a.avg_heart_rate) : "—";
-
-    const notesParts: string[] = [];
+    if (!day.activities.includes(name)) {
+      day.activities.push(name);
+    }
+    if (a.duration_seconds !== null) {
+      day.duration = formatDuration(a.duration_seconds);
+    }
+    if (a.distance_meters !== null && a.distance_meters > 0) {
+      day.distance = `${(a.distance_meters / 1000).toFixed(1)}km`;
+    }
+    if (a.avg_heart_rate !== null) {
+      day.peakHr =
+        day.peakHr !== null
+          ? Math.max(day.peakHr, a.avg_heart_rate)
+          : a.avg_heart_rate;
+    }
     if (
       a.avg_speed_mps !== null &&
       a.avg_speed_mps > 0 &&
       a.distance_meters !== null &&
       a.distance_meters > 100
     ) {
-      notesParts.push(formatPaceForReport(a.avg_speed_mps));
-    }
-    if (a.vo2_max_value !== null) {
-      notesParts.push(`VO2=${a.vo2_max_value.toFixed(1)}`);
+      day.notes.push(formatPaceForReport(a.avg_speed_mps));
     }
     if (a.training_effect_aerobic !== null) {
-      notesParts.push(`TE=${a.training_effect_aerobic.toFixed(1)}`);
+      day.notes.push(`TE=${a.training_effect_aerobic.toFixed(1)}`);
     }
-
-    result.push({
-      date: a.date,
-      sortKey: a.start_time ?? a.date,
-      name,
-      source: "Garmin",
-      duration: dur,
-      load: dist,
-      hr,
-      notes: notesParts.join(" "),
-    });
   }
 
   for (const w of data.whoop_workout) {
     const wDate = parseISO(w.date);
     if (wDate < thirtyDaysAgo || wDate > now) continue;
-
+    const day = getOrCreate(w.date);
     const name = w.sport_name ?? DEFAULT_ACTIVITY_NAME;
-    const hr = w.avg_heart_rate !== null ? String(w.avg_heart_rate) : "—";
-    const strain =
-      w.strain !== null
-        ? `${w.strain.toFixed(1)}/${String(WHOOP_MAX_STRAIN)}`
-        : "—";
-
-    result.push({
-      date: w.date,
-      sortKey: w.start_time ?? w.date,
-      name,
-      source: "Whoop",
-      duration: "—",
-      load: strain,
-      hr,
-      notes: "",
-    });
+    if (!day.activities.includes(name)) {
+      day.activities.push(name);
+    }
+    if (w.strain !== null) {
+      day.totalStrain += w.strain;
+    }
+    if (w.avg_heart_rate !== null) {
+      day.peakHr =
+        day.peakHr !== null
+          ? Math.max(day.peakHr, w.avg_heart_rate)
+          : w.avg_heart_rate;
+    }
   }
 
-  result.sort((a, b) => b.sortKey.localeCompare(a.sortKey));
-  return result;
+  return Array.from(byDate.values()).sort((a, b) =>
+    b.date.localeCompare(a.date),
+  );
 }
 
 function formatUnifiedTrainingLog(
@@ -585,22 +561,45 @@ function formatUnifiedTrainingLog(
   detailedWorkouts: WorkoutExerciseDetail[] | null,
   now: Date,
 ): string[] {
-  const workouts = buildUnifiedTrainingLog(data, detailedWorkouts, now);
+  const days = buildDayAggregatedLog(data, detailedWorkouts, now);
 
-  if (workouts.length === 0) {
+  if (days.length === 0) {
     return [`## Training Log (30d)`, `No workouts recorded.`];
   }
 
   const lines: string[] = [
     `## Training Log (30d)`,
-    `| Date   | Activity    | Src   | Dur   | Load        | HR  | Notes     |`,
-    `|--------|-------------|-------|-------|-------------|-----|-----------|`,
+    `| Date   | Activities          | Load                   | HR  | Notes     |`,
+    `|--------|---------------------|------------------------|-----|-----------|`,
   ];
 
-  for (const w of workouts) {
-    const dateStr = format(parseISO(w.date), "MMM d");
+  for (const day of days) {
+    const dateStr = format(parseISO(day.date), "MMM d");
+    const acts = day.activities.join("+").slice(0, 19);
+
+    const loadParts: string[] = [];
+    if (day.totalStrain > 0) {
+      loadParts.push(
+        `${day.totalStrain.toFixed(1)}/${String(WHOOP_MAX_STRAIN)}str`,
+      );
+    }
+    if (day.totalVolume > 0) {
+      loadParts.push(
+        `${formatVolumeStr(day.totalVolume)}/${String(day.totalSets)}s`,
+      );
+    }
+    if (day.distance) {
+      loadParts.push(day.distance);
+    }
+    if (day.duration && loadParts.length === 0) {
+      loadParts.push(day.duration);
+    }
+    const load = loadParts.join(" ").slice(0, 22);
+    const hr = day.peakHr !== null ? String(day.peakHr) : "";
+    const notes = day.notes.join(" ").slice(0, 9);
+
     lines.push(
-      `| ${pad(dateStr, 6)} | ${pad(w.name.slice(0, 11), 11)} | ${pad(w.source, 5)} | ${pad(w.duration, 5)} | ${pad(w.load, 11)} | ${pad(w.hr, 3)} | ${pad(w.notes.slice(0, 9), 9)} |`,
+      `| ${pad(dateStr, 6)} | ${pad(acts, 19)} | ${pad(load, 22)} | ${pad(hr, 3)} | ${pad(notes, 9)} |`,
     );
   }
 
@@ -671,7 +670,9 @@ function formatAdvanced(insights: AdvancedInsights): string[] {
       ? `consistency=${sleep_quality.consistency_score.toFixed(0)}%`
       : null,
   ].filter(Boolean);
-  if (sleepParts.length > 0) lines.push(`Sleep: ${sleepParts.join(" ")}`);
+  if (sleepParts.length > 0) {
+    lines.push(`Sleep: ${sleepParts.join(" ")}`);
+  }
 
   const fitParts = [
     fitness.vo2_max_current !== null
@@ -684,11 +685,24 @@ function formatAdvanced(insights: AdvancedInsights): string[] {
       ? `monotony=${fitness.monotony.toFixed(1)}`
       : null,
   ].filter(Boolean);
-  if (fitParts.length > 0) lines.push(`Fitness: ${fitParts.join(" ")}`);
+  if (fitParts.length > 0) {
+    lines.push(`Fitness: ${fitParts.join(" ")}`);
+  }
 
-  const alloStr = `Allostatic: ${n(allostatic_load.composite_score, 2)} (trend:${n(allostatic_load.trend, 3)})`;
-  const recStr = `Recovery: debt=${n(recovery_enhanced.recovery_debt, 2)} mismatch=${n(recovery_enhanced.strain_recovery_mismatch_7d, 2)} half-life=${recovery_enhanced.recovery_half_life_days === null ? "N/A" : `${recovery_enhanced.recovery_half_life_days.toFixed(1)}d`}`;
-  lines.push(`${alloStr} | ${recStr}`);
+  const alloScore = n(allostatic_load.composite_score, 2);
+  const alloNorm =
+    allostatic_load.composite_score !== null &&
+    allostatic_load.composite_score > 10
+      ? " [HIGH, norm:<10]"
+      : "";
+  const recDebt = recovery_enhanced.recovery_debt;
+  const recDebtNorm =
+    recDebt !== null && recDebt > 100 ? " [HIGH, norm:<100]" : "";
+  const halfLife = recovery_enhanced.recovery_half_life_days;
+
+  lines.push(
+    `Allostatic: ${alloScore}${alloNorm} (trend:${n(allostatic_load.trend, 3)}) | Recovery: debt=${n(recDebt, 1)}${recDebtNorm} mismatch=${n(recovery_enhanced.strain_recovery_mismatch_7d, 2)} half-life=${halfLife === null ? "N/A" : `${halfLife.toFixed(1)}d`}`,
+  );
 
   return lines;
 }
@@ -716,7 +730,9 @@ function formatCrossDomain(insights: AdvancedInsights): string[] {
     cross_domain.weight_hrv_p_value !== null &&
     cross_domain.weight_hrv_p_value < 0.05
   ) {
-    if (lines.length === 0) lines.push(`## Cross-Domain`);
+    if (lines.length === 0) {
+      lines.push(`## Cross-Domain`);
+    }
     lines.push(
       `Weight-HRV: r=${cross_domain.weight_hrv_coupling.toFixed(3)} (p=${cross_domain.weight_hrv_p_value.toFixed(3)})`,
     );
@@ -731,12 +747,20 @@ function formatCrossDomain(insights: AdvancedInsights): string[] {
     });
 
     if (meaningful.length > 0) {
-      if (lines.length === 0) lines.push(`## Cross-Domain`);
-      const parts = meaningful.map((k) => {
+      if (lines.length === 0) {
+        lines.push(`## Cross-Domain`);
+      }
+      lines.push(`Weekday/Weekend:`);
+      for (const k of meaningful) {
         const s = ww[k];
-        return `${k}: wd=${s.weekday_mean === null ? "—" : s.weekday_mean.toFixed(1)} we=${s.weekend_mean === null ? "—" : s.weekend_mean.toFixed(1)} Δ=${s.delta === null ? "—" : `${s.delta >= 0 ? "+" : ""}${s.delta.toFixed(1)}`}`;
-      });
-      lines.push(`Weekday/Weekend: ${parts.join(" | ")}`);
+        const d =
+          s.delta === null
+            ? ""
+            : `${s.delta >= 0 ? "+" : ""}${s.delta.toFixed(1)}`;
+        lines.push(
+          `  ${k}: wd=${s.weekday_mean === null ? "" : s.weekday_mean.toFixed(1)} we=${s.weekend_mean === null ? "" : s.weekend_mean.toFixed(1)} Δ=${d}`,
+        );
+      }
     }
   }
 
@@ -834,7 +858,6 @@ export function formatCombinedReport(
   }
 
   if (recent) {
-    sections.push(formatVelocity(recent));
     sections.push(formatAnomalies(recent));
   }
 
