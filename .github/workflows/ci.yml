@@ -164,8 +164,8 @@ jobs:
           push: true
           provenance: false
           tags: ${{ steps.meta.outputs.tags }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=registry,ref=ghcr.io/nikolay-e/life-as-code/backend:buildcache
+          cache-to: type=registry,ref=ghcr.io/nikolay-e/life-as-code/backend:buildcache,mode=max,image-manifest=true
           build-args: |
             VERSION=${{ steps.meta.outputs.version }}
             BUILD_DATE=${{ steps.meta.outputs.build_date }}
@@ -227,8 +227,8 @@ jobs:
           push: true
           provenance: false
           tags: ${{ steps.meta.outputs.tags }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=registry,ref=ghcr.io/nikolay-e/life-as-code/ml:buildcache
+          cache-to: type=registry,ref=ghcr.io/nikolay-e/life-as-code/ml:buildcache,mode=max,image-manifest=true
           build-args: |
             VERSION=${{ steps.meta.outputs.version }}
             BUILD_DATE=${{ steps.meta.outputs.build_date }}
@@ -284,8 +284,8 @@ jobs:
           push: true
           provenance: false
           tags: ${{ steps.meta.outputs.tags }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=registry,ref=ghcr.io/nikolay-e/life-as-code/bot:buildcache
+          cache-to: type=registry,ref=ghcr.io/nikolay-e/life-as-code/bot:buildcache,mode=max,image-manifest=true
           build-args: |
             VERSION=${{ steps.meta.outputs.version }}
             BUILD_DATE=${{ steps.meta.outputs.build_date }}
@@ -347,8 +347,8 @@ jobs:
           push: true
           provenance: false
           tags: ${{ steps.meta.outputs.tags }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=registry,ref=ghcr.io/nikolay-e/life-as-code/frontend:buildcache
+          cache-to: type=registry,ref=ghcr.io/nikolay-e/life-as-code/frontend:buildcache,mode=max,image-manifest=true
           build-args: |
             VITE_APP_VERSION=${{ steps.meta.outputs.version }}
             VITE_APP_ENVIRONMENT=${{ steps.meta.outputs.app_environment }}
