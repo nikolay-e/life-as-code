@@ -993,6 +993,12 @@ def _compute_health_score_baselines(
     }
 
 
+def _calories_fallback_confidence(bl_calories: BaselineMetrics | None) -> float:
+    if bl_calories and bl_calories.z_score is not None:
+        return 0.7
+    return 0
+
+
 def _resolve_metric_confidences(
     fi: dict[str, FusedZScoreInput],
     hrv_quality: DataQuality | None,
@@ -1024,9 +1030,7 @@ def _resolve_metric_confidences(
         "steps": _cap_confidence(steps_quality.confidence if steps_quality else 1),
         "strain": _cap_confidence(strain_quality.confidence if strain_quality else 1),
         "calories": _cap_confidence(
-            cal_fi.confidence
-            if cal_fi
-            else (0.7 if bl_calories and bl_calories.z_score is not None else 0)
+            cal_fi.confidence if cal_fi else _calories_fallback_confidence(bl_calories)
         ),
         "weight": _cap_confidence(
             0.8 if bl_weight and bl_weight.z_score is not None else 0

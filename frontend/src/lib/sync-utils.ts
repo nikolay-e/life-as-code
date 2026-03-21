@@ -9,7 +9,7 @@ export function getLatestSyncDate(
       s.last_sync_date !== null,
   );
   if (withDates.length === 0) return null;
-  const latest = withDates.sort(
+  const latest = withDates.toSorted(
     (a, b) =>
       new Date(b.last_sync_date).getTime() -
       new Date(a.last_sync_date).getTime(),
@@ -27,7 +27,7 @@ export function getLastSyncForSource(
       s.source === source && s.last_sync_date !== null,
   );
   if (sourceSyncs.length === 0) return null;
-  const latest = sourceSyncs.sort(
+  const latest = sourceSyncs.toSorted(
     (a, b) =>
       new Date(b.last_sync_date).getTime() -
       new Date(a.last_sync_date).getTime(),

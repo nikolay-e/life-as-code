@@ -107,7 +107,7 @@ function groupAllTrainingsByDate(
   return Array.from(byDate.entries())
     .map(([date, items]) => ({
       date,
-      items: items.sort((a, b) => b.sortKey.localeCompare(a.sortKey)),
+      items: items.toSorted((a, b) => b.sortKey.localeCompare(a.sortKey)),
     }))
     .sort((a, b) => b.date.localeCompare(a.date));
 }
@@ -156,9 +156,9 @@ function StrengthWorkoutInline({ exercises }: StrengthWorkoutInlineProps) {
                   : `Set ${String(set.set_index + 1)}`;
 
               const weightStr =
-                set.weight_kg !== null
-                  ? `${String(set.weight_kg)}kg`
-                  : "bodyweight";
+                set.weight_kg === null
+                  ? "bodyweight"
+                  : `${String(set.weight_kg)}kg`;
 
               const parts: string[] = [setLabel, weightStr];
 
@@ -292,11 +292,11 @@ function WhoopWorkoutInline({ workout }: WhoopWorkoutInlineProps) {
     ? format(parseISO(workout.start_time), "h:mm a")
     : null;
   const calories =
-    workout.kilojoules !== null ? Math.round(workout.kilojoules / 4.184) : null;
+    workout.kilojoules === null ? null : Math.round(workout.kilojoules / 4.184);
   const distanceKm =
-    workout.distance_meters !== null
-      ? (workout.distance_meters / 1000).toFixed(2)
-      : null;
+    workout.distance_meters === null
+      ? null
+      : (workout.distance_meters / 1000).toFixed(2);
 
   let durationStr: string | null = null;
   if (workout.start_time && workout.end_time) {
@@ -363,9 +363,9 @@ function GarminActivityInline({ activity }: GarminActivityInlineProps) {
     : null;
 
   const distanceKm =
-    activity.distance_meters !== null
-      ? (activity.distance_meters / 1000).toFixed(2)
-      : null;
+    activity.distance_meters === null
+      ? null
+      : (activity.distance_meters / 1000).toFixed(2);
 
   const pace =
     shouldShowPace(activity.avg_speed_mps, activity.distance_meters) &&

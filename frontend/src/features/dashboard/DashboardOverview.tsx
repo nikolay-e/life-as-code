@@ -270,7 +270,7 @@ export function DashboardOverview() {
             const currentVal = baseline?.current_value ?? null;
             const shortAvg = baseline?.short_term_mean ?? null;
             const subtitle =
-              shortAvg !== null ? `7d avg: ${def.format(shortAvg)}` : "Current";
+              shortAvg === null ? "Current" : `7d avg: ${def.format(shortAvg)}`;
             return (
               <MetricCard
                 key={def.key}

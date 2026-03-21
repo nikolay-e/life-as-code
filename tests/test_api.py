@@ -42,13 +42,13 @@ class TestHealthEndpoint:
 
 class TestCSRFProtection:
     def test_api_post_without_csrf_header_rejected(self, client):
-        response = client.post("/api/auth/login", json={"username": "a", "password": "b"})
+        response = client.post("/api/auth/login", json={"username": "a", "password": "b"})  # NOSONAR
         assert response.status_code == 403
 
     def test_api_post_with_csrf_header_allowed(self, client):
         response = client.post(
             "/api/auth/login",
-            json={"username": "a", "password": "b"},
+            json={"username": "a", "password": "b"},  # NOSONAR
             headers={"X-Requested-With": "XMLHttpRequest"},
         )
         assert response.status_code != 403

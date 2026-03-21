@@ -16,10 +16,10 @@ import { LongevitySection } from "./statistics/LongevitySection";
 function ModeSelector({
   mode,
   setMode,
-}: {
+}: Readonly<{
   mode: TrendMode;
   setMode: (m: TrendMode) => void;
-}) {
+}>) {
   return (
     <div className="flex items-center gap-2 p-1 bg-muted/50 rounded-lg">
       <Calendar className="h-4 w-4 text-muted-foreground ml-2" />

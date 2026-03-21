@@ -4,10 +4,9 @@ import {
   SleepData,
   BodyComposition,
   SessionActivity,
-  ImportResult,
 } from "./schemas";
 
-export type { ImportResult };
+export type { ImportResult } from "./schemas";
 
 // Create empty import result
 export function createImportResult(source: string, dataType: string): ImportResult {

@@ -133,20 +133,20 @@ export const api = {
         offset: number;
       }>("/sync/status").then((r) => r.items),
 
-    garmin: (days?: number): Promise<{ message: string }> =>
-      request(`/sync/garmin${days ? `?days=${String(days)}` : "?full=true"}`, {
-        method: "POST",
-      }),
+    garmin: (days?: number): Promise<{ message: string }> => {
+      const query = days ? `?days=${String(days)}` : "?full=true";
+      return request(`/sync/garmin${query}`, { method: "POST" });
+    },
 
-    hevy: (days?: number): Promise<{ message: string }> =>
-      request(`/sync/hevy${days ? `?days=${String(days)}` : "?full=true"}`, {
-        method: "POST",
-      }),
+    hevy: (days?: number): Promise<{ message: string }> => {
+      const query = days ? `?days=${String(days)}` : "?full=true";
+      return request(`/sync/hevy${query}`, { method: "POST" });
+    },
 
-    whoop: (days?: number): Promise<{ message: string }> =>
-      request(`/sync/whoop${days ? `?days=${String(days)}` : "?full=true"}`, {
-        method: "POST",
-      }),
+    whoop: (days?: number): Promise<{ message: string }> => {
+      const query = days ? `?days=${String(days)}` : "?full=true";
+      return request(`/sync/whoop${query}`, { method: "POST" });
+    },
   },
 };
 

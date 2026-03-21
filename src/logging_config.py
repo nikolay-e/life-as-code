@@ -61,9 +61,7 @@ SENSITIVE_PATTERNS = [
         "[API_KEY_REDACTED]",
     ),
     (
-        re.compile(
-            r"Bearer\s+[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+", re.IGNORECASE
-        ),
+        re.compile(r"Bearer\s+[\w-]+\.[\w-]+\.[\w-]+", re.IGNORECASE),
         "[BEARER_TOKEN_REDACTED]",
     ),
 ]
@@ -99,7 +97,7 @@ def _redact_value(value: Any, key: str | None = None) -> Any:
 def redact_sensitive_data(
     _logger: WrappedLogger, _method_name: str, event_dict: MutableMapping[str, Any]
 ) -> MutableMapping[str, Any]:
-    for key in list(event_dict.keys()):
+    for key in event_dict.keys():
         if key in ("timestamp", "level", "logger", "service", "request_id", "event"):
             continue
         event_dict[key] = _redact_value(event_dict[key], key)

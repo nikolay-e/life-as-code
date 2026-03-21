@@ -44,7 +44,9 @@ function getQualityBadgeAppearance(confidence: number): {
   return { color: "text-green-600 dark:text-green-400", Icon: CheckCircle };
 }
 
-function DataQualityBadge({ baseline }: { baseline: MetricBaseline }) {
+function DataQualityBadge({
+  baseline,
+}: Readonly<{ baseline: MetricBaseline }>) {
   const coveragePercent = Math.round(baseline.quality_coverage * 100);
   const confidencePercent = Math.round(baseline.quality_confidence * 100);
   const { color, Icon } = getQualityBadgeAppearance(

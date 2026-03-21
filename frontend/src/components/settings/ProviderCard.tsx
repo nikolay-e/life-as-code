@@ -39,10 +39,10 @@ function getStatusText(
 }
 
 interface SyncButtonProps {
-  name: string;
-  isPending: boolean;
-  onClick: () => void;
-  disabled?: boolean;
+  readonly name: string;
+  readonly isPending: boolean;
+  readonly onClick: () => void;
+  readonly disabled?: boolean;
 }
 
 function SyncButton({ name, isPending, onClick, disabled }: SyncButtonProps) {
@@ -65,13 +65,13 @@ function SyncButton({ name, isPending, onClick, disabled }: SyncButtonProps) {
 }
 
 interface ReadOnlyProviderCardProps {
-  name: string;
-  shortName: string;
-  colorClass: string;
-  hasData?: boolean;
-  statusText?: string;
-  lastSyncDate?: string | null;
-  isLastItem?: boolean;
+  readonly name: string;
+  readonly shortName: string;
+  readonly colorClass: string;
+  readonly hasData?: boolean;
+  readonly statusText?: string;
+  readonly lastSyncDate?: string | null;
+  readonly isLastItem?: boolean;
 }
 
 export function ReadOnlyProviderCard({
@@ -85,7 +85,7 @@ export function ReadOnlyProviderCard({
 }: ReadOnlyProviderCardProps) {
   return (
     <article
-      className={`flex items-center justify-between py-4 ${!isLastItem ? "border-b" : ""}`}
+      className={`flex items-center justify-between py-4 ${isLastItem ? "" : "border-b"}`}
       aria-label={`${name} provider: ${hasData ? statusText : "No data"}`}
     >
       <div className="flex items-center gap-4">
@@ -205,7 +205,7 @@ export function ProviderCard({
 
   return (
     <article
-      className={`flex items-center justify-between py-4 ${!isLastItem ? "border-b" : ""}`}
+      className={`flex items-center justify-between py-4 ${isLastItem ? "" : "border-b"}`}
       aria-label={`${name} provider status: ${statusText}`}
     >
       <div className="flex items-center gap-4">

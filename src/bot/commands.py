@@ -131,9 +131,12 @@ async def cmd_anomalies(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     text = "*Последние аномалии:*\n\n"
     for r in rows:
-        emoji = (
-            "🔴" if r.anomaly_score > 0.8 else "🟡" if r.anomaly_score > 0.6 else "🟠"
-        )
+        if r.anomaly_score > 0.8:
+            emoji = "🔴"
+        elif r.anomaly_score > 0.6:
+            emoji = "🟡"
+        else:
+            emoji = "🟠"
         text += f"{emoji} {r.date}: score {r.anomaly_score:.2f}\n"
 
     text += f"\n*Разбор последней:*\n{explanation}"

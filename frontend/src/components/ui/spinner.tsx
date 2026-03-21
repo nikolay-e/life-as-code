@@ -19,31 +19,31 @@ export function Spinner({
   label = "Loading",
 }: SpinnerProps) {
   return (
-    <Loader2
-      className={cn(
-        "animate-spin text-muted-foreground",
-        sizeClasses[size],
-        className,
-      )}
-      role="status"
-      aria-label={label}
-    />
+    <output aria-label={label} className="inline-flex">
+      <Loader2
+        className={cn(
+          "animate-spin text-muted-foreground",
+          sizeClasses[size],
+          className,
+        )}
+        aria-hidden="true"
+      />
+    </output>
   );
 }
 
 export function LoadingScreen({
   label = "Loading application",
-}: {
+}: Readonly<{
   label?: string;
-}) {
+}>) {
   return (
-    <div
+    <output
       className="flex h-screen w-full items-center justify-center"
-      role="status"
       aria-live="polite"
     >
       <Spinner size="lg" label={label} />
       <span className="sr-only">{label}</span>
-    </div>
+    </output>
   );
 }

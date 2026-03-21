@@ -63,7 +63,7 @@ export const CaloriesChart = memo(
       combinedGarminData,
       whoopData,
       (d) => d.total_kilocalories,
-      (d) => (d.kilojoules !== null ? Math.round(d.kilojoules / 4.184) : null),
+      (d) => (d.kilojoules === null ? null : Math.round(d.kilojoules / 4.184)),
     );
 
     return (

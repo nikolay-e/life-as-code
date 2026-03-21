@@ -348,7 +348,7 @@ export function loessSmooth<
     const denom = sumW * sumWXX - sumWX * sumWX;
     smoothed.set(
       target.index,
-      denom !== 0 ? (sumWXX * sumWY - sumWX * sumWXY) / denom : sumWY / sumW,
+      denom === 0 ? sumWY / sumW : (sumWXX * sumWY - sumWX * sumWXY) / denom,
     );
   }
 

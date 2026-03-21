@@ -14,7 +14,7 @@ import "./index.css";
 import App from "./App";
 
 async function clearBrowserCaches(): Promise<void> {
-  if ("caches" in window) {
+  if ("caches" in globalThis) {
     const names = await caches.keys();
     await Promise.all(names.map((name) => caches.delete(name)));
   }
@@ -70,7 +70,7 @@ const queryClient = new QueryClient({
   },
 });
 
-useAuthStore
+await useAuthStore
   .getState()
   .checkAuth()
   .catch(() => {});

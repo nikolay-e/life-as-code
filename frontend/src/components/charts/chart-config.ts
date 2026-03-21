@@ -1,7 +1,6 @@
 import type { CSSProperties } from "react";
-import { TREND_CONFIGS, type TrendMethod } from "../../lib/metrics";
 
-export { TREND_CONFIGS, type TrendMethod };
+export { TREND_CONFIGS, type TrendMethod } from "../../lib/metrics";
 
 export const chartTooltipStyle: CSSProperties = {
   backgroundColor: "hsl(var(--card) / 0.85)",

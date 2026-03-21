@@ -20,10 +20,10 @@ function ChartFallback({ resetErrorBoundary }: FallbackProps) {
 export function ChartErrorBoundary({
   children,
   resetKeys,
-}: {
+}: Readonly<{
   children: ReactNode;
   resetKeys?: unknown[];
-}) {
+}>) {
   return (
     <ErrorBoundary FallbackComponent={ChartFallback} resetKeys={resetKeys}>
       {children}

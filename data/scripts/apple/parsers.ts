@@ -112,13 +112,12 @@ function processCountableRecord(
   targetMap: Map<string, Map<string, number>>,
   rawValue: number,
   dateKey: string,
-  sourceName: string
+  sourceName: string = "Unknown"
 ): void {
   if (rawValue <= 0) return;
-  const src = sourceName || "Unknown";
   if (!targetMap.has(dateKey)) targetMap.set(dateKey, new Map());
   const m = targetMap.get(dateKey)!;
-  m.set(src, (m.get(src) || 0) + rawValue);
+  m.set(sourceName, (m.get(sourceName) || 0) + rawValue);
 }
 
 function processStepRecord(

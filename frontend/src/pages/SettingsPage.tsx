@@ -53,11 +53,11 @@ export function SettingsPage() {
 
   if (credentialsLoading) {
     return (
-      <div className="space-y-6" role="status" aria-label="Loading settings">
+      <output className="space-y-6 block" aria-label="Loading settings">
         <SkeletonCard />
         <SkeletonCard />
         <SkeletonCard />
-      </div>
+      </output>
     );
   }
 

@@ -375,8 +375,8 @@ export function DataStatusPage() {
 }
 
 interface SyncStatusItemProps {
-  label: string;
-  date: string | null;
+  readonly label: string;
+  readonly date: string | null;
 }
 
 function SyncStatusItem({ label, date }: SyncStatusItemProps) {

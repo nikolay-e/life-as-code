@@ -69,7 +69,7 @@ export function DashboardLayout() {
   const handleLogout = async () => {
     queryClient.clear();
 
-    if ("caches" in window) {
+    if ("caches" in globalThis) {
       const cacheNames = await caches.keys();
       await Promise.all(cacheNames.map((name) => caches.delete(name)));
     }

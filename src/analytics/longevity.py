@@ -61,6 +61,131 @@ def _rhr_to_age_offset(rhr: float) -> float:
     return (rhr - RHR_REFERENCE) / 10.0
 
 
+def _hrv_component(
+    hrv_data: list[DataPoint], chronological_age: float, ref_date: date | None
+) -> BiologicalAgeComponent | None:
+    hrv_vals = get_window_values(
+        to_daily_series(hrv_data, "mean"), MIN_BIO_AGE_DATA_DAYS, ref_date=ref_date
+    )
+    if not hrv_vals:
+        return None
+    hrv_mean = mean_or_none(hrv_vals)
+    if not hrv_mean or hrv_mean <= 0:
+        return None
+    hrv_age = _hrv_to_age(hrv_mean)
+    if hrv_age is None:
+        return None
+    return BiologicalAgeComponent(
+        name="hrv_age",
+        estimated_age=hrv_age,
+        chronological_age=chronological_age,
+        delta=hrv_age - chronological_age,
+        confidence=min(1.0, len(hrv_vals) / 30) * BIO_AGE_METRIC_RELIABILITY["hrv_age"],
+        data_source="garmin/whoop",
+    )
+
+
+def _fitness_component(
+    vo2_max_data: list[DataPoint],
+    fitness_age_data: list[DataPoint],
+    chronological_age: float,
+    ref_date: date | None,
+) -> BiologicalAgeComponent | None:
+    vo2_vals = get_window_values(
+        to_daily_series(vo2_max_data, "last"), 30, ref_date=ref_date
+    )
+    if vo2_vals:
+        vo2_age = _vo2max_to_age(vo2_vals[-1])
+        if vo2_age is not None:
+            return BiologicalAgeComponent(
+                name="fitness_age",
+                estimated_age=vo2_age,
+                chronological_age=chronological_age,
+                delta=vo2_age - chronological_age,
+                confidence=BIO_AGE_METRIC_RELIABILITY["fitness_age"],
+                data_source="garmin_vo2max",
+            )
+
+    garmin_fitness_vals = get_window_values(
+        to_daily_series(fitness_age_data, "last"), 30, ref_date=ref_date
+    )
+    if garmin_fitness_vals:
+        garmin_fa = garmin_fitness_vals[-1]
+        return BiologicalAgeComponent(
+            name="fitness_age",
+            estimated_age=garmin_fa,
+            chronological_age=chronological_age,
+            delta=garmin_fa - chronological_age,
+            confidence=BIO_AGE_METRIC_RELIABILITY["fitness_age_native"],
+            data_source="garmin_native",
+        )
+    return None
+
+
+def _rhr_component(
+    rhr_data: list[DataPoint], chronological_age: float, ref_date: date | None
+) -> BiologicalAgeComponent | None:
+    rhr_vals = get_window_values(
+        to_daily_series(rhr_data, "mean"), MIN_BIO_AGE_DATA_DAYS, ref_date=ref_date
+    )
+    if not rhr_vals:
+        return None
+    rhr_mean = mean_or_none(rhr_vals)
+    if not rhr_mean:
+        return None
+    rhr_offset = _rhr_to_age_offset(rhr_mean)
+    return BiologicalAgeComponent(
+        name="rhr_age",
+        estimated_age=chronological_age + rhr_offset,
+        chronological_age=chronological_age,
+        delta=rhr_offset,
+        confidence=min(1.0, len(rhr_vals) / 30) * BIO_AGE_METRIC_RELIABILITY["rhr_age"],
+        data_source="garmin/whoop",
+    )
+
+
+def _recovery_component(
+    recovery_data: list[DataPoint], chronological_age: float, ref_date: date | None
+) -> BiologicalAgeComponent | None:
+    rec_vals = get_window_values(
+        to_daily_series(recovery_data, "last"), MIN_BIO_AGE_DATA_DAYS, ref_date=ref_date
+    )
+    if not rec_vals:
+        return None
+    rec_mean = mean_or_none(rec_vals)
+    if rec_mean is None:
+        return None
+    recovery_offset = (50 - rec_mean) / 10 * 2
+    return BiologicalAgeComponent(
+        name="recovery_age",
+        estimated_age=chronological_age + recovery_offset,
+        chronological_age=chronological_age,
+        delta=recovery_offset,
+        confidence=min(1.0, len(rec_vals) / 30)
+        * BIO_AGE_METRIC_RELIABILITY["recovery_age"],
+        data_source="whoop",
+    )
+
+
+def _compute_composite(
+    components: list[BiologicalAgeComponent], chronological_age: float
+) -> tuple[float | None, float | None]:
+    if not components:
+        return None, None
+    total_weight = sum(c.confidence for c in components)
+    if total_weight <= 0:
+        return None, None
+    composite = (
+        sum(
+            (c.estimated_age or 0) * c.confidence
+            for c in components
+            if c.estimated_age is not None
+        )
+        / total_weight
+    )
+    return composite, composite - chronological_age
+
+
 def calculate_biological_age(
     hrv_data: list[DataPoint],
     vo2_max_data: list[DataPoint],
@@ -73,116 +198,15 @@ def calculate_biological_age(
     if chronological_age is None:
         chronological_age = 30.0
 
-    components: list[BiologicalAgeComponent] = []
+    candidates = [
+        _hrv_component(hrv_data, chronological_age, ref_date),
+        _fitness_component(vo2_max_data, fitness_age_data, chronological_age, ref_date),
+        _rhr_component(rhr_data, chronological_age, ref_date),
+        _recovery_component(recovery_data, chronological_age, ref_date),
+    ]
+    components = [c for c in candidates if c is not None]
 
-    hrv_vals = get_window_values(
-        to_daily_series(hrv_data, "mean"), MIN_BIO_AGE_DATA_DAYS, ref_date=ref_date
-    )
-    if hrv_vals:
-        hrv_mean = mean_or_none(hrv_vals)
-        if hrv_mean and hrv_mean > 0:
-            hrv_age = _hrv_to_age(hrv_mean)
-            if hrv_age is not None:
-                components.append(
-                    BiologicalAgeComponent(
-                        name="hrv_age",
-                        estimated_age=hrv_age,
-                        chronological_age=chronological_age,
-                        delta=hrv_age - chronological_age,
-                        confidence=min(1.0, len(hrv_vals) / 30)
-                        * BIO_AGE_METRIC_RELIABILITY["hrv_age"],
-                        data_source="garmin/whoop",
-                    )
-                )
-
-    vo2_vals = get_window_values(
-        to_daily_series(vo2_max_data, "last"), 30, ref_date=ref_date
-    )
-    if vo2_vals:
-        vo2_current = vo2_vals[-1]
-        vo2_age = _vo2max_to_age(vo2_current)
-        if vo2_age is not None:
-            components.append(
-                BiologicalAgeComponent(
-                    name="fitness_age",
-                    estimated_age=vo2_age,
-                    chronological_age=chronological_age,
-                    delta=vo2_age - chronological_age,
-                    confidence=BIO_AGE_METRIC_RELIABILITY["fitness_age"],
-                    data_source="garmin_vo2max",
-                )
-            )
-
-    garmin_fitness_vals = get_window_values(
-        to_daily_series(fitness_age_data, "last"), 30, ref_date=ref_date
-    )
-    if garmin_fitness_vals and not vo2_vals:
-        garmin_fa = garmin_fitness_vals[-1]
-        components.append(
-            BiologicalAgeComponent(
-                name="fitness_age",
-                estimated_age=garmin_fa,
-                chronological_age=chronological_age,
-                delta=garmin_fa - chronological_age,
-                confidence=BIO_AGE_METRIC_RELIABILITY["fitness_age_native"],
-                data_source="garmin_native",
-            )
-        )
-
-    rhr_vals = get_window_values(
-        to_daily_series(rhr_data, "mean"), MIN_BIO_AGE_DATA_DAYS, ref_date=ref_date
-    )
-    if rhr_vals:
-        rhr_mean = mean_or_none(rhr_vals)
-        if rhr_mean:
-            rhr_offset = _rhr_to_age_offset(rhr_mean)
-            rhr_age = chronological_age + rhr_offset
-            components.append(
-                BiologicalAgeComponent(
-                    name="rhr_age",
-                    estimated_age=rhr_age,
-                    chronological_age=chronological_age,
-                    delta=rhr_offset,
-                    confidence=min(1.0, len(rhr_vals) / 30)
-                    * BIO_AGE_METRIC_RELIABILITY["rhr_age"],
-                    data_source="garmin/whoop",
-                )
-            )
-
-    rec_vals = get_window_values(
-        to_daily_series(recovery_data, "last"), MIN_BIO_AGE_DATA_DAYS, ref_date=ref_date
-    )
-    if rec_vals:
-        rec_mean = mean_or_none(rec_vals)
-        if rec_mean is not None:
-            recovery_offset = (50 - rec_mean) / 10 * 2
-            recovery_age = chronological_age + recovery_offset
-            components.append(
-                BiologicalAgeComponent(
-                    name="recovery_age",
-                    estimated_age=recovery_age,
-                    chronological_age=chronological_age,
-                    delta=recovery_offset,
-                    confidence=min(1.0, len(rec_vals) / 30)
-                    * BIO_AGE_METRIC_RELIABILITY["recovery_age"],
-                    data_source="whoop",
-                )
-            )
-
-    composite: float | None = None
-    age_delta: float | None = None
-    if components:
-        total_weight = sum(c.confidence for c in components)
-        if total_weight > 0:
-            composite = (
-                sum(
-                    (c.estimated_age or 0) * c.confidence
-                    for c in components
-                    if c.estimated_age is not None
-                )
-                / total_weight
-            )
-            age_delta = composite - chronological_age
+    composite, age_delta = _compute_composite(components, chronological_age)
 
     return BiologicalAgeMetrics(
         composite_biological_age=composite,

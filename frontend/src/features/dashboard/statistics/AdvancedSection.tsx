@@ -47,9 +47,9 @@ import {
 
 function OverreachingCard({
   overreaching,
-}: {
+}: Readonly<{
   overreaching: OverreachingMetrics;
-}) {
+}>) {
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -123,9 +123,9 @@ function OverreachingCard({
 
 function CorrelationsCard({
   correlations,
-}: {
+}: Readonly<{
   correlations: CorrelationMetrics;
-}) {
+}>) {
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -192,7 +192,7 @@ function CorrelationsCard({
   );
 }
 
-function VelocityCard({ velocity }: { velocity: VelocityMetrics }) {
+function VelocityCard({ velocity }: Readonly<{ velocity: VelocityMetrics }>) {
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -272,7 +272,7 @@ function VelocityCard({ velocity }: { velocity: VelocityMetrics }) {
   );
 }
 
-function AnomaliesCard({ anomalies }: { anomalies: AnomalyMetrics }) {
+function AnomaliesCard({ anomalies }: Readonly<{ anomalies: AnomalyMetrics }>) {
   if (anomalies.anomaly_count === 0) return null;
   return (
     <Card>
@@ -339,9 +339,9 @@ function AnomaliesCard({ anomalies }: { anomalies: AnomalyMetrics }) {
 
 function RecoveryCapacityCard({
   recoveryCapacity,
-}: {
+}: Readonly<{
   recoveryCapacity: RecoveryCapacityMetrics;
-}) {
+}>) {
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -400,7 +400,9 @@ function RecoveryCapacityCard({
   );
 }
 
-function IllnessRiskCard({ illnessRisk }: { illnessRisk: IllnessRiskSignal }) {
+function IllnessRiskCard({
+  illnessRisk,
+}: Readonly<{ illnessRisk: IllnessRiskSignal }>) {
   return (
     <Card
       className={cn(
@@ -481,10 +483,10 @@ function IllnessRiskCard({ illnessRisk }: { illnessRisk: IllnessRiskSignal }) {
 function DecorrelationCard({
   decorrelation,
   baselineDays,
-}: {
+}: Readonly<{
   decorrelation: DecorrelationAlert;
   baselineDays: number;
-}) {
+}>) {
   if (decorrelation.current_correlation == null) return null;
   return (
     <Card
@@ -547,7 +549,9 @@ function DecorrelationCard({
   );
 }
 
-function HrvAdvancedCard({ insights }: { insights: AdvancedInsights }) {
+function HrvAdvancedCard({
+  insights,
+}: Readonly<{ insights: AdvancedInsights }>) {
   const h = insights.hrv_advanced;
   return (
     <Card>
@@ -602,7 +606,9 @@ function HrvAdvancedCard({ insights }: { insights: AdvancedInsights }) {
   );
 }
 
-function SleepQualityCard({ insights }: { insights: AdvancedInsights }) {
+function SleepQualityCard({
+  insights,
+}: Readonly<{ insights: AdvancedInsights }>) {
   const sq = insights.sleep_quality;
   return (
     <Card>
@@ -676,7 +682,7 @@ function SleepQualityCard({ insights }: { insights: AdvancedInsights }) {
   );
 }
 
-function FitnessCard({ insights }: { insights: AdvancedInsights }) {
+function FitnessCard({ insights }: Readonly<{ insights: AdvancedInsights }>) {
   const f = insights.fitness;
   return (
     <Card>
@@ -735,7 +741,9 @@ function FitnessCard({ insights }: { insights: AdvancedInsights }) {
   );
 }
 
-function AllostaticLoadCard({ insights }: { insights: AdvancedInsights }) {
+function AllostaticLoadCard({
+  insights,
+}: Readonly<{ insights: AdvancedInsights }>) {
   const al = insights.allostatic_load;
   return (
     <Card>
@@ -782,7 +790,9 @@ function AllostaticLoadCard({ insights }: { insights: AdvancedInsights }) {
   );
 }
 
-function HrvResidualCard({ insights }: { insights: AdvancedInsights }) {
+function HrvResidualCard({
+  insights,
+}: Readonly<{ insights: AdvancedInsights }>) {
   const residual = insights.cross_domain.hrv_residual;
   if (residual.r_squared == null) return null;
   return (
@@ -827,7 +837,9 @@ function HrvResidualCard({ insights }: { insights: AdvancedInsights }) {
   );
 }
 
-function CrossDomainCard({ insights }: { insights: AdvancedInsights }) {
+function CrossDomainCard({
+  insights,
+}: Readonly<{ insights: AdvancedInsights }>) {
   const cd = insights.cross_domain;
   if (cd.weight_hrv_coupling == null) return null;
   return (

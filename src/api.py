@@ -51,6 +51,7 @@ from utils import get_user_credentials
 
 api = Blueprint("api", __name__, url_prefix="/api")
 logger = get_logger(__name__)
+MSG_BODY_REQUIRED = "Request body is required"
 _sync_executor = ThreadPoolExecutor(max_workers=4)
 atexit.register(_sync_executor.shutdown, wait=False)
 
@@ -86,7 +87,7 @@ def get_version():
 def api_login():
     data = request.get_json()
     if not data:
-        raise ValidationError("Request body is required")
+        raise ValidationError(MSG_BODY_REQUIRED)
 
     username = data.get("username")
     password = data.get("password")
@@ -362,7 +363,7 @@ def _validate_threshold(
 def api_save_thresholds():
     data = request.get_json()
     if not data:
-        raise ValidationError("Request body is required")
+        raise ValidationError(MSG_BODY_REQUIRED)
 
     validated = {}
 
@@ -665,7 +666,12 @@ def _handle_sync_request(
 
     _sync_executor.submit(run_sync)
 
-    sync_type = "full" if full_sync else f"{days}-day" if days else "two-phase"
+    if full_sync:
+        sync_type = "full"
+    elif days:
+        sync_type = f"{days}-day"
+    else:
+        sync_type = "two-phase"
     return jsonify({"message": f"{source_name} {sync_type} sync started"})
 
 
@@ -729,7 +735,7 @@ def api_get_profile():
 def api_update_profile():
     data = request.get_json()
     if not data:
-        raise ValidationError("Request body is required")
+        raise ValidationError(MSG_BODY_REQUIRED)
 
     with get_db_session_context() as db:
         settings = db.scalars(
@@ -833,7 +839,7 @@ def api_get_biomarkers():
 def api_create_biomarker():
     data = request.get_json()
     if not data:
-        raise ValidationError("Request body is required")
+        raise ValidationError(MSG_BODY_REQUIRED)
 
     for field in ("date", "marker_name", "unit"):
         if not data.get(field):
@@ -937,7 +943,7 @@ def api_get_interventions():
 def api_create_intervention():
     data = request.get_json()
     if not data:
-        raise ValidationError("Request body is required")
+        raise ValidationError(MSG_BODY_REQUIRED)
 
     for field in ("name", "category", "start_date"):
         if not data.get(field):
@@ -979,12 +985,42 @@ def api_create_intervention():
         return jsonify(_serialize_model(intervention, INTERVENTION_FIELDS)), 201
 
 
+def _parse_end_date(raw: Any):
+    if not raw:
+        return None
+    try:
+        return parse_date_string(raw)
+    except ValueError:
+        raise InvalidDateFormatError(raw) from None
+
+
+def _apply_intervention_updates(row: Intervention, data: dict[str, Any]) -> None:
+    if "category" in data and data["category"] not in VALID_INTERVENTION_CATEGORIES:
+        raise ValidationError(
+            f"category must be one of: {', '.join(sorted(VALID_INTERVENTION_CATEGORIES))}",
+            field="category",
+        )
+
+    for field in ("name", "category", "dosage", "frequency", "notes"):
+        if field in data:
+            setattr(row, field, data[field])
+
+    if "active" in data:
+        row.active = bool(data["active"])
+
+    if "end_date" in data:
+        row.end_date = _parse_end_date(data["end_date"])
+
+    if "target_metrics" in data:
+        row.target_metrics = data["target_metrics"]
+
+
 @api.route("/longevity/interventions/<int:intervention_id>", methods=["PUT"])
 @login_required
 def api_update_intervention(intervention_id: int):
     data = request.get_json()
     if not data:
-        raise ValidationError("Request body is required")
+        raise ValidationError(MSG_BODY_REQUIRED)
 
     with get_db_session_context() as db:
         row = db.scalars(
@@ -993,30 +1029,7 @@ def api_update_intervention(intervention_id: int):
         if not row:
             raise NotFoundError("Intervention")
 
-        if "category" in data and data["category"] not in VALID_INTERVENTION_CATEGORIES:
-            raise ValidationError(
-                f"category must be one of: {', '.join(sorted(VALID_INTERVENTION_CATEGORIES))}",
-                field="category",
-            )
-
-        for field in ("name", "category", "dosage", "frequency", "notes"):
-            if field in data:
-                setattr(row, field, data[field])
-
-        if "active" in data:
-            row.active = bool(data["active"])
-
-        if "end_date" in data:
-            if data["end_date"]:
-                try:
-                    row.end_date = parse_date_string(data["end_date"])
-                except ValueError:
-                    raise InvalidDateFormatError(data["end_date"]) from None
-            else:
-                row.end_date = None
-
-        if "target_metrics" in data:
-            row.target_metrics = data["target_metrics"]
+        _apply_intervention_updates(row, data)
 
         db.commit()
         return jsonify(_serialize_model(row, INTERVENTION_FIELDS))
@@ -1057,7 +1070,7 @@ def api_get_functional_tests():
 def api_create_functional_test():
     data = request.get_json()
     if not data:
-        raise ValidationError("Request body is required")
+        raise ValidationError(MSG_BODY_REQUIRED)
 
     for field in ("date", "test_name", "unit"):
         if not data.get(field):
@@ -1128,7 +1141,7 @@ def api_get_goals():
 def api_create_goal():
     data = request.get_json()
     if not data:
-        raise ValidationError("Request body is required")
+        raise ValidationError(MSG_BODY_REQUIRED)
 
     for field in ("category", "description"):
         if not data.get(field):
@@ -1162,7 +1175,7 @@ def api_create_goal():
 def api_update_goal(goal_id: int):
     data = request.get_json()
     if not data:
-        raise ValidationError("Request body is required")
+        raise ValidationError(MSG_BODY_REQUIRED)
 
     with get_db_session_context() as db:
         row = db.scalars(

@@ -15,9 +15,8 @@ export function Skeleton({ className }: SkeletonProps) {
 
 export function SkeletonCard({ className }: SkeletonProps) {
   return (
-    <div
-      className={cn("rounded-lg border bg-card p-6 space-y-4", className)}
-      role="status"
+    <output
+      className={cn("rounded-lg border bg-card p-6 space-y-4 block", className)}
       aria-label="Loading content"
     >
       <Skeleton className="h-6 w-1/3" />
@@ -27,6 +26,6 @@ export function SkeletonCard({ className }: SkeletonProps) {
         <Skeleton className="h-4 w-5/6" />
         <Skeleton className="h-4 w-4/6" />
       </div>
-    </div>
+    </output>
   );
 }

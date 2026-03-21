@@ -44,8 +44,8 @@ function ErrorFallback({ error, resetErrorBoundary }: FallbackProps) {
 }
 
 interface ErrorBoundaryProps {
-  children: React.ReactNode;
-  onReset?: () => void;
+  readonly children: React.ReactNode;
+  readonly onReset?: () => void;
 }
 
 export function ErrorBoundary({ children, onReset }: ErrorBoundaryProps) {

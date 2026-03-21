@@ -578,15 +578,12 @@ class GarminAPIWrapper:
             if active is None and total is None:
                 return None
 
-            basal = (
-                bmr
-                if bmr is not None
-                else (
-                    (total - active)
-                    if total is not None and active is not None
-                    else None
-                )
-            )
+            if bmr is not None:
+                basal = bmr
+            elif total is not None and active is not None:
+                basal = total - active
+            else:
+                basal = None
 
             return {
                 "date": current_date,
