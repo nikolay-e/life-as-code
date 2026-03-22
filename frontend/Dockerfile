@@ -20,7 +20,7 @@ RUN VITE_APP_VERSION=${VITE_APP_VERSION} \
     npm run build
 
 # Production stage
-FROM nginx:1.28-alpine
+FROM nginx:1.29-alpine
 
 LABEL org.opencontainers.image.title="Life-as-Code Frontend" \
       org.opencontainers.image.description="React frontend for health analytics platform"
