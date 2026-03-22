@@ -65,16 +65,29 @@ def _get_sync_funcs() -> dict:
 
 
 def _is_rate_limit_error(exc: Exception) -> bool:
-    return "TooManyRequests" in type(exc).__name__ or "429" in str(exc)
+    err_str = str(exc)
+    return (
+        "TooManyRequests" in type(exc).__name__
+        or "429" in err_str
+        or "Too many" in err_str
+    )
 
 
 def _has_rate_limit_errors(result: dict) -> bool:
     error = result.get("error", "")
-    if error and ("429" in str(error) or "TooManyRequests" in str(error)):
+    if error and (
+        "429" in str(error)
+        or "TooManyRequests" in str(error)
+        or "Too many" in str(error)
+    ):
         return True
     for r in result.get("results", []):
         for err in r.get("errors", []):
-            if "429" in str(err) or "TooManyRequests" in str(err):
+            if (
+                "429" in str(err)
+                or "TooManyRequests" in str(err)
+                or "Too many" in str(err)
+            ):
                 return True
     return False
 
