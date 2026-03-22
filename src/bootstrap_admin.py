@@ -52,10 +52,18 @@ def create_default_admin():
                 db.commit()
                 logger.info("admin_password_updated", username=admin_username)
 
-            if any([garmin_email, garmin_password, hevy_api_key]):
-                _update_admin_credentials(
+            existing_creds = db.scalars(
+                select(UserCredentials).where(UserCredentials.user_id == admin.id)
+            ).first()
+            if not existing_creds and any(
+                [garmin_email, garmin_password, hevy_api_key]
+            ):
+                _create_admin_credentials(
                     db, admin.id, garmin_email, garmin_password, hevy_api_key
                 )
+                db.commit()
+            elif existing_creds:
+                logger.info("admin_credentials_exist_skipping_env", user_id=admin.id)
 
             return admin.id
 
@@ -122,38 +130,6 @@ def _create_admin_credentials(db, user_id, garmin_email, garmin_password, hevy_a
     )
     db.add(creds)
     logger.info("admin_credentials_created", user_id=user_id)
-
-
-def _update_admin_credentials(db, user_id, garmin_email, garmin_password, hevy_api_key):
-    """Update existing admin credentials (idempotent)"""
-    creds = db.scalars(
-        select(UserCredentials).where(UserCredentials.user_id == user_id)
-    ).first()
-
-    if not creds:
-        _create_admin_credentials(
-            db, user_id, garmin_email, garmin_password, hevy_api_key
-        )
-        return
-
-    updated_fields = []
-    if garmin_email and garmin_email != creds.garmin_email:
-        creds.garmin_email = garmin_email
-        updated_fields.append("garmin_email")
-
-    if garmin_password:
-        creds.encrypted_garmin_password = encrypt_data_for_user(
-            garmin_password, user_id
-        )
-        updated_fields.append("garmin_password")
-
-    if hevy_api_key:
-        creds.encrypted_hevy_api_key = encrypt_data_for_user(hevy_api_key, user_id)
-        updated_fields.append("hevy_api_key")
-
-    if updated_fields:
-        db.commit()
-        logger.info("admin_credentials_updated", user_id=user_id, fields=updated_fields)
 
 
 if __name__ == "__main__":

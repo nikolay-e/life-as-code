@@ -40,11 +40,12 @@ from models import (
     Intervention,
     LongevityGoal,
     User,
+    UserCredentials,
     UserSettings,
 )
 from pull_whoop_data import refresh_whoop_token_for_user
 from routes import UserModel
-from security import verify_password
+from security import encrypt_data_for_user, verify_password
 from settings import get_settings
 from sync_manager import is_sync_in_progress
 from utils import get_user_credentials
@@ -436,30 +437,238 @@ def _maybe_refresh_whoop_token(creds, user_id: int, token_expired: bool) -> bool
     return token_expired
 
 
+def _mask_email(email: str | None) -> str | None:
+    if not email or "@" not in email:
+        return None
+    local, domain = email.split("@", 1)
+    visible = local[:2] if len(local) > 2 else local[0]
+    return f"{visible}***@{domain}"
+
+
+def _mask_api_key(encrypted_key: str | None) -> str | None:
+    if not encrypted_key:
+        return None
+    return "***...configured"
+
+
+def _build_credentials_response(user_id: int) -> dict:
+    creds = get_user_credentials(user_id)
+    whoop_client_id = os.getenv("WHOOP_CLIENT_ID")
+    whoop_auth_url = "/whoop/authorize" if whoop_client_id else None
+    whoop_has_token, whoop_token_expired = _check_whoop_token_status(creds)
+    whoop_token_expired = _maybe_refresh_whoop_token(
+        creds, user_id, whoop_token_expired
+    )
+
+    return {
+        "garmin_configured": bool(
+            creds and creds.garmin_email and creds.encrypted_garmin_password
+        ),
+        "garmin_email_hint": _mask_email(creds.garmin_email if creds else None),
+        "hevy_configured": bool(creds and creds.encrypted_hevy_api_key),
+        "hevy_api_key_hint": _mask_api_key(
+            creds.encrypted_hevy_api_key if creds else None
+        ),
+        "whoop_configured": whoop_has_token and not whoop_token_expired,
+        "whoop_token_expired": whoop_token_expired,
+        "whoop_auth_url": whoop_auth_url,
+    }
+
+
 @api.route("/settings/credentials", methods=["GET"])
 @login_required
 def api_get_credentials():
-    creds = get_user_credentials(current_user.id)
-    whoop_client_id = os.getenv("WHOOP_CLIENT_ID")
-    whoop_auth_url = "/whoop/authorize" if whoop_client_id else None
+    return jsonify(_build_credentials_response(current_user.id))
 
-    whoop_has_token, whoop_token_expired = _check_whoop_token_status(creds)
-    whoop_token_expired = _maybe_refresh_whoop_token(
-        creds, current_user.id, whoop_token_expired
-    )
 
-    return jsonify(
-        {
-            "garmin_configured": bool(
-                creds and creds.garmin_email and creds.encrypted_garmin_password
-            ),
-            "hevy_configured": bool(creds and creds.encrypted_hevy_api_key),
-            "whoop_configured": whoop_has_token and not whoop_token_expired,
-            "whoop_token_expired": whoop_token_expired,
-            "whoop_auth_url": whoop_auth_url,
-            "message": "Credentials are managed through environment variables",
-        }
-    )
+@api.route("/settings/credentials/garmin", methods=["PUT"])
+@login_required
+@limiter.limit("10 per hour")
+def api_update_garmin_credentials():
+    data = request.get_json()
+    if not data:
+        raise ValidationError(MSG_BODY_REQUIRED)
+
+    email = data.get("email")
+    password = data.get("password")
+
+    if not email or not isinstance(email, str) or not email.strip():
+        raise ValidationError("email is required", field="email")
+    if not password or not isinstance(password, str) or not password.strip():
+        raise ValidationError("password is required", field="password")
+
+    encrypted_password = encrypt_data_for_user(password.strip(), current_user.id)
+
+    with get_db_session_context() as db:
+        creds = db.scalars(
+            select(UserCredentials).filter_by(user_id=current_user.id)
+        ).first()
+        if not creds:
+            creds = UserCredentials(user_id=current_user.id)
+            db.add(creds)
+
+        creds.garmin_email = email.strip()
+        creds.encrypted_garmin_password = encrypted_password
+        db.commit()
+
+    logger.info("garmin_credentials_updated", user_id=current_user.id)
+    return jsonify(_build_credentials_response(current_user.id))
+
+
+@api.route("/settings/credentials/hevy", methods=["PUT"])
+@login_required
+@limiter.limit("10 per hour")
+def api_update_hevy_credentials():
+    data = request.get_json()
+    if not data:
+        raise ValidationError(MSG_BODY_REQUIRED)
+
+    api_key = data.get("api_key")
+
+    if not api_key or not isinstance(api_key, str) or not api_key.strip():
+        raise ValidationError("api_key is required", field="api_key")
+
+    encrypted_key = encrypt_data_for_user(api_key.strip(), current_user.id)
+
+    with get_db_session_context() as db:
+        creds = db.scalars(
+            select(UserCredentials).filter_by(user_id=current_user.id)
+        ).first()
+        if not creds:
+            creds = UserCredentials(user_id=current_user.id)
+            db.add(creds)
+
+        creds.encrypted_hevy_api_key = encrypted_key
+        db.commit()
+
+    logger.info("hevy_credentials_updated", user_id=current_user.id)
+    return jsonify(_build_credentials_response(current_user.id))
+
+
+@api.route("/settings/credentials/garmin", methods=["DELETE"])
+@login_required
+@limiter.limit("10 per hour")
+def api_delete_garmin_credentials():
+    with get_db_session_context() as db:
+        creds = db.scalars(
+            select(UserCredentials).filter_by(user_id=current_user.id)
+        ).first()
+        if creds:
+            creds.garmin_email = None
+            creds.encrypted_garmin_password = None
+            db.commit()
+
+    logger.info("garmin_credentials_deleted", user_id=current_user.id)
+    return jsonify({"deleted": True})
+
+
+@api.route("/settings/credentials/hevy", methods=["DELETE"])
+@login_required
+@limiter.limit("10 per hour")
+def api_delete_hevy_credentials():
+    with get_db_session_context() as db:
+        creds = db.scalars(
+            select(UserCredentials).filter_by(user_id=current_user.id)
+        ).first()
+        if creds:
+            creds.encrypted_hevy_api_key = None
+            db.commit()
+
+    logger.info("hevy_credentials_deleted", user_id=current_user.id)
+    return jsonify({"deleted": True})
+
+
+@api.route("/settings/credentials/garmin/test", methods=["POST"])
+@login_required
+@limiter.limit("3 per hour")
+def api_test_garmin_credentials():
+    data = request.get_json()
+    if not data:
+        raise ValidationError(MSG_BODY_REQUIRED)
+
+    email = data.get("email")
+    password = data.get("password")
+
+    if not email or not isinstance(email, str) or not email.strip():
+        raise ValidationError("email is required", field="email")
+    if not password or not isinstance(password, str) or not password.strip():
+        raise ValidationError("password is required", field="password")
+
+    try:
+        from garminconnect import (
+            Garmin,
+            GarminConnectAuthenticationError,
+            GarminConnectConnectionError,
+            GarminConnectTooManyRequestsError,
+        )
+
+        garmin_api = Garmin(email.strip(), password.strip())
+        garmin_api.login()
+        logger.info("garmin_credentials_test_success", user_id=current_user.id)
+        return jsonify({"success": True})
+    except GarminConnectAuthenticationError:
+        logger.warning("garmin_credentials_test_failed", user_id=current_user.id)
+        return jsonify({"success": False, "error": "Invalid credentials"})
+    except GarminConnectTooManyRequestsError:
+        logger.warning("garmin_credentials_test_rate_limited", user_id=current_user.id)
+        return jsonify(
+            {"success": False, "error": "Too many requests — try again later"}
+        )
+    except GarminConnectConnectionError:
+        logger.warning(
+            "garmin_credentials_test_connection_error", user_id=current_user.id
+        )
+        return jsonify({"success": False, "error": "Cannot reach Garmin servers"})
+    except Exception as e:
+        logger.error(
+            "garmin_credentials_test_error",
+            user_id=current_user.id,
+            error=str(e),
+        )
+        return jsonify({"success": False, "error": "Connection error"})
+
+
+@api.route("/settings/credentials/hevy/test", methods=["POST"])
+@login_required
+@limiter.limit("3 per hour")
+def api_test_hevy_credentials():
+    data = request.get_json()
+    if not data:
+        raise ValidationError(MSG_BODY_REQUIRED)
+
+    api_key = data.get("api_key")
+
+    if not api_key or not isinstance(api_key, str) or not api_key.strip():
+        raise ValidationError("api_key is required", field="api_key")
+
+    try:
+        import requests
+
+        resp = requests.get(
+            "https://api.hevyapp.com/v1/workouts",
+            headers={"api-key": api_key.strip()},
+            params={"page": 1, "pageSize": 1},
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            logger.info("hevy_credentials_test_success", user_id=current_user.id)
+            return jsonify({"success": True})
+        if resp.status_code in (401, 403):
+            logger.warning("hevy_credentials_test_failed", user_id=current_user.id)
+            return jsonify({"success": False, "error": "Invalid API key"})
+        logger.warning(
+            "hevy_credentials_test_unexpected_status",
+            user_id=current_user.id,
+            status=resp.status_code,
+        )
+        return jsonify({"success": False, "error": "Unexpected response from Hevy"})
+    except Exception as e:
+        logger.error(
+            "hevy_credentials_test_error",
+            user_id=current_user.id,
+            error=str(e),
+        )
+        return jsonify({"success": False, "error": "Connection error"})
 
 
 @api.route("/sync/status", methods=["GET"])

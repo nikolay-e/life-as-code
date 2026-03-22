@@ -1,10 +1,16 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import {
   useCredentials,
   useSyncGarmin,
   useSyncHevy,
   useSyncWhoop,
+  useUpdateGarminCredentials,
+  useUpdateHevyCredentials,
+  useDeleteGarminCredentials,
+  useDeleteHevyCredentials,
+  useTestGarminCredentials,
+  useTestHevyCredentials,
 } from "../hooks/useSettings";
 import {
   Card,
@@ -18,13 +24,28 @@ import {
   ProviderCard,
   ReadOnlyProviderCard,
 } from "../components/settings/ProviderCard";
+import { GarminCredentialForm } from "../components/settings/GarminCredentialForm";
+import { HevyCredentialForm } from "../components/settings/HevyCredentialForm";
 import { Settings } from "lucide-react";
+import type { CredentialTestResult } from "../types/api";
 
 export function SettingsPage() {
   const { data: credentials, isLoading: credentialsLoading } = useCredentials();
   const syncGarmin = useSyncGarmin();
   const syncHevy = useSyncHevy();
   const syncWhoop = useSyncWhoop();
+  const updateGarmin = useUpdateGarminCredentials();
+  const updateHevy = useUpdateHevyCredentials();
+  const deleteGarmin = useDeleteGarminCredentials();
+  const deleteHevy = useDeleteHevyCredentials();
+  const testGarmin = useTestGarminCredentials();
+  const testHevy = useTestHevyCredentials();
+
+  const [editingProvider, setEditingProvider] = useState<string | null>(null);
+  const [garminTestResult, setGarminTestResult] =
+    useState<CredentialTestResult | null>(null);
+  const [hevyTestResult, setHevyTestResult] =
+    useState<CredentialTestResult | null>(null);
 
   const handleSync = useCallback(
     async (
@@ -94,6 +115,70 @@ export function SettingsPage() {
             isConfigured={credentials?.garmin_configured ?? false}
             syncMutation={syncGarmin}
             onSync={() => handleSync("garmin", syncGarmin)}
+            credentialHint={credentials?.garmin_email_hint}
+            onEdit={() => {
+              setEditingProvider("garmin");
+              setGarminTestResult(null);
+            }}
+            onDisconnect={() => {
+              if (
+                // eslint-disable-next-line no-alert
+                confirm(
+                  "Disconnect Garmin? This will remove your saved credentials.",
+                )
+              ) {
+                deleteGarmin.mutate(undefined, {
+                  onSuccess: () => {
+                    toast.success("Garmin disconnected");
+                    setEditingProvider(null);
+                    setGarminTestResult(null);
+                  },
+                });
+              }
+            }}
+            isDisconnecting={deleteGarmin.isPending}
+            isEditing={editingProvider === "garmin"}
+            editForm={
+              <GarminCredentialForm
+                onSave={(email, password) => {
+                  updateGarmin.mutate(
+                    { email, password },
+                    {
+                      onSuccess: () => {
+                        toast.success("Garmin credentials saved");
+                        setEditingProvider(null);
+                        setGarminTestResult(null);
+                      },
+                      onError: (err) => toast.error(err.message),
+                    },
+                  );
+                }}
+                onTest={(email, password) => {
+                  setGarminTestResult(null);
+                  testGarmin.mutate(
+                    { email, password },
+                    {
+                      onSuccess: (result) => {
+                        setGarminTestResult(result);
+                      },
+                      onError: () => {
+                        setGarminTestResult({
+                          success: false,
+                          error: "Connection failed",
+                        });
+                      },
+                    },
+                  );
+                }}
+                onCancel={() => {
+                  setEditingProvider(null);
+                  setGarminTestResult(null);
+                }}
+                isSaving={updateGarmin.isPending}
+                isTesting={testGarmin.isPending}
+                testResult={garminTestResult}
+              />
+            }
           />
           <ProviderCard
             name="Hevy"
@@ -102,6 +187,68 @@ export function SettingsPage() {
             isConfigured={credentials?.hevy_configured ?? false}
             syncMutation={syncHevy}
             onSync={() => handleSync("hevy", syncHevy)}
+            credentialHint={credentials?.hevy_api_key_hint}
+            onEdit={() => {
+              setEditingProvider("hevy");
+              setHevyTestResult(null);
+            }}
+            onDisconnect={() => {
+              if (
+                // eslint-disable-next-line no-alert
+                confirm("Disconnect Hevy? This will remove your saved API key.")
+              ) {
+                deleteHevy.mutate(undefined, {
+                  onSuccess: () => {
+                    toast.success("Hevy disconnected");
+                    setEditingProvider(null);
+                    setHevyTestResult(null);
+                  },
+                });
+              }
+            }}
+            isDisconnecting={deleteHevy.isPending}
+            isEditing={editingProvider === "hevy"}
+            editForm={
+              <HevyCredentialForm
+                onSave={(apiKey) => {
+                  updateHevy.mutate(
+                    { apiKey },
+                    {
+                      onSuccess: () => {
+                        toast.success("Hevy credentials saved");
+                        setEditingProvider(null);
+                        setHevyTestResult(null);
+                      },
+                      onError: (err) => toast.error(err.message),
+                    },
+                  );
+                }}
+                onTest={(apiKey) => {
+                  setHevyTestResult(null);
+                  testHevy.mutate(
+                    { apiKey },
+                    {
+                      onSuccess: (result) => {
+                        setHevyTestResult(result);
+                      },
+                      onError: () => {
+                        setHevyTestResult({
+                          success: false,
+                          error: "Connection failed",
+                        });
+                      },
+                    },
+                  );
+                }}
+                onCancel={() => {
+                  setEditingProvider(null);
+                  setHevyTestResult(null);
+                }}
+                isSaving={updateHevy.isPending}
+                isTesting={testHevy.isPending}
+                testResult={hevyTestResult}
+              />
+            }
           />
           <ProviderCard
             name="Whoop"

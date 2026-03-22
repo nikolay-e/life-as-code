@@ -1,6 +1,7 @@
 import type {
   AnalyticsResponse,
   AuthResponse,
+  CredentialTestResult,
   CredentialsStatus,
   GarminActivityData,
   HealthData,
@@ -122,6 +123,42 @@ export const api = {
 
     getCredentials: (): Promise<CredentialsStatus> =>
       request("/settings/credentials"),
+
+    updateGarminCredentials: (
+      email: string,
+      password: string,
+    ): Promise<CredentialsStatus> =>
+      request("/settings/credentials/garmin", {
+        method: "PUT",
+        body: JSON.stringify({ email, password }),
+      }),
+
+    updateHevyCredentials: (apiKey: string): Promise<CredentialsStatus> =>
+      request("/settings/credentials/hevy", {
+        method: "PUT",
+        body: JSON.stringify({ api_key: apiKey }),
+      }),
+
+    deleteGarminCredentials: (): Promise<{ deleted: boolean }> =>
+      request("/settings/credentials/garmin", { method: "DELETE" }),
+
+    deleteHevyCredentials: (): Promise<{ deleted: boolean }> =>
+      request("/settings/credentials/hevy", { method: "DELETE" }),
+
+    testGarminCredentials: (
+      email: string,
+      password: string,
+    ): Promise<CredentialTestResult> =>
+      request("/credentials/garmin/test", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      }),
+
+    testHevyCredentials: (apiKey: string): Promise<CredentialTestResult> =>
+      request("/credentials/hevy/test", {
+        method: "POST",
+        body: JSON.stringify({ api_key: apiKey }),
+      }),
   },
 
   sync: {

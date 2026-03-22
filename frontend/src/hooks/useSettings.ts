@@ -33,6 +33,74 @@ export function useCredentials() {
   });
 }
 
+export function useUpdateGarminCredentials() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ email, password }: { email: string; password: string }) =>
+      api.settings.updateGarminCredentials(email, password),
+    onSuccess: () => {
+      queryClient
+        .invalidateQueries({ queryKey: settingsKeys.credentials() })
+        .catch(() => {});
+    },
+  });
+}
+
+export function useUpdateHevyCredentials() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ apiKey }: { apiKey: string }) =>
+      api.settings.updateHevyCredentials(apiKey),
+    onSuccess: () => {
+      queryClient
+        .invalidateQueries({ queryKey: settingsKeys.credentials() })
+        .catch(() => {});
+    },
+  });
+}
+
+export function useDeleteGarminCredentials() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => api.settings.deleteGarminCredentials(),
+    onSuccess: () => {
+      queryClient
+        .invalidateQueries({ queryKey: settingsKeys.credentials() })
+        .catch(() => {});
+    },
+  });
+}
+
+export function useDeleteHevyCredentials() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => api.settings.deleteHevyCredentials(),
+    onSuccess: () => {
+      queryClient
+        .invalidateQueries({ queryKey: settingsKeys.credentials() })
+        .catch(() => {});
+    },
+  });
+}
+
+export function useTestGarminCredentials() {
+  return useMutation({
+    mutationFn: ({ email, password }: { email: string; password: string }) =>
+      api.settings.testGarminCredentials(email, password),
+  });
+}
+
+export function useTestHevyCredentials() {
+  return useMutation({
+    mutationFn: ({ apiKey }: { apiKey: string }) =>
+      api.settings.testHevyCredentials(apiKey),
+  });
+}
+
 function useSyncMutation(syncFn: () => Promise<SyncResponse>) {
   const queryClient = useQueryClient();
 

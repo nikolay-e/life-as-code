@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { UseMutationResult } from "@tanstack/react-query";
 import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
@@ -7,6 +8,8 @@ import {
   RefreshCw,
   ExternalLink,
   AlertCircle,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import type { SyncResponse } from "../../types/api";
 
@@ -22,6 +25,12 @@ interface ProviderCardProps {
   readonly authUrl?: string;
   readonly showOAuthNotConfigured?: boolean;
   readonly isLastItem?: boolean;
+  readonly credentialHint?: string | null;
+  readonly onEdit?: () => void;
+  readonly onDisconnect?: () => void;
+  readonly isDisconnecting?: boolean;
+  readonly isEditing?: boolean;
+  readonly editForm?: ReactNode;
 }
 
 function getStatusText(
@@ -143,11 +152,17 @@ export function ProviderCard({
   authUrl,
   showOAuthNotConfigured,
   isLastItem,
+  credentialHint,
+  onEdit,
+  onDisconnect,
+  isDisconnecting,
+  isEditing,
+  editForm,
 }: ProviderCardProps) {
   const connected = isConnected ?? isConfigured;
   const statusText = getStatusText(isConfigured, isConnected, isTokenExpired);
 
-  const renderActionButton = () => {
+  const renderActionButtons = () => {
     if (isTokenExpired && authUrl) {
       return (
         <Button variant="outline" size="sm" asChild>
@@ -161,11 +176,41 @@ export function ProviderCard({
 
     if (connected) {
       return (
-        <SyncButton
-          name={name}
-          isPending={syncMutation.isPending}
-          onClick={onSync}
-        />
+        <>
+          {onEdit && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onEdit}
+              aria-label={`Edit ${name} credentials`}
+            >
+              <Pencil className="h-3.5 w-3.5 mr-1" aria-hidden="true" />
+              Edit
+            </Button>
+          )}
+          {onDisconnect && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onDisconnect}
+              disabled={isDisconnecting}
+              className="text-destructive hover:text-destructive"
+              aria-label={`Disconnect ${name}`}
+            >
+              {isDisconnecting ? (
+                <Spinner size="sm" className="mr-1" label="Disconnecting" />
+              ) : (
+                <Trash2 className="h-3.5 w-3.5 mr-1" aria-hidden="true" />
+              )}
+              Disconnect
+            </Button>
+          )}
+          <SyncButton
+            name={name}
+            isPending={syncMutation.isPending}
+            onClick={onSync}
+          />
+        </>
       );
     }
 
@@ -193,6 +238,20 @@ export function ProviderCard({
       );
     }
 
+    if (!isConfigured && onEdit) {
+      return (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onEdit}
+          aria-label={`Configure ${name}`}
+        >
+          <Pencil className="h-4 w-4 mr-2" aria-hidden="true" />
+          Configure
+        </Button>
+      );
+    }
+
     return (
       <SyncButton
         name={name}
@@ -204,58 +263,66 @@ export function ProviderCard({
   };
 
   return (
-    <article
-      className={`flex items-center justify-between py-4 ${isLastItem ? "" : "border-b"}`}
-      aria-label={`${name} provider status: ${statusText}`}
-    >
-      <div className="flex items-center gap-4">
-        <div
-          className={`w-10 h-10 rounded-full ${colorClass} flex items-center justify-center`}
-        >
-          <span
-            className={`font-bold ${colorClass.replace("bg-", "text-").replace("-100", "-600").replace("-900", "-300")}`}
+    <div className={isLastItem ? "" : "border-b"}>
+      <article
+        className="flex items-center justify-between py-4"
+        aria-label={`${name} provider status: ${statusText}`}
+      >
+        <div className="flex items-center gap-4">
+          <div
+            className={`w-10 h-10 rounded-full ${colorClass} flex items-center justify-center`}
           >
-            {shortName}
-          </span>
-        </div>
-        <div>
-          <h3 className="font-medium">{name}</h3>
-          <div className="flex items-center gap-2 text-sm">
-            {isTokenExpired && (
-              <>
-                <AlertCircle
-                  className="h-4 w-4 text-orange-500"
-                  aria-hidden="true"
-                />
-                <span className="text-orange-600 dark:text-orange-400">
-                  {statusText}
-                </span>
-              </>
-            )}
-            {!isTokenExpired && connected && (
-              <>
-                <CheckCircle
-                  className="h-4 w-4 text-green-500"
-                  aria-hidden="true"
-                />
-                <span className="text-green-600 dark:text-green-400">
-                  {statusText}
-                </span>
-              </>
-            )}
-            {!isTokenExpired && !connected && (
-              <>
-                <XCircle
-                  className="h-4 w-4 text-muted-foreground"
-                  aria-hidden="true"
-                />
-                <span className="text-muted-foreground">{statusText}</span>
-              </>
+            <span
+              className={`font-bold ${colorClass.replace("bg-", "text-").replace("-100", "-600").replace("-900", "-300")}`}
+            >
+              {shortName}
+            </span>
+          </div>
+          <div>
+            <h3 className="font-medium">{name}</h3>
+            <div className="flex items-center gap-2 text-sm">
+              {isTokenExpired && (
+                <>
+                  <AlertCircle
+                    className="h-4 w-4 text-orange-500"
+                    aria-hidden="true"
+                  />
+                  <span className="text-orange-600 dark:text-orange-400">
+                    {statusText}
+                  </span>
+                </>
+              )}
+              {!isTokenExpired && connected && (
+                <>
+                  <CheckCircle
+                    className="h-4 w-4 text-green-500"
+                    aria-hidden="true"
+                  />
+                  <span className="text-green-600 dark:text-green-400">
+                    {statusText}
+                  </span>
+                </>
+              )}
+              {!isTokenExpired && !connected && (
+                <>
+                  <XCircle
+                    className="h-4 w-4 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                  <span className="text-muted-foreground">{statusText}</span>
+                </>
+              )}
+            </div>
+            {credentialHint && (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {credentialHint}
+              </p>
             )}
           </div>
         </div>
-      </div>
-      <div className="flex items-center gap-4">{renderActionButton()}</div>
-    </article>
+        <div className="flex items-center gap-2">{renderActionButtons()}</div>
+      </article>
+      {isEditing && editForm}
+    </div>
   );
 }

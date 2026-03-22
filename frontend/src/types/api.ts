@@ -193,11 +193,17 @@ export interface UserThresholds {
 
 export interface CredentialsStatus {
   garmin_configured: boolean;
+  garmin_email_hint: string | null;
   hevy_configured: boolean;
+  hevy_api_key_hint: string | null;
   whoop_configured: boolean;
   whoop_token_expired: boolean;
   whoop_auth_url?: string;
-  message: string;
+}
+
+export interface CredentialTestResult {
+  success: boolean;
+  error?: string;
 }
 
 export interface SyncStatus {
