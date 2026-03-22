@@ -14,6 +14,7 @@ from requests.exceptions import RequestException
 from tenacity import (
     retry,
     retry_if_exception_type,
+    retry_if_not_exception_type,
     stop_after_attempt,
     wait_exponential,
 )
@@ -107,8 +108,21 @@ def init_api(email: str, password: str, user_id: int) -> Garmin:
 
 
 GARMIN_MAX_HISTORY_DAYS = 1825  # ~5 years for health data
-GARMIN_API_RATE_LIMIT_DELAY = 0.5  # seconds between API calls to avoid rate limiting
+GARMIN_API_RATE_LIMIT_DELAY = 1.0
 GARMIN_MAX_RETRIES = 3
+GARMIN_CONSECUTIVE_RATE_LIMIT_ABORT = 2
+
+
+def _save_refreshed_tokens(api: Garmin, user_id: int) -> None:
+    from pathlib import Path
+
+    try:
+        tokenstore = Path(f"/app/.garminconnect/user_{user_id}")
+        tokenstore.mkdir(parents=True, exist_ok=True)
+        api.garth.dump(str(tokenstore))
+        logger.info("garmin_tokens_refreshed_saved", user_id=user_id)
+    except Exception:
+        logger.warning("garmin_tokens_save_failed", user_id=user_id, exc_info=True)
 
 
 def sync_garmin_data_for_user(
@@ -234,6 +248,8 @@ def sync_garmin_data_for_user(
         enhanced_api = GarminAPIWrapper(api, sync_start, date_range.end_date)
         results = batch_sync_data(sync_configs, user_id, enhanced_api)
 
+        _save_refreshed_tokens(api, user_id)
+
         summary = {
             "user_id": user_id,
             "sync_date": utcnow().isoformat(),
@@ -276,6 +292,7 @@ class GarminAPIWrapper:
         self.start_date = start_date
         self.end_date = end_date
         self._summary_cache: dict[str, dict | None] = {}
+        self._rate_limited = False
 
     def _get_cached_summary(self, date_str: str) -> dict | None:
         if date_str not in self._summary_cache:
@@ -320,13 +337,21 @@ class GarminAPIWrapper:
         data_type: str,
         fetcher: Callable[[str, datetime.date], dict | list[dict] | None],
     ) -> list[dict]:
+        if self._rate_limited:
+            logger.info("garmin_skipping_rate_limited", data_type=data_type)
+            return []
+
         results: list[dict] = []
         start_date, end_date = date_range
+        consecutive_rate_limits = 0
 
         @retry(
             stop=stop_after_attempt(GARMIN_MAX_RETRIES),
             wait=wait_exponential(multiplier=1, min=2, max=30),
-            retry=retry_if_exception_type(Exception),
+            retry=(
+                retry_if_exception_type(Exception)
+                & retry_if_not_exception_type(GarminConnectTooManyRequestsError)
+            ),
             reraise=True,
         )
         def _fetch_with_retry(
@@ -340,15 +365,34 @@ class GarminAPIWrapper:
                 date_str = current_date.strftime("%Y-%m-%d")
                 data = _fetch_with_retry(date_str, current_date)
                 self._append_fetched_data(results, data)
+                consecutive_rate_limits = 0
+            except GarminConnectTooManyRequestsError:
+                consecutive_rate_limits += 1
+                logger.warning(
+                    "garmin_rate_limit_hit",
+                    data_type=data_type,
+                    date=str(current_date),
+                    consecutive=consecutive_rate_limits,
+                )
+                if consecutive_rate_limits >= GARMIN_CONSECUTIVE_RATE_LIMIT_ABORT:
+                    self._rate_limited = True
+                    logger.error(
+                        "garmin_rate_limit_abort",
+                        data_type=data_type,
+                        date=str(current_date),
+                        consecutive=consecutive_rate_limits,
+                        fetched_so_far=len(results),
+                    )
+                    raise
             except (
                 GarminConnectConnectionError,
-                GarminConnectTooManyRequestsError,
                 GarminConnectAuthenticationError,
                 RequestException,
                 KeyError,
                 ValueError,
                 TypeError,
             ) as e:
+                consecutive_rate_limits = 0
                 logger.warning(
                     "garmin_api_error",
                     data_type=data_type,

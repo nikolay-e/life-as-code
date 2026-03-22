@@ -1,12 +1,17 @@
+import datetime
 import os
 import signal
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from sqlalchemy import select
+
 from database import get_db_session_context
-from enums import DataSource
+from date_utils import utcnow
+from enums import DataSource, SyncStatus
 from logging_config import configure_logging, get_logger
-from models import User
+from models import DataSync, User
+from sync_backoff import SyncBackoffManager
 from sync_manager import is_sync_recently_active
 from utils import has_credentials_for_source
 
@@ -21,15 +26,17 @@ def _resolve_sync_interval_minutes() -> int:
     hours_env = os.getenv("SYNC_INTERVAL_HOURS")
     if hours_env:
         return int(hours_env) * 60
-    return 5
+    return 30
 
 
 SYNC_INTERVAL_MINUTES = _resolve_sync_interval_minutes()
 SYNC_DAYS = int(os.getenv("SYNC_DAYS", "7"))
 INITIAL_DELAY_SECONDS = 60
+RECENTLY_SYNCED_MINUTES = 15
 SOURCES = [DataSource.GARMIN.value, DataSource.HEVY.value, DataSource.WHOOP.value]
 
 shutdown_requested = False
+backoff_manager = SyncBackoffManager()
 
 
 def handle_shutdown(signum, _frame):
@@ -57,20 +64,62 @@ def _get_sync_funcs() -> dict:
     }
 
 
+def _is_rate_limit_error(exc: Exception) -> bool:
+    return "TooManyRequests" in type(exc).__name__ or "429" in str(exc)
+
+
+def _has_rate_limit_errors(result: dict) -> bool:
+    error = result.get("error", "")
+    if error and ("429" in str(error) or "TooManyRequests" in str(error)):
+        return True
+    for r in result.get("results", []):
+        for err in r.get("errors", []):
+            if "429" in str(err) or "TooManyRequests" in str(err):
+                return True
+    return False
+
+
+def _was_recently_synced(user_id: int, source: str) -> bool:
+    try:
+        with get_db_session_context() as db:
+            cutoff = utcnow() - datetime.timedelta(minutes=RECENTLY_SYNCED_MINUTES)
+            recent = db.scalars(
+                select(DataSync).where(
+                    DataSync.user_id == user_id,
+                    DataSync.source == source,
+                    DataSync.status == SyncStatus.SUCCESS,
+                    DataSync.last_sync_timestamp > cutoff,
+                )
+            ).first()
+            return recent is not None
+    except Exception:
+        return False
+
+
 def _sync_source_for_user(user_id: int, source: str, sync_func) -> None:
     logger.info(
         "scheduler_sync_starting", user_id=user_id, source=source, days=SYNC_DAYS
     )
     try:
         result = sync_func(user_id, days=SYNC_DAYS)
+        success = result.get("success", False)
+
+        if success:
+            backoff_manager.record_success(user_id, source)
+        else:
+            is_rate_limit = _has_rate_limit_errors(result)
+            backoff_manager.record_failure(user_id, source, is_rate_limit=is_rate_limit)
+
         logger.info(
             "scheduler_sync_completed",
             user_id=user_id,
             source=source,
-            success=result.get("success", False),
+            success=success,
             records=result.get("total_records", 0),
         )
-    except Exception:
+    except Exception as exc:
+        is_rl = _is_rate_limit_error(exc)
+        backoff_manager.record_failure(user_id, source, is_rate_limit=is_rl)
         logger.exception("scheduler_sync_error", user_id=user_id, source=source)
 
 
@@ -83,6 +132,13 @@ def _sync_user_sources(user_id: int, sync_funcs: dict) -> None:
         if is_sync_recently_active(user_id, source):
             logger.info(
                 "scheduler_skipping_active_sync", user_id=user_id, source=source
+            )
+            continue
+        if backoff_manager.should_skip(user_id, source):
+            continue
+        if _was_recently_synced(user_id, source):
+            logger.info(
+                "scheduler_skipping_recently_synced", user_id=user_id, source=source
             )
             continue
         sync_func = sync_funcs.get(source)
