@@ -496,6 +496,10 @@ def api_update_garmin_credentials():
         raise ValidationError("email is required", field="email")
     if not password or not isinstance(password, str) or not password.strip():
         raise ValidationError("password is required", field="password")
+    if len(email.strip()) > 200:
+        raise ValidationError("email is too long", field="email")
+    if len(password.strip()) > 256:
+        raise ValidationError("password is too long", field="password")
 
     encrypted_password = encrypt_data_for_user(password.strip(), current_user.id)
 
@@ -509,7 +513,6 @@ def api_update_garmin_credentials():
 
         creds.garmin_email = email.strip()
         creds.encrypted_garmin_password = encrypted_password
-        db.commit()
 
     logger.info("garmin_credentials_updated", user_id=current_user.id)
     return jsonify(_build_credentials_response(current_user.id))
@@ -527,6 +530,8 @@ def api_update_hevy_credentials():
 
     if not api_key or not isinstance(api_key, str) or not api_key.strip():
         raise ValidationError("api_key is required", field="api_key")
+    if len(api_key.strip()) > 256:
+        raise ValidationError("api_key is too long", field="api_key")
 
     encrypted_key = encrypt_data_for_user(api_key.strip(), current_user.id)
 
@@ -539,7 +544,6 @@ def api_update_hevy_credentials():
             db.add(creds)
 
         creds.encrypted_hevy_api_key = encrypted_key
-        db.commit()
 
     logger.info("hevy_credentials_updated", user_id=current_user.id)
     return jsonify(_build_credentials_response(current_user.id))
@@ -556,7 +560,6 @@ def api_delete_garmin_credentials():
         if creds:
             creds.garmin_email = None
             creds.encrypted_garmin_password = None
-            db.commit()
 
     logger.info("garmin_credentials_deleted", user_id=current_user.id)
     return jsonify({"deleted": True})
@@ -572,7 +575,6 @@ def api_delete_hevy_credentials():
         ).first()
         if creds:
             creds.encrypted_hevy_api_key = None
-            db.commit()
 
     logger.info("hevy_credentials_deleted", user_id=current_user.id)
     return jsonify({"deleted": True})

@@ -149,13 +149,13 @@ export const api = {
       email: string,
       password: string,
     ): Promise<CredentialTestResult> =>
-      request("/credentials/garmin/test", {
+      request("/settings/credentials/garmin/test", {
         method: "POST",
         body: JSON.stringify({ email, password }),
       }),
 
     testHevyCredentials: (apiKey: string): Promise<CredentialTestResult> =>
-      request("/credentials/hevy/test", {
+      request("/settings/credentials/hevy/test", {
         method: "POST",
         body: JSON.stringify({ api_key: apiKey }),
       }),
