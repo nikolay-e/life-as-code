@@ -8,17 +8,13 @@ from config_loader import get_threshold
 from database import SessionLocal, init_db
 from logging_config import configure_logging, get_logger
 from models import User, UserCredentials, UserSettings
-from security import encrypt_data_for_user, get_password_hash, validate_password
+from security import encrypt_data_for_user, get_password_hash
 
 configure_logging()
 logger = get_logger(__name__)
 
 
 def create_default_admin():
-    """
-    Create default admin user from environment variables.
-    Idempotent - can be run multiple times safely.
-    """
     admin_username = os.getenv("ADMIN_USERNAME")
     admin_password = os.getenv("ADMIN_PASSWORD")
 
@@ -30,12 +26,6 @@ def create_default_admin():
         logger.error(
             "ADMIN_USERNAME and ADMIN_PASSWORD environment variables are required"
         )
-        logger.error("Please set these in your .env file or Kubernetes secrets")
-        sys.exit(1)
-
-    is_valid, message = validate_password(admin_password)
-    if not is_valid:
-        logger.error("admin_password_validation_failed", message=message)
         sys.exit(1)
 
     db = SessionLocal()
@@ -44,13 +34,6 @@ def create_default_admin():
 
         if admin:
             logger.info("admin_user_exists", username=admin_username)
-
-            from security import verify_password
-
-            if not verify_password(admin_password, admin.password_hash):
-                admin.password_hash = get_password_hash(admin_password)
-                db.commit()
-                logger.info("admin_password_updated", username=admin_username)
 
             existing_creds = db.scalars(
                 select(UserCredentials).where(UserCredentials.user_id == admin.id)
@@ -72,9 +55,9 @@ def create_default_admin():
             username=admin_username, password_hash=get_password_hash(admin_password)
         )
         db.add(admin)
-        db.commit()  # Commit user first - required before encrypt_data_for_user
+        db.commit()
 
-        admin_id = admin.id  # Save ID (object may detach after other sessions commit)
+        admin_id = admin.id
 
         if any([garmin_email, garmin_password, hevy_api_key]):
             _create_admin_credentials(
@@ -117,7 +100,6 @@ def create_default_admin():
 
 
 def _create_admin_credentials(db, user_id, garmin_email, garmin_password, hevy_api_key):
-    """Create encrypted credentials for admin user"""
     creds = UserCredentials(
         user_id=user_id,
         garmin_email=garmin_email if garmin_email else None,
