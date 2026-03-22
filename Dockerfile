@@ -1,7 +1,7 @@
 # Life-as-Code Health Analytics Platform - Multi-Stage Build
 
-# --- Builder Stage (base) ---
-FROM python:3.13-slim AS builder
+# --- Deps Stage (cached on pyproject.toml only) ---
+FROM python:3.13-slim AS deps
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc git \
@@ -9,32 +9,28 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# 1. Copy ONLY dependency spec (cached unless pyproject.toml changes)
 COPY pyproject.toml .
-
-# 2. Create minimal package structure to satisfy pip
 RUN mkdir -p src && touch src/__init__.py
 
-# 3. Install all dependencies (this layer is cached on pyproject.toml hash)
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir .
 
-# 4. Copy actual source code (only this layer busts on code changes)
-COPY src/ src/
-
-# 5. Reinstall project only, deps already cached (fast)
-RUN pip install --no-cache-dir --no-deps .
-
-# --- ML Builder Stage ---
-FROM builder AS ml-builder
+# --- ML Builder Stage (branches BEFORE src/ copy — PyTorch cached on pyproject.toml) ---
+FROM deps AS ml-builder
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cu121
 RUN pip install --no-cache-dir '.[ml]'
 
-# --- Bot Builder Stage ---
-FROM builder AS bot-builder
+# --- Bot Builder Stage (branches BEFORE src/ copy) ---
+FROM deps AS bot-builder
 RUN pip install --no-cache-dir '.[agent,bot]'
+
+# --- Builder Stage (adds source code — busts only on src/ changes) ---
+FROM deps AS builder
+
+COPY src/ src/
+RUN pip install --no-cache-dir --no-deps .
 
 # --- Runtime Base ---
 FROM python:3.13-slim AS runtime-base
