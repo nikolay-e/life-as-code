@@ -441,6 +441,8 @@ def _mask_email(email: str | None) -> str | None:
     if not email or "@" not in email:
         return None
     local, domain = email.split("@", 1)
+    if not local:
+        return None
     visible = local[:2] if len(local) > 2 else local[0]
     return f"{visible}***@{domain}"
 
@@ -449,6 +451,41 @@ def _mask_api_key(encrypted_key: str | None) -> str | None:
     if not encrypted_key:
         return None
     return "***...configured"
+
+
+def _validate_garmin_input(data: dict) -> tuple[str, str]:
+    email = data.get("email")
+    password = data.get("password")
+    if not email or not isinstance(email, str) or not email.strip():
+        raise ValidationError("email is required", field="email")
+    if not password or not isinstance(password, str) or not password.strip():
+        raise ValidationError("password is required", field="password")
+    email = email.strip()
+    password = password.strip()
+    if len(email) > 200:
+        raise ValidationError("email is too long", field="email")
+    if "@" not in email:
+        raise ValidationError("invalid email format", field="email")
+    if len(password) > 256:
+        raise ValidationError("password is too long", field="password")
+    return email, password
+
+
+def _validate_hevy_input(data: dict) -> str:
+    api_key = data.get("api_key")
+    if not api_key or not isinstance(api_key, str) or not api_key.strip():
+        raise ValidationError("api_key is required", field="api_key")
+    cleaned: str = api_key.strip()
+    if len(cleaned) > 256:
+        raise ValidationError("api_key is too long", field="api_key")
+    return cleaned
+
+
+def _invalidate_garmin_token_store(user_id: int) -> None:
+    import shutil
+
+    token_dir = f"/app/.garminconnect/user_{user_id}"
+    shutil.rmtree(token_dir, ignore_errors=True)
 
 
 def _build_credentials_response(user_id: int) -> dict:
@@ -489,19 +526,8 @@ def api_update_garmin_credentials():
     if not data:
         raise ValidationError(MSG_BODY_REQUIRED)
 
-    email = data.get("email")
-    password = data.get("password")
-
-    if not email or not isinstance(email, str) or not email.strip():
-        raise ValidationError("email is required", field="email")
-    if not password or not isinstance(password, str) or not password.strip():
-        raise ValidationError("password is required", field="password")
-    if len(email.strip()) > 200:
-        raise ValidationError("email is too long", field="email")
-    if len(password.strip()) > 256:
-        raise ValidationError("password is too long", field="password")
-
-    encrypted_password = encrypt_data_for_user(password.strip(), current_user.id)
+    email, password = _validate_garmin_input(data)
+    encrypted_password = encrypt_data_for_user(password, current_user.id)
 
     with get_db_session_context() as db:
         creds = db.scalars(
@@ -511,9 +537,10 @@ def api_update_garmin_credentials():
             creds = UserCredentials(user_id=current_user.id)
             db.add(creds)
 
-        creds.garmin_email = email.strip()
+        creds.garmin_email = email
         creds.encrypted_garmin_password = encrypted_password
 
+    _invalidate_garmin_token_store(current_user.id)
     logger.info("garmin_credentials_updated", user_id=current_user.id)
     return jsonify(_build_credentials_response(current_user.id))
 
@@ -526,14 +553,8 @@ def api_update_hevy_credentials():
     if not data:
         raise ValidationError(MSG_BODY_REQUIRED)
 
-    api_key = data.get("api_key")
-
-    if not api_key or not isinstance(api_key, str) or not api_key.strip():
-        raise ValidationError("api_key is required", field="api_key")
-    if len(api_key.strip()) > 256:
-        raise ValidationError("api_key is too long", field="api_key")
-
-    encrypted_key = encrypt_data_for_user(api_key.strip(), current_user.id)
+    api_key = _validate_hevy_input(data)
+    encrypted_key = encrypt_data_for_user(api_key, current_user.id)
 
     with get_db_session_context() as db:
         creds = db.scalars(
@@ -561,8 +582,9 @@ def api_delete_garmin_credentials():
             creds.garmin_email = None
             creds.encrypted_garmin_password = None
 
+    _invalidate_garmin_token_store(current_user.id)
     logger.info("garmin_credentials_deleted", user_id=current_user.id)
-    return jsonify({"deleted": True})
+    return jsonify(_build_credentials_response(current_user.id))
 
 
 @api.route("/settings/credentials/hevy", methods=["DELETE"])
@@ -577,7 +599,7 @@ def api_delete_hevy_credentials():
             creds.encrypted_hevy_api_key = None
 
     logger.info("hevy_credentials_deleted", user_id=current_user.id)
-    return jsonify({"deleted": True})
+    return jsonify(_build_credentials_response(current_user.id))
 
 
 @api.route("/settings/credentials/garmin/test", methods=["POST"])
@@ -588,13 +610,7 @@ def api_test_garmin_credentials():
     if not data:
         raise ValidationError(MSG_BODY_REQUIRED)
 
-    email = data.get("email")
-    password = data.get("password")
-
-    if not email or not isinstance(email, str) or not email.strip():
-        raise ValidationError("email is required", field="email")
-    if not password or not isinstance(password, str) or not password.strip():
-        raise ValidationError("password is required", field="password")
+    email, password = _validate_garmin_input(data)
 
     try:
         from garminconnect import (
@@ -604,7 +620,7 @@ def api_test_garmin_credentials():
             GarminConnectTooManyRequestsError,
         )
 
-        garmin_api = Garmin(email.strip(), password.strip())
+        garmin_api = Garmin(email, password)
         garmin_api.login()
         logger.info("garmin_credentials_test_success", user_id=current_user.id)
         return jsonify({"success": True})
@@ -621,12 +637,8 @@ def api_test_garmin_credentials():
             "garmin_credentials_test_connection_error", user_id=current_user.id
         )
         return jsonify({"success": False, "error": "Cannot reach Garmin servers"})
-    except Exception as e:
-        logger.error(
-            "garmin_credentials_test_error",
-            user_id=current_user.id,
-            error=str(e),
-        )
+    except Exception:
+        logger.exception("garmin_credentials_test_error", user_id=current_user.id)
         return jsonify({"success": False, "error": "Connection error"})
 
 
@@ -638,17 +650,14 @@ def api_test_hevy_credentials():
     if not data:
         raise ValidationError(MSG_BODY_REQUIRED)
 
-    api_key = data.get("api_key")
-
-    if not api_key or not isinstance(api_key, str) or not api_key.strip():
-        raise ValidationError("api_key is required", field="api_key")
+    api_key = _validate_hevy_input(data)
 
     try:
-        import requests
+        import requests as http_requests
 
-        resp = requests.get(
+        resp = http_requests.get(
             "https://api.hevyapp.com/v1/workouts",
-            headers={"api-key": api_key.strip()},
+            headers={"api-key": api_key},
             params={"page": 1, "pageSize": 1},
             timeout=10,
         )
@@ -664,12 +673,8 @@ def api_test_hevy_credentials():
             status=resp.status_code,
         )
         return jsonify({"success": False, "error": "Unexpected response from Hevy"})
-    except Exception as e:
-        logger.error(
-            "hevy_credentials_test_error",
-            user_id=current_user.id,
-            error=str(e),
-        )
+    except Exception:
+        logger.exception("hevy_credentials_test_error", user_id=current_user.id)
         return jsonify({"success": False, "error": "Connection error"})
 
 

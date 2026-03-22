@@ -133,6 +133,12 @@ export function SettingsPage() {
                     setEditingProvider(null);
                     setGarminTestResult(null);
                   },
+                  onError: (err) =>
+                    toast.error(
+                      err instanceof Error
+                        ? err.message
+                        : "Failed to disconnect Garmin",
+                    ),
                 });
               }
             }}
@@ -203,6 +209,12 @@ export function SettingsPage() {
                     setEditingProvider(null);
                     setHevyTestResult(null);
                   },
+                  onError: (err) =>
+                    toast.error(
+                      err instanceof Error
+                        ? err.message
+                        : "Failed to disconnect Hevy",
+                    ),
                 });
               }
             }}
