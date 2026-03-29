@@ -1,100 +1,123 @@
+import datetime
 import threading
-import time
-from dataclasses import dataclass
 
 from logging_config import get_logger
 
 logger = get_logger(__name__)
 
-BACKOFF_SCHEDULE_MINUTES = [5, 15, 60, 240, 480]
+BACKOFF_SCHEDULE_MINUTES = [5, 15, 60, 240, 480, 1440, 2880]
 RATE_LIMIT_ESCALATION = 2
-
-
-@dataclass
-class SourceBackoffState:
-    failure_count: int = 0
-    backoff_level: int = 0
-    last_failure_time: float = 0.0
-    is_rate_limited: bool = False
-
-    @property
-    def backoff_minutes(self) -> int:
-        idx = min(self.backoff_level, len(BACKOFF_SCHEDULE_MINUTES) - 1)
-        return BACKOFF_SCHEDULE_MINUTES[idx]
-
-    @property
-    def next_allowed_time(self) -> float:
-        return self.last_failure_time + self.backoff_minutes * 60
 
 
 class SyncBackoffManager:
     def __init__(self):
-        self._states: dict[str, SourceBackoffState] = {}
         self._lock = threading.Lock()
 
-    def _key(self, user_id: int, source: str) -> str:
-        return f"{user_id}:{source}"
+    def _get_state(self, db, user_id: int, source: str):
+        from models import SyncBackoff
 
-    def _get_state(self, user_id: int, source: str) -> SourceBackoffState:
-        key = self._key(user_id, source)
-        if key not in self._states:
-            self._states[key] = SourceBackoffState()
-        return self._states[key]
+        return (
+            db.query(SyncBackoff)
+            .filter(SyncBackoff.user_id == user_id, SyncBackoff.source == source)
+            .first()
+        )
+
+    def _backoff_minutes(self, backoff_level: int) -> int:
+        idx = min(backoff_level, len(BACKOFF_SCHEDULE_MINUTES) - 1)
+        return BACKOFF_SCHEDULE_MINUTES[idx]
 
     def should_skip(self, user_id: int, source: str) -> bool:
         with self._lock:
-            state = self._get_state(user_id, source)
-            if state.failure_count == 0:
-                return False
+            try:
+                from database import get_db_session_context
+                from date_utils import utcnow
 
-            now = time.monotonic()
-            if now < state.next_allowed_time:
-                remaining = int((state.next_allowed_time - now) / 60)
-                logger.info(
-                    "sync_backoff_skip",
-                    user_id=user_id,
-                    source=source,
-                    backoff_minutes=state.backoff_minutes,
-                    remaining_minutes=remaining,
-                    failure_count=state.failure_count,
-                    is_rate_limited=state.is_rate_limited,
+                with get_db_session_context() as db:
+                    state = self._get_state(db, user_id, source)
+                    if not state or state.failure_count == 0:
+                        return False
+
+                    now = utcnow()
+                    backoff_min = self._backoff_minutes(state.backoff_level)
+                    next_allowed = state.last_failure_at + datetime.timedelta(
+                        minutes=backoff_min
+                    )
+
+                    if now < next_allowed:
+                        remaining = int((next_allowed - now).total_seconds() / 60)
+                        logger.info(
+                            "sync_backoff_skip",
+                            user_id=user_id,
+                            source=source,
+                            backoff_minutes=backoff_min,
+                            remaining_minutes=remaining,
+                            failure_count=state.failure_count,
+                            is_rate_limited=state.is_rate_limited,
+                        )
+                        return True
+                    return False
+            except Exception:
+                logger.exception(
+                    "sync_backoff_check_error", user_id=user_id, source=source
                 )
-                return True
-            return False
+                return False
 
     def record_success(self, user_id: int, source: str) -> None:
         with self._lock:
-            key = self._key(user_id, source)
-            prev = self._states.get(key)
-            if prev and prev.failure_count > 0:
-                logger.info(
-                    "sync_backoff_cleared",
-                    user_id=user_id,
-                    source=source,
-                    previous_failures=prev.failure_count,
+            try:
+                from database import get_db_session_context
+
+                with get_db_session_context() as db:
+                    state = self._get_state(db, user_id, source)
+                    if state and state.failure_count > 0:
+                        logger.info(
+                            "sync_backoff_cleared",
+                            user_id=user_id,
+                            source=source,
+                            previous_failures=state.failure_count,
+                        )
+                        db.delete(state)
+            except Exception:
+                logger.exception(
+                    "sync_backoff_clear_error", user_id=user_id, source=source
                 )
-            self._states[key] = SourceBackoffState()
 
     def record_failure(
         self, user_id: int, source: str, is_rate_limit: bool = False
     ) -> None:
         with self._lock:
-            state = self._get_state(user_id, source)
-            state.failure_count += 1
-            state.last_failure_time = time.monotonic()
-            state.is_rate_limited = is_rate_limit
+            try:
+                from database import get_db_session_context
+                from date_utils import utcnow
+                from models import SyncBackoff
 
-            escalation = RATE_LIMIT_ESCALATION if is_rate_limit else 1
-            state.backoff_level = min(
-                state.backoff_level + escalation, len(BACKOFF_SCHEDULE_MINUTES) - 1
-            )
+                with get_db_session_context() as db:
+                    state = self._get_state(db, user_id, source)
 
-            logger.warning(
-                "sync_backoff_recorded",
-                user_id=user_id,
-                source=source,
-                failure_count=state.failure_count,
-                backoff_level=state.backoff_level,
-                backoff_minutes=state.backoff_minutes,
-                is_rate_limit=is_rate_limit,
-            )
+                    if not state:
+                        state = SyncBackoff(user_id=user_id, source=source)
+                        db.add(state)
+
+                    state.failure_count += 1
+                    state.last_failure_at = utcnow()
+                    state.is_rate_limited = is_rate_limit
+
+                    escalation = RATE_LIMIT_ESCALATION if is_rate_limit else 1
+                    state.backoff_level = min(
+                        state.backoff_level + escalation,
+                        len(BACKOFF_SCHEDULE_MINUTES) - 1,
+                    )
+
+                    logger.warning(
+                        "sync_backoff_recorded",
+                        user_id=user_id,
+                        source=source,
+                        failure_count=state.failure_count,
+                        backoff_level=state.backoff_level,
+                        backoff_minutes=self._backoff_minutes(state.backoff_level),
+                        is_rate_limit=is_rate_limit,
+                    )
+            except Exception:
+                logger.exception(
+                    "sync_backoff_record_error", user_id=user_id, source=source
+                )

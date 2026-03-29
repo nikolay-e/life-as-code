@@ -1268,6 +1268,23 @@ class FunctionalTest(Base):
     )
 
 
+class SyncBackoff(Base):
+    __tablename__ = "sync_backoff"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False)
+    source = Column(String(50), nullable=False)
+    failure_count = Column(Integer, nullable=False, default=0)
+    backoff_level = Column(Integer, nullable=False, default=0)
+    last_failure_at = Column(DateTime, nullable=False, default=utcnow)
+    is_rate_limited = Column(Boolean, nullable=False, default=False)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "source", name="_sync_backoff_user_source_uc"),
+        Index("idx_sync_backoff_user_source", "user_id", "source"),
+    )
+
+
 class LongevityGoal(Base):
     __tablename__ = "longevity_goals"
 
