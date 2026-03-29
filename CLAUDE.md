@@ -13,60 +13,40 @@ Privacy-first, multi-user health analytics platform aggregating Garmin, Hevy, an
 ## Tech Stack
 
 - **Backend**: Python, Flask, Dash (Plotly)
-- **Database**: PostgreSQL
-- **Container**: Docker Compose
+- **Frontend**: TypeScript, React, Vite
+- **Database**: PostgreSQL (shared K8s cluster)
+- **Infrastructure**: Kubernetes (K3s), Helm, ArgoCD
 - **Security**: Fernet encryption, bcrypt, Flask-Login
 
-## Commands
+## Deployment
 
-### Local Development Setup
+Production runs in Kubernetes via GitOps (ArgoCD). No local Docker development.
 
-```bash
-# 1. Copy environment template
-cp .env.example .env
+- **Namespace**: `life-as-code-production`
+- **Pods**: backend, frontend, scheduler, ml, bot
+- **DB**: `shared-database` namespace, `shared-postgres-rw` service
+- **Secrets**: `life-as-code-production-secrets` (K8s secret)
+- **PVC**: `life-as-code-production-garminconnect` (Garmin OAuth token cache)
 
-# 2. Generate secure keys
-SECRET_KEY=$(python -c 'import secrets; print(secrets.token_hex(32))')
-FERNET_KEY=$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')
-POSTGRES_PASSWORD=$(python -c 'import secrets; print(secrets.token_urlsafe(32))')
-ADMIN_PASSWORD=$(python -c 'import secrets; print(secrets.token_urlsafe(24))')
-
-# 3. Update .env file with generated values
-sed -i '' "s/^SECRET_KEY=.*/SECRET_KEY=$SECRET_KEY/" .env
-sed -i '' "s/^FERNET_KEY=.*/FERNET_KEY=$FERNET_KEY/" .env
-sed -i '' "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$POSTGRES_PASSWORD/" .env
-sed -i '' "s/^ADMIN_PASSWORD=.*/ADMIN_PASSWORD=$ADMIN_PASSWORD/" .env
-
-# 4. (Optional) Add service credentials for data syncing
-# Edit .env and add:
-# GARMIN_EMAIL=your-email@example.com
-# GARMIN_PASSWORD=your-garmin-password
-# HEVY_API_KEY=your-hevy-api-key
-
-# 5. Start application
-docker-compose up --build -d
-
-# 6. Check logs
-docker-compose logs -f web
-
-# 7. Access application
-open http://localhost:8080
-```
-
-### Management Commands
+### Common Commands
 
 ```bash
 # View logs
-docker-compose logs -f web
+kubectl logs -n life-as-code-production deployment/life-as-code-production-backend --tail=100
+kubectl logs -n life-as-code-production deployment/life-as-code-production-scheduler --tail=100
 
 # Database access
-docker-compose exec db psql -U life_as_code_user -d life_as_code
+kubectl port-forward -n shared-database svc/shared-postgres-rw 5433:5432
+psql -h localhost -p 5433 -U lifeascode_production -d lifeascode_production
 
-# Restart application
-docker-compose restart web
+# Run migrations
+DATABASE_URL="postgresql+psycopg2://..." .venv/bin/python -m alembic upgrade head
 
-# Stop all services
-docker-compose down
+# Restart a component
+kubectl rollout restart deployment/life-as-code-production-scheduler -n life-as-code-production
+
+# Check ArgoCD sync status
+kubectl get application life-as-code-production -n argocd -o jsonpath='{.status.sync.status}'
 ```
 
 ## Data Sources
@@ -134,7 +114,7 @@ WHOOP_CLIENT_SECRET=<client-secret>
 
 ## Sync Flow
 
-1. **Credentials configured** through environment variables (`.env` file or Kubernetes secrets)
+1. **Credentials configured** through Kubernetes secrets
 2. **Bootstrap script** creates default admin user and populates credentials on startup
 3. **Login** with admin credentials to access dashboard
 4. **Click "Sync" buttons** in Settings to import data from Garmin/Hevy
@@ -147,7 +127,7 @@ WHOOP_CLIENT_SECRET=<client-secret>
 
 - Credentials are **NOT editable** through the web UI
 - Settings page shows **read-only status** of configured services
-- To update credentials: **modify `.env` file** (local) or **Kubernetes secrets** (production), then restart application
+- To update credentials: **modify Kubernetes secrets** in production, then restart the relevant pod
 
 **Bootstrap Process:**
 
@@ -244,4 +224,4 @@ calculateSleepMetrics(data, shortTermWindow, longTermWindow)
 
 ## Testing
 
-Integration tests only - test against real PostgreSQL database via Docker Compose. No unit tests or mocking.
+Integration tests only - test against real PostgreSQL database. No unit tests or mocking.
