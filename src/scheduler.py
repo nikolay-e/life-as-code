@@ -33,7 +33,19 @@ SYNC_INTERVAL_MINUTES = _resolve_sync_interval_minutes()
 SYNC_DAYS = int(os.getenv("SYNC_DAYS", "7"))
 INITIAL_DELAY_SECONDS = 60
 RECENTLY_SYNCED_MINUTES = 15
-SOURCES = [DataSource.GARMIN.value, DataSource.HEVY.value, DataSource.WHOOP.value]
+ALL_SOURCES = [DataSource.GARMIN.value, DataSource.HEVY.value, DataSource.WHOOP.value]
+
+
+def _resolve_sources() -> list[str]:
+    disabled = os.getenv("SYNC_DISABLED_SOURCES", "")
+    if not disabled:
+        return ALL_SOURCES
+    skip = {s.strip().lower() for s in disabled.split(",")}
+    enabled = [s for s in ALL_SOURCES if s.lower() not in skip]
+    return enabled
+
+
+SOURCES = _resolve_sources()
 
 shutdown_requested = False
 backoff_manager = SyncBackoffManager()
