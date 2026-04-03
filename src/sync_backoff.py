@@ -95,7 +95,12 @@ class SyncBackoffManager:
                     state = self._get_state(db, user_id, source)
 
                     if not state:
-                        state = SyncBackoff(user_id=user_id, source=source)
+                        state = SyncBackoff(
+                            user_id=user_id,
+                            source=source,
+                            failure_count=0,
+                            backoff_level=0,
+                        )
                         db.add(state)
 
                     state.failure_count += 1
