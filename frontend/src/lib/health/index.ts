@@ -2,7 +2,6 @@ export {
   getLocalDateString,
   extractDatePart,
   getLocalToday,
-  normalizeDateTimeString,
   toLocalDayKey,
   toLocalDayDate,
   toTimeMs,

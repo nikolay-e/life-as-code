@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 import os
 from datetime import date, datetime, timedelta, timezone
 
@@ -12,9 +11,10 @@ from analytics.alert_manager import get_active_alerts, process_alerts
 from analytics.pipeline import compute_and_store_snapshot
 from analytics.smart_context import build_smart_context
 from database import get_db_session_context
+from logging_config import get_logger
 from models import GarminActivity, WorkoutSet
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _local_now() -> datetime:

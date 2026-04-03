@@ -29,28 +29,6 @@ logger.info(
 )
 
 
-def _validate_required_env_vars():
-    missing = []
-    if not os.getenv("SECRET_KEY"):
-        missing.append("SECRET_KEY")
-    fernet_key = os.getenv("FERNET_KEY")
-    if not fernet_key:
-        missing.append("FERNET_KEY")
-    if missing:
-        raise ValueError(
-            f"Required environment variables not set: {', '.join(missing)}. "
-            "Please set them in your .env file."
-        )
-    from cryptography.fernet import Fernet
-
-    try:
-        Fernet(fernet_key.encode())  # type: ignore[union-attr]
-    except Exception as e:
-        raise SystemExit(f"Invalid FERNET_KEY: {e}") from None
-
-
-_validate_required_env_vars()
-
 server = Flask(__name__)
 
 # ProxyFix middleware for handling reverse proxy headers (Traefik, nginx)

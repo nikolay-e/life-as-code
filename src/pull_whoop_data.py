@@ -1,6 +1,5 @@
 import datetime
 import os
-import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -8,18 +7,12 @@ import requests
 from dotenv import load_dotenv
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
-from tenacity import (
-    retry,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential,
-)
 
 from database import get_db_session_context
 from date_utils import parse_iso_date, utcnow
 from enums import DataSource, DataType
 from errors import CredentialsDecryptionError, CredentialsNotFoundError
-from http_client import AuthenticationError, RateLimitError
+from http_client import AuthenticationError, HTTPClient
 from logging_config import get_logger
 from models import UserCredentials, WhoopCycle, WhoopRecovery, WhoopSleep, WhoopWorkout
 from security import encrypt_data_for_user
@@ -47,144 +40,98 @@ RATE_LIMIT_DELAY = 0.6
 
 
 class WhoopAPIClient:
-    """Whoop API client with OAuth2 token management."""
-
     def __init__(self, access_token: str, refresh_token: str, user_id: int):
         self.access_token = access_token
         self.refresh_token = refresh_token
         self.user_id = user_id
-        self.base_url = "https://api.prod.whoop.com/developer/v2"
         self.client_id = os.getenv("WHOOP_CLIENT_ID")
         self.client_secret = os.getenv("WHOOP_CLIENT_SECRET")
-
-    def _get_headers(self) -> dict:
-        """Get request headers with auth token."""
-        return {"Authorization": f"Bearer {self.access_token}"}
+        self._client = HTTPClient(
+            base_url="https://api.prod.whoop.com/developer/v2",
+            headers={"Authorization": f"Bearer {self.access_token}"},
+            timeout=REQUEST_TIMEOUT,
+            max_retries=MAX_RETRIES,
+            rate_limit_delay=RATE_LIMIT_DELAY,
+        )
+        self._oauth_client = HTTPClient(
+            base_url="https://api.prod.whoop.com",
+            timeout=REQUEST_TIMEOUT,
+            max_retries=MAX_RETRIES,
+        )
 
     def _refresh_access_token(self) -> bool:
-        @retry(
-            stop=stop_after_attempt(MAX_RETRIES),
-            wait=wait_exponential(multiplier=1, min=2, max=30),
-            retry=retry_if_exception_type(requests.RequestException),
-            reraise=True,
-        )
-        def _do_refresh() -> requests.Response:
-            return requests.post(
-                "https://api.prod.whoop.com/oauth/oauth2/token",
+        try:
+            tokens = self._oauth_client.post(
+                "oauth/oauth2/token",
                 data={
                     "grant_type": "refresh_token",
                     "refresh_token": self.refresh_token,
                     "client_id": self.client_id,
                     "client_secret": self.client_secret,
                 },
-                timeout=30,
             )
 
-        try:
-            response = _do_refresh()
+            if not isinstance(tokens, dict) or "access_token" not in tokens:
+                logger.error("whoop_token_refresh_failed")
+                return False
 
-            if response.status_code == 200:
-                tokens = response.json()
-                self.access_token = tokens["access_token"]
-                self.refresh_token = tokens.get("refresh_token", self.refresh_token)
+            self.access_token = tokens["access_token"]
+            self.refresh_token = tokens.get("refresh_token", self.refresh_token)
 
-                with get_db_session_context() as db:
-                    creds = db.scalars(
-                        select(UserCredentials).where(
-                            UserCredentials.user_id == self.user_id
-                        )
-                    ).first()
+            with get_db_session_context() as db:
+                creds = db.scalars(
+                    select(UserCredentials).where(
+                        UserCredentials.user_id == self.user_id
+                    )
+                ).first()
 
-                    if creds:
-                        creds.encrypted_whoop_access_token = encrypt_data_for_user(
-                            self.access_token, self.user_id
-                        )
-                        creds.encrypted_whoop_refresh_token = encrypt_data_for_user(
-                            self.refresh_token, self.user_id
-                        )
-                        creds.whoop_token_expires_at = utcnow() + datetime.timedelta(
-                            seconds=tokens.get("expires_in", 3600)
-                        )
-                        db.commit()
+                if creds:
+                    creds.encrypted_whoop_access_token = encrypt_data_for_user(
+                        self.access_token, self.user_id
+                    )
+                    creds.encrypted_whoop_refresh_token = encrypt_data_for_user(
+                        self.refresh_token, self.user_id
+                    )
+                    creds.whoop_token_expires_at = utcnow() + datetime.timedelta(
+                        seconds=tokens.get("expires_in", 3600)
+                    )
+                    db.commit()
 
-                logger.info("whoop_token_refreshed", user_id=self.user_id)
-                return True
-
-            logger.error(
-                "whoop_token_refresh_failed",
-                status_code=response.status_code,
-                response_text=response.text[:200],
+            self._client.session.headers["Authorization"] = (
+                f"Bearer {self.access_token}"
             )
-            return False
+            logger.info("whoop_token_refreshed", user_id=self.user_id)
+            return True
 
         except (requests.RequestException, SQLAlchemyError, KeyError, ValueError) as e:
             logger.error("whoop_token_refresh_error", error=str(e))
             return False
 
     def _make_request(self, endpoint: str, params: dict | None = None) -> dict | None:
-        """Make API request with automatic token refresh and retry via tenacity."""
-
-        @retry(
-            stop=stop_after_attempt(MAX_RETRIES),
-            wait=wait_exponential(multiplier=1, min=2, max=60),
-            retry=retry_if_exception_type((requests.RequestException, RateLimitError)),
-            reraise=True,
-        )
-        def _do_request() -> dict | None:
-            response = requests.get(
-                f"{self.base_url}/{endpoint}",
-                headers=self._get_headers(),
-                params=params or {},
-                timeout=REQUEST_TIMEOUT,
-            )
-
-            if response.status_code == 401:
-                logger.info("whoop_token_expired")
-                if self._refresh_access_token():
-                    response = requests.get(
-                        f"{self.base_url}/{endpoint}",
-                        headers=self._get_headers(),
-                        params=params or {},
-                        timeout=REQUEST_TIMEOUT,
-                    )
-                else:
-                    raise AuthenticationError("Failed to refresh Whoop token")
-
-            if response.status_code == 429:
-                retry_after = int(response.headers.get("Retry-After", 60))
-                logger.warning("whoop_rate_limited", retry_after=retry_after)
-                raise RateLimitError(retry_after)
-
-            if response.status_code == 200:
-                result: dict = response.json()
-                return result
-
-            logger.error(
-                "whoop_api_request_failed",
-                status_code=response.status_code,
-                response_text=response.text[:200],
-            )
-            return None
-
         try:
-            result: dict | None = _do_request()
-            return result
-        except (AuthenticationError, RateLimitError) as e:
+            result = self._client.get(endpoint, params=params)
+        except AuthenticationError:
+            logger.info("whoop_token_expired")
+            if self._refresh_access_token():
+                result = self._client.get(endpoint, params=params)
+            else:
+                logger.error("whoop_api_error", error="Failed to refresh Whoop token")
+                return None
+        except (requests.RequestException, ValueError, KeyError) as e:
             logger.error("whoop_api_error", error=str(e))
             return None
-        except (requests.RequestException, ValueError, KeyError) as e:
-            logger.error("whoop_api_request_error", error=str(e))
-            return None
+        if isinstance(result, dict):
+            return result
+        return None
 
     def _paginated_request(
         self, endpoint: str, params: dict | None = None, limit: int = 25
     ) -> list[dict]:
-        """Make paginated API request, fetching all pages."""
         all_records: list[dict] = []
         request_params = dict(params or {})
         request_params["limit"] = limit
         page_count = 0
-        max_pages = 1000  # Safety limit
+        max_pages = 1000
 
         while page_count < max_pages:
             response = self._make_request(endpoint, request_params)
@@ -200,9 +147,6 @@ class WhoopAPIClient:
                 break
 
             request_params["nextToken"] = next_token
-
-            # Rate limiting: ~0.6s between requests = 100 req/min
-            time.sleep(0.6)
 
             if page_count % 10 == 0:
                 logger.info(
@@ -309,7 +253,6 @@ class WhoopAPIClient:
         start_date: datetime.date | None = None,
         end_date: datetime.date | None = None,
     ) -> list[dict]:
-        """Get physiological cycle (daily summary) data with strain."""
         params: dict[str, str] = {}
         if start_date:
             params["start"] = f"{start_date.isoformat()}T00:00:00.000Z"

@@ -1,4 +1,3 @@
-import os
 from collections.abc import Generator
 from contextlib import contextmanager
 from typing import Any
@@ -9,30 +8,11 @@ from sqlalchemy.orm import Session, scoped_session, sessionmaker
 
 from date_utils import utcnow
 from logging_config import get_logger, init_db_event_logging, init_slow_query_logging
+from settings import get_settings
 
 logger = get_logger(__name__)
 
-# Database configuration
-DATABASE_URL = os.getenv("DATABASE_URL")
-
-# If DATABASE_URL is not set, construct it from individual components
-if not DATABASE_URL:
-    POSTGRES_USER = os.getenv("POSTGRES_USER")
-    POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
-    POSTGRES_DB = os.getenv("POSTGRES_DB") or os.getenv("DB_NAME")
-    POSTGRES_HOST = os.getenv("POSTGRES_HOST") or os.getenv("DB_HOST", "localhost")
-    POSTGRES_PORT = os.getenv("POSTGRES_PORT") or os.getenv("DB_PORT", "5432")
-
-    if not all([POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB]):
-        raise ValueError(
-            "DATABASE_URL or individual postgres environment variables (POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB/DB_NAME) must be set"
-        )
-
-    DATABASE_URL = f"postgresql+psycopg2://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
-    logger.info("database_url_constructed", host=POSTGRES_HOST)
-
-if not DATABASE_URL:
-    raise ValueError("Could not determine database connection parameters")
+DATABASE_URL = get_settings().computed_database_url
 
 # Create engine with connection pooling
 engine = create_engine(

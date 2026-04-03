@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-import logging
 from collections.abc import Callable
 
 from sqlalchemy.orm import Session
 
 from date_utils import utcnow
+from logging_config import get_logger
 
 from .types import HealthAnalysis
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 ALERT_EXTRACTORS: list[tuple[str, str, Callable[[HealthAnalysis], dict | None]]] = []
 

@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from cryptography.fernet import Fernet
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -38,11 +39,22 @@ class AppSettings(BaseSettings):
     flask_env: str = "development"
     flask_debug: bool = False
 
-    @field_validator("secret_key", "fernet_key")
+    @field_validator("secret_key")
     @classmethod
-    def validate_required_keys(cls, v: str, info) -> str:
+    def validate_secret_key(cls, v: str) -> str:
         if not v:
-            raise ValueError(f"{info.field_name} is required")
+            raise ValueError("secret_key is required")
+        return v
+
+    @field_validator("fernet_key")
+    @classmethod
+    def validate_fernet_key(cls, v: str) -> str:
+        if not v:
+            raise ValueError("fernet_key is required")
+        try:
+            Fernet(v.encode())
+        except Exception as e:
+            raise ValueError(f"Invalid FERNET_KEY: {e}") from None
         return v
 
     @property

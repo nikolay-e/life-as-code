@@ -1,4 +1,3 @@
-import logging
 from datetime import time, timedelta
 from functools import partial
 
@@ -8,8 +7,9 @@ from bot.config import BotConfig
 from bot.formatters import send_markdown_safe
 from database import get_db_session_context
 from date_utils import utcnow
+from logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _get_agent():

@@ -1,19 +1,19 @@
 from __future__ import annotations
 
 import datetime
-import logging
 from datetime import date
 
 from sqlalchemy.orm import Session
 
 from date_utils import utcnow
+from logging_config import get_logger
 
 from .constants import TREND_MODES
 from .date_utils import local_today
 from .service import compute_health_analysis
 from .types import HealthAnalysis, TrendMode
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def compute_and_store_snapshot(

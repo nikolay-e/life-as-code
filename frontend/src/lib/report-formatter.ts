@@ -6,7 +6,11 @@ import type {
   AnalyticsResponse,
   DayMetrics,
 } from "../types/api";
-import { formatDuration, formatPaceForReport } from "./formatters";
+import {
+  formatDuration,
+  formatPaceForReport,
+  formatVolume,
+} from "./formatters";
 import { WHOOP_MAX_STRAIN, DEFAULT_ACTIVITY_NAME } from "./constants";
 
 function n(v: number | null, d = 1): string {
@@ -83,12 +87,6 @@ function getReadiness(
   }
   if (imbalance >= 0.5 || acwr > 1.3) return "RECOVERY DAY recommended";
   return "MODERATE ACTIVITY";
-}
-
-function formatVolumeStr(volume: number): string {
-  return volume >= 1000
-    ? `${(volume / 1000).toFixed(1)}t`
-    : `${String(Math.round(volume))}kg`;
 }
 
 function formatToday(analytics: AnalyticsResponse, now: Date): string[] {
@@ -585,7 +583,7 @@ function formatUnifiedTrainingLog(
     }
     if (day.totalVolume > 0) {
       loadParts.push(
-        `${formatVolumeStr(day.totalVolume)}/${String(day.totalSets)}s`,
+        `${formatVolume(day.totalVolume)}/${String(day.totalSets)}s`,
       );
     }
     if (day.distance) {

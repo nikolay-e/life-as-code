@@ -119,7 +119,6 @@ def decrypt_data_for_user(encrypted_data: str, user_id: int) -> str:
 
 
 def validate_username(username: str) -> bool:
-    """Validate username format."""
     if not username or len(username) < 3 or len(username) > 80:
         return False
     # Allow alphanumeric, underscore, dot, and @ for email usernames
@@ -130,16 +129,6 @@ def validate_username(username: str) -> bool:
 
 
 def validate_password(password: str) -> tuple[bool, str]:
-    """
-    Validate password strength.
-
-    Requirements:
-    - Minimum 12 characters (NIST SP 800-63B recommendation)
-    - At least one uppercase letter
-    - At least one lowercase letter
-    - At least one digit
-    - At least one special character (!@#$%^&*()_+-=[]{}|;:,.<>?)
-    """
     if not password:
         return False, "Password is required"
 
@@ -148,27 +137,5 @@ def validate_password(password: str) -> tuple[bool, str]:
 
     if len(password) > 128:
         return False, "Password must be less than 128 characters"
-
-    has_upper = any(c.isupper() for c in password)
-    has_lower = any(c.islower() for c in password)
-    has_digit = any(c.isdigit() for c in password)
-    special_chars = set("!@#$%^&*()_+-=[]{}|;:,.<>?")
-    has_special = any(c in special_chars for c in password)
-
-    missing_requirements = []
-    if not has_upper:
-        missing_requirements.append("uppercase letter")
-    if not has_lower:
-        missing_requirements.append("lowercase letter")
-    if not has_digit:
-        missing_requirements.append("digit")
-    if not has_special:
-        missing_requirements.append("special character (!@#$%^&*...)")
-
-    if missing_requirements:
-        return (
-            False,
-            f"Password must contain at least one {', one '.join(missing_requirements)}",
-        )
 
     return True, "Password is valid"

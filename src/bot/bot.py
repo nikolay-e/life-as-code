@@ -1,5 +1,4 @@
 import functools
-import logging
 
 from telegram import Update
 from telegram.ext import (
@@ -22,8 +21,9 @@ from bot.commands import (
 )
 from bot.config import BotConfig
 from bot.scheduler import schedule_push_notifications
+from logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def auth_required(func):

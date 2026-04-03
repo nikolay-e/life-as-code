@@ -1,19 +1,12 @@
 import datetime
 
-import requests
 from dotenv import load_dotenv
 from pydantic import BaseModel
-from tenacity import (
-    retry,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential,
-)
 
 from date_utils import parse_iso_date, utcnow
 from enums import DataSource, DataType
 from errors import CredentialsDecryptionError, CredentialsNotFoundError
-from http_client import RateLimitError
+from http_client import HTTPClient
 from logging_config import get_logger
 from models import WorkoutSet
 from sync_manager import (
@@ -28,7 +21,6 @@ logger = get_logger(__name__)
 
 MAX_RETRIES = 3
 REQUEST_TIMEOUT = 30
-RATE_LIMIT_WAIT = 60
 
 
 class HevyWorkoutData(BaseModel):
@@ -99,38 +91,19 @@ class HevyWorkoutData(BaseModel):
 
 
 class HevyAPIClient:
-    """Hevy API client with tenacity retry logic."""
-
     def __init__(self, api_key: str):
-        self.api_key = api_key
-        self.base_url = "https://api.hevyapp.com/v1"
-        self.headers = {"api-key": api_key}
-
-    def _fetch_page(self, page: int) -> requests.Response:
-        """Fetch a single page with retry logic via tenacity."""
-
-        @retry(
-            stop=stop_after_attempt(MAX_RETRIES),
-            wait=wait_exponential(multiplier=1, min=2, max=30),
-            retry=retry_if_exception_type((requests.RequestException, RateLimitError)),
-            reraise=True,
+        self._client = HTTPClient(
+            base_url="https://api.hevyapp.com/v1",
+            headers={"api-key": api_key, "Accept": "application/json"},
+            timeout=REQUEST_TIMEOUT,
+            max_retries=MAX_RETRIES,
+            rate_limit_delay=0.5,
         )
-        def _do_request() -> requests.Response:
-            response = requests.get(
-                f"{self.base_url}/workouts",
-                headers=self.headers,
-                params={"page": page, "pageSize": 10},
-                timeout=REQUEST_TIMEOUT,
-            )
 
-            if response.status_code == 429:
-                logger.warning("hevy_rate_limited", wait_seconds=RATE_LIMIT_WAIT)
-                raise RateLimitError(RATE_LIMIT_WAIT)
-
-            return response
-
-        result: requests.Response = _do_request()
-        return result
+    def _fetch_page(self, page: int) -> dict | list | None:
+        return self._client.get(  # type: ignore[no-any-return]
+            "workouts", params={"page": page, "pageSize": 10}
+        )
 
     def _filter_workouts_by_date(
         self, workouts: list[dict], start_date: datetime.date
@@ -151,24 +124,19 @@ class HevyAPIClient:
 
     def _process_page_response(
         self,
-        response: "requests.Response",
+        page_data: dict | list | None,
         start_date: datetime.date | None,
         page: int,
         all_workouts: list[dict],
     ) -> bool:
-        if response.status_code == 404:
+        if page_data is None:
             logger.info("hevy_page_not_found", page=page)
             return False
 
-        if response.status_code != 200:
-            logger.error(
-                "hevy_request_failed",
-                status_code=response.status_code,
-                response=response.text[:200],
-            )
+        if not isinstance(page_data, dict):
+            logger.error("hevy_unexpected_response_type", page=page)
             return False
 
-        page_data = response.json()
         workouts = page_data.get("workouts", [])
 
         if not workouts:
@@ -197,18 +165,13 @@ class HevyAPIClient:
         while page <= max_pages:
             logger.info("hevy_fetching_page", page=page)
             try:
-                response = self._fetch_page(page)
+                page_data = self._fetch_page(page)
                 should_continue = self._process_page_response(
-                    response, start_date, page, all_workouts
+                    page_data, start_date, page, all_workouts
                 )
                 if not should_continue:
                     break
-            except (
-                requests.RequestException,
-                RateLimitError,
-                ValueError,
-                KeyError,
-            ) as e:
+            except (ValueError, KeyError) as e:
                 logger.error("hevy_fetch_error", page=page, error=str(e))
                 break
 

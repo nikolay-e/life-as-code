@@ -7,12 +7,27 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pandas as pd
+import pydantic
 from flask import Blueprint, jsonify, request, session
 from flask_login import current_user, login_required, login_user, logout_user
+from pydantic import BaseModel
 from sqlalchemy import func, select
 
 from analytics import TrendMode
 from analytics.pipeline import get_or_compute_snapshot
+from api_schemas import (
+    BiomarkerCreate,
+    FunctionalTestCreate,
+    GarminCredentialsRequest,
+    GoalCreate,
+    GoalUpdate,
+    HevyCredentialsRequest,
+    InterventionCreate,
+    InterventionUpdate,
+    LoginRequest,
+    ProfileUpdate,
+    ThresholdSettings,
+)
 from data_loaders import (
     get_detailed_workout_data,
     get_garmin_activities_data,
@@ -20,7 +35,7 @@ from data_loaders import (
     load_data_for_user,
 )
 from database import get_db_session_context
-from date_utils import parse_date_string, utcnow
+from date_utils import parse_iso_date, utcnow
 from enums import DataSource, SyncStatus
 from errors import (
     APIError,
@@ -57,6 +72,21 @@ _sync_executor = ThreadPoolExecutor(max_workers=4)
 atexit.register(_sync_executor.shutdown, wait=False)
 
 
+def _parse_body[T: BaseModel](model_class: type[T]) -> T:
+    data = request.get_json()
+    if not data:
+        raise ValidationError(MSG_BODY_REQUIRED)
+    try:
+        return model_class.model_validate(data)  # type: ignore[no-any-return]
+    except pydantic.ValidationError as e:
+        first = e.errors()[0]
+        field = ".".join(str(loc) for loc in first.get("loc", []))
+        msg = first["msg"]
+        if msg.startswith("Value error, "):
+            msg = msg[13:]
+        raise ValidationError(msg, field=field or None) from None
+
+
 @api.errorhandler(APIError)
 def handle_api_error(error: APIError):
     logger.error(
@@ -86,17 +116,11 @@ def get_version():
 @api.route("/auth/login", methods=["POST"])
 @limiter.limit("10 per minute")
 def api_login():
-    data = request.get_json()
-    if not data:
-        raise ValidationError(MSG_BODY_REQUIRED)
-
-    username = data.get("username")
-    password = data.get("password")
-
-    if not username or not password:
-        raise ValidationError("Username and password are required")
+    body = _parse_body(LoginRequest)
 
     try:
+        username = body.username
+        password = body.password
         with get_db_session_context() as db:
             user = db.scalars(select(User).filter_by(username=username)).first()
             if user and verify_password(password, user.password_hash):
@@ -221,7 +245,7 @@ def _parse_date_range(start_str: str | None, end_str: str | None) -> tuple[Any, 
         end = datetime.now().date()
         return end - timedelta(days=90), end
     try:
-        return parse_date_string(start_str), parse_date_string(end_str)
+        return parse_iso_date(start_str), parse_iso_date(end_str)
     except ValueError:
         raise InvalidDateFormatError(f"{start_str} or {end_str}") from None
 
@@ -272,8 +296,8 @@ def api_workouts_detailed():
         start_date = end_date - timedelta(days=90)
     else:
         try:
-            start_date = parse_date_string(start_date)
-            end_date = parse_date_string(end_date)
+            start_date = parse_iso_date(start_date)
+            end_date = parse_iso_date(end_date)
         except ValueError:
             raise InvalidDateFormatError(f"{start_date} or {end_date}") from None
 
@@ -292,8 +316,8 @@ def api_garmin_activities():
         start_date = end_date - timedelta(days=90)
     else:
         try:
-            start_date = parse_date_string(start_date)
-            end_date = parse_date_string(end_date)
+            start_date = parse_iso_date(start_date)
+            end_date = parse_iso_date(end_date)
         except ValueError:
             raise InvalidDateFormatError(f"{start_date} or {end_date}") from None
 
@@ -335,55 +359,11 @@ def api_get_thresholds():
         )
 
 
-def _validate_threshold(
-    value: Any, name: str, min_val: float, max_val: float
-) -> float | None:
-    if value is None:
-        return None
-    try:
-        num_val = float(value)
-        if not (min_val <= num_val <= max_val):
-            raise ValidationError(
-                f"{name} must be between {min_val} and {max_val}",
-                field=name,
-                provided_value=value,
-            )
-        return num_val
-    except (TypeError, ValueError):
-        raise ValidationError(
-            f"{name} must be a number", field=name, provided_value=value
-        ) from None
-
-
 @api.route("/settings/thresholds", methods=["PUT"])
 @login_required
 def api_save_thresholds():
-    data = request.get_json()
-    if not data:
-        raise ValidationError(MSG_BODY_REQUIRED)
-
-    validated = {}
-
-    int_thresholds = {
-        "hrv_good_threshold": (0, 500),
-        "hrv_moderate_threshold": (0, 500),
-        "deep_sleep_good_threshold": (0, 500),
-        "deep_sleep_moderate_threshold": (0, 500),
-        "training_high_volume_threshold": (0, 100000),
-    }
-    for key, (min_val, max_val) in int_thresholds.items():
-        if key in data and data[key] is not None:
-            result = _validate_threshold(data[key], key, min_val, max_val)
-            if result is not None:
-                validated[key] = int(result)
-
-    float_thresholds = {
-        "total_sleep_good_threshold": (0, 24),
-        "total_sleep_moderate_threshold": (0, 24),
-    }
-    for key, (min_val, max_val) in float_thresholds.items():
-        if key in data and data[key] is not None:
-            validated[key] = _validate_threshold(data[key], key, min_val, max_val)
+    body = _parse_body(ThresholdSettings)
+    validated = body.model_dump(exclude_unset=True, exclude_none=True)
 
     with get_db_session_context() as db:
         settings = db.scalars(
@@ -453,34 +433,6 @@ def _mask_api_key(encrypted_key: str | None) -> str | None:
     return "***...configured"
 
 
-def _validate_garmin_input(data: dict) -> tuple[str, str]:
-    email = data.get("email")
-    password = data.get("password")
-    if not email or not isinstance(email, str) or not email.strip():
-        raise ValidationError("email is required", field="email")
-    if not password or not isinstance(password, str) or not password.strip():
-        raise ValidationError("password is required", field="password")
-    email = email.strip()
-    password = password.strip()
-    if len(email) > 200:
-        raise ValidationError("email is too long", field="email")
-    if "@" not in email:
-        raise ValidationError("invalid email format", field="email")
-    if len(password) > 256:
-        raise ValidationError("password is too long", field="password")
-    return email, password
-
-
-def _validate_hevy_input(data: dict) -> str:
-    api_key = data.get("api_key")
-    if not api_key or not isinstance(api_key, str) or not api_key.strip():
-        raise ValidationError("api_key is required", field="api_key")
-    cleaned: str = api_key.strip()
-    if len(cleaned) > 256:
-        raise ValidationError("api_key is too long", field="api_key")
-    return cleaned
-
-
 def _invalidate_garmin_token_store(user_id: int) -> None:
     import shutil
 
@@ -522,12 +474,8 @@ def api_get_credentials():
 @login_required
 @limiter.limit("10 per hour")
 def api_update_garmin_credentials():
-    data = request.get_json()
-    if not data:
-        raise ValidationError(MSG_BODY_REQUIRED)
-
-    email, password = _validate_garmin_input(data)
-    encrypted_password = encrypt_data_for_user(password, current_user.id)
+    body = _parse_body(GarminCredentialsRequest)
+    encrypted_password = encrypt_data_for_user(body.password, current_user.id)
 
     with get_db_session_context() as db:
         creds = db.scalars(
@@ -537,7 +485,7 @@ def api_update_garmin_credentials():
             creds = UserCredentials(user_id=current_user.id)
             db.add(creds)
 
-        creds.garmin_email = email
+        creds.garmin_email = body.email
         creds.encrypted_garmin_password = encrypted_password
 
     _invalidate_garmin_token_store(current_user.id)
@@ -549,12 +497,8 @@ def api_update_garmin_credentials():
 @login_required
 @limiter.limit("10 per hour")
 def api_update_hevy_credentials():
-    data = request.get_json()
-    if not data:
-        raise ValidationError(MSG_BODY_REQUIRED)
-
-    api_key = _validate_hevy_input(data)
-    encrypted_key = encrypt_data_for_user(api_key, current_user.id)
+    body = _parse_body(HevyCredentialsRequest)
+    encrypted_key = encrypt_data_for_user(body.api_key, current_user.id)
 
     with get_db_session_context() as db:
         creds = db.scalars(
@@ -606,11 +550,7 @@ def api_delete_hevy_credentials():
 @login_required
 @limiter.limit("3 per hour")
 def api_test_garmin_credentials():
-    data = request.get_json()
-    if not data:
-        raise ValidationError(MSG_BODY_REQUIRED)
-
-    email, password = _validate_garmin_input(data)
+    body = _parse_body(GarminCredentialsRequest)
 
     try:
         from garminconnect import (
@@ -620,7 +560,7 @@ def api_test_garmin_credentials():
             GarminConnectTooManyRequestsError,
         )
 
-        garmin_api = Garmin(email, password)
+        garmin_api = Garmin(body.email, body.password)
         garmin_api.login()
         logger.info("garmin_credentials_test_success", user_id=current_user.id)
         return jsonify({"success": True})
@@ -646,18 +586,14 @@ def api_test_garmin_credentials():
 @login_required
 @limiter.limit("3 per hour")
 def api_test_hevy_credentials():
-    data = request.get_json()
-    if not data:
-        raise ValidationError(MSG_BODY_REQUIRED)
-
-    api_key = _validate_hevy_input(data)
+    body = _parse_body(HevyCredentialsRequest)
 
     try:
         import requests as http_requests
 
         resp = http_requests.get(
             "https://api.hevyapp.com/v1/workouts",
-            headers={"api-key": api_key},
+            headers={"api-key": body.api_key},
             params={"page": 1, "pageSize": 1},
             timeout=10,
         )
@@ -945,9 +881,7 @@ def api_get_profile():
 @api.route("/settings/profile", methods=["PUT"])
 @login_required
 def api_update_profile():
-    data = request.get_json()
-    if not data:
-        raise ValidationError(MSG_BODY_REQUIRED)
+    body = _parse_body(ProfileUpdate)
 
     with get_db_session_context() as db:
         settings = db.scalars(
@@ -957,23 +891,10 @@ def api_update_profile():
             settings = UserSettings(user_id=current_user.id)
             db.add(settings)
 
-        if "birth_date" in data:
-            if data["birth_date"]:
-                try:
-                    settings.birth_date = parse_date_string(data["birth_date"])
-                except ValueError:
-                    raise InvalidDateFormatError(data["birth_date"]) from None
-            else:
-                settings.birth_date = None
-
-        if "gender" in data:
-            if data["gender"] and data["gender"] not in ("male", "female"):
-                raise ValidationError(
-                    "Gender must be 'male' or 'female'",
-                    field="gender",
-                    provided_value=data["gender"],
-                )
-            settings.gender = data["gender"]
+        if "birth_date" in body.model_fields_set:
+            settings.birth_date = body.birth_date
+        if "gender" in body.model_fields_set:
+            settings.gender = body.gender
 
         db.commit()
         return jsonify(
@@ -984,27 +905,6 @@ def api_update_profile():
                 "gender": settings.gender,
             }
         )
-
-
-VALID_INTERVENTION_CATEGORIES = {
-    "supplement",
-    "protocol",
-    "medication",
-    "lifestyle",
-    "diet",
-}
-
-
-def _validate_finite_float(value: Any, field_name: str) -> float:
-    try:
-        num = float(value)
-    except (ValueError, TypeError):
-        raise ValidationError(
-            f"{field_name} must be a number", field=field_name
-        ) from None
-    if math.isnan(num) or math.isinf(num):
-        raise ValidationError(f"{field_name} must be a finite number", field=field_name)
-    return num
 
 
 def _serialize_model(obj, fields: list[str]) -> dict:
@@ -1049,60 +949,12 @@ def api_get_biomarkers():
 @api.route("/longevity/biomarkers", methods=["POST"])
 @login_required
 def api_create_biomarker():
-    data = request.get_json()
-    if not data:
-        raise ValidationError(MSG_BODY_REQUIRED)
-
-    for field in ("date", "marker_name", "unit"):
-        if not data.get(field):
-            raise ValidationError(f"{field} is required", field=field)
-    if data.get("value") is None:
-        raise ValidationError("value is required", field="value")
-
-    try:
-        parsed_date = parse_date_string(data["date"])
-    except ValueError:
-        raise InvalidDateFormatError(data["date"]) from None
-
-    validated_value = _validate_finite_float(data["value"], "value")
+    body = _parse_body(BiomarkerCreate)
 
     with get_db_session_context() as db:
         biomarker = BloodBiomarker(
             user_id=current_user.id,
-            date=parsed_date,
-            marker_name=data["marker_name"],
-            value=validated_value,
-            unit=data["unit"],
-            reference_range_low=(
-                _validate_finite_float(
-                    data["reference_range_low"], "reference_range_low"
-                )
-                if data.get("reference_range_low") is not None
-                else None
-            ),
-            reference_range_high=(
-                _validate_finite_float(
-                    data["reference_range_high"], "reference_range_high"
-                )
-                if data.get("reference_range_high") is not None
-                else None
-            ),
-            longevity_optimal_low=(
-                _validate_finite_float(
-                    data["longevity_optimal_low"], "longevity_optimal_low"
-                )
-                if data.get("longevity_optimal_low") is not None
-                else None
-            ),
-            longevity_optimal_high=(
-                _validate_finite_float(
-                    data["longevity_optimal_high"], "longevity_optimal_high"
-                )
-                if data.get("longevity_optimal_high") is not None
-                else None
-            ),
-            lab_name=data.get("lab_name"),
-            notes=data.get("notes"),
+            **body.model_dump(),
         )
         db.add(biomarker)
         db.commit()
@@ -1153,86 +1005,23 @@ def api_get_interventions():
 @api.route("/longevity/interventions", methods=["POST"])
 @login_required
 def api_create_intervention():
-    data = request.get_json()
-    if not data:
-        raise ValidationError(MSG_BODY_REQUIRED)
-
-    for field in ("name", "category", "start_date"):
-        if not data.get(field):
-            raise ValidationError(f"{field} is required", field=field)
-
-    if data["category"] not in VALID_INTERVENTION_CATEGORIES:
-        raise ValidationError(
-            f"category must be one of: {', '.join(sorted(VALID_INTERVENTION_CATEGORIES))}",
-            field="category",
-        )
-
-    try:
-        start = parse_date_string(data["start_date"])
-    except ValueError:
-        raise InvalidDateFormatError(data["start_date"]) from None
-
-    end = None
-    if data.get("end_date"):
-        try:
-            end = parse_date_string(data["end_date"])
-        except ValueError:
-            raise InvalidDateFormatError(data["end_date"]) from None
+    body = _parse_body(InterventionCreate)
 
     with get_db_session_context() as db:
         intervention = Intervention(
             user_id=current_user.id,
-            name=data["name"],
-            category=data["category"],
-            start_date=start,
-            end_date=end,
-            dosage=data.get("dosage"),
-            frequency=data.get("frequency"),
-            target_metrics=data.get("target_metrics"),
-            notes=data.get("notes"),
             active=True,
+            **body.model_dump(),
         )
         db.add(intervention)
         db.commit()
         return jsonify(_serialize_model(intervention, INTERVENTION_FIELDS)), 201
 
 
-def _parse_end_date(raw: Any):
-    if not raw:
-        return None
-    try:
-        return parse_date_string(raw)
-    except ValueError:
-        raise InvalidDateFormatError(raw) from None
-
-
-def _apply_intervention_updates(row: Intervention, data: dict[str, Any]) -> None:
-    if "category" in data and data["category"] not in VALID_INTERVENTION_CATEGORIES:
-        raise ValidationError(
-            f"category must be one of: {', '.join(sorted(VALID_INTERVENTION_CATEGORIES))}",
-            field="category",
-        )
-
-    for field in ("name", "category", "dosage", "frequency", "notes"):
-        if field in data:
-            setattr(row, field, data[field])
-
-    if "active" in data:
-        row.active = bool(data["active"])
-
-    if "end_date" in data:
-        row.end_date = _parse_end_date(data["end_date"])
-
-    if "target_metrics" in data:
-        row.target_metrics = data["target_metrics"]
-
-
 @api.route("/longevity/interventions/<int:intervention_id>", methods=["PUT"])
 @login_required
 def api_update_intervention(intervention_id: int):
-    data = request.get_json()
-    if not data:
-        raise ValidationError(MSG_BODY_REQUIRED)
+    body = _parse_body(InterventionUpdate)
 
     with get_db_session_context() as db:
         row = db.scalars(
@@ -1241,7 +1030,8 @@ def api_update_intervention(intervention_id: int):
         if not row:
             raise NotFoundError("Intervention")
 
-        _apply_intervention_updates(row, data)
+        for field in body.model_fields_set:
+            setattr(row, field, getattr(body, field))
 
         db.commit()
         return jsonify(_serialize_model(row, INTERVENTION_FIELDS))
@@ -1280,31 +1070,12 @@ def api_get_functional_tests():
 @api.route("/longevity/functional-tests", methods=["POST"])
 @login_required
 def api_create_functional_test():
-    data = request.get_json()
-    if not data:
-        raise ValidationError(MSG_BODY_REQUIRED)
-
-    for field in ("date", "test_name", "unit"):
-        if not data.get(field):
-            raise ValidationError(f"{field} is required", field=field)
-    if data.get("value") is None:
-        raise ValidationError("value is required", field="value")
-
-    try:
-        parsed_date = parse_date_string(data["date"])
-    except ValueError:
-        raise InvalidDateFormatError(data["date"]) from None
-
-    validated_value = _validate_finite_float(data["value"], "value")
+    body = _parse_body(FunctionalTestCreate)
 
     with get_db_session_context() as db:
         test = FunctionalTest(
             user_id=current_user.id,
-            date=parsed_date,
-            test_name=data["test_name"],
-            value=validated_value,
-            unit=data["unit"],
-            notes=data.get("notes"),
+            **body.model_dump(),
         )
         db.add(test)
         db.commit()
@@ -1351,31 +1122,12 @@ def api_get_goals():
 @api.route("/longevity/goals", methods=["POST"])
 @login_required
 def api_create_goal():
-    data = request.get_json()
-    if not data:
-        raise ValidationError(MSG_BODY_REQUIRED)
-
-    for field in ("category", "description"):
-        if not data.get(field):
-            raise ValidationError(f"{field} is required", field=field)
+    body = _parse_body(GoalCreate)
 
     with get_db_session_context() as db:
         goal = LongevityGoal(
             user_id=current_user.id,
-            category=data["category"],
-            description=data["description"],
-            target_value=(
-                _validate_finite_float(data["target_value"], "target_value")
-                if data.get("target_value") is not None
-                else None
-            ),
-            current_value=(
-                _validate_finite_float(data["current_value"], "current_value")
-                if data.get("current_value") is not None
-                else None
-            ),
-            unit=data.get("unit"),
-            target_age=data.get("target_age"),
+            **body.model_dump(),
         )
         db.add(goal)
         db.commit()
@@ -1385,9 +1137,7 @@ def api_create_goal():
 @api.route("/longevity/goals/<int:goal_id>", methods=["PUT"])
 @login_required
 def api_update_goal(goal_id: int):
-    data = request.get_json()
-    if not data:
-        raise ValidationError(MSG_BODY_REQUIRED)
+    body = _parse_body(GoalUpdate)
 
     with get_db_session_context() as db:
         row = db.scalars(
@@ -1396,26 +1146,8 @@ def api_update_goal(goal_id: int):
         if not row:
             raise NotFoundError("Goal")
 
-        for field in ("category", "description", "unit"):
-            if field in data:
-                setattr(row, field, data[field])
-
-        for float_field in ("target_value", "current_value"):
-            if float_field in data:
-                setattr(
-                    row,
-                    float_field,
-                    (
-                        _validate_finite_float(data[float_field], float_field)
-                        if data[float_field] is not None
-                        else None
-                    ),
-                )
-
-        if "target_age" in data:
-            row.target_age = (
-                int(data["target_age"]) if data["target_age"] is not None else None
-            )
+        for field in body.model_fields_set:
+            setattr(row, field, getattr(body, field))
 
         db.commit()
         return jsonify(_serialize_model(row, GOAL_FIELDS))

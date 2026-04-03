@@ -1,9 +1,9 @@
 import datetime
-import os
 import signal
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import select
 
 from database import get_db_session_context
@@ -19,33 +19,39 @@ configure_logging()
 logger = get_logger("scheduler")
 
 
-def _resolve_sync_interval_minutes() -> int:
-    minutes_env = os.getenv("SYNC_INTERVAL_MINUTES")
-    if minutes_env:
-        return int(minutes_env)
-    hours_env = os.getenv("SYNC_INTERVAL_HOURS")
-    if hours_env:
-        return int(hours_env) * 60
-    return 30
-
-
-SYNC_INTERVAL_MINUTES = _resolve_sync_interval_minutes()
-SYNC_DAYS = int(os.getenv("SYNC_DAYS", "7"))
-INITIAL_DELAY_SECONDS = 60
-RECENTLY_SYNCED_MINUTES = 15
 ALL_SOURCES = [DataSource.GARMIN.value, DataSource.HEVY.value, DataSource.WHOOP.value]
 
 
-def _resolve_sources() -> list[str]:
-    disabled = os.getenv("SYNC_DISABLED_SOURCES", "")
-    if not disabled:
-        return ALL_SOURCES
-    skip = {s.strip().lower() for s in disabled.split(",")}
-    enabled = [s for s in ALL_SOURCES if s.lower() not in skip]
-    return enabled
+class SchedulerSettings(BaseSettings):
+    model_config = SettingsConfigDict(extra="ignore")
+
+    sync_interval_minutes: int | None = None
+    sync_interval_hours: int | None = None
+    sync_days: int = 7
+    sync_disabled_sources: str = ""
+
+    @property
+    def computed_interval_minutes(self) -> int:
+        if self.sync_interval_minutes is not None:
+            return self.sync_interval_minutes
+        if self.sync_interval_hours is not None:
+            return self.sync_interval_hours * 60
+        return 30
+
+    @property
+    def enabled_sources(self) -> list[str]:
+        if not self.sync_disabled_sources:
+            return ALL_SOURCES
+        skip = {s.strip().lower() for s in self.sync_disabled_sources.split(",")}
+        return [s for s in ALL_SOURCES if s.lower() not in skip]
 
 
-SOURCES = _resolve_sources()
+_scheduler_settings = SchedulerSettings()
+SYNC_INTERVAL_MINUTES = _scheduler_settings.computed_interval_minutes
+SYNC_DAYS = _scheduler_settings.sync_days
+INITIAL_DELAY_SECONDS = 60
+RECENTLY_SYNCED_MINUTES = 15
+SOURCES = _scheduler_settings.enabled_sources
 
 shutdown_requested = False
 backoff_manager = SyncBackoffManager()

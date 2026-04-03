@@ -1,25 +1,22 @@
-import os
-from dataclasses import dataclass, field
 from datetime import timedelta, timezone
 
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-@dataclass
-class BotConfig:
-    token: str = ""
-    allowed_user_ids: list[int] = field(default_factory=list)
+
+class BotConfig(BaseSettings):
+    model_config = SettingsConfigDict(extra="ignore")
+
+    token: str = Field("", validation_alias="TELEGRAM_BOT_TOKEN")
+    allowed_users_raw: str = Field("", validation_alias="TELEGRAM_ALLOWED_USERS")
     db_user_id: int = 1
-    timezone_offset_hours: int = 1
+    timezone_offset_hours: int = Field(1, validation_alias="BOT_TIMEZONE_OFFSET_HOURS")
 
-    def __post_init__(self):
-        self.token = os.getenv("TELEGRAM_BOT_TOKEN", self.token)
-        allowed = os.getenv("TELEGRAM_ALLOWED_USERS", "")
-        if allowed and not self.allowed_user_ids:
-            self.allowed_user_ids = [
-                int(x.strip()) for x in allowed.split(",") if x.strip()
-            ]
-        tz_offset = os.getenv("BOT_TIMEZONE_OFFSET_HOURS", "")
-        if tz_offset:
-            self.timezone_offset_hours = int(tz_offset)
+    @property
+    def allowed_user_ids(self) -> list[int]:
+        if not self.allowed_users_raw:
+            return []
+        return [int(x.strip()) for x in self.allowed_users_raw.split(",") if x.strip()]
 
     @property
     def tz(self) -> timezone:

@@ -1,4 +1,3 @@
-import logging
 from datetime import date
 
 from telegram import Update
@@ -12,9 +11,10 @@ from bot.formatters import (
     truncate_for_telegram,
 )
 from database import get_db_session_context
+from logging_config import get_logger
 from models import Anomaly, Prediction
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _get_agent():

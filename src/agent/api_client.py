@@ -1,5 +1,3 @@
-import logging
-
 import anthropic
 from tenacity import (
     retry,
@@ -8,7 +6,9 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
-logger = logging.getLogger(__name__)
+from logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def _is_retryable(error: BaseException) -> bool:
