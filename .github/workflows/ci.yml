@@ -325,11 +325,10 @@ jobs:
           BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           TAGS="${{ env.FRONTEND_IMAGE }}:${SHA_VERSION},${{ env.FRONTEND_IMAGE }}:latest"
           VERSION="$SHA_VERSION"
-          APP_ENVIRONMENT="staging"
+          APP_ENVIRONMENT="production"
           if [[ "$GIT_REF" == refs/tags/v* ]]; then
             TAGS="${TAGS},${{ env.FRONTEND_IMAGE }}:${GIT_REF_NAME}"
             VERSION="$GIT_REF_NAME"
-            APP_ENVIRONMENT="production"
           fi
           {
             echo "version=$VERSION"
