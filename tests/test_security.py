@@ -89,17 +89,14 @@ class TestValidation:
         valid, _ = validate_password("Short1!")
         assert not valid
 
-    def test_password_missing_requirements(self):
+    def test_password_length_only_validation(self):
         from security import validate_password
 
-        valid, _ = validate_password("alllowercaselong!")
+        valid, _ = validate_password("alllowercaselong")
+        assert valid
+
+        valid, _ = validate_password("a" * 129)
         assert not valid
 
-        valid, _ = validate_password("ALLUPPERCASELONG!")
-        assert not valid
-
-        valid, _ = validate_password("NoDigitsHere!Long")
-        assert not valid
-
-        valid, _ = validate_password("NoSpecialChar1Long")
+        valid, _ = validate_password("")
         assert not valid
