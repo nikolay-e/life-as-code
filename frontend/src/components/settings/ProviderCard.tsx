@@ -11,7 +11,10 @@ import {
   Pencil,
   Trash2,
 } from "lucide-react";
-import type { SyncResponse } from "../../types/api";
+import type {
+  BackoffSourceStatus,
+  SyncResponse,
+} from "../../types/api";
 
 interface ProviderCardProps {
   readonly name: string;
@@ -31,13 +34,21 @@ interface ProviderCardProps {
   readonly isDisconnecting?: boolean;
   readonly isEditing?: boolean;
   readonly editForm?: ReactNode;
+  readonly backoffStatus?: BackoffSourceStatus;
 }
 
 function getStatusText(
   isConfigured: boolean,
   isConnected?: boolean,
   isTokenExpired?: boolean,
+  backoffStatus?: BackoffSourceStatus,
 ): string {
+  if (backoffStatus?.status === "exhausted") {
+    return "Sync failed — manual retry required";
+  }
+  if (backoffStatus?.status === "retrying") {
+    return `Sync issues — retrying in ${backoffStatus.backoff_minutes}m`;
+  }
   if (isTokenExpired) {
     return "Token expired";
   }
@@ -158,9 +169,15 @@ export function ProviderCard({
   isDisconnecting,
   isEditing,
   editForm,
+  backoffStatus,
 }: ProviderCardProps) {
   const connected = isConnected ?? isConfigured;
-  const statusText = getStatusText(isConfigured, isConnected, isTokenExpired);
+  const statusText = getStatusText(
+    isConfigured,
+    isConnected,
+    isTokenExpired,
+    backoffStatus,
+  );
 
   const renderActionButtons = () => {
     if (isTokenExpired && authUrl) {
@@ -281,37 +298,64 @@ export function ProviderCard({
           <div>
             <h3 className="font-medium">{name}</h3>
             <div className="flex items-center gap-2 text-sm">
-              {isTokenExpired && (
-                <>
-                  <AlertCircle
-                    className="h-4 w-4 text-orange-500"
-                    aria-hidden="true"
-                  />
-                  <span className="text-orange-600 dark:text-orange-400">
-                    {statusText}
-                  </span>
-                </>
-              )}
-              {!isTokenExpired && connected && (
-                <>
-                  <CheckCircle
-                    className="h-4 w-4 text-green-500"
-                    aria-hidden="true"
-                  />
-                  <span className="text-green-600 dark:text-green-400">
-                    {statusText}
-                  </span>
-                </>
-              )}
-              {!isTokenExpired && !connected && (
+              {backoffStatus?.status === "exhausted" && (
                 <>
                   <XCircle
-                    className="h-4 w-4 text-muted-foreground"
+                    className="h-4 w-4 text-red-500"
                     aria-hidden="true"
                   />
-                  <span className="text-muted-foreground">{statusText}</span>
+                  <span className="text-red-600 dark:text-red-400">
+                    {statusText}
+                  </span>
                 </>
               )}
+              {backoffStatus?.status === "retrying" && (
+                <>
+                  <AlertCircle
+                    className="h-4 w-4 text-yellow-500"
+                    aria-hidden="true"
+                  />
+                  <span className="text-yellow-600 dark:text-yellow-400">
+                    {statusText}
+                  </span>
+                </>
+              )}
+              {(!backoffStatus || backoffStatus.status === "ok") &&
+                isTokenExpired && (
+                  <>
+                    <AlertCircle
+                      className="h-4 w-4 text-orange-500"
+                      aria-hidden="true"
+                    />
+                    <span className="text-orange-600 dark:text-orange-400">
+                      {statusText}
+                    </span>
+                  </>
+                )}
+              {(!backoffStatus || backoffStatus.status === "ok") &&
+                !isTokenExpired &&
+                connected && (
+                  <>
+                    <CheckCircle
+                      className="h-4 w-4 text-green-500"
+                      aria-hidden="true"
+                    />
+                    <span className="text-green-600 dark:text-green-400">
+                      {statusText}
+                    </span>
+                  </>
+                )}
+              {(!backoffStatus || backoffStatus.status === "ok") &&
+                !isTokenExpired &&
+                !connected && (
+                  <>
+                    <XCircle
+                      className="h-4 w-4 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                    <span className="text-muted-foreground">{statusText}</span>
+                  </>
+                )}
             </div>
             {credentialHint && (
               <p className="text-xs text-muted-foreground mt-0.5">

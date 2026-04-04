@@ -1,6 +1,7 @@
 import type {
   AnalyticsResponse,
   AuthResponse,
+  BackoffStatus,
   CredentialTestResult,
   CredentialsStatus,
   GarminActivityData,
@@ -169,6 +170,9 @@ export const api = {
         limit: number;
         offset: number;
       }>("/sync/status").then((r) => r.items),
+
+    getBackoffStatus: (): Promise<BackoffStatus> =>
+      request<BackoffStatus>("/sync/backoff-status"),
 
     garmin: (days?: number): Promise<{ message: string }> => {
       const query = days ? `?days=${String(days)}` : "?full=true";

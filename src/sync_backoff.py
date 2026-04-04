@@ -5,8 +5,9 @@ from logging_config import get_logger
 
 logger = get_logger(__name__)
 
-BACKOFF_SCHEDULE_MINUTES = [0, 20, 180, 1440, 4320]
+BACKOFF_SCHEDULE_MINUTES = [20, 180, 1440, 4320]
 RATE_LIMIT_ESCALATION = 2
+MAX_BACKOFF_LEVEL = len(BACKOFF_SCHEDULE_MINUTES) - 1
 
 
 class SyncBackoffManager:
@@ -23,8 +24,40 @@ class SyncBackoffManager:
         )
 
     def _backoff_minutes(self, backoff_level: int) -> int:
-        idx = min(backoff_level, len(BACKOFF_SCHEDULE_MINUTES) - 1)
+        idx = min(backoff_level, MAX_BACKOFF_LEVEL)
         return BACKOFF_SCHEDULE_MINUTES[idx]
+
+    def _is_exhausted(self, state) -> bool:
+        """Returns True when all retry attempts are used up (past max backoff)."""
+        return state is not None and state.backoff_level > MAX_BACKOFF_LEVEL
+
+    def get_status(self, user_id: int, source: str) -> dict:
+        """Return backoff status for a source: 'ok', 'retrying', or 'exhausted'."""
+        with self._lock:
+            try:
+                from database import get_db_session_context
+
+                with get_db_session_context() as db:
+                    state = self._get_state(db, user_id, source)
+                    if not state or state.failure_count == 0:
+                        return {"status": "ok"}
+                    if self._is_exhausted(state):
+                        return {
+                            "status": "exhausted",
+                            "failure_count": state.failure_count,
+                            "last_failure_at": state.last_failure_at.isoformat() + "Z",
+                        }
+                    return {
+                        "status": "retrying",
+                        "failure_count": state.failure_count,
+                        "backoff_minutes": self._backoff_minutes(state.backoff_level),
+                        "last_failure_at": state.last_failure_at.isoformat() + "Z",
+                    }
+            except Exception:
+                logger.exception(
+                    "sync_backoff_status_error", user_id=user_id, source=source
+                )
+                return {"status": "ok"}
 
     def should_skip(self, user_id: int, source: str) -> bool:
         with self._lock:
@@ -36,6 +69,15 @@ class SyncBackoffManager:
                     state = self._get_state(db, user_id, source)
                     if not state or state.failure_count == 0:
                         return False
+
+                    if self._is_exhausted(state):
+                        logger.info(
+                            "sync_backoff_exhausted",
+                            user_id=user_id,
+                            source=source,
+                            failure_count=state.failure_count,
+                        )
+                        return True
 
                     now = utcnow()
                     backoff_min = self._backoff_minutes(state.backoff_level)
@@ -108,10 +150,7 @@ class SyncBackoffManager:
                     state.is_rate_limited = is_rate_limit
 
                     escalation = RATE_LIMIT_ESCALATION if is_rate_limit else 1
-                    state.backoff_level = min(
-                        state.backoff_level + escalation,
-                        len(BACKOFF_SCHEDULE_MINUTES) - 1,
-                    )
+                    state.backoff_level = state.backoff_level + escalation
 
                     logger.warning(
                         "sync_backoff_recorded",

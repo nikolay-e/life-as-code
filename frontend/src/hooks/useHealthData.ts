@@ -12,7 +12,11 @@ import {
   SYNC_REFETCH_INTERVAL,
   DEFAULT_SYNC_DAYS,
 } from "../lib/constants";
-import type { SyncStatus, CredentialsStatus } from "../types/api";
+import type {
+  BackoffStatus,
+  SyncStatus,
+  CredentialsStatus,
+} from "../types/api";
 
 export function useHealthData(
   days: number = 90,
@@ -47,6 +51,14 @@ export function useSyncStatus() {
   return useQuery({
     queryKey: healthKeys.syncStatus(),
     queryFn: api.sync.getStatus,
+    refetchInterval: SYNC_REFETCH_INTERVAL,
+  });
+}
+
+export function useBackoffStatus() {
+  return useQuery<BackoffStatus>({
+    queryKey: healthKeys.backoffStatus(),
+    queryFn: api.sync.getBackoffStatus,
     refetchInterval: SYNC_REFETCH_INTERVAL,
   });
 }

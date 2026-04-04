@@ -10,6 +10,7 @@ export const healthKeys = {
     [...healthKeys.all, "garmin", "activities", start, end] as const,
   sync: () => [...healthKeys.all, "sync"] as const,
   syncStatus: () => [...healthKeys.sync(), "status"] as const,
+  backoffStatus: () => [...healthKeys.sync(), "backoff"] as const,
   analytics: (mode: string) => [...healthKeys.all, "analytics", mode] as const,
 };
 

@@ -655,6 +655,19 @@ def api_sync_status():
         )
 
 
+@api.route("/sync/backoff-status", methods=["GET"])
+@login_required
+def api_sync_backoff_status():
+    from sync_backoff import SyncBackoffManager
+
+    manager = SyncBackoffManager()
+    sources = ["garmin", "hevy", "whoop"]
+    result = {}
+    for source in sources:
+        result[source] = manager.get_status(current_user.id, source)
+    return jsonify(result)
+
+
 def _update_data_sync(
     user_id: int, source: str, result: dict[str, Any], success: bool
 ) -> None:
@@ -778,6 +791,11 @@ def _handle_sync_request(
             f"{source_name} sync already in progress",
             source=source_name.lower(),
         )
+
+    # Manual sync clears any backoff state so the user can retry after exhaustion
+    from sync_backoff import SyncBackoffManager
+
+    SyncBackoffManager().record_success(user_id, source_name.lower())
 
     days = request.args.get("days", type=int)
     full_sync = request.args.get("full", "").lower() == "true"

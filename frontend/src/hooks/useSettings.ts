@@ -113,6 +113,9 @@ function useSyncMutation(syncFn: () => Promise<SyncResponse>) {
       queryClient
         .invalidateQueries({ queryKey: healthKeys.syncStatus() })
         .catch(() => {});
+      queryClient
+        .invalidateQueries({ queryKey: healthKeys.backoffStatus() })
+        .catch(() => {});
     },
   });
 }

@@ -221,6 +221,15 @@ export interface SyncResponse {
   success?: boolean;
 }
 
+export interface BackoffSourceStatus {
+  status: "ok" | "retrying" | "exhausted";
+  failure_count?: number;
+  backoff_minutes?: number;
+  last_failure_at?: string;
+}
+
+export type BackoffStatus = Record<string, BackoffSourceStatus>;
+
 export interface WorkoutSetDetail {
   set_index: number;
   weight_kg: number | null;

@@ -27,10 +27,12 @@ import {
 import { GarminCredentialForm } from "../components/settings/GarminCredentialForm";
 import { HevyCredentialForm } from "../components/settings/HevyCredentialForm";
 import { Settings } from "lucide-react";
+import { useBackoffStatus } from "../hooks/useHealthData";
 import type { CredentialTestResult } from "../types/api";
 
 export function SettingsPage() {
   const { data: credentials, isLoading: credentialsLoading } = useCredentials();
+  const { data: backoffStatus } = useBackoffStatus();
   const syncGarmin = useSyncGarmin();
   const syncHevy = useSyncHevy();
   const syncWhoop = useSyncWhoop();
@@ -115,6 +117,7 @@ export function SettingsPage() {
             isConfigured={credentials?.garmin_configured ?? false}
             syncMutation={syncGarmin}
             onSync={() => handleSync("garmin", syncGarmin)}
+            backoffStatus={backoffStatus?.garmin}
             credentialHint={credentials?.garmin_email_hint}
             onEdit={() => {
               setEditingProvider("garmin");
@@ -193,6 +196,7 @@ export function SettingsPage() {
             isConfigured={credentials?.hevy_configured ?? false}
             syncMutation={syncHevy}
             onSync={() => handleSync("hevy", syncHevy)}
+            backoffStatus={backoffStatus?.hevy}
             credentialHint={credentials?.hevy_api_key_hint}
             onEdit={() => {
               setEditingProvider("hevy");
@@ -273,6 +277,7 @@ export function SettingsPage() {
             onSync={() => handleSync("whoop", syncWhoop)}
             authUrl={whoopAuthUrl}
             showOAuthNotConfigured={!whoopAuthUrl}
+            backoffStatus={backoffStatus?.whoop}
           />
           <ReadOnlyProviderCard
             name="Google Fit"
