@@ -5,7 +5,7 @@ from logging_config import get_logger
 
 logger = get_logger(__name__)
 
-BACKOFF_SCHEDULE_MINUTES = [5, 15, 60, 240, 480, 1440, 2880]
+BACKOFF_SCHEDULE_MINUTES = [0, 20, 180, 1440, 4320]
 RATE_LIMIT_ESCALATION = 2
 
 
