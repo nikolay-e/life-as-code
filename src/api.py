@@ -779,11 +779,22 @@ def _run_two_phase_sync(
         )
 
 
+def _is_source_disabled(source: DataSource) -> bool:
+    disabled = os.getenv("SYNC_DISABLED_SOURCES", "")
+    if not disabled:
+        return False
+    skip = {s.strip().lower() for s in disabled.split(",")}
+    return source.value.lower() in skip
+
+
 def _handle_sync_request(
     source: DataSource,
     source_name: str,
     sync_func_getter: Callable[[], Callable[..., dict[str, Any] | None]],
 ):
+    if _is_source_disabled(source):
+        return jsonify({"error": f"{source_name} sync is disabled"}), 503
+
     user_id = current_user.id
 
     if is_sync_in_progress(user_id, source):
