@@ -60,6 +60,12 @@ def upgrade() -> None:
         batch_op.add_column(sa.Column('encrypted_eight_sleep_access_token', sa.String(length=1000), nullable=True))
         batch_op.add_column(sa.Column('eight_sleep_token_expires_at', sa.DateTime(), nullable=True))
 
+    op.drop_constraint('valid_sync_source', 'data_sync', type_='check')
+    op.create_check_constraint(
+        'valid_sync_source', 'data_sync',
+        "source IN ('garmin', 'hevy', 'whoop', 'google', 'apple_health', 'eight_sleep')"
+    )
+
 
 def downgrade() -> None:
     with op.batch_alter_table('user_credentials', schema=None) as batch_op:
