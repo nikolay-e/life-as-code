@@ -25,4 +25,6 @@ def has_credentials_for_source(user_id: int, source: str) -> bool:
         return bool(creds.encrypted_hevy_api_key)
     elif source == DataSource.WHOOP.value:
         return bool(creds.encrypted_whoop_access_token)
+    elif source == DataSource.EIGHT_SLEEP.value:
+        return bool(creds.eight_sleep_email and creds.encrypted_eight_sleep_password)
     return False

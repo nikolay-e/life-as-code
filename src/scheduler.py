@@ -19,7 +19,12 @@ configure_logging()
 logger = get_logger("scheduler")
 
 
-ALL_SOURCES = [DataSource.GARMIN.value, DataSource.HEVY.value, DataSource.WHOOP.value]
+ALL_SOURCES = [
+    DataSource.GARMIN.value,
+    DataSource.HEVY.value,
+    DataSource.WHOOP.value,
+    DataSource.EIGHT_SLEEP.value,
+]
 
 
 class SchedulerSettings(BaseSettings):
@@ -71,6 +76,7 @@ def interruptible_sleep(seconds):
 
 
 def _get_sync_funcs() -> dict:
+    from pull_eight_sleep_data import sync_eight_sleep_data_for_user
     from pull_garmin_data import sync_garmin_data_for_user
     from pull_hevy_data import sync_hevy_data_for_user
     from pull_whoop_data import sync_whoop_data_for_user
@@ -79,6 +85,7 @@ def _get_sync_funcs() -> dict:
         DataSource.GARMIN.value: sync_garmin_data_for_user,
         DataSource.HEVY.value: sync_hevy_data_for_user,
         DataSource.WHOOP.value: sync_whoop_data_for_user,
+        DataSource.EIGHT_SLEEP.value: sync_eight_sleep_data_for_user,
     }
 
 

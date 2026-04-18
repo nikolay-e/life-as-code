@@ -32,6 +32,9 @@ class ProviderCredentials:
     hevy_api_key: str | None = None
     whoop_access_token: str | None = None
     whoop_refresh_token: str | None = None
+    eight_sleep_email: str | None = None
+    eight_sleep_password: str | None = None
+    eight_sleep_access_token: str | None = None
 
 
 def get_sync_date_range(
@@ -105,6 +108,32 @@ def _get_whoop_credentials(
         ) from e
 
 
+def _get_eight_sleep_credentials(
+    creds, user_id: int, provider_name: str
+) -> ProviderCredentials:
+    if not creds.eight_sleep_email:
+        raise CredentialsNotFoundError(
+            "No Eight Sleep credentials found for user", provider=provider_name
+        )
+    try:
+        access_token = None
+        if creds.encrypted_eight_sleep_access_token:
+            access_token = decrypt_data_for_user(
+                creds.encrypted_eight_sleep_access_token, user_id
+            )
+        return ProviderCredentials(
+            eight_sleep_email=creds.eight_sleep_email,
+            eight_sleep_password=decrypt_data_for_user(
+                creds.encrypted_eight_sleep_password, user_id
+            ),
+            eight_sleep_access_token=access_token,
+        )
+    except Exception as e:
+        raise CredentialsDecryptionError(
+            f"Failed to decrypt Eight Sleep credentials: {e}", provider=provider_name
+        ) from e
+
+
 def get_provider_credentials(user_id: int, provider: DataSource) -> ProviderCredentials:
     creds = get_user_credentials(user_id)
     if not creds:
@@ -120,6 +149,8 @@ def get_provider_credentials(user_id: int, provider: DataSource) -> ProviderCred
         return _get_hevy_credentials(creds, user_id, provider_name)
     if provider == DataSource.WHOOP:
         return _get_whoop_credentials(creds, user_id, provider_name)
+    if provider == DataSource.EIGHT_SLEEP:
+        return _get_eight_sleep_credentials(creds, user_id, provider_name)
 
     raise CredentialsNotFoundError(
         f"Unknown provider: {provider}", provider=provider_name

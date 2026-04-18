@@ -122,6 +122,9 @@ class User(Base):
     longevity_goals = relationship(
         "LongevityGoal", back_populates="user", cascade=CASCADE_ALL_DELETE
     )
+    eight_sleep_sessions = relationship(
+        "EightSleepSession", back_populates="user", cascade=CASCADE_ALL_DELETE
+    )
 
     def __repr__(self):
         return f"<User(username={self.username})>"
@@ -138,6 +141,10 @@ class UserCredentials(Base):
     encrypted_whoop_access_token = Column(String(1000))  # Encrypted
     encrypted_whoop_refresh_token = Column(String(1000))  # Encrypted
     whoop_token_expires_at = Column(DateTime)
+    eight_sleep_email = Column(String(200))
+    encrypted_eight_sleep_password = Column(String(500))
+    encrypted_eight_sleep_access_token = Column(String(1000))
+    eight_sleep_token_expires_at = Column(DateTime)
     created_at = Column(DateTime, default=utcnow)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
@@ -644,7 +651,7 @@ class DataSync(Base):
             name="valid_sync_status",
         ),
         CheckConstraint(
-            f"source IN ('{DataSource.GARMIN.value}', '{DataSource.HEVY.value}', '{DataSource.WHOOP.value}', '{DataSource.GOOGLE.value}', '{DataSource.APPLE_HEALTH.value}')",
+            f"source IN ('{DataSource.GARMIN.value}', '{DataSource.HEVY.value}', '{DataSource.WHOOP.value}', '{DataSource.GOOGLE.value}', '{DataSource.APPLE_HEALTH.value}', '{DataSource.EIGHT_SLEEP.value}')",
             name="valid_sync_source",
         ),
     )
@@ -1307,3 +1314,79 @@ class LongevityGoal(Base):
         ),
         Index("idx_longevity_goal_user", "user_id"),
     )
+
+
+class EightSleepSession(Base):
+    __tablename__ = "eight_sleep_sessions"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
+    date = Column(Date, nullable=False, index=True)
+    source = Column(String(50), nullable=False, default="eight_sleep")
+    score = Column(Integer)
+    sleep_duration_seconds = Column(Integer)
+    light_duration_seconds = Column(Integer)
+    deep_duration_seconds = Column(Integer)
+    rem_duration_seconds = Column(Integer)
+    tnt = Column(Integer)
+    heart_rate = Column(Float)
+    hrv = Column(Float)
+    respiratory_rate = Column(Float)
+    latency_asleep_seconds = Column(Integer)
+    latency_out_seconds = Column(Integer)
+    bed_temp_celsius = Column(Float)
+    room_temp_celsius = Column(Float)
+    sleep_fitness_score = Column(Integer)
+    sleep_routine_score = Column(Integer)
+    sleep_quality_score = Column(Integer)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+
+    user = relationship("User", back_populates="eight_sleep_sessions")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "date", "source", name="_user_eight_sleep_date_source_uc"
+        ),
+        Index(
+            "idx_eight_sleep_user_date",
+            "user_id",
+            "date",
+            postgresql_ops={"date": "DESC"},
+        ),
+        CheckConstraint(
+            "(score >= 0 AND score <= 100) OR score IS NULL",
+            name="valid_eight_sleep_score",
+        ),
+        CheckConstraint(
+            "(sleep_duration_seconds >= 0) OR sleep_duration_seconds IS NULL",
+            name="valid_eight_sleep_duration",
+        ),
+        CheckConstraint(
+            "(heart_rate >= 20 AND heart_rate <= 250) OR heart_rate IS NULL",
+            name="valid_eight_sleep_hr",
+        ),
+        CheckConstraint(
+            "(hrv >= 0 AND hrv <= 500) OR hrv IS NULL",
+            name="valid_eight_sleep_hrv",
+        ),
+        CheckConstraint(
+            "(respiratory_rate >= 5 AND respiratory_rate <= 50) OR respiratory_rate IS NULL",
+            name="valid_eight_sleep_resp_rate",
+        ),
+        CheckConstraint(
+            "(sleep_fitness_score >= 0 AND sleep_fitness_score <= 100) OR sleep_fitness_score IS NULL",
+            name="valid_eight_sleep_fitness_score",
+        ),
+        CheckConstraint(
+            "(sleep_routine_score >= 0 AND sleep_routine_score <= 100) OR sleep_routine_score IS NULL",
+            name="valid_eight_sleep_routine_score",
+        ),
+        CheckConstraint(
+            "(sleep_quality_score >= 0 AND sleep_quality_score <= 100) OR sleep_quality_score IS NULL",
+            name="valid_eight_sleep_quality_score",
+        ),
+    )
+
+    def __repr__(self):
+        return f"<EightSleepSession(user_id={self.user_id}, date={self.date}, score={self.score})>"

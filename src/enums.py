@@ -7,6 +7,7 @@ class DataSource(StrEnum):
     WHOOP = "whoop"
     GOOGLE = "google"
     APPLE_HEALTH = "apple_health"
+    EIGHT_SLEEP = "eight_sleep"
 
 
 class SyncStatus(StrEnum):

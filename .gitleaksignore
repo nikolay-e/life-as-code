@@ -2,3 +2,6 @@
 .secrets.baseline:generic-api-key:130
 .secrets.baseline:generic-api-key:139
 .secrets.baseline:generic-api-key:148
+
+# Eight Sleep public OAuth client secret (same as official app, not a real secret)
+src/pull_eight_sleep_data.py:generic-api-key:26

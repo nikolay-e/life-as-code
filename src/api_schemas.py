@@ -47,6 +47,29 @@ class HevyCredentialsRequest(BaseModel):
         return v
 
 
+class EightSleepCredentialsRequest(BaseModel):
+    email: str = Field(max_length=200)
+    password: str = Field(max_length=256)
+
+    @field_validator("email")
+    @classmethod
+    def strip_and_check_email(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("email is required")
+        if "@" not in v:
+            raise ValueError("invalid email format")
+        return v
+
+    @field_validator("password")
+    @classmethod
+    def strip_and_check_password(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("password is required")
+        return v
+
+
 class ThresholdSettings(BaseModel):
     hrv_good_threshold: int | None = Field(None, ge=0, le=500)
     hrv_moderate_threshold: int | None = Field(None, ge=0, le=500)

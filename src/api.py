@@ -17,6 +17,7 @@ from analytics import TrendMode
 from analytics.pipeline import get_or_compute_snapshot
 from api_schemas import (
     BiomarkerCreate,
+    EightSleepCredentialsRequest,
     FunctionalTestCreate,
     GarminCredentialsRequest,
     GoalCreate,
@@ -461,6 +462,12 @@ def _build_credentials_response(user_id: int) -> dict:
         "whoop_configured": whoop_has_token and not whoop_token_expired,
         "whoop_token_expired": whoop_token_expired,
         "whoop_auth_url": whoop_auth_url,
+        "eight_sleep_configured": bool(
+            creds and creds.eight_sleep_email and creds.encrypted_eight_sleep_password
+        ),
+        "eight_sleep_email_hint": _mask_email(
+            creds.eight_sleep_email if creds else None
+        ),
     }
 
 
@@ -665,7 +672,7 @@ def api_sync_backoff_status():
     from sync_backoff import SyncBackoffManager
 
     manager = SyncBackoffManager()
-    sources = ["garmin", "hevy", "whoop"]
+    sources = ["garmin", "hevy", "whoop", "eight_sleep"]
     result = {}
     for source in sources:
         result[source] = manager.get_status(current_user.id, source)
@@ -890,6 +897,80 @@ def api_sync_whoop():
         return sync_whoop_data_for_user
 
     return _handle_sync_request(DataSource.WHOOP, "Whoop", get_sync_func)
+
+
+@api.route("/settings/credentials/eight_sleep", methods=["PUT"])
+@login_required
+@limiter.limit("10 per hour")
+def api_update_eight_sleep_credentials():
+    body = _parse_body(EightSleepCredentialsRequest)
+    encrypted_password = encrypt_data_for_user(body.password, current_user.id)
+
+    with get_db_session_context() as db:
+        creds = db.scalars(
+            select(UserCredentials).filter_by(user_id=current_user.id)
+        ).first()
+        if not creds:
+            creds = UserCredentials(user_id=current_user.id)
+            db.add(creds)
+
+        creds.eight_sleep_email = body.email
+        creds.encrypted_eight_sleep_password = encrypted_password
+        creds.encrypted_eight_sleep_access_token = None
+        creds.eight_sleep_token_expires_at = None
+
+    logger.info("eight_sleep_credentials_updated", user_id=current_user.id)
+    return jsonify(_build_credentials_response(current_user.id))
+
+
+@api.route("/settings/credentials/eight_sleep", methods=["DELETE"])
+@login_required
+@limiter.limit("10 per hour")
+def api_delete_eight_sleep_credentials():
+    with get_db_session_context() as db:
+        creds = db.scalars(
+            select(UserCredentials).filter_by(user_id=current_user.id)
+        ).first()
+        if creds:
+            creds.eight_sleep_email = None
+            creds.encrypted_eight_sleep_password = None
+            creds.encrypted_eight_sleep_access_token = None
+            creds.eight_sleep_token_expires_at = None
+
+    logger.info("eight_sleep_credentials_deleted", user_id=current_user.id)
+    return jsonify(_build_credentials_response(current_user.id))
+
+
+@api.route("/settings/credentials/eight_sleep/test", methods=["POST"])
+@login_required
+@limiter.limit("3 per hour")
+def api_test_eight_sleep_credentials():
+    body = _parse_body(EightSleepCredentialsRequest)
+
+    try:
+        from pull_eight_sleep_data import EightSleepAPIClient
+
+        client = EightSleepAPIClient(body.email, body.password)
+        client.authenticate()
+        logger.info("eight_sleep_credentials_test_success", user_id=current_user.id)
+        return jsonify({"success": True})
+    except Exception:
+        logger.exception("eight_sleep_credentials_test_error", user_id=current_user.id)
+        return jsonify(
+            {"success": False, "error": "Invalid credentials or connection error"}
+        )
+
+
+@api.route("/sync/eight_sleep", methods=["POST"])
+@login_required
+@limiter.limit("3000 per hour")
+def api_sync_eight_sleep():
+    def get_sync_func():
+        from pull_eight_sleep_data import sync_eight_sleep_data_for_user
+
+        return sync_eight_sleep_data_for_user
+
+    return _handle_sync_request(DataSource.EIGHT_SLEEP, "Eight Sleep", get_sync_func)
 
 
 @api.route("/settings/profile", methods=["GET"])
