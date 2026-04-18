@@ -131,8 +131,8 @@ function formatIllnessAlert(
   const comp = illness.components;
   const parts = [
     `${String(illness.consecutive_days_elevated)}d elevated`,
-    comp.hrv_drop != null ? `HRV↓${n(comp.hrv_drop, 2)}` : null,
-    comp.rhr_rise != null ? `RHR↑${n(comp.rhr_rise, 2)}` : null,
+    comp.hrv_drop === null ? null : `HRV↓${n(comp.hrv_drop, 2)}`,
+    comp.rhr_rise === null ? null : `RHR↑${n(comp.rhr_rise, 2)}`,
   ]
     .filter(Boolean)
     .join(" ");
@@ -234,7 +234,7 @@ function formatBioAge(
   }
   if (bio.composite_biological_age !== null) {
     const scoreStr =
-      score.overall !== null ? ` | Score: ${score.overall.toFixed(0)}/100` : "";
+      score.overall === null ? "" : ` | Score: ${score.overall.toFixed(0)}/100`;
     return `Bio Age: ${bio.composite_biological_age.toFixed(1)}y (chrono: ${String(bio.chronological_age)}, Δ=${n(bio.age_delta, 1)}y)${scoreStr}`;
   }
   return `Score: ${(score.overall ?? 0).toFixed(0)}/100`;
@@ -244,14 +244,16 @@ function formatZoneMinutes(zones: TrainingZoneMetrics): string | null {
   if (zones.zone2_minutes_7d === null && zones.zone5_minutes_7d === null) {
     return null;
   }
+  const z2target = zones.zone2_target_met ? " ✓" : " ✗";
   const z2 =
-    zones.zone2_minutes_7d !== null
-      ? `Zone2: ${String(Math.round(zones.zone2_minutes_7d))}min/7d${zones.zone2_target_met ? " ✓" : " ✗"}`
-      : "";
+    zones.zone2_minutes_7d === null
+      ? ""
+      : `Zone2: ${String(Math.round(zones.zone2_minutes_7d))}min/7d${z2target}`;
+  const z5target = zones.zone5_target_met ? " ✓" : " ✗";
   const z5 =
-    zones.zone5_minutes_7d !== null
-      ? `Zone5: ${String(Math.round(zones.zone5_minutes_7d))}min/7d${zones.zone5_target_met ? " ✓" : " ✗"}`
-      : "";
+    zones.zone5_minutes_7d === null
+      ? ""
+      : `Zone5: ${String(Math.round(zones.zone5_minutes_7d))}min/7d${z5target}`;
   return [z2, z5].filter(Boolean).join(" | ");
 }
 
@@ -286,21 +288,21 @@ function formatLongevity(analytics: AnalyticsResponse): string[] {
   }
 
   const scoreParts = [
-    score.cardiorespiratory !== null
-      ? `cardio=${score.cardiorespiratory.toFixed(0)}`
-      : null,
-    score.recovery_resilience !== null
-      ? `recovery=${score.recovery_resilience.toFixed(0)}`
-      : null,
-    score.sleep_optimization !== null
-      ? `sleep=${score.sleep_optimization.toFixed(0)}`
-      : null,
-    score.body_composition !== null
-      ? `body=${score.body_composition.toFixed(0)}`
-      : null,
-    score.activity_consistency !== null
-      ? `activity=${score.activity_consistency.toFixed(0)}`
-      : null,
+    score.cardiorespiratory === null
+      ? null
+      : `cardio=${score.cardiorespiratory.toFixed(0)}`,
+    score.recovery_resilience === null
+      ? null
+      : `recovery=${score.recovery_resilience.toFixed(0)}`,
+    score.sleep_optimization === null
+      ? null
+      : `sleep=${score.sleep_optimization.toFixed(0)}`,
+    score.body_composition === null
+      ? null
+      : `body=${score.body_composition.toFixed(0)}`,
+    score.activity_consistency === null
+      ? null
+      : `activity=${score.activity_consistency.toFixed(0)}`,
   ].filter(Boolean);
   if (scoreParts.length > 0) {
     lines.push(`Breakdown: ${scoreParts.join(" ")}`);
@@ -330,10 +332,10 @@ function formatTrendsTable(
 
     const trendPrefix = trendSlope !== null && trendSlope >= 0 ? "+" : "";
     const trend =
-      trendSlope !== null
-        ? `${trendPrefix}${trendSlope.toFixed(2)}/d ${arrow(trendSlope)}`
-        : "";
-    const pctl = percentile !== null ? percentile.toFixed(0) : "";
+      trendSlope === null
+        ? ""
+        : `${trendPrefix}${trendSlope.toFixed(2)}/d ${arrow(trendSlope)}`;
+    const pctl = percentile === null ? "" : percentile.toFixed(0);
 
     return `| ${pad(name, 10)} | ${pad(fmt(vals[0]), 6)} | ${pad(fmt(vals[1]), 6)} | ${pad(fmt(vals[2]), 6)} | ${pad(fmt(vals[3]), 6)} | ${pad(trend, 12)} | ${pad(pctl, 4)} |`;
   };
@@ -507,7 +509,7 @@ function addUniqueActivity(day: DayAggregatedWorkout, name: string): void {
 }
 
 function updatePeakHr(day: DayAggregatedWorkout, hr: number): void {
-  day.peakHr = day.peakHr !== null ? Math.max(day.peakHr, hr) : hr;
+  day.peakHr = day.peakHr === null ? hr : Math.max(day.peakHr, hr);
 }
 
 function aggregateDetailedWorkouts(
@@ -551,6 +553,32 @@ function aggregateFallbackWorkouts(
   }
 }
 
+function applyGarminDayMetrics(
+  day: DayAggregatedWorkout,
+  a: HealthData["garmin_activity"][number],
+): void {
+  if (a.duration_seconds !== null) {
+    day.duration = formatDuration(a.duration_seconds);
+  }
+  if (a.distance_meters !== null && a.distance_meters > 0) {
+    day.distance = `${(a.distance_meters / 1000).toFixed(1)}km`;
+  }
+  if (a.avg_heart_rate !== null) {
+    updatePeakHr(day, a.avg_heart_rate);
+  }
+  if (
+    a.avg_speed_mps !== null &&
+    a.avg_speed_mps > 0 &&
+    a.distance_meters !== null &&
+    a.distance_meters > 100
+  ) {
+    day.notes.push(formatPaceForReport(a.avg_speed_mps));
+  }
+  if (a.training_effect_aerobic !== null) {
+    day.notes.push(`TE=${a.training_effect_aerobic.toFixed(1)}`);
+  }
+}
+
 function aggregateGarminActivities(
   activities: HealthData["garmin_activity"],
   byDate: Map<string, DayAggregatedWorkout>,
@@ -568,26 +596,7 @@ function aggregateGarminActivities(
     }
     const name = a.activity_name ?? a.activity_type ?? DEFAULT_ACTIVITY_NAME;
     addUniqueActivity(day, name);
-    if (a.duration_seconds !== null) {
-      day.duration = formatDuration(a.duration_seconds);
-    }
-    if (a.distance_meters !== null && a.distance_meters > 0) {
-      day.distance = `${(a.distance_meters / 1000).toFixed(1)}km`;
-    }
-    if (a.avg_heart_rate !== null) {
-      updatePeakHr(day, a.avg_heart_rate);
-    }
-    if (
-      a.avg_speed_mps !== null &&
-      a.avg_speed_mps > 0 &&
-      a.distance_meters !== null &&
-      a.distance_meters > 100
-    ) {
-      day.notes.push(formatPaceForReport(a.avg_speed_mps));
-    }
-    if (a.training_effect_aerobic !== null) {
-      day.notes.push(`TE=${a.training_effect_aerobic.toFixed(1)}`);
-    }
+    applyGarminDayMetrics(day, a);
   }
 }
 
@@ -679,7 +688,7 @@ function formatUnifiedTrainingLog(
       loadParts.push(day.duration);
     }
     const load = loadParts.join(" ").slice(0, 22);
-    const hr = day.peakHr !== null ? String(day.peakHr) : "";
+    const hr = day.peakHr === null ? "" : String(day.peakHr);
     const notes = day.notes.join(" ").slice(0, 9);
 
     lines.push(
@@ -731,19 +740,19 @@ function formatSleepQuality(
   sleep: AdvancedInsights["sleep_quality"],
 ): string | null {
   const sleepParts = [
-    sleep.deep_sleep_pct !== null
-      ? `deep=${sleep.deep_sleep_pct.toFixed(0)}%`
-      : null,
-    sleep.rem_sleep_pct !== null
-      ? `rem=${sleep.rem_sleep_pct.toFixed(0)}%`
-      : null,
-    sleep.efficiency !== null ? `eff=${sleep.efficiency.toFixed(0)}%` : null,
-    sleep.fragmentation_index !== null
-      ? `frag=${sleep.fragmentation_index.toFixed(1)}`
-      : null,
-    sleep.consistency_score !== null
-      ? `consistency=${sleep.consistency_score.toFixed(0)}%`
-      : null,
+    sleep.deep_sleep_pct === null
+      ? null
+      : `deep=${sleep.deep_sleep_pct.toFixed(0)}%`,
+    sleep.rem_sleep_pct === null
+      ? null
+      : `rem=${sleep.rem_sleep_pct.toFixed(0)}%`,
+    sleep.efficiency === null ? null : `eff=${sleep.efficiency.toFixed(0)}%`,
+    sleep.fragmentation_index === null
+      ? null
+      : `frag=${sleep.fragmentation_index.toFixed(1)}`,
+    sleep.consistency_score === null
+      ? null
+      : `consistency=${sleep.consistency_score.toFixed(0)}%`,
   ].filter(Boolean);
   if (sleepParts.length === 0) return null;
   return `Sleep: ${sleepParts.join(" ")}`;
@@ -763,12 +772,12 @@ function formatFitnessMetrics(
 ): string | null {
   const fitParts = [
     formatVo2MaxWithTrend(fitness) || null,
-    fitness.ctl !== null ? `CTL=${fitness.ctl.toFixed(0)}` : null,
-    fitness.atl !== null ? `ATL=${fitness.atl.toFixed(0)}` : null,
-    fitness.tsb !== null ? `TSB=${fitness.tsb.toFixed(0)}` : null,
-    fitness.monotony !== null
-      ? `monotony=${fitness.monotony.toFixed(1)}`
-      : null,
+    fitness.ctl === null ? null : `CTL=${fitness.ctl.toFixed(0)}`,
+    fitness.atl === null ? null : `ATL=${fitness.atl.toFixed(0)}`,
+    fitness.tsb === null ? null : `TSB=${fitness.tsb.toFixed(0)}`,
+    fitness.monotony === null
+      ? null
+      : `monotony=${fitness.monotony.toFixed(1)}`,
   ].filter(Boolean);
   if (fitParts.length === 0) return null;
   return `Fitness: ${fitParts.join(" ")}`;
@@ -787,7 +796,7 @@ function formatAllostaticAndRecovery(
   const recDebtNorm =
     recDebt !== null && recDebt > 100 ? " [HIGH, norm:<100]" : "";
   const halfLife = recovery.recovery_half_life_days;
-  const halfLifeStr = halfLife !== null ? `${halfLife.toFixed(1)}d` : "N/A";
+  const halfLifeStr = halfLife === null ? "N/A" : `${halfLife.toFixed(1)}d`;
 
   return `Allostatic: ${alloScore}${alloNorm} (trend:${n(allostatic.trend, 3)}) | Recovery: debt=${n(recDebt, 1)}${recDebtNorm} mismatch=${n(recovery.strain_recovery_mismatch_7d, 2)} half-life=${halfLifeStr}`;
 }
@@ -874,8 +883,8 @@ function formatWeekdayWeekend(
   lines.push(`Weekday/Weekend:`);
   for (const k of meaningful) {
     const s = ww[k];
-    const d =
-      s.delta === null ? "" : `${s.delta >= 0 ? "+" : ""}${s.delta.toFixed(1)}`;
+    const deltaSign = s.delta !== null && s.delta >= 0 ? "+" : "";
+    const d = s.delta === null ? "" : `${deltaSign}${s.delta.toFixed(1)}`;
     const wdStr = s.weekday_mean === null ? "" : s.weekday_mean.toFixed(1);
     const weStr = s.weekend_mean === null ? "" : s.weekend_mean.toFixed(1);
     lines.push(`  ${k}: wd=${wdStr} we=${weStr} Δ=${d}`);

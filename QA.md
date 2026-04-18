@@ -49,6 +49,9 @@
 - Quality gate typically passes (no bugs/vulnerabilities pattern)
 - `python:S5713` on `pull_garmin_data.py` exception tuples is a false positive — garminconnect exceptions have no inheritance relationship; ignore
 - SonarCloud analysis runs on latest pushed commit; verify issues against current HEAD (not deployed image tag) — stale issues disappear after push
+- `typescript:S7735` ("Unexpected negated condition"): fix `value !== null ? expr : default` → `value === null ? default : expr`; conjunctions (`!== null && condition`) are NOT flagged
+- `typescript:S3358` ("nested ternary"): extract inner ternary to a named variable before the outer ternary
+- `typescript:S3776` ("cognitive complexity"): extract inner loop bodies to named helper functions
 
 ## K8s Events
 
