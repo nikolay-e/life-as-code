@@ -7,10 +7,10 @@
 
 ## Browser QA
 
-- Verify version in footer (`vmain-<sha>`) matches target commit before testing
 - Login credentials are auto-filled on the login page — just click "Sign In"
 - All 5 pages to check: Dashboard, Statistics, Trainings, Data Status, Settings
-- 401 on `/api/auth/me` before login is expected — not a bug
+- Page routes are `/dashboard`, `/dashboard/statistics`, `/dashboard/trainings`, `/dashboard/data-status`, `/dashboard/settings` — NOT `/statistics` etc.
+- 401 on `/api/auth/me` at login page is expected (session check before login)
 
 ## Backend Logs
 
@@ -47,6 +47,8 @@
 - No OpenAPI spec available — skip Schemathesis for this project
 - Main code smell hotspot: `frontend/src/lib/report-formatter.ts` — complex string formatting logic
 - Quality gate typically passes (no bugs/vulnerabilities pattern)
+- `python:S5713` on `pull_garmin_data.py` exception tuples is a false positive — garminconnect exceptions have no inheritance relationship; ignore
+- SonarCloud analysis runs on latest pushed commit; verify issues against current HEAD (not deployed image tag) — stale issues disappear after push
 
 ## K8s Events
 
