@@ -30,6 +30,18 @@ export interface HealthData {
   garmin_training_status: GarminTrainingStatusData[];
   garmin_activity: GarminActivityData[];
   garmin_race_prediction: GarminRacePredictionData[];
+  eight_sleep_sessions: EightSleepSessionData[];
+}
+
+export interface EightSleepSessionData {
+  date: string;
+  score: number | null;
+  sleep_duration_seconds: number | null;
+  heart_rate: number | null;
+  hrv: number | null;
+  respiratory_rate: number | null;
+  bed_temp_celsius: number | null;
+  room_temp_celsius: number | null;
 }
 
 export interface SleepData {

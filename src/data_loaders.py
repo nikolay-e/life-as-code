@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from models import (
     HRV,
+    EightSleepSession,
     Energy,
     GarminActivity,
     GarminRacePrediction,
@@ -47,6 +48,7 @@ def load_data_for_user(start_date, end_date, user_id):
         (GarminTrainingStatus, "garmin_training_status"),
         (GarminActivity, "garmin_activity"),
         (GarminRacePrediction, "garmin_race_prediction"),
+        (EightSleepSession, "eight_sleep_sessions"),
     ]
 
     with read_engine.connect() as conn:

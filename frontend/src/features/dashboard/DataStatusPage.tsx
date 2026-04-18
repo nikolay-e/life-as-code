@@ -30,6 +30,13 @@ interface DataSourceStatus {
   cadence: DataCadence;
 }
 
+interface SourceGroup {
+  name: string;
+  syncKey: string;
+  color: string;
+  items: DataSourceStatus[];
+}
+
 export function DataStatusPage() {
   const { data, isLoading, error } = useHealthData(365);
   const { data: syncStatus, isLoading: syncLoading } = useSyncStatus();
@@ -75,30 +82,79 @@ export function DataStatusPage() {
     };
   };
 
-  const dataSources: DataSourceStatus[] = [
-    getDataSourceStatus(data?.sleep, "Sleep", "Health"),
-    getDataSourceStatus(data?.hrv, "HRV", "Health"),
-    getDataSourceStatus(data?.weight, "Weight", "Health"),
-    getDataSourceStatus(data?.heart_rate, "Heart Rate", "Health"),
-    getDataSourceStatus(data?.stress, "Stress", "Health"),
-    getDataSourceStatus(data?.steps, "Steps", "Health"),
-    getDataSourceStatus(data?.energy, "Energy", "Health"),
-    getDataSourceStatus(
-      data?.garmin_training_status,
-      "Training Status",
-      "Garmin",
-    ),
-    getDataSourceStatus(data?.workouts, "Workouts", "Hevy", "sporadic"),
-    getDataSourceStatus(data?.whoop_recovery, "Whoop Recovery", "Whoop"),
-    getDataSourceStatus(data?.whoop_sleep, "Whoop Sleep", "Whoop"),
-    getDataSourceStatus(
-      data?.whoop_workout,
-      "Whoop Workouts",
-      "Whoop",
-      "sporadic",
-    ),
-    getDataSourceStatus(data?.whoop_cycle, "Whoop Cycles", "Whoop"),
+  const sourceGroups: SourceGroup[] = [
+    {
+      name: "Garmin",
+      syncKey: "garmin",
+      color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+      items: [
+        getDataSourceStatus(data?.sleep, "Sleep", "Garmin"),
+        getDataSourceStatus(data?.hrv, "HRV", "Garmin"),
+        getDataSourceStatus(data?.heart_rate, "Heart Rate", "Garmin"),
+        getDataSourceStatus(data?.weight, "Weight", "Garmin"),
+        getDataSourceStatus(data?.stress, "Stress", "Garmin"),
+        getDataSourceStatus(data?.steps, "Steps", "Garmin"),
+        getDataSourceStatus(data?.energy, "Energy", "Garmin"),
+        getDataSourceStatus(
+          data?.garmin_training_status,
+          "Training Status",
+          "Garmin",
+        ),
+        getDataSourceStatus(
+          data?.garmin_activity,
+          "Activities",
+          "Garmin",
+          "sporadic",
+        ),
+        getDataSourceStatus(
+          data?.garmin_race_prediction,
+          "Race Predictions",
+          "Garmin",
+        ),
+      ],
+    },
+    {
+      name: "Whoop",
+      syncKey: "whoop",
+      color:
+        "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
+      items: [
+        getDataSourceStatus(data?.whoop_recovery, "Recovery", "Whoop"),
+        getDataSourceStatus(data?.whoop_sleep, "Sleep", "Whoop"),
+        getDataSourceStatus(
+          data?.whoop_workout,
+          "Workouts",
+          "Whoop",
+          "sporadic",
+        ),
+        getDataSourceStatus(data?.whoop_cycle, "Cycles", "Whoop"),
+      ],
+    },
+    {
+      name: "Hevy",
+      syncKey: "hevy",
+      color:
+        "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
+      items: [
+        getDataSourceStatus(data?.workouts, "Workouts", "Hevy", "sporadic"),
+      ],
+    },
+    {
+      name: "Eight Sleep",
+      syncKey: "eight_sleep",
+      color:
+        "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300",
+      items: [
+        getDataSourceStatus(
+          data?.eight_sleep_sessions,
+          "Sleep Sessions",
+          "Eight Sleep",
+        ),
+      ],
+    },
   ];
+
+  const allSources = sourceGroups.flatMap((g) => g.items);
 
   const getSporadicSourceSyncProvider = (
     status: DataSourceStatus,
@@ -107,7 +163,7 @@ export function DataStatusPage() {
       Hevy: "hevy",
       Whoop: "whoop",
       Garmin: "garmin",
-      Health: "garmin",
+      "Eight Sleep": "eight_sleep",
     };
     const source = providerToSource[status.provider];
     return source ? getLastSyncForSource(syncStatus, source) : null;
@@ -182,8 +238,12 @@ export function DataStatusPage() {
     };
   };
 
-  const totalRecords = dataSources.reduce((sum, ds) => sum + ds.count, 0);
-  const activeSources = dataSources.filter((ds) => ds.count > 0).length;
+  const totalRecords = allSources.reduce((sum, ds) => sum + ds.count, 0);
+  const activeSources = allSources.filter((ds) => ds.count > 0).length;
+
+  const syncSources = sourceGroups.filter((g) =>
+    g.items.some((i) => i.count > 0),
+  );
 
   return (
     <div className="space-y-8">
@@ -226,7 +286,7 @@ export function DataStatusPage() {
                 <p className="text-3xl font-bold tracking-tight">
                   {activeSources}
                   <span className="text-lg font-normal text-muted-foreground">
-                    /{dataSources.length}
+                    /{String(allSources.length)}
                   </span>
                 </p>
                 <p className="text-xs text-muted-foreground">
@@ -294,82 +354,106 @@ export function DataStatusPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-6 sm:grid-cols-4">
+          <div className="grid gap-6 sm:grid-cols-5">
             <SyncStatusItem
               label="Last Sync"
               date={getLatestSyncDate(syncStatus)}
             />
-            <SyncStatusItem
-              label="Garmin"
-              date={getLastSyncForSource(syncStatus, "garmin")}
-            />
-            <SyncStatusItem
-              label="Hevy"
-              date={getLastSyncForSource(syncStatus, "hevy")}
-            />
-            <SyncStatusItem
-              label="Whoop"
-              date={getLastSyncForSource(syncStatus, "whoop")}
-            />
+            {syncSources.map((group) => (
+              <SyncStatusItem
+                key={group.syncKey}
+                label={group.name}
+                date={getLastSyncForSource(syncStatus, group.syncKey)}
+              />
+            ))}
           </div>
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className="pb-4">
-          <CardTitle>Data Sources</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="divide-y divide-border">
-            {dataSources.map((source) => {
-              const statusInfo = getStatusInfo(source);
-              const StatusIcon = statusInfo.icon;
+      {sourceGroups.map((group) => {
+        const groupRecords = group.items.reduce((s, i) => s + i.count, 0);
+        if (
+          groupRecords === 0 &&
+          !getLastSyncForSource(syncStatus, group.syncKey)
+        ) {
+          return null;
+        }
 
-              return (
-                <div
-                  key={source.name}
-                  className="flex items-center justify-between py-4 first:pt-0 last:pb-0"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className={cn("p-2 rounded-lg", statusInfo.bgClass)}>
-                      <StatusIcon
-                        className={cn("h-4 w-4", statusInfo.colorClass)}
-                      />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium">{source.name}</p>
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                          {source.provider}
-                        </span>
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        {source.count > 0
-                          ? `${source.count.toLocaleString()} records`
-                          : "No data available"}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    {source.latestDate ? (
-                      <>
-                        <p className="text-sm font-medium">
-                          {format(parseISO(source.latestDate), "MMM d, yyyy")}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {statusInfo.label}
-                        </p>
-                      </>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">-</p>
+        return (
+          <Card key={group.syncKey}>
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span
+                    className={cn(
+                      "text-xs font-bold px-2.5 py-1 rounded-full",
+                      group.color,
                     )}
-                  </div>
+                  >
+                    {group.name}
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    {groupRecords.toLocaleString()} records
+                  </span>
                 </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+                <SyncTimestamp
+                  date={getLastSyncForSource(syncStatus, group.syncKey)}
+                />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="divide-y divide-border">
+                {group.items.map((source) => {
+                  const statusInfo = getStatusInfo(source);
+                  const StatusIcon = statusInfo.icon;
+
+                  return (
+                    <div
+                      key={`${group.syncKey}-${source.name}`}
+                      className="flex items-center justify-between py-3 first:pt-0 last:pb-0"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={cn("p-1.5 rounded-lg", statusInfo.bgClass)}
+                        >
+                          <StatusIcon
+                            className={cn("h-3.5 w-3.5", statusInfo.colorClass)}
+                          />
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">{source.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {source.count > 0
+                              ? `${source.count.toLocaleString()} records`
+                              : "No data"}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        {source.latestDate ? (
+                          <>
+                            <p className="text-sm font-medium">
+                              {format(
+                                parseISO(source.latestDate),
+                                "MMM d, yyyy",
+                              )}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {statusInfo.label}
+                            </p>
+                          </>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">-</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 }
@@ -387,5 +471,14 @@ function SyncStatusItem({ label, date }: SyncStatusItemProps) {
         {date ? format(parseISO(date), "PPp") : "Never"}
       </p>
     </div>
+  );
+}
+
+function SyncTimestamp({ date }: { readonly date: string | null }) {
+  if (!date) return null;
+  return (
+    <p className="text-xs text-muted-foreground">
+      Last sync: {format(parseISO(date), "MMM d, h:mm a")}
+    </p>
   );
 }
