@@ -167,7 +167,14 @@ def sync_garmin_data_for_user(
         return {"error": "Garmin credentials not configured", "user_id": user_id}
 
     try:
-        api = init_api(user_id)
+        try:
+            api = init_api(user_id)
+        except GarminConnectAuthenticationError:
+            logger.info("garmin_no_tokens_doing_initial_login", user_id=user_id)
+            api = init_api_with_login(
+                creds.garmin_email, creds.garmin_password, user_id
+            )
+
         date_range = get_sync_date_range(days, full_sync, GARMIN_MAX_HISTORY_DAYS)
 
         logger.info(
