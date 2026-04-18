@@ -12,6 +12,8 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSON
 
+USERS_ID_FK = "users.id"
+
 revision = "018_add_longevity_tables"
 down_revision = "017_add_garmin_fields"
 branch_labels = None
@@ -25,7 +27,7 @@ def upgrade() -> None:
     op.create_table(
         "blood_biomarkers",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=False, index=True),
+        sa.Column("user_id", sa.Integer(), sa.ForeignKey(USERS_ID_FK), nullable=False, index=True),
         sa.Column("date", sa.Date(), nullable=False, index=True),
         sa.Column("marker_name", sa.String(100), nullable=False),
         sa.Column("value", sa.Float(), nullable=False),
@@ -45,7 +47,7 @@ def upgrade() -> None:
     op.create_table(
         "interventions",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=False, index=True),
+        sa.Column("user_id", sa.Integer(), sa.ForeignKey(USERS_ID_FK), nullable=False, index=True),
         sa.Column("name", sa.String(200), nullable=False),
         sa.Column("category", sa.String(50), nullable=False),
         sa.Column("start_date", sa.Date(), nullable=False),
@@ -68,7 +70,7 @@ def upgrade() -> None:
     op.create_table(
         "functional_tests",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=False, index=True),
+        sa.Column("user_id", sa.Integer(), sa.ForeignKey(USERS_ID_FK), nullable=False, index=True),
         sa.Column("date", sa.Date(), nullable=False, index=True),
         sa.Column("test_name", sa.String(100), nullable=False),
         sa.Column("value", sa.Float(), nullable=False),
@@ -83,7 +85,7 @@ def upgrade() -> None:
     op.create_table(
         "longevity_goals",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=False, index=True),
+        sa.Column("user_id", sa.Integer(), sa.ForeignKey(USERS_ID_FK), nullable=False, index=True),
         sa.Column("category", sa.String(100), nullable=False),
         sa.Column("description", sa.Text(), nullable=False),
         sa.Column("target_value", sa.Float()),
