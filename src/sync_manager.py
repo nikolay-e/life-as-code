@@ -49,6 +49,103 @@ def get_sync_date_range(
     return SyncDateRange(start_date=start_date, end_date=end_date, sync_type=sync_type)
 
 
+GAP_MIN_CONSECUTIVE_DAYS = 3
+
+_SOURCE_GAP_QUERIES: dict[str, str] = {
+    "garmin": (
+        "SELECT DISTINCT date FROM sleep "
+        "WHERE user_id = :uid AND source = 'garmin' AND date >= :start "
+        "UNION "
+        "SELECT DISTINCT date FROM hrv "
+        "WHERE user_id = :uid AND source = 'garmin' AND date >= :start"
+    ),
+    "eight_sleep": (
+        "SELECT DISTINCT date FROM eight_sleep_sessions "
+        "WHERE user_id = :uid AND date >= :start"
+    ),
+    "whoop": (
+        "SELECT DISTINCT date FROM whoop_recovery "
+        "WHERE user_id = :uid AND date >= :start"
+    ),
+}
+
+_SOURCE_MAX_HISTORY_DAYS: dict[str, int] = {
+    "garmin": 1825,
+    "eight_sleep": 365,
+    "whoop": 730,
+}
+
+
+def find_coverage_gap_days(user_id: int, source: str) -> int:
+    query = _SOURCE_GAP_QUERIES.get(source)
+    if not query:
+        return 0
+
+    lookback_days = _SOURCE_MAX_HISTORY_DAYS.get(source, 365)
+
+    with get_db_session_context() as db:
+        today = datetime.date.today()
+        yesterday = today - datetime.timedelta(days=1)
+        start_date = today - datetime.timedelta(days=lookback_days)
+
+        rows = db.execute(
+            text(query),
+            {"uid": user_id, "start": start_date},
+        ).fetchall()
+
+        if not rows:
+            return lookback_days
+
+        existing_dates = {row[0] for row in rows}
+
+        # Scan backward from yesterday to find the most recent significant gap first.
+        # This ensures we fill recent holes before digging deeper into history.
+        gap_end: datetime.date | None = None
+        consecutive_missing = 0
+        current = yesterday
+
+        while current >= start_date:
+            if current not in existing_dates:
+                if gap_end is None:
+                    gap_end = current
+                consecutive_missing += 1
+            else:
+                if (
+                    consecutive_missing >= GAP_MIN_CONSECUTIVE_DAYS
+                    and gap_end is not None
+                ):
+                    gap_start = current + datetime.timedelta(days=1)
+                    days_needed = (yesterday - gap_start).days + 2
+                    logger.info(
+                        "data_gap_detected",
+                        source=source,
+                        user_id=user_id,
+                        gap_start=gap_start,
+                        gap_end=gap_end,
+                        consecutive_days=consecutive_missing,
+                        days_to_backfill=days_needed,
+                    )
+                    return days_needed
+                gap_end = None
+                consecutive_missing = 0
+            current -= datetime.timedelta(days=1)
+
+        if consecutive_missing >= GAP_MIN_CONSECUTIVE_DAYS and gap_end is not None:
+            days_needed = (yesterday - start_date).days + 2
+            logger.info(
+                "data_gap_detected",
+                source=source,
+                user_id=user_id,
+                gap_start=start_date,
+                gap_end=gap_end,
+                consecutive_days=consecutive_missing,
+                days_to_backfill=days_needed,
+            )
+            return days_needed
+
+        return 0
+
+
 def _get_garmin_credentials(
     creds, user_id: int, provider_name: str
 ) -> ProviderCredentials:

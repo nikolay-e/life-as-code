@@ -12,7 +12,7 @@ from enums import DataSource, SyncStatus
 from logging_config import configure_logging, get_logger
 from models import DataSync, User
 from sync_backoff import SyncBackoffManager
-from sync_manager import is_sync_recently_active
+from sync_manager import find_coverage_gap_days, is_sync_recently_active
 from utils import has_credentials_for_source
 
 configure_logging()
@@ -125,12 +125,38 @@ def _was_recently_synced(user_id: int, source: str) -> bool:
         return False
 
 
-def _sync_source_for_user(user_id: int, source: str, sync_func) -> None:
-    logger.info(
-        "scheduler_sync_starting", user_id=user_id, source=source, days=SYNC_DAYS
-    )
+def _get_sync_days_with_backfill(user_id: int, source: str) -> int:
     try:
-        result = sync_func(user_id, days=SYNC_DAYS)
+        gap_days: int = find_coverage_gap_days(user_id, source)
+        if gap_days > SYNC_DAYS:
+            logger.info(
+                "scheduler_backfill_needed",
+                user_id=user_id,
+                source=source,
+                gap_days=gap_days,
+            )
+            return gap_days
+    except Exception:
+        logger.exception("scheduler_gap_check_failed", user_id=user_id, source=source)
+    return SYNC_DAYS
+
+
+_GAP_DETECTION_SOURCES = {
+    DataSource.GARMIN.value,
+    DataSource.EIGHT_SLEEP.value,
+    DataSource.WHOOP.value,
+}
+
+
+def _sync_source_for_user(user_id: int, source: str, sync_func) -> None:
+    days = (
+        _get_sync_days_with_backfill(user_id, source)
+        if source in _GAP_DETECTION_SOURCES
+        else SYNC_DAYS
+    )
+    logger.info("scheduler_sync_starting", user_id=user_id, source=source, days=days)
+    try:
+        result = sync_func(user_id, days=days)
         success = result.get("success", False)
 
         if success:
