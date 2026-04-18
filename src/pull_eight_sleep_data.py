@@ -98,6 +98,8 @@ class EightSleepAPIClient:
         if not self._access_token:
             self.authenticate()
             return
+        if "Authorization" not in self._session.headers:
+            self._session.headers["Authorization"] = f"Bearer {self._access_token}"
         if self._token_expires_at and utcnow() >= self._token_expires_at:
             logger.info("eight_sleep_token_expired_refreshing")
             self.authenticate()
