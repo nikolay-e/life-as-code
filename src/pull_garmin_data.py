@@ -58,29 +58,60 @@ load_dotenv()
 logger = get_logger(__name__)
 
 
-def init_api(email: str, password: str, user_id: int) -> Garmin:
-    """Initialize Garmin API with proper authentication using provided credentials."""
+def _get_tokenstore(user_id: int):
     from pathlib import Path
 
-    # User-specific token storage for persistent sessions
     tokenstore = Path(f"/app/.garminconnect/user_{user_id}")
     tokenstore.mkdir(parents=True, exist_ok=True)
+    return tokenstore
+
+
+def init_api(user_id: int) -> Garmin:
+    tokenstore = _get_tokenstore(user_id)
 
     try:
-        # Try to use existing tokens first
-        if (tokenstore / "oauth1_token.json").exists():
+        if (tokenstore / "garmin_tokens.json").exists():
             logger.info("garmin_loading_tokens", user_id=user_id)
             api = Garmin()
             api.login(str(tokenstore))
             return api
 
-        # First-time login with credentials
-        logger.info("garmin_first_login", user_id=user_id)
+        raise GarminConnectAuthenticationError(
+            "No saved tokens — run initial login from Settings"
+        )
+
+    except GarminConnectAuthenticationError as e:
+        logger.error(
+            "garmin_auth_failed",
+            user_id=user_id,
+            error_type="authentication",
+            error=str(e),
+        )
+        raise
+    except (
+        GarminConnectConnectionError,
+        GarminConnectTooManyRequestsError,
+        RequestException,
+        OSError,
+    ) as e:
+        logger.error(
+            "garmin_init_failed",
+            user_id=user_id,
+            error_type=type(e).__name__,
+            error=str(e),
+        )
+        raise
+
+
+def init_api_with_login(email: str, password: str, user_id: int) -> Garmin:
+    tokenstore = _get_tokenstore(user_id)
+
+    try:
+        logger.info("garmin_sso_login", user_id=user_id)
         api = Garmin(email, password)
         api.login()
 
-        # Save tokens for future use
-        api.garth.dump(str(tokenstore))
+        api.client.dump(str(tokenstore))
         logger.info("garmin_tokens_saved", user_id=user_id)
         return api
 
@@ -119,7 +150,7 @@ def _save_refreshed_tokens(api: Garmin, user_id: int) -> None:
     try:
         tokenstore = Path(f"/app/.garminconnect/user_{user_id}")
         tokenstore.mkdir(parents=True, exist_ok=True)
-        api.garth.dump(str(tokenstore))
+        api.client.dump(str(tokenstore))
         logger.info("garmin_tokens_refreshed_saved", user_id=user_id)
     except Exception:
         logger.warning("garmin_tokens_save_failed", user_id=user_id, exc_info=True)
@@ -138,7 +169,7 @@ def sync_garmin_data_for_user(
         return {"error": "Garmin credentials not configured", "user_id": user_id}
 
     try:
-        api = init_api(creds.garmin_email, creds.garmin_password, user_id)
+        api = init_api(user_id)
         date_range = get_sync_date_range(days, full_sync, GARMIN_MAX_HISTORY_DAYS)
 
         logger.info(

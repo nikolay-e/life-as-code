@@ -562,6 +562,10 @@ def api_test_garmin_credentials():
 
         garmin_api = Garmin(body.email, body.password)
         garmin_api.login()
+
+        token_dir = f"/app/.garminconnect/user_{current_user.id}"
+        os.makedirs(token_dir, exist_ok=True)
+        garmin_api.client.dump(token_dir)
         logger.info("garmin_credentials_test_success", user_id=current_user.id)
         return jsonify({"success": True})
     except GarminConnectAuthenticationError:
