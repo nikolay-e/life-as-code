@@ -91,7 +91,6 @@ def init_api(user_id: int) -> Garmin:
     except (
         GarminConnectConnectionError,
         GarminConnectTooManyRequestsError,
-        RequestException,
         OSError,
     ) as e:
         logger.error(
@@ -126,7 +125,6 @@ def init_api_with_login(email: str, password: str, user_id: int) -> Garmin:
     except (
         GarminConnectConnectionError,
         GarminConnectTooManyRequestsError,
-        RequestException,
         OSError,
     ) as e:
         logger.error(

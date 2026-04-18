@@ -284,7 +284,7 @@ def calculate_fitness_metrics(
 
     days_since: int | None = None
     if workout_date_set:
-        last_workout = to_day_date(sorted(workout_date_set, reverse=True)[0])
+        last_workout = to_day_date(max(workout_date_set))
         days_since = (today - last_workout).days
 
     freq_7d = sum(1 for d in workout_date_set if (today - to_day_date(d)).days < 7)

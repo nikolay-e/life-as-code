@@ -150,12 +150,9 @@ export function useTrendData<T extends { date: string }>(
     })) as (T & TrendDataPoint)[];
 
     const effectiveBaselineKey = baselineValueKey ?? (valueKey as string);
+    const baselineInput = preprocessor ? processed : normalized;
     const baseline = showBaseline
-      ? calculateBaseline(
-          preprocessor ? processed : normalized,
-          baselineWindow,
-          effectiveBaselineKey,
-        )
+      ? calculateBaseline(baselineInput, baselineWindow, effectiveBaselineKey)
       : null;
 
     const hasData = chartData.some((d) => d.value !== null);

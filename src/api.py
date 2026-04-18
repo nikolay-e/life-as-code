@@ -951,9 +951,12 @@ def api_test_eight_sleep_credentials():
         from pull_eight_sleep_data import EightSleepAPIClient
 
         client = EightSleepAPIClient(body.email, body.password)
-        client.authenticate()
-        logger.info("eight_sleep_credentials_test_success", user_id=current_user.id)
-        return jsonify({"success": True})
+        try:
+            client.authenticate()
+            logger.info("eight_sleep_credentials_test_success", user_id=current_user.id)
+            return jsonify({"success": True})
+        finally:
+            client.close()
     except Exception:
         logger.exception("eight_sleep_credentials_test_error", user_id=current_user.id)
         return jsonify(

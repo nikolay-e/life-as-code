@@ -3,31 +3,52 @@
 ## Timing Patterns
 
 - Parallel CI builds complete in ~50-70s (backend/bot/frontend), ML ~6min, precommit ~7min
-- ArgoCD Image Updater picks up new images within 2-3min after CI build completes
-- Pod rollout takes ~30s after Image Updater updates the deployment
-- Total CI-to-live: builds ~1min + Image Updater ~2min + rollout ~30s ≈ 4min for non-ML changes
+- Total CI-to-live: ≈4min for non-ML changes
 
 ## Browser QA
 
-- PWA aggressively caches — always click "Update now" toast before testing new version
 - Verify version in footer (`vmain-<sha>`) matches target commit before testing
-- Playwright session cookies don't persist across `browser_navigate` — login immediately before the page you need to test
-- Login credentials stored in 1Password: `op item get "Admin Life As Code" --fields password --reveal`
-- 401 on `/api/auth/me` during login page load is expected (session check), not an error
+- Login credentials are auto-filled on the login page — just click "Sign In"
+- All 5 pages to check: Dashboard, Statistics, Trainings, Data Status, Settings
+- 401 on `/api/auth/me` before login is expected — not a bug
 
 ## Backend Logs
 
-- Filter by `--since=5m` to avoid noise from pod init
 - `[ERROR] Control server error: Permission denied: '/home/appuser'` is cosmetic gunicorn issue, ignore
 - Scheduler runs on its own deployment — check `deployment/life-as-code-production-scheduler` separately
+- Bot and ML pods may have no recent logs — silence is normal
 
 ## Database Migrations
 
 - Alembic autogenerate detects spurious index changes (DESC vs ASC) — manually clean migration to only include intended changes
 - Check constraints (like `valid_sync_source`) are NOT auto-updated by autogenerate when adding new enum values — must be added manually to migration
+- Always verify migration downgrade restores dropped/replaced constraints
 
 ## Sync Backoff
 
 - Failed syncs trigger exponential backoff (0/20m/3h/24h/72h)
 - Reset backoff: `DELETE FROM sync_backoff WHERE source = '<source>'`
 - Check backoff status: `GET /api/sync/backoff-status`
+
+## Eight Sleep Integration
+
+- Auth response may not include userId — the `/users/me` endpoint must be used as fallback
+- Empty user ID in URL (double slash like `/users//trends`) means the user ID extraction failed
+- API response structure may nest user data under a `"user"` key
+
+## Testing Infrastructure
+
+- Integration tests need a real PostgreSQL — CI has its own test DB, local dev needs port-forward
+- API tests (test_api.py) call `exit(1)` if DB connection fails — they cannot run without a database
+- 28 non-DB tests pass locally; 14 DB tests require `TEST_DATABASE_URL` env var or matching credentials
+
+## SonarCloud
+
+- No OpenAPI spec available — skip Schemathesis for this project
+- Main code smell hotspot: `frontend/src/lib/report-formatter.ts` — complex string formatting logic
+- Quality gate typically passes (no bugs/vulnerabilities pattern)
+
+## K8s Events
+
+- Migration pod warnings (FailedToRetrieveImagePullSecret, secret not found) are transient — check exitCode, not events
+- Migration pod with exitCode 0 and status Completed = success despite warning events

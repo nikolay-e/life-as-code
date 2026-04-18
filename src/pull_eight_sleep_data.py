@@ -115,8 +115,26 @@ class EightSleepAPIClient:
         )
         response.raise_for_status()
         data = response.json()
-        self._eight_sleep_user_id = data.get("userId", data.get("id", ""))
-        return self._eight_sleep_user_id  # type: ignore[return-value]
+
+        user_data = data.get("user", data) if isinstance(data, dict) else data
+        user_id = (
+            user_data.get("userId")
+            or user_data.get("id")
+            or data.get("userId")
+            or data.get("id")
+        )
+
+        if not user_id:
+            logger.error(
+                "eight_sleep_user_id_not_found",
+                response_keys=(
+                    list(data.keys()) if isinstance(data, dict) else type(data).__name__
+                ),
+            )
+            raise ValueError("Eight Sleep user ID not found in /users/me response")
+
+        self._eight_sleep_user_id = str(user_id)
+        return self._eight_sleep_user_id
 
     def get_sleep_trends(
         self,

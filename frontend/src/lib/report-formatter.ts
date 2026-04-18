@@ -4,7 +4,10 @@ import type {
   WorkoutExerciseDetail,
   AdvancedInsights,
   AnalyticsResponse,
+  BiologicalAgeMetrics,
   DayMetrics,
+  LongevityScore,
+  TrainingZoneMetrics,
 } from "../types/api";
 import {
   formatDuration,
@@ -121,6 +124,42 @@ function formatToday(analytics: AnalyticsResponse, now: Date): string[] {
   return [`## Today`, parts.join(" | ")];
 }
 
+function formatIllnessAlert(
+  illness: AnalyticsResponse["illness_risk"],
+): string | null {
+  if (!illness.risk_level || illness.risk_level === "low") return null;
+  const comp = illness.components;
+  const parts = [
+    `${String(illness.consecutive_days_elevated)}d elevated`,
+    comp.hrv_drop != null ? `HRV↓${n(comp.hrv_drop, 2)}` : null,
+    comp.rhr_rise != null ? `RHR↑${n(comp.rhr_rise, 2)}` : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return `⚠ Pre-Illness: ${illness.risk_level.toUpperCase()} (${parts})`;
+}
+
+function formatClinicalAlerts(
+  clinical: AnalyticsResponse["clinical_alerts"],
+): string | null {
+  if (!clinical.any_alert) return null;
+  const alerts: string[] = [];
+  if (clinical.persistent_tachycardia) {
+    alerts.push(`Tachycardia ${String(clinical.tachycardia_days)}d`);
+  }
+  if (clinical.acute_hrv_drop) {
+    alerts.push(`HRV drop ${n(clinical.hrv_drop_percent, 0)}%`);
+  }
+  if (clinical.progressive_weight_loss) {
+    alerts.push(`Weight loss ${n(clinical.weight_loss_percent, 1)}%`);
+  }
+  if (clinical.severe_overtraining) {
+    alerts.push(`Overtraining score=${n(clinical.overtraining_score, 1)}`);
+  }
+  if (alerts.length === 0) return null;
+  return `⚠ Clinical: ${alerts.join(" | ")}`;
+}
+
 function formatStatus(analytics: AnalyticsResponse): string[] {
   const acwr = analytics.activity_metrics.acwr;
   const imbalance = analytics.recovery_metrics.hrv_rhr_imbalance;
@@ -135,16 +174,9 @@ function formatStatus(analytics: AnalyticsResponse): string[] {
     `Readiness: ${recommendation} (ACWR: ${n(acwr)} ${getAcwrStatus(acwr)}, Imbalance: ${n(imbalance)} ${getImbalanceStatus(imbalance)})`,
   ];
 
-  if (illness.risk_level && illness.risk_level !== "low") {
-    const comp = illness.components;
-    const parts = [
-      `${String(illness.consecutive_days_elevated)}d elevated`,
-      comp.hrv_drop != null ? `HRV↓${n(comp.hrv_drop, 2)}` : null,
-      comp.rhr_rise != null ? `RHR↑${n(comp.rhr_rise, 2)}` : null,
-    ]
-      .filter(Boolean)
-      .join(" ");
-    lines.push(`⚠ Pre-Illness: ${illness.risk_level.toUpperCase()} (${parts})`);
+  const illnessAlert = formatIllnessAlert(illness);
+  if (illnessAlert) {
+    lines.push(illnessAlert);
   }
 
   if (decor.is_decorrelated) {
@@ -153,23 +185,9 @@ function formatStatus(analytics: AnalyticsResponse): string[] {
     );
   }
 
-  if (clinical.any_alert) {
-    const alerts: string[] = [];
-    if (clinical.persistent_tachycardia) {
-      alerts.push(`Tachycardia ${String(clinical.tachycardia_days)}d`);
-    }
-    if (clinical.acute_hrv_drop) {
-      alerts.push(`HRV drop ${n(clinical.hrv_drop_percent, 0)}%`);
-    }
-    if (clinical.progressive_weight_loss) {
-      alerts.push(`Weight loss ${n(clinical.weight_loss_percent, 1)}%`);
-    }
-    if (clinical.severe_overtraining) {
-      alerts.push(`Overtraining score=${n(clinical.overtraining_score, 1)}`);
-    }
-    if (alerts.length > 0) {
-      lines.push(`⚠ Clinical: ${alerts.join(" | ")}`);
-    }
+  const clinicalAlert = formatClinicalAlerts(clinical);
+  if (clinicalAlert) {
+    lines.push(clinicalAlert);
   }
 
   if (overreaching.risk_level && overreaching.risk_level !== "low") {
@@ -207,6 +225,36 @@ function formatLastDays(lastDays: DayMetrics[]): string[] {
   return lines;
 }
 
+function formatBioAge(
+  bio: BiologicalAgeMetrics,
+  score: LongevityScore,
+): string | null {
+  if (bio.composite_biological_age === null && score.overall === null) {
+    return null;
+  }
+  if (bio.composite_biological_age !== null) {
+    const scoreStr =
+      score.overall !== null ? ` | Score: ${score.overall.toFixed(0)}/100` : "";
+    return `Bio Age: ${bio.composite_biological_age.toFixed(1)}y (chrono: ${String(bio.chronological_age)}, Δ=${n(bio.age_delta, 1)}y)${scoreStr}`;
+  }
+  return `Score: ${(score.overall ?? 0).toFixed(0)}/100`;
+}
+
+function formatZoneMinutes(zones: TrainingZoneMetrics): string | null {
+  if (zones.zone2_minutes_7d === null && zones.zone5_minutes_7d === null) {
+    return null;
+  }
+  const z2 =
+    zones.zone2_minutes_7d !== null
+      ? `Zone2: ${String(Math.round(zones.zone2_minutes_7d))}min/7d${zones.zone2_target_met ? " ✓" : " ✗"}`
+      : "";
+  const z5 =
+    zones.zone5_minutes_7d !== null
+      ? `Zone5: ${String(Math.round(zones.zone5_minutes_7d))}min/7d${zones.zone5_target_met ? " ✓" : " ✗"}`
+      : "";
+  return [z2, z5].filter(Boolean).join(" | ");
+}
+
 function formatLongevity(analytics: AnalyticsResponse): string[] {
   const longevity = analytics.longevity_insights;
   if (!longevity) return [];
@@ -217,12 +265,9 @@ function formatLongevity(analytics: AnalyticsResponse): string[] {
 
   const lines: string[] = [`## Longevity`];
 
-  if (bio.composite_biological_age !== null) {
-    lines.push(
-      `Bio Age: ${bio.composite_biological_age.toFixed(1)}y (chrono: ${String(bio.chronological_age)}, Δ=${n(bio.age_delta, 1)}y)${score.overall !== null ? ` | Score: ${score.overall.toFixed(0)}/100` : ""}`,
-    );
-  } else if (score.overall !== null) {
-    lines.push(`Score: ${score.overall.toFixed(0)}/100`);
+  const bioLine = formatBioAge(bio, score);
+  if (bioLine) {
+    lines.push(bioLine);
   }
 
   if (bio.components.length > 0) {
@@ -235,16 +280,9 @@ function formatLongevity(analytics: AnalyticsResponse): string[] {
     }
   }
 
-  if (zones.zone2_minutes_7d !== null || zones.zone5_minutes_7d !== null) {
-    const z2 =
-      zones.zone2_minutes_7d !== null
-        ? `Zone2: ${String(Math.round(zones.zone2_minutes_7d))}min/7d${zones.zone2_target_met === true ? " ✓" : " ✗"}`
-        : "";
-    const z5 =
-      zones.zone5_minutes_7d !== null
-        ? `Zone5: ${String(Math.round(zones.zone5_minutes_7d))}min/7d${zones.zone5_target_met === true ? " ✓" : " ✗"}`
-        : "";
-    lines.push([z2, z5].filter(Boolean).join(" | "));
+  const zoneLine = formatZoneMinutes(zones);
+  if (zoneLine) {
+    lines.push(zoneLine);
   }
 
   const scoreParts = [
@@ -290,9 +328,10 @@ function formatTrendsTable(
     const trendSlope = recent?.trend_slope ?? null;
     const percentile = recent?.percentile ?? null;
 
+    const trendPrefix = trendSlope !== null && trendSlope >= 0 ? "+" : "";
     const trend =
       trendSlope !== null
-        ? `${trendSlope >= 0 ? "+" : ""}${trendSlope.toFixed(2)}/d ${arrow(trendSlope)}`
+        ? `${trendPrefix}${trendSlope.toFixed(2)}/d ${arrow(trendSlope)}`
         : "";
     const pctl = percentile !== null ? percentile.toFixed(0) : "";
 
@@ -324,6 +363,12 @@ function formatAnomalies(analytics: AnalyticsResponse): string[] {
     );
   }
   return lines;
+}
+
+function formatWeightDelta(periodChange: number | null): string {
+  if (periodChange === null) return "";
+  const sign = periodChange >= 0 ? "+" : "";
+  return `${sign}${periodChange.toFixed(2)}`;
 }
 
 function formatTimeframeTable(
@@ -369,9 +414,7 @@ function formatTimeframeTable(
         : a.weight_metrics.ema_short.toFixed(1),
     ),
     row("Weight Δ(kg)", (a) =>
-      a.weight_metrics.period_change === null
-        ? ""
-        : `${a.weight_metrics.period_change >= 0 ? "+" : ""}${a.weight_metrics.period_change.toFixed(2)}`,
+      formatWeightDelta(a.weight_metrics.period_change),
     ),
   ];
 }
@@ -391,9 +434,10 @@ function formatHealthScore(analytics: AnalyticsResponse): string[] {
       (a, b) => (b.goodness_z_score ?? 0) - (a.goodness_z_score ?? 0),
     );
     const top = sorted[0];
-    const worst = sorted[sorted.length - 1];
+    const worst = sorted.at(-1)!;
     const topStr = `Top: ${top.name} z=${n(top.goodness_z_score, 1)} ${(top.confidence * 100).toFixed(0)}%`;
-    const worstStr = `Worst: ${worst.name} z=${n(worst.goodness_z_score, 1)} ${(worst.confidence * 100).toFixed(0)}%${worst.is_gated ? " [GATED]" : ""}`;
+    const gatedSuffix = worst.is_gated ? " [GATED]" : "";
+    const worstStr = `Worst: ${worst.name} z=${n(worst.goodness_z_score, 1)} ${(worst.confidence * 100).toFixed(0)}%${gatedSuffix}`;
     lines.push(`${topStr} | ${worstStr}`);
   }
 
@@ -420,9 +464,8 @@ function formatEnergyBalance(analytics: AnalyticsResponse): string[] {
     parts.push(`trend ${cal.trend}`);
   }
   if (eb.weight_delta !== null) {
-    parts.push(
-      `weight ${eb.weight_delta >= 0 ? "+" : ""}${eb.weight_delta.toFixed(2)}kg/7d`,
-    );
+    const sign = eb.weight_delta >= 0 ? "+" : "";
+    parts.push(`weight ${sign}${eb.weight_delta.toFixed(2)}kg/7d`);
   }
   if (eb.balance_signal) {
     parts.push(eb.balance_signal.replaceAll("_", " "));
@@ -443,68 +486,88 @@ interface DayAggregatedWorkout {
   notes: string[];
 }
 
-function buildDayAggregatedLog(
-  data: HealthData,
-  detailedWorkouts: WorkoutExerciseDetail[] | null,
-  now: Date,
-): DayAggregatedWorkout[] {
-  const thirtyDaysAgo = new Date(now);
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-  const byDate = new Map<string, DayAggregatedWorkout>();
-
-  const getOrCreate = (date: string): DayAggregatedWorkout => {
-    const existing = byDate.get(date);
-    if (existing) return existing;
-    const entry: DayAggregatedWorkout = {
-      date,
-      activities: [],
-      totalStrain: 0,
-      peakHr: null,
-      totalVolume: 0,
-      totalSets: 0,
-      duration: "",
-      distance: "",
-      notes: [],
-    };
-    byDate.set(date, entry);
-    return entry;
+function createEmptyDayWorkout(date: string): DayAggregatedWorkout {
+  return {
+    date,
+    activities: [],
+    totalStrain: 0,
+    peakHr: null,
+    totalVolume: 0,
+    totalSets: 0,
+    duration: "",
+    distance: "",
+    notes: [],
   };
+}
 
-  if (detailedWorkouts && detailedWorkouts.length > 0) {
-    for (const w of detailedWorkouts) {
-      const wDate = parseISO(w.date);
-      if (wDate < thirtyDaysAgo || wDate > now) continue;
-      const day = getOrCreate(w.date);
-      if (!day.activities.includes("Strength")) {
-        day.activities.push("Strength");
-      }
-      day.totalVolume += w.total_volume;
-      day.totalSets += w.total_sets;
-    }
-  } else {
-    for (const w of data.workouts) {
-      const wDate = parseISO(w.date);
-      if (wDate < thirtyDaysAgo || wDate > now) continue;
-      if (w.total_volume === null && w.total_sets === null) continue;
-      const day = getOrCreate(w.date);
-      if (!day.activities.includes("Strength")) {
-        day.activities.push("Strength");
-      }
-      day.totalVolume += w.total_volume ?? 0;
-      day.totalSets += w.total_sets ?? 0;
-    }
+function addUniqueActivity(day: DayAggregatedWorkout, name: string): void {
+  if (!day.activities.includes(name)) {
+    day.activities.push(name);
   }
+}
 
-  for (const a of data.garmin_activity) {
+function updatePeakHr(day: DayAggregatedWorkout, hr: number): void {
+  day.peakHr = day.peakHr !== null ? Math.max(day.peakHr, hr) : hr;
+}
+
+function aggregateDetailedWorkouts(
+  detailedWorkouts: WorkoutExerciseDetail[],
+  byDate: Map<string, DayAggregatedWorkout>,
+  thirtyDaysAgo: Date,
+  now: Date,
+): void {
+  for (const w of detailedWorkouts) {
+    const wDate = parseISO(w.date);
+    if (wDate < thirtyDaysAgo || wDate > now) continue;
+    let day = byDate.get(w.date);
+    if (!day) {
+      day = createEmptyDayWorkout(w.date);
+      byDate.set(w.date, day);
+    }
+    addUniqueActivity(day, "Strength");
+    day.totalVolume += w.total_volume;
+    day.totalSets += w.total_sets;
+  }
+}
+
+function aggregateFallbackWorkouts(
+  workouts: HealthData["workouts"],
+  byDate: Map<string, DayAggregatedWorkout>,
+  thirtyDaysAgo: Date,
+  now: Date,
+): void {
+  for (const w of workouts) {
+    const wDate = parseISO(w.date);
+    if (wDate < thirtyDaysAgo || wDate > now) continue;
+    if (w.total_volume === null && w.total_sets === null) continue;
+    let day = byDate.get(w.date);
+    if (!day) {
+      day = createEmptyDayWorkout(w.date);
+      byDate.set(w.date, day);
+    }
+    addUniqueActivity(day, "Strength");
+    day.totalVolume += w.total_volume ?? 0;
+    day.totalSets += w.total_sets ?? 0;
+  }
+}
+
+function aggregateGarminActivities(
+  activities: HealthData["garmin_activity"],
+  byDate: Map<string, DayAggregatedWorkout>,
+  thirtyDaysAgo: Date,
+  now: Date,
+): void {
+  for (const a of activities) {
     const aDate = parseISO(a.date);
     if (aDate < thirtyDaysAgo || aDate > now) continue;
     if (a.distance_meters !== null && a.distance_meters < 1000) continue;
-    const day = getOrCreate(a.date);
-    const name = a.activity_name ?? a.activity_type ?? DEFAULT_ACTIVITY_NAME;
-    if (!day.activities.includes(name)) {
-      day.activities.push(name);
+    let day = byDate.get(a.date);
+    if (!day) {
+      day = createEmptyDayWorkout(a.date);
+      byDate.set(a.date, day);
     }
+    const name = a.activity_name ?? a.activity_type ?? DEFAULT_ACTIVITY_NAME;
+    addUniqueActivity(day, name);
     if (a.duration_seconds !== null) {
       day.duration = formatDuration(a.duration_seconds);
     }
@@ -512,10 +575,7 @@ function buildDayAggregatedLog(
       day.distance = `${(a.distance_meters / 1000).toFixed(1)}km`;
     }
     if (a.avg_heart_rate !== null) {
-      day.peakHr =
-        day.peakHr !== null
-          ? Math.max(day.peakHr, a.avg_heart_rate)
-          : a.avg_heart_rate;
+      updatePeakHr(day, a.avg_heart_rate);
     }
     if (
       a.avg_speed_mps !== null &&
@@ -529,25 +589,51 @@ function buildDayAggregatedLog(
       day.notes.push(`TE=${a.training_effect_aerobic.toFixed(1)}`);
     }
   }
+}
 
-  for (const w of data.whoop_workout) {
+function aggregateWhoopWorkouts(
+  whoopWorkouts: HealthData["whoop_workout"],
+  byDate: Map<string, DayAggregatedWorkout>,
+  thirtyDaysAgo: Date,
+  now: Date,
+): void {
+  for (const w of whoopWorkouts) {
     const wDate = parseISO(w.date);
     if (wDate < thirtyDaysAgo || wDate > now) continue;
-    const day = getOrCreate(w.date);
-    const name = w.sport_name ?? DEFAULT_ACTIVITY_NAME;
-    if (!day.activities.includes(name)) {
-      day.activities.push(name);
+    let day = byDate.get(w.date);
+    if (!day) {
+      day = createEmptyDayWorkout(w.date);
+      byDate.set(w.date, day);
     }
+    const name = w.sport_name ?? DEFAULT_ACTIVITY_NAME;
+    addUniqueActivity(day, name);
     if (w.strain !== null) {
       day.totalStrain += w.strain;
     }
     if (w.avg_heart_rate !== null) {
-      day.peakHr =
-        day.peakHr !== null
-          ? Math.max(day.peakHr, w.avg_heart_rate)
-          : w.avg_heart_rate;
+      updatePeakHr(day, w.avg_heart_rate);
     }
   }
+}
+
+function buildDayAggregatedLog(
+  data: HealthData,
+  detailedWorkouts: WorkoutExerciseDetail[] | null,
+  now: Date,
+): DayAggregatedWorkout[] {
+  const thirtyDaysAgo = new Date(now);
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const byDate = new Map<string, DayAggregatedWorkout>();
+
+  if (detailedWorkouts && detailedWorkouts.length > 0) {
+    aggregateDetailedWorkouts(detailedWorkouts, byDate, thirtyDaysAgo, now);
+  } else {
+    aggregateFallbackWorkouts(data.workouts, byDate, thirtyDaysAgo, now);
+  }
+
+  aggregateGarminActivities(data.garmin_activity, byDate, thirtyDaysAgo, now);
+  aggregateWhoopWorkouts(data.whoop_workout, byDate, thirtyDaysAgo, now);
 
   return Array.from(byDate.values()).sort((a, b) =>
     b.date.localeCompare(a.date),
@@ -637,45 +723,46 @@ function formatClinical(analytics: AnalyticsResponse): string[] {
   return lines;
 }
 
-function formatAdvanced(insights: AdvancedInsights): string[] {
-  const {
-    hrv_advanced,
-    sleep_quality,
-    fitness,
-    allostatic_load,
-    recovery_enhanced,
-  } = insights;
-  const lines: string[] = [`## Advanced`];
+function formatHrvAdvanced(hrv: AdvancedInsights["hrv_advanced"]): string {
+  return `HRV: ln(RMSSD)=${n(hrv.ln_rmssd_current, 2)} (7d: ${n(hrv.ln_rmssd_mean_7d, 2)}±${n(hrv.ln_rmssd_sd_7d, 3)}) divergence=${n(hrv.divergence_rate, 3)}`;
+}
 
-  lines.push(
-    `HRV: ln(RMSSD)=${n(hrv_advanced.ln_rmssd_current, 2)} (7d: ${n(hrv_advanced.ln_rmssd_mean_7d, 2)}±${n(hrv_advanced.ln_rmssd_sd_7d, 3)}) divergence=${n(hrv_advanced.divergence_rate, 3)}`,
-  );
-
+function formatSleepQuality(
+  sleep: AdvancedInsights["sleep_quality"],
+): string | null {
   const sleepParts = [
-    sleep_quality.deep_sleep_pct !== null
-      ? `deep=${sleep_quality.deep_sleep_pct.toFixed(0)}%`
+    sleep.deep_sleep_pct !== null
+      ? `deep=${sleep.deep_sleep_pct.toFixed(0)}%`
       : null,
-    sleep_quality.rem_sleep_pct !== null
-      ? `rem=${sleep_quality.rem_sleep_pct.toFixed(0)}%`
+    sleep.rem_sleep_pct !== null
+      ? `rem=${sleep.rem_sleep_pct.toFixed(0)}%`
       : null,
-    sleep_quality.efficiency !== null
-      ? `eff=${sleep_quality.efficiency.toFixed(0)}%`
+    sleep.efficiency !== null ? `eff=${sleep.efficiency.toFixed(0)}%` : null,
+    sleep.fragmentation_index !== null
+      ? `frag=${sleep.fragmentation_index.toFixed(1)}`
       : null,
-    sleep_quality.fragmentation_index !== null
-      ? `frag=${sleep_quality.fragmentation_index.toFixed(1)}`
-      : null,
-    sleep_quality.consistency_score !== null
-      ? `consistency=${sleep_quality.consistency_score.toFixed(0)}%`
+    sleep.consistency_score !== null
+      ? `consistency=${sleep.consistency_score.toFixed(0)}%`
       : null,
   ].filter(Boolean);
-  if (sleepParts.length > 0) {
-    lines.push(`Sleep: ${sleepParts.join(" ")}`);
-  }
+  if (sleepParts.length === 0) return null;
+  return `Sleep: ${sleepParts.join(" ")}`;
+}
 
+function formatVo2MaxWithTrend(fitness: AdvancedInsights["fitness"]): string {
+  if (fitness.vo2_max_current === null) return "";
+  if (fitness.vo2_max_trend === null) {
+    return `VO2=${fitness.vo2_max_current.toFixed(1)}`;
+  }
+  const sign = fitness.vo2_max_trend >= 0 ? "+" : "";
+  return `VO2=${fitness.vo2_max_current.toFixed(1)}(${sign}${fitness.vo2_max_trend.toFixed(2)}/wk)`;
+}
+
+function formatFitnessMetrics(
+  fitness: AdvancedInsights["fitness"],
+): string | null {
   const fitParts = [
-    fitness.vo2_max_current !== null
-      ? `VO2=${fitness.vo2_max_current.toFixed(1)}${fitness.vo2_max_trend !== null ? `(${fitness.vo2_max_trend >= 0 ? "+" : ""}${fitness.vo2_max_trend.toFixed(2)}/wk)` : ""}`
-      : null,
+    formatVo2MaxWithTrend(fitness) || null,
     fitness.ctl !== null ? `CTL=${fitness.ctl.toFixed(0)}` : null,
     fitness.atl !== null ? `ATL=${fitness.atl.toFixed(0)}` : null,
     fitness.tsb !== null ? `TSB=${fitness.tsb.toFixed(0)}` : null,
@@ -683,84 +770,125 @@ function formatAdvanced(insights: AdvancedInsights): string[] {
       ? `monotony=${fitness.monotony.toFixed(1)}`
       : null,
   ].filter(Boolean);
-  if (fitParts.length > 0) {
-    lines.push(`Fitness: ${fitParts.join(" ")}`);
-  }
+  if (fitParts.length === 0) return null;
+  return `Fitness: ${fitParts.join(" ")}`;
+}
 
-  const alloScore = n(allostatic_load.composite_score, 2);
+function formatAllostaticAndRecovery(
+  allostatic: AdvancedInsights["allostatic_load"],
+  recovery: AdvancedInsights["recovery_enhanced"],
+): string {
+  const alloScore = n(allostatic.composite_score, 2);
   const alloNorm =
-    allostatic_load.composite_score !== null &&
-    allostatic_load.composite_score > 10
+    allostatic.composite_score !== null && allostatic.composite_score > 10
       ? " [HIGH, norm:<10]"
       : "";
-  const recDebt = recovery_enhanced.recovery_debt;
+  const recDebt = recovery.recovery_debt;
   const recDebtNorm =
     recDebt !== null && recDebt > 100 ? " [HIGH, norm:<100]" : "";
-  const halfLife = recovery_enhanced.recovery_half_life_days;
+  const halfLife = recovery.recovery_half_life_days;
+  const halfLifeStr = halfLife !== null ? `${halfLife.toFixed(1)}d` : "N/A";
+
+  return `Allostatic: ${alloScore}${alloNorm} (trend:${n(allostatic.trend, 3)}) | Recovery: debt=${n(recDebt, 1)}${recDebtNorm} mismatch=${n(recovery.strain_recovery_mismatch_7d, 2)} half-life=${halfLifeStr}`;
+}
+
+function formatAdvanced(insights: AdvancedInsights): string[] {
+  const lines: string[] = [`## Advanced`];
+
+  lines.push(formatHrvAdvanced(insights.hrv_advanced));
+
+  const sleepLine = formatSleepQuality(insights.sleep_quality);
+  if (sleepLine) {
+    lines.push(sleepLine);
+  }
+
+  const fitnessLine = formatFitnessMetrics(insights.fitness);
+  if (fitnessLine) {
+    lines.push(fitnessLine);
+  }
 
   lines.push(
-    `Allostatic: ${alloScore}${alloNorm} (trend:${n(allostatic_load.trend, 3)}) | Recovery: debt=${n(recDebt, 1)}${recDebtNorm} mismatch=${n(recovery_enhanced.strain_recovery_mismatch_7d, 2)} half-life=${halfLife === null ? "N/A" : `${halfLife.toFixed(1)}d`}`,
+    formatAllostaticAndRecovery(
+      insights.allostatic_load,
+      insights.recovery_enhanced,
+    ),
   );
 
   return lines;
+}
+
+function ensureSectionHeader(lines: string[]): void {
+  if (lines.length === 0) {
+    lines.push(`## Cross-Domain`);
+  }
+}
+
+function formatHrvResidual(
+  residual: AdvancedInsights["cross_domain"]["hrv_residual"],
+  lines: string[],
+): void {
+  const hasResidual = !isAllNull(
+    residual.predicted,
+    residual.actual,
+    residual.residual,
+  );
+  if (!hasResidual) return;
+
+  ensureSectionHeader(lines);
+  lines.push(
+    `HRV Residual: pred=${n(residual.predicted)} actual=${n(residual.actual)} residual=${n(residual.residual)} z=${n(residual.residual_z, 2)} R²=${n(residual.r_squared, 3)}`,
+  );
+}
+
+function formatWeightHrvCoupling(
+  crossDomain: AdvancedInsights["cross_domain"],
+  lines: string[],
+): void {
+  if (
+    crossDomain.weight_hrv_coupling === null ||
+    crossDomain.weight_hrv_p_value === null ||
+    crossDomain.weight_hrv_p_value >= 0.05
+  ) {
+    return;
+  }
+  ensureSectionHeader(lines);
+  lines.push(
+    `Weight-HRV: r=${crossDomain.weight_hrv_coupling.toFixed(3)} (p=${crossDomain.weight_hrv_p_value.toFixed(3)})`,
+  );
+}
+
+function formatWeekdayWeekend(
+  ww: AdvancedInsights["cross_domain"]["weekday_weekend"],
+  lines: string[],
+): void {
+  const wwKeys = Object.keys(ww);
+  if (wwKeys.length === 0) return;
+
+  const meaningful = wwKeys.filter((k) => {
+    const s = ww[k];
+    return s.delta !== null && Math.abs(s.delta) >= 1;
+  });
+  if (meaningful.length === 0) return;
+
+  ensureSectionHeader(lines);
+  lines.push(`Weekday/Weekend:`);
+  for (const k of meaningful) {
+    const s = ww[k];
+    const d =
+      s.delta === null ? "" : `${s.delta >= 0 ? "+" : ""}${s.delta.toFixed(1)}`;
+    const wdStr = s.weekday_mean === null ? "" : s.weekday_mean.toFixed(1);
+    const weStr = s.weekend_mean === null ? "" : s.weekend_mean.toFixed(1);
+    lines.push(`  ${k}: wd=${wdStr} we=${weStr} Δ=${d}`);
+  }
 }
 
 function formatCrossDomain(insights: AdvancedInsights): string[] {
   const { cross_domain } = insights;
   const lines: string[] = [];
 
-  const residual = cross_domain.hrv_residual;
-  const hasResidual = !isAllNull(
-    residual.predicted,
-    residual.actual,
-    residual.residual,
-  );
-
-  if (hasResidual) {
-    lines.push(`## Cross-Domain`);
-    lines.push(
-      `HRV Residual: pred=${n(residual.predicted)} actual=${n(residual.actual)} residual=${n(residual.residual)} z=${n(residual.residual_z, 2)} R²=${n(residual.r_squared, 3)}`,
-    );
-  }
-
-  if (
-    cross_domain.weight_hrv_coupling !== null &&
-    cross_domain.weight_hrv_p_value !== null &&
-    cross_domain.weight_hrv_p_value < 0.05
-  ) {
-    if (lines.length === 0) {
-      lines.push(`## Cross-Domain`);
-    }
-    lines.push(
-      `Weight-HRV: r=${cross_domain.weight_hrv_coupling.toFixed(3)} (p=${cross_domain.weight_hrv_p_value.toFixed(3)})`,
-    );
-  }
-
-  const ww = cross_domain.weekday_weekend;
-  const wwKeys = Object.keys(ww);
-  if (wwKeys.length > 0) {
-    const meaningful = wwKeys.filter((k) => {
-      const s = ww[k];
-      return s.delta !== null && Math.abs(s.delta) >= 1;
-    });
-
-    if (meaningful.length > 0) {
-      if (lines.length === 0) {
-        lines.push(`## Cross-Domain`);
-      }
-      lines.push(`Weekday/Weekend:`);
-      for (const k of meaningful) {
-        const s = ww[k];
-        const d =
-          s.delta === null
-            ? ""
-            : `${s.delta >= 0 ? "+" : ""}${s.delta.toFixed(1)}`;
-        lines.push(
-          `  ${k}: wd=${s.weekday_mean === null ? "" : s.weekday_mean.toFixed(1)} we=${s.weekend_mean === null ? "" : s.weekend_mean.toFixed(1)} Δ=${d}`,
-        );
-      }
-    }
-  }
+  formatHrvResidual(cross_domain.hrv_residual, lines);
+  formatWeightHrvCoupling(cross_domain, lines);
+  formatWeekdayWeekend(cross_domain.weekday_weekend, lines);
 
   return lines;
 }
@@ -842,9 +970,11 @@ export function formatCombinedReport(
   ];
 
   if (recent) {
-    sections.push(formatToday(recent, now));
-    sections.push(formatStatus(recent));
-    sections.push(formatLastDays(recent.recent_days));
+    sections.push(
+      formatToday(recent, now),
+      formatStatus(recent),
+      formatLastDays(recent.recent_days),
+    );
   }
 
   if (recent?.longevity_insights) {
@@ -864,8 +994,7 @@ export function formatCombinedReport(
   }
 
   if (recent) {
-    sections.push(formatHealthScore(recent));
-    sections.push(formatEnergyBalance(recent));
+    sections.push(formatHealthScore(recent), formatEnergyBalance(recent));
   }
 
   sections.push(formatUnifiedTrainingLog(data, detailedWorkouts ?? null, now));
@@ -875,9 +1004,11 @@ export function formatCombinedReport(
   }
 
   if (recent?.advanced_insights) {
-    sections.push(formatAdvanced(recent.advanced_insights));
-    sections.push(formatCrossDomain(recent.advanced_insights));
-    sections.push(formatLagCorrelations(recent.advanced_insights));
+    sections.push(
+      formatAdvanced(recent.advanced_insights),
+      formatCrossDomain(recent.advanced_insights),
+      formatLagCorrelations(recent.advanced_insights),
+    );
   }
 
   if (recent) {

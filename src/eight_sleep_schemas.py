@@ -111,7 +111,7 @@ class EightSleepSessionData(BaseModel):
                 bed_temp_celsius=bed_temp,
                 room_temp_celsius=room_temp,
                 sleep_fitness_score=fitness_score,
-                sleep_routine_score=cls._safe_int(quality.get("total")),
+                sleep_routine_score=cls._safe_int(routine.get("total")),
                 sleep_quality_score=cls._safe_int(quality.get("total")),
             )
         except Exception as e:

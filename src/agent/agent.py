@@ -107,8 +107,9 @@ class HealthAgent:
         max_turns: int = 10,
         *,
         max_tokens: int | None = None,
-        on_tool_exchange: Callable[[list, list[dict[str, Any]] | None], None]
-        | None = None,
+        on_tool_exchange: (
+            Callable[[list, list[dict[str, Any]] | None], None] | None
+        ) = None,
     ) -> str:
         effective_max_tokens = max_tokens or self.config.max_tokens
         for _ in range(max_turns):
@@ -122,42 +123,51 @@ class HealthAgent:
             )
 
             if response.stop_reason == "end_turn":
-                text_blocks = [b.text for b in response.content if b.type == "text"]
-                if on_tool_exchange is not None:
-                    on_tool_exchange(response.content, None)
-                return "\n".join(text_blocks)
+                return self._extract_final_text(response.content, on_tool_exchange)
 
             assistant_content = response.content
             messages.append({"role": "assistant", "content": assistant_content})
 
-            tool_results: list[dict[str, Any]] = []
-            for block in response.content:
-                if block.type == "tool_use":
-                    logger.info("tool_call", tool=block.name, input=block.input)
-                    result = execute_tool(user_id, block.name, block.input)
-                    tool_results.append(
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": block.id,
-                            "content": (
-                                _serialize_context(result)
-                                if isinstance(result, (dict, list))
-                                else json.dumps(result)
-                            ),
-                        }
-                    )
+            tool_results = self._execute_tool_calls(user_id, response.content)
 
             if not tool_results:
-                text_blocks = [b.text for b in response.content if b.type == "text"]
-                if on_tool_exchange is not None:
-                    on_tool_exchange(response.content, None)
-                return "\n".join(text_blocks)
+                return self._extract_final_text(response.content, on_tool_exchange)
 
             messages.append({"role": "user", "content": tool_results})
             if on_tool_exchange is not None:
                 on_tool_exchange(assistant_content, tool_results)
 
         return "Не удалось получить ответ — превышен лимит вызовов инструментов."
+
+    @staticmethod
+    def _extract_final_text(
+        content: list,
+        on_tool_exchange: Callable[[list, list[dict[str, Any]] | None], None] | None,
+    ) -> str:
+        text_blocks = [b.text for b in content if b.type == "text"]
+        if on_tool_exchange is not None:
+            on_tool_exchange(content, None)
+        return "\n".join(text_blocks)
+
+    @staticmethod
+    def _execute_tool_calls(user_id: int, content: list) -> list[dict[str, Any]]:
+        tool_results: list[dict[str, Any]] = []
+        for block in content:
+            if block.type == "tool_use":
+                logger.info("tool_call", tool=block.name, input=block.input)
+                result = execute_tool(user_id, block.name, block.input)
+                tool_results.append(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": (
+                            _serialize_context(result)
+                            if isinstance(result, (dict, list))
+                            else json.dumps(result)
+                        ),
+                    }
+                )
+        return tool_results
 
     def ask(self, user_id: int, question: str) -> str:
         ctx = build_daily_context(user_id)

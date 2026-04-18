@@ -22,6 +22,9 @@ from enums import DataSource, SyncStatus
 
 Base: Any = declarative_base()
 
+VALID_RESPIRATORY_RATE_CHECK = (
+    "(respiratory_rate >= 5 AND respiratory_rate <= 50) OR respiratory_rate IS NULL"
+)
 CASCADE_ALL_DELETE = "all, delete-orphan"
 USERS_ID_FK = "users.id"
 AVG_HR_CHECK = (
@@ -252,7 +255,7 @@ class Sleep(Base):
             name="valid_spo2_min_range",
         ),
         CheckConstraint(
-            "(respiratory_rate >= 5 AND respiratory_rate <= 50) OR respiratory_rate IS NULL",
+            VALID_RESPIRATORY_RATE_CHECK,
             name="valid_respiratory_rate_range",
         ),
     )
@@ -759,7 +762,7 @@ class WhoopSleep(Base):
             name="valid_whoop_total_sleep",
         ),
         CheckConstraint(
-            "(respiratory_rate >= 5 AND respiratory_rate <= 50) OR respiratory_rate IS NULL",
+            VALID_RESPIRATORY_RATE_CHECK,
             name="valid_whoop_respiratory_rate",
         ),
     )
@@ -1371,7 +1374,7 @@ class EightSleepSession(Base):
             name="valid_eight_sleep_hrv",
         ),
         CheckConstraint(
-            "(respiratory_rate >= 5 AND respiratory_rate <= 50) OR respiratory_rate IS NULL",
+            VALID_RESPIRATORY_RATE_CHECK,
             name="valid_eight_sleep_resp_rate",
         ),
         CheckConstraint(
