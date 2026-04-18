@@ -199,6 +199,8 @@ export interface CredentialsStatus {
   whoop_configured: boolean;
   whoop_token_expired: boolean;
   whoop_auth_url?: string;
+  eight_sleep_configured: boolean;
+  eight_sleep_email_hint: string | null;
 }
 
 export interface CredentialTestResult {

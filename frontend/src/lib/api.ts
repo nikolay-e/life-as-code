@@ -160,6 +160,27 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ api_key: apiKey }),
       }),
+
+    updateEightSleepCredentials: (
+      email: string,
+      password: string,
+    ): Promise<CredentialsStatus> =>
+      request("/settings/credentials/eight_sleep", {
+        method: "PUT",
+        body: JSON.stringify({ email, password }),
+      }),
+
+    deleteEightSleepCredentials: (): Promise<{ deleted: boolean }> =>
+      request("/settings/credentials/eight_sleep", { method: "DELETE" }),
+
+    testEightSleepCredentials: (
+      email: string,
+      password: string,
+    ): Promise<CredentialTestResult> =>
+      request("/settings/credentials/eight_sleep/test", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      }),
   },
 
   sync: {
@@ -187,6 +208,11 @@ export const api = {
     whoop: (days?: number): Promise<{ message: string }> => {
       const query = days ? `?days=${String(days)}` : "?full=true";
       return request(`/sync/whoop${query}`, { method: "POST" });
+    },
+
+    eightSleep: (days?: number): Promise<{ message: string }> => {
+      const query = days ? `?days=${String(days)}` : "?full=true";
+      return request(`/sync/eight_sleep${query}`, { method: "POST" });
     },
   },
 };

@@ -5,12 +5,16 @@ import {
   useSyncGarmin,
   useSyncHevy,
   useSyncWhoop,
+  useSyncEightSleep,
   useUpdateGarminCredentials,
   useUpdateHevyCredentials,
+  useUpdateEightSleepCredentials,
   useDeleteGarminCredentials,
   useDeleteHevyCredentials,
+  useDeleteEightSleepCredentials,
   useTestGarminCredentials,
   useTestHevyCredentials,
+  useTestEightSleepCredentials,
 } from "../hooks/useSettings";
 import {
   Card,
@@ -26,6 +30,7 @@ import {
 } from "../components/settings/ProviderCard";
 import { GarminCredentialForm } from "../components/settings/GarminCredentialForm";
 import { HevyCredentialForm } from "../components/settings/HevyCredentialForm";
+import { EightSleepCredentialForm } from "../components/settings/EightSleepCredentialForm";
 import { Settings } from "lucide-react";
 import { useBackoffStatus } from "../hooks/useHealthData";
 import type { CredentialTestResult } from "../types/api";
@@ -36,25 +41,37 @@ export function SettingsPage() {
   const syncGarmin = useSyncGarmin();
   const syncHevy = useSyncHevy();
   const syncWhoop = useSyncWhoop();
+  const syncEightSleep = useSyncEightSleep();
   const updateGarmin = useUpdateGarminCredentials();
   const updateHevy = useUpdateHevyCredentials();
+  const updateEightSleep = useUpdateEightSleepCredentials();
   const deleteGarmin = useDeleteGarminCredentials();
   const deleteHevy = useDeleteHevyCredentials();
+  const deleteEightSleep = useDeleteEightSleepCredentials();
   const testGarmin = useTestGarminCredentials();
   const testHevy = useTestHevyCredentials();
+  const testEightSleep = useTestEightSleepCredentials();
 
   const [editingProvider, setEditingProvider] = useState<string | null>(null);
   const [garminTestResult, setGarminTestResult] =
     useState<CredentialTestResult | null>(null);
   const [hevyTestResult, setHevyTestResult] =
     useState<CredentialTestResult | null>(null);
+  const [eightSleepTestResult, setEightSleepTestResult] =
+    useState<CredentialTestResult | null>(null);
 
   const handleSync = useCallback(
     async (
-      provider: "garmin" | "hevy" | "whoop",
+      provider: "garmin" | "hevy" | "whoop" | "eight_sleep",
       mutate: typeof syncGarmin,
     ) => {
-      const providerName = provider.charAt(0).toUpperCase() + provider.slice(1);
+      const providerNames: Record<string, string> = {
+        garmin: "Garmin",
+        hevy: "Hevy",
+        whoop: "Whoop",
+        eight_sleep: "Eight Sleep",
+      };
+      const providerName = providerNames[provider] ?? provider;
       const toastId = toast.loading(`Syncing ${providerName}...`);
 
       try {
@@ -278,6 +295,85 @@ export function SettingsPage() {
             authUrl={whoopAuthUrl}
             showOAuthNotConfigured={!whoopAuthUrl}
             backoffStatus={backoffStatus?.whoop}
+          />
+          <ProviderCard
+            name="Eight Sleep"
+            shortName="8S"
+            colorClass="bg-indigo-100 dark:bg-indigo-900/30"
+            isConfigured={credentials?.eight_sleep_configured ?? false}
+            syncMutation={syncEightSleep}
+            onSync={() => handleSync("eight_sleep", syncEightSleep)}
+            backoffStatus={backoffStatus?.eight_sleep}
+            credentialHint={credentials?.eight_sleep_email_hint}
+            onEdit={() => {
+              setEditingProvider("eight_sleep");
+              setEightSleepTestResult(null);
+            }}
+            onDisconnect={() => {
+              if (
+                // eslint-disable-next-line no-alert
+                confirm(
+                  "Disconnect Eight Sleep? This will remove your saved credentials.",
+                )
+              ) {
+                deleteEightSleep.mutate(undefined, {
+                  onSuccess: () => {
+                    toast.success("Eight Sleep disconnected");
+                    setEditingProvider(null);
+                    setEightSleepTestResult(null);
+                  },
+                  onError: (err) =>
+                    toast.error(
+                      err instanceof Error
+                        ? err.message
+                        : "Failed to disconnect Eight Sleep",
+                    ),
+                });
+              }
+            }}
+            isDisconnecting={deleteEightSleep.isPending}
+            isEditing={editingProvider === "eight_sleep"}
+            editForm={
+              <EightSleepCredentialForm
+                onSave={(email, password) => {
+                  updateEightSleep.mutate(
+                    { email, password },
+                    {
+                      onSuccess: () => {
+                        toast.success("Eight Sleep credentials saved");
+                        setEditingProvider(null);
+                        setEightSleepTestResult(null);
+                      },
+                      onError: (err) => toast.error(err.message),
+                    },
+                  );
+                }}
+                onTest={(email, password) => {
+                  setEightSleepTestResult(null);
+                  testEightSleep.mutate(
+                    { email, password },
+                    {
+                      onSuccess: (result) => {
+                        setEightSleepTestResult(result);
+                      },
+                      onError: () => {
+                        setEightSleepTestResult({
+                          success: false,
+                          error: "Connection failed",
+                        });
+                      },
+                    },
+                  );
+                }}
+                onCancel={() => {
+                  setEditingProvider(null);
+                  setEightSleepTestResult(null);
+                }}
+                isSaving={updateEightSleep.isPending}
+                isTesting={testEightSleep.isPending}
+                testResult={eightSleepTestResult}
+              />
+            }
           />
           <ReadOnlyProviderCard
             name="Google Fit"

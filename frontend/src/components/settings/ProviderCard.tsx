@@ -11,10 +11,7 @@ import {
   Pencil,
   Trash2,
 } from "lucide-react";
-import type {
-  BackoffSourceStatus,
-  SyncResponse,
-} from "../../types/api";
+import type { BackoffSourceStatus, SyncResponse } from "../../types/api";
 
 interface ProviderCardProps {
   readonly name: string;
@@ -47,7 +44,7 @@ function getStatusText(
     return "Sync failed — manual retry required";
   }
   if (backoffStatus?.status === "retrying") {
-    return `Sync issues — retrying in ${backoffStatus.backoff_minutes}m`;
+    return `Sync issues — retrying in ${String(backoffStatus.backoff_minutes)}m`;
   }
   if (isTokenExpired) {
     return "Token expired";

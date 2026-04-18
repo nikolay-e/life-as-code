@@ -101,6 +101,40 @@ export function useTestHevyCredentials() {
   });
 }
 
+export function useUpdateEightSleepCredentials() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ email, password }: { email: string; password: string }) =>
+      api.settings.updateEightSleepCredentials(email, password),
+    onSuccess: () => {
+      queryClient
+        .invalidateQueries({ queryKey: settingsKeys.credentials() })
+        .catch(() => {});
+    },
+  });
+}
+
+export function useDeleteEightSleepCredentials() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => api.settings.deleteEightSleepCredentials(),
+    onSuccess: () => {
+      queryClient
+        .invalidateQueries({ queryKey: settingsKeys.credentials() })
+        .catch(() => {});
+    },
+  });
+}
+
+export function useTestEightSleepCredentials() {
+  return useMutation({
+    mutationFn: ({ email, password }: { email: string; password: string }) =>
+      api.settings.testEightSleepCredentials(email, password),
+  });
+}
+
 function useSyncMutation(syncFn: () => Promise<SyncResponse>) {
   const queryClient = useQueryClient();
 
@@ -130,4 +164,8 @@ export function useSyncHevy() {
 
 export function useSyncWhoop() {
   return useSyncMutation(api.sync.whoop);
+}
+
+export function useSyncEightSleep() {
+  return useSyncMutation(api.sync.eightSleep);
 }
