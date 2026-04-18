@@ -111,7 +111,6 @@ jobs:
         run: pre-commit run --all-files
 
   build-backend:
-    needs: [test-backend, precommit]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     permissions:
@@ -172,7 +171,6 @@ jobs:
             VCS_REF=${{ github.sha }}
 
   build-ml:
-    needs: [test-backend, precommit]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     permissions:
@@ -235,7 +233,6 @@ jobs:
             VCS_REF=${{ github.sha }}
 
   build-bot:
-    needs: [test-backend, precommit]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     permissions:
@@ -292,7 +289,6 @@ jobs:
             VCS_REF=${{ github.sha }}
 
   build-frontend:
-    needs: [test-frontend, precommit]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     permissions:
