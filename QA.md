@@ -36,7 +36,8 @@
 - Empty user ID in URL (double slash like `/users//trends`) means the user ID extraction failed
 - API response structure may nest user data under a `"user"` key
 - Eight Sleep data (HRV, HR, sleep duration, deep/REM/light, respiratory rate, score, bed/room temp) feeds into the fusion layer alongside Garmin and Whoop
-- New data sources must be added to: `RawHealthData` fields, `load_raw_health_data` queries, `SOURCE_PRIORITY`, fusion functions, `FusedMetric`/`FusedHealthData`, frontend `METRIC_REGISTRY`, and `TRENDS_METRIC_KEYS`
+- New data sources must be added to: `RawHealthData` fields, `load_raw_health_data` queries, `SOURCE_PRIORITY`, fusion functions, `FusedMetric`/`FusedHealthData`, frontend `METRIC_REGISTRY`, `TRENDS_METRIC_KEYS`, AND all `MultiProviderLineChart` consumers (HRVChart, HeartRateChart, SleepChart, etc. + DashboardOverview props)
+- `MultiProviderLineChart` supports optional third source via `eightSleepLabel`/`eightSleepValue` — bar only renders when data exists (`hasEightSleep` check)
 - Frontend `metric_baselines` and `raw_series` are `Record<string, ...>` — new keys auto-surface in Statistics page without schema changes
 
 ## Testing Infrastructure
