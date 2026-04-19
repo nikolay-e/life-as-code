@@ -4,33 +4,39 @@
 FROM python:3.13-slim AS deps
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc git \
+    gcc \
     && rm -rf /var/lib/apt/lists/*
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 WORKDIR /app
 
 COPY pyproject.toml .
 RUN mkdir -p src && touch src/__init__.py
 
-RUN python -m venv /opt/venv
+RUN uv venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir .
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --no-cache .
 
 # --- ML Builder Stage (branches BEFORE src/ copy — PyTorch cached on pyproject.toml) ---
 FROM deps AS ml-builder
-RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cu121
-RUN pip install --no-cache-dir '.[ml]'
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install torch --index-url https://download.pytorch.org/whl/cu121
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install '.[ml]'
 
 # --- Bot Builder Stage (branches BEFORE src/ copy) ---
 FROM deps AS bot-builder
-RUN pip install --no-cache-dir '.[agent,bot]'
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install '.[agent,bot]'
 
 # --- Builder Stage (adds source code — busts only on src/ changes) ---
 FROM deps AS builder
 
 COPY src/ src/
-RUN pip install --no-cache-dir --no-deps .
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --no-deps .
 
 # --- Runtime Base ---
 FROM python:3.13-slim AS runtime-base
