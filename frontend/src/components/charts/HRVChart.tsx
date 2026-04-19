@@ -1,5 +1,9 @@
 import { memo } from "react";
-import type { HRVData, WhoopRecoveryData } from "../../types/api";
+import type {
+  HRVData,
+  WhoopRecoveryData,
+  EightSleepSessionData,
+} from "../../types/api";
 import { MULTI_PROVIDER_CONFIGS } from "./chart-config";
 import { MultiProviderLineChart } from "./MultiProviderLineChart";
 import { mergeProviderData } from "../../lib/chart-utils";
@@ -11,6 +15,7 @@ import {
 interface HRVChartProps {
   readonly garminData: HRVData[];
   readonly whoopData?: WhoopRecoveryData[];
+  readonly eightSleepData?: EightSleepSessionData[];
   readonly showTrends?: boolean;
   readonly bandwidthShort?: number;
   readonly bandwidthLong?: number;
@@ -21,6 +26,7 @@ export const HRVChart = memo(
   ({
     garminData,
     whoopData = [],
+    eightSleepData = [],
     showTrends = false,
     bandwidthShort = LOESS_BANDWIDTH_SHORT,
     bandwidthLong = LOESS_BANDWIDTH_LONG,
@@ -33,6 +39,8 @@ export const HRVChart = memo(
       whoopData,
       (d) => d.hrv_avg,
       (d) => d.hrv_rmssd,
+      eightSleepData,
+      (d) => d.hrv,
     );
 
     return (
@@ -42,6 +50,7 @@ export const HRVChart = memo(
         emptyMessage="No HRV data available"
         garminLabel="Garmin HRV"
         whoopLabel="Whoop HRV"
+        eightSleepLabel="Eight Sleep HRV"
         unit="ms"
         showTrends={showTrends}
         bandwidthShort={bandwidthShort}

@@ -12,7 +12,7 @@ import {
 } from "recharts";
 import { format } from "date-fns";
 import { EmptyChartMessage } from "./shared";
-import { chartTooltipStyle } from "./chart-config";
+import { chartTooltipStyle, SOURCE_COLORS } from "./chart-config";
 import { renderTrendLines } from "./TrendLines";
 import {
   dateToTimestamp,
@@ -29,10 +29,12 @@ interface MultiProviderLineChartProps {
   readonly config: {
     garminColor: string;
     whoopColor: string;
+    eightSleepColor?: string;
   };
   readonly emptyMessage: string;
   readonly garminLabel: string;
   readonly whoopLabel: string;
+  readonly eightSleepLabel?: string;
   readonly unit: string;
   readonly height?: number | `${number}%`;
   readonly yDomain?: [number | string, number | string];
@@ -51,6 +53,7 @@ export const MultiProviderLineChart = memo(
     emptyMessage,
     garminLabel,
     whoopLabel,
+    eightSleepLabel,
     unit,
     height = 250,
     yDomain = ["dataMin - 5", "dataMax + 5"],
@@ -61,8 +64,13 @@ export const MultiProviderLineChart = memo(
     bandwidthLong = LOESS_BANDWIDTH_LONG,
     dateRange,
   }: MultiProviderLineChartProps) => {
+    const hasEightSleep =
+      eightSleepLabel && data.some((d) => d.eightSleepValue != null);
     const hasData = data.some(
-      (d) => d.garminValue !== null || d.whoopValue !== null,
+      (d) =>
+        d.garminValue !== null ||
+        d.whoopValue !== null ||
+        d.eightSleepValue != null,
     );
 
     const yMin = typeof yDomain[0] === "number" ? yDomain[0] : null;
@@ -75,13 +83,18 @@ export const MultiProviderLineChart = memo(
 
       if (!showTrends || baseData.length === 0) return baseData;
 
-      const withAvg = baseData.map((d) => ({
-        ...d,
-        avgValue:
-          d.garminValue !== null && d.whoopValue !== null
-            ? (d.garminValue + d.whoopValue) / 2
-            : (d.garminValue ?? d.whoopValue),
-      }));
+      const withAvg = baseData.map((d) => {
+        const vals = [d.garminValue, d.whoopValue, d.eightSleepValue].filter(
+          (v): v is number => v != null,
+        );
+        return {
+          ...d,
+          avgValue:
+            vals.length > 0
+              ? vals.reduce((a, b) => a + b, 0) / vals.length
+              : null,
+        };
+      });
 
       const loessShort = loessSmooth(withAvg, "avgValue", bandwidthShort);
       const loessLong = loessSmooth(withAvg, "avgValue", bandwidthLong);
@@ -147,6 +160,9 @@ export const MultiProviderLineChart = memo(
               if (name === "whoopValue") {
                 return [`${valueFormatter(v)}${unit}`, whoopLabel];
               }
+              if (name === "eightSleepValue" && eightSleepLabel) {
+                return [`${valueFormatter(v)}${unit}`, eightSleepLabel];
+              }
               return [v, name];
             }}
             contentStyle={chartTooltipStyle}
@@ -164,6 +180,14 @@ export const MultiProviderLineChart = memo(
             radius={[4, 4, 0, 0]}
             name="whoopValue"
           />
+          {hasEightSleep && (
+            <Bar
+              dataKey="eightSleepValue"
+              fill={config.eightSleepColor ?? SOURCE_COLORS.eightSleep}
+              radius={[4, 4, 0, 0]}
+              name="eightSleepValue"
+            />
+          )}
 
           {renderTrendLines(showTrends)}
 
@@ -189,6 +213,9 @@ export const MultiProviderLineChart = memo(
                 }
                 if (value === "whoopValue") {
                   return whoopLabel;
+                }
+                if (value === "eightSleepValue") {
+                  return eightSleepLabel ?? "Eight Sleep";
                 }
                 if (value === "trendShort") {
                   return "Short trend";

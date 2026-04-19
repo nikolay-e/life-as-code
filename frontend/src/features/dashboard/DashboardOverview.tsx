@@ -301,6 +301,7 @@ export function DashboardOverview() {
             <HRVChart
               garminData={data?.hrv ?? []}
               whoopData={data?.whoop_recovery ?? []}
+              eightSleepData={data?.eight_sleep_sessions ?? []}
               showTrends
               bandwidthShort={bandwidthShort}
               bandwidthLong={bandwidthLong}
@@ -355,6 +356,7 @@ export function DashboardOverview() {
             <HeartRateChart
               garminData={data?.heart_rate ?? []}
               whoopData={data?.whoop_recovery ?? []}
+              eightSleepData={data?.eight_sleep_sessions ?? []}
               showTrends
               bandwidthShort={bandwidthShort}
               bandwidthLong={bandwidthLong}

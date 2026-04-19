@@ -14,16 +14,20 @@ export interface MultiProviderDataPoint {
   date: string;
   garminValue: number | null;
   whoopValue: number | null;
+  eightSleepValue?: number | null;
 }
 
 export function mergeProviderData<
   G extends { date: string },
   W extends { date: string },
+  E extends { date: string } = { date: string },
 >(
   garminData: G[],
   whoopData: W[],
   getGarminValue: (item: G) => number | null,
   getWhoopValue: (item: W) => number | null,
+  eightSleepData?: E[],
+  getEightSleepValue?: (item: E) => number | null,
 ): MultiProviderDataPoint[] {
   const garminMap = new Map(
     garminData.map((d) => [toLocalDayKey(d.date), getGarminValue(d)]),
@@ -31,8 +35,21 @@ export function mergeProviderData<
   const whoopMap = new Map(
     whoopData.map((d) => [toLocalDayKey(d.date), getWhoopValue(d)]),
   );
+  const esMap =
+    eightSleepData && getEightSleepValue
+      ? new Map(
+          eightSleepData.map((d) => [
+            toLocalDayKey(d.date),
+            getEightSleepValue(d),
+          ]),
+        )
+      : new Map<string, number | null>();
 
-  const allDates = new Set([...garminMap.keys(), ...whoopMap.keys()]);
+  const allDates = new Set([
+    ...garminMap.keys(),
+    ...whoopMap.keys(),
+    ...esMap.keys(),
+  ]);
   const result: MultiProviderDataPoint[] = [];
 
   for (const date of allDates) {
@@ -40,6 +57,7 @@ export function mergeProviderData<
       date,
       garminValue: garminMap.get(date) ?? null,
       whoopValue: whoopMap.get(date) ?? null,
+      eightSleepValue: esMap.get(date) ?? null,
     });
   }
 

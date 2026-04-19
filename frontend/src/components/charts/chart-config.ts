@@ -25,17 +25,21 @@ export const MULTI_PROVIDER_CONFIGS = {
   hrv: {
     garminColor: SOURCE_COLORS.garmin,
     whoopColor: SOURCE_COLORS.whoop,
+    eightSleepColor: SOURCE_COLORS.eightSleep,
   },
   sleep: {
     garminColor: SOURCE_COLORS.garmin,
     whoopColor: SOURCE_COLORS.whoop,
+    eightSleepColor: SOURCE_COLORS.eightSleep,
   },
   restingHr: {
     garminColor: SOURCE_COLORS.garmin,
     whoopColor: SOURCE_COLORS.whoop,
+    eightSleepColor: SOURCE_COLORS.eightSleep,
   },
   calories: {
     garminColor: SOURCE_COLORS.garmin,
     whoopColor: SOURCE_COLORS.whoop,
+    eightSleepColor: SOURCE_COLORS.eightSleep,
   },
 } as const;

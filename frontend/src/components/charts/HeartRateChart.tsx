@@ -1,5 +1,9 @@
 import { memo } from "react";
-import type { HeartRateData, WhoopRecoveryData } from "../../types/api";
+import type {
+  HeartRateData,
+  WhoopRecoveryData,
+  EightSleepSessionData,
+} from "../../types/api";
 import { MULTI_PROVIDER_CONFIGS } from "./chart-config";
 import { MultiProviderLineChart } from "./MultiProviderLineChart";
 import { mergeProviderData } from "../../lib/chart-utils";
@@ -11,6 +15,7 @@ import {
 interface HeartRateChartProps {
   readonly garminData: HeartRateData[];
   readonly whoopData?: WhoopRecoveryData[];
+  readonly eightSleepData?: EightSleepSessionData[];
   readonly showTrends?: boolean;
   readonly bandwidthShort?: number;
   readonly bandwidthLong?: number;
@@ -21,6 +26,7 @@ export const HeartRateChart = memo(
   ({
     garminData,
     whoopData = [],
+    eightSleepData = [],
     showTrends = false,
     bandwidthShort = LOESS_BANDWIDTH_SHORT,
     bandwidthLong = LOESS_BANDWIDTH_LONG,
@@ -33,6 +39,8 @@ export const HeartRateChart = memo(
       whoopData,
       (d) => d.resting_hr,
       (d) => d.resting_heart_rate,
+      eightSleepData,
+      (d) => d.heart_rate,
     );
 
     return (
@@ -42,6 +50,7 @@ export const HeartRateChart = memo(
         emptyMessage="No heart rate data available"
         garminLabel="Garmin RHR"
         whoopLabel="Whoop RHR"
+        eightSleepLabel="Eight Sleep HR"
         unit="bpm"
         yDomain={["dataMin - 5", "dataMax + 5"]}
         showTrends={showTrends}
