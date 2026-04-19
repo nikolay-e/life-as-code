@@ -216,7 +216,7 @@ function formatDayTableRow(day: DayMetrics): string {
 function formatLastDays(lastDays: DayMetrics[]): string[] {
   const lines: string[] = [
     `## Last ${String(lastDays.length)} Days`,
-    `| Date       | Rec% | HRV | RHR | Sleep | Steps  | Str  | Strs | Cal   | Wt   |`,
+    `| Date       | Rec% | HRV | RHR | Sleep | Steps  | Str  | Strs | Burn  | Wt   |`,
     `|------------|------|-----|-----|-------|--------|------|------|-------|------|`,
   ];
   for (const day of lastDays) {
@@ -975,7 +975,10 @@ export function formatCombinedReport(
   const timeStr = format(now, "HH:mm");
 
   const sections: string[][] = [
-    [`# Daily Health Brief | ${dateStr} ${timeStr}`],
+    [
+      `# Daily Health Brief | ${dateStr} ${timeStr}`,
+      `Note: All calorie/energy values are energy EXPENDITURE (burned), NOT food intake.`,
+    ],
   ];
 
   if (recent) {

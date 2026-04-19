@@ -413,7 +413,7 @@ export function DashboardOverview() {
         </ChartCard>
 
         <ChartCard
-          title="Daily Calories"
+          title="Calories Burned"
           icon={Flame}
           iconColorClass="text-calories"
           iconBgClass="bg-calories-muted"

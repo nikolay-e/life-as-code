@@ -179,7 +179,7 @@ export const METRIC_REGISTRY: MetricDef[] = [
   },
   {
     key: "calories",
-    title: "Daily Calories",
+    title: "Calories Burned",
     icon: Flame,
     colorVar: "--calories",
     iconColorClass: "text-calories",
