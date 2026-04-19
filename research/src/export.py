@@ -89,10 +89,9 @@ def _export_table_connectorx(
     db_uri: str, table_name: str, user_id: int, output_path: Path
 ) -> dict:
     safe_table = _validate_identifier(table_name)
-    query = f"SELECT * FROM {safe_table} WHERE user_id = %s"
-    df = pl.read_database_uri(
-        query, db_uri, engine="connectorx", execute_options={"params": [user_id]}
-    )
+    safe_uid = int(user_id)
+    query = f"SELECT * FROM {safe_table} WHERE user_id = {safe_uid}"
+    df = pl.read_database_uri(query, db_uri, engine="connectorx")
     df.write_parquet(output_path, compression="zstd")
     return _date_stats(df)
 
@@ -194,6 +193,33 @@ def _update_latest_symlink(snapshot_dir: Path) -> None:
     latest.symlink_to(snapshot_dir.name)
 
 
+def _build_table_list(
+    table_filter: list[str] | None,
+) -> dict[str, tuple[str, str]]:
+    all_tables: dict[str, tuple[str, str]] = {}
+    for logical, real in HEALTH_TABLES.items():
+        if table_filter and logical not in table_filter:
+            continue
+        all_tables[logical] = (real, f"{logical}.parquet")
+    for logical, real in PROD_TABLES.items():
+        if table_filter and logical not in table_filter:
+            continue
+        all_tables[logical] = (real, f"_prod_{logical}.parquet")
+    return all_tables
+
+
+def _export_single_table(
+    real_table: str,
+    output_path: Path,
+    user_id: int,
+    db_uri: str,
+    via_kubectl: bool,
+) -> dict:
+    if via_kubectl:
+        return _export_table_kubectl(real_table, user_id, output_path)
+    return _export_table_connectorx(db_uri, real_table, user_id, output_path)
+
+
 def export_snapshot(
     user_id: int,
     table_filter: list[str] | None = None,
@@ -205,15 +231,8 @@ def export_snapshot(
     snapshot_dir = SNAPSHOTS_DIR / _snapshot_dir_name()
     snapshot_dir.mkdir()
 
-    all_tables: dict[str, tuple[str, str]] = {}
-    for logical, real in HEALTH_TABLES.items():
-        if table_filter and logical not in table_filter:
-            continue
-        all_tables[logical] = (real, f"{logical}.parquet")
-    for logical, real in PROD_TABLES.items():
-        if table_filter and logical not in table_filter:
-            continue
-        all_tables[logical] = (real, f"_prod_{logical}.parquet")
+    all_tables = _build_table_list(table_filter)
+    effective_uri = db_uri or ""
 
     manifest = {
         "status": "in_progress",
@@ -226,30 +245,27 @@ def export_snapshot(
     _write_manifest(manifest_path, manifest)
 
     real_table_names = [real for real, _ in all_tables.values()]
-    if via_kubectl:
-        manifest["schema_hash"] = _compute_schema_hash_kubectl(real_table_names)
-    else:
-        manifest["schema_hash"] = _compute_schema_hash_connectorx(
-            db_uri or "", real_table_names
-        )
+    manifest["schema_hash"] = (
+        _compute_schema_hash_kubectl(real_table_names)
+        if via_kubectl
+        else _compute_schema_hash_connectorx(effective_uri, real_table_names)
+    )
 
     failed = []
     for logical, (real_table, filename) in all_tables.items():
         output_path = snapshot_dir / filename
         try:
-            if via_kubectl:
-                info = _export_table_kubectl(real_table, user_id, output_path)
-            else:
-                info = _export_table_connectorx(
-                    db_uri or "", real_table, user_id, output_path
-                )
+            info = _export_single_table(
+                real_table,
+                output_path,
+                user_id,
+                effective_uri,
+                via_kubectl,
+            )
             manifest["tables"][logical] = info
             print(f"  {logical}: {info['rows']} rows")
         except Exception as e:
-            print(
-                f"  {logical}: FAILED after retries — {e}",
-                file=sys.stderr,
-            )
+            print(f"  {logical}: FAILED — {e}", file=sys.stderr)
             failed.append(logical)
 
     manifest["status"] = "partial" if failed else "complete"

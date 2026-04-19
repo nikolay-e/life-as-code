@@ -94,28 +94,28 @@ fig.add_trace(go.Scatter(
     y=train[METRIC].to_list()[-60:],
     mode="lines",
     name="Historical",
-    line=dict(color="gray"),
+    line={"color": "gray"},
 ))
 fig.add_trace(go.Scatter(
     x=test_dates,
     y=actual_vals,
     mode="lines+markers",
     name="Actual",
-    line=dict(color="blue"),
+    line={"color": "blue"},
 ))
 fig.add_trace(go.Scatter(
     x=test_dates,
     y=p50,
     mode="lines",
     name="Forecast (p50)",
-    line=dict(color="red"),
+    line={"color": "red"},
 ))
 fig.add_trace(go.Scatter(
     x=test_dates + test_dates[::-1],
     y=p90 + p10[::-1],
     fill="toself",
     fillcolor="rgba(255,0,0,0.1)",
-    line=dict(color="rgba(255,0,0,0)"),
+    line={"color": "rgba(255,0,0,0)"},
     name="p10-p90 range",
 ))
 fig.update_layout(

@@ -104,7 +104,7 @@ fig.add_trace(go.Scatter(
     y=scores,
     mode="lines",
     name="Anomaly Score",
-    line=dict(color="steelblue"),
+    line={"color": "steelblue"},
 ))
 fig.add_hline(
     y=threshold,
@@ -125,7 +125,7 @@ fig.show()
 
 # %%
 anomaly_mask = scores > threshold
-anomaly_indices = np.where(anomaly_mask)[0]
+anomaly_indices = np.nonzero(anomaly_mask)[0]
 
 if len(anomaly_indices) > 0:
     mean_vals = X.mean(axis=0)

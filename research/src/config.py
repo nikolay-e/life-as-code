@@ -8,10 +8,7 @@ load_dotenv()
 RESEARCH_ROOT = Path(__file__).parent.parent
 SNAPSHOTS_DIR = RESEARCH_ROOT / "snapshots"
 
-DEFAULT_DB_URL = os.environ.get(
-    "LAC_DATABASE_URL",
-    "postgresql://lifeascode_production:@localhost:5433/lifeascode_production",
-)
+DEFAULT_DB_URL = os.environ.get("LAC_DATABASE_URL", "")
 
 DEFAULT_USER_ID = 1
 DEFAULT_KEEP_LAST = 5
