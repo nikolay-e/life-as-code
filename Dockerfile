@@ -17,7 +17,7 @@ RUN mkdir -p src && touch src/__init__.py
 RUN uv venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install --no-cache .
+    uv pip install .
 
 # --- ML Builder Stage (branches BEFORE src/ copy — PyTorch cached on pyproject.toml) ---
 FROM deps AS ml-builder
