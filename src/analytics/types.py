@@ -118,7 +118,7 @@ class EnergyBalanceMetrics(BaseModel):
     weight_delta: float | None
 
 
-DataProvider = Literal["garmin", "whoop", "google", "blended"]
+DataProvider = Literal["garmin", "whoop", "eight_sleep", "google", "blended"]
 
 
 class HealthScoreContributor(BaseModel):
@@ -441,8 +441,10 @@ class UnifiedMetricPoint(BaseModel):
     z_score: float | None
     garmin_value: float | None
     whoop_value: float | None
+    eight_sleep_value: float | None = None
     garmin_z_score: float | None
     whoop_z_score: float | None
+    eight_sleep_z_score: float | None = None
     provider: DataProvider
     confidence: float
 
@@ -452,6 +454,7 @@ class DataSourceSummary(BaseModel):
     total: int
     garmin_only: int
     whoop_only: int
+    eight_sleep_only: int = 0
     blended: int
     avg_confidence: float
 

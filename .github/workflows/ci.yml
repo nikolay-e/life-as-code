@@ -349,3 +349,16 @@ jobs:
             VITE_APP_ENVIRONMENT=${{ steps.meta.outputs.app_environment }}
             VITE_BUILD_DATE=${{ steps.meta.outputs.build_date }}
             VITE_COMMIT_SHA=${{ github.sha }}
+
+  post-deploy-qa:
+    runs-on: ubuntu-latest
+    needs: [build-backend, build-frontend]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+    steps:
+      - uses: nikolay-e/autoqa@main
+        with:
+          url: https://life-as-code.com
+          crawler-seed-pages: '/,/dashboard,/dashboard/statistics,/dashboard/trainings,/dashboard/data-status,/dashboard/settings'
+          crawler-max-pages: '20'

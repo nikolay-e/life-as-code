@@ -148,19 +148,27 @@ def _detect_multi_source_anomalies(
         baseline_window,
         ref_date=ref_date,
     )
+    eight_sleep_result = detect_anomalies(
+        fused.hrv.eight_sleep.points if fused.hrv.eight_sleep else [],
+        fused.resting_hr.eight_sleep.points if fused.resting_hr.eight_sleep else [],
+        fused.sleep.eight_sleep.points if fused.sleep.eight_sleep else [],
+        [],
+        baseline_window,
+        ref_date=ref_date,
+    )
 
     all_anomalies: list[AnomalyResult] = []
     seen: set[tuple[str, str]] = set()
-    for a in garmin_result.anomalies:
-        key = (a.date, a.metric)
-        if key not in seen:
-            all_anomalies.append(a.model_copy(update={"source": "garmin"}))
-            seen.add(key)
-    for a in whoop_result.anomalies:
-        key = (a.date, a.metric)
-        if key not in seen:
-            all_anomalies.append(a.model_copy(update={"source": "whoop"}))
-            seen.add(key)
+    for source_name, result in [
+        ("garmin", garmin_result),
+        ("whoop", whoop_result),
+        ("eight_sleep", eight_sleep_result),
+    ]:
+        for a in result.anomalies:
+            key = (a.date, a.metric)
+            if key not in seen:
+                all_anomalies.append(a.model_copy(update={"source": source_name}))
+                seen.add(key)
 
     severity_order = {"critical": 0, "alert": 1, "warning": 2}
     all_anomalies.sort(
@@ -425,8 +433,16 @@ def _compute_health_analysis_impl(
         ref_date=target_date,
     )
 
-    sleep_deep = raw.sleep_deep_garmin or raw.sleep_deep_whoop
-    sleep_rem = raw.sleep_rem_garmin or raw.sleep_rem_whoop
+    sleep_deep = (
+        fused.sleep_deep.blended.points
+        if fused.sleep_deep
+        else raw.sleep_deep_garmin or raw.sleep_deep_whoop
+    )
+    sleep_rem = (
+        fused.sleep_rem.blended.points
+        if fused.sleep_rem
+        else raw.sleep_rem_garmin or raw.sleep_rem_whoop
+    )
     sleep_awake = raw.sleep_awake_count_garmin
     sleep_eff = raw.sleep_efficiency_garmin or raw.sleep_efficiency_whoop
 
@@ -476,6 +492,10 @@ def _compute_health_analysis_impl(
         )
     )
 
+    respiratory_rate_data = (
+        fused.respiratory_rate.blended.points if fused.respiratory_rate else []
+    )
+
     metric_baselines = _compute_metric_baselines(
         {
             "hrv": hrv_data,
@@ -486,6 +506,9 @@ def _compute_health_analysis_impl(
             "weight": weight_data,
             "strain": adjusted_strain,
             "calories": calories_data,
+            "respiratory_rate": respiratory_rate_data,
+            "sleep_deep": sleep_deep,
+            "sleep_rem": sleep_rem,
         },
         config.baseline,
         config.short_term,
@@ -493,7 +516,6 @@ def _compute_health_analysis_impl(
         options,
         target_date,
     )
-
     raw_series = {
         "hrv": to_daily_series_for_metric(hrv_data, "hrv"),
         "rhr": to_daily_series_for_metric(rhr_data, "rhr"),
@@ -504,6 +526,16 @@ def _compute_health_analysis_impl(
         "strain": to_daily_series_for_metric(adjusted_strain, "strain"),
         "calories": to_daily_series_for_metric(calories_data, "calories"),
         "recovery": to_daily_series_for_metric(recovery_data, "recovery"),
+        "respiratory_rate": to_daily_series_for_metric(
+            respiratory_rate_data, "respiratory_rate"
+        ),
+        "sleep_deep": to_daily_series_for_metric(sleep_deep, "sleep_deep"),
+        "sleep_rem": to_daily_series_for_metric(sleep_rem, "sleep_rem"),
+        "bed_temp": to_daily_series_for_metric(raw.bed_temp, "bed_temp"),
+        "room_temp": to_daily_series_for_metric(raw.room_temp, "room_temp"),
+        "sleep_score": to_daily_series_for_metric(
+            raw.sleep_score_eight_sleep, "sleep_score"
+        ),
     }
 
     return HealthAnalysis(

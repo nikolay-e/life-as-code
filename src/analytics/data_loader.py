@@ -42,6 +42,16 @@ class RawHealthData:
     sleep_rem_whoop: list[DataPoint] = field(default_factory=list)
     sleep_efficiency_whoop: list[DataPoint] = field(default_factory=list)
     respiratory_rate_whoop: list[DataPoint] = field(default_factory=list)
+    hrv_eight_sleep: list[DataPoint] = field(default_factory=list)
+    rhr_eight_sleep: list[DataPoint] = field(default_factory=list)
+    sleep_eight_sleep: list[DataPoint] = field(default_factory=list)
+    sleep_deep_eight_sleep: list[DataPoint] = field(default_factory=list)
+    sleep_rem_eight_sleep: list[DataPoint] = field(default_factory=list)
+    sleep_light_eight_sleep: list[DataPoint] = field(default_factory=list)
+    respiratory_rate_eight_sleep: list[DataPoint] = field(default_factory=list)
+    sleep_score_eight_sleep: list[DataPoint] = field(default_factory=list)
+    bed_temp: list[DataPoint] = field(default_factory=list)
+    room_temp: list[DataPoint] = field(default_factory=list)
     workout_dates: list[DataPoint] = field(default_factory=list)
     vo2_max: list[DataPoint] = field(default_factory=list)
     training_readiness: list[DataPoint] = field(default_factory=list)
@@ -52,7 +62,13 @@ class RawHealthData:
     total_training_minutes: list[DataPoint] = field(default_factory=list)
 
 
-SOURCE_PRIORITY = {"garmin": 1, "whoop": 2, "apple_health": 3, "google": 4}
+SOURCE_PRIORITY = {
+    "garmin": 1,
+    "whoop": 2,
+    "eight_sleep": 3,
+    "apple_health": 4,
+    "google": 5,
+}
 
 
 def _best_per_date(rows: list[tuple[date, str, float | None]]) -> list[DataPoint]:
@@ -89,6 +105,7 @@ def load_raw_health_data(
 ) -> RawHealthData:
     from models import (
         HRV,
+        EightSleepSession,
         Energy,
         GarminActivity,
         GarminTrainingStatus,
@@ -339,6 +356,57 @@ def load_raw_health_data(
     raw.workout_dates = [
         DataPoint(date=row.date.isoformat(), value=1.0) for row in workout_dates_raw
     ]
+
+    eight_sleep_sessions = (
+        db.query(EightSleepSession)
+        .filter(
+            EightSleepSession.user_id == user_id,
+            EightSleepSession.date >= cutoff,
+            EightSleepSession.date <= anchor,
+        )
+        .order_by(EightSleepSession.date)
+        .all()
+    )
+    raw.hrv_eight_sleep = _to_points(eight_sleep_sessions, "hrv")
+    raw.rhr_eight_sleep = _to_points(eight_sleep_sessions, "heart_rate")
+    raw.sleep_eight_sleep = [
+        DataPoint(
+            date=row.date.isoformat(),
+            value=round(row.sleep_duration_seconds / 60, 1),
+        )
+        for row in eight_sleep_sessions
+        if row.sleep_duration_seconds is not None
+    ]
+    raw.sleep_deep_eight_sleep = [
+        DataPoint(
+            date=row.date.isoformat(),
+            value=round(row.deep_duration_seconds / 60, 1),
+        )
+        for row in eight_sleep_sessions
+        if row.deep_duration_seconds is not None
+    ]
+    raw.sleep_rem_eight_sleep = [
+        DataPoint(
+            date=row.date.isoformat(),
+            value=round(row.rem_duration_seconds / 60, 1),
+        )
+        for row in eight_sleep_sessions
+        if row.rem_duration_seconds is not None
+    ]
+    raw.sleep_light_eight_sleep = [
+        DataPoint(
+            date=row.date.isoformat(),
+            value=round(row.light_duration_seconds / 60, 1),
+        )
+        for row in eight_sleep_sessions
+        if row.light_duration_seconds is not None
+    ]
+    raw.respiratory_rate_eight_sleep = _to_points(
+        eight_sleep_sessions, "respiratory_rate"
+    )
+    raw.sleep_score_eight_sleep = _to_points(eight_sleep_sessions, "score")
+    raw.bed_temp = _to_points(eight_sleep_sessions, "bed_temp_celsius")
+    raw.room_temp = _to_points(eight_sleep_sessions, "room_temp_celsius")
 
     return raw
 

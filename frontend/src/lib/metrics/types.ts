@@ -21,7 +21,13 @@ export type MetricName =
   | "strain"
   | "calories"
   | "weight"
-  | "recovery";
+  | "recovery"
+  | "respiratory_rate"
+  | "sleep_deep"
+  | "sleep_rem"
+  | "sleep_score"
+  | "bed_temp"
+  | "room_temp";
 
 export interface MetricDef {
   key: string;

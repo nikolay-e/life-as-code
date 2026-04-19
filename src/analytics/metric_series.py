@@ -141,19 +141,19 @@ class FusedMetric:
     blended: MetricSeries
     garmin: MetricSeries | None = None
     whoop: MetricSeries | None = None
+    eight_sleep: MetricSeries | None = None
 
     def best_source(self) -> MetricSeries:
-        if self.garmin and self.whoop:
-            if len(self.garmin) > len(self.whoop):
-                return self.garmin
-            if len(self.whoop) > len(self.garmin):
-                return self.whoop
-            g = self.garmin.latest()
-            w = self.whoop.latest()
-            if g and w:
-                return self.garmin if g.date >= w.date else self.whoop
-            return self.garmin if g else self.whoop
-        return self.garmin or self.whoop or self.blended
+        sources = [s for s in [self.garmin, self.whoop, self.eight_sleep] if s]
+        if not sources:
+            return self.blended
+        if len(sources) == 1:
+            return sources[0]
+        best = max(
+            sources,
+            key=lambda s: (len(s), (s.latest() or DataPoint(date="", value=0)).date),
+        )
+        return best
 
 
 @dataclass
@@ -163,3 +163,6 @@ class FusedHealthData:
     resting_hr: FusedMetric
     strain: FusedMetric
     calories: FusedMetric
+    respiratory_rate: FusedMetric | None = None
+    sleep_deep: FusedMetric | None = None
+    sleep_rem: FusedMetric | None = None

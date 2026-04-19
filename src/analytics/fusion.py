@@ -208,33 +208,60 @@ def blended_merge(
     metric_type: str,
     normalized_garmin_data: list[DataPoint] | None = None,
     ref_date: date | None = None,
+    eight_sleep_data: list[DataPoint] | None = None,
 ) -> list[UnifiedMetricPoint]:
     effective_garmin = normalized_garmin_data or garmin_data
     garmin_stats = _calculate_source_stats(effective_garmin, ref_date=ref_date)
     whoop_stats = _calculate_source_stats(whoop_data, ref_date=ref_date)
+    es_data = eight_sleep_data or []
+    es_stats = _calculate_source_stats(es_data, ref_date=ref_date) if es_data else None
 
     garmin_map = {
         to_day_key(v.date): v.value for v in effective_garmin if v.value is not None
     }
     whoop_map = {to_day_key(v.date): v.value for v in whoop_data if v.value is not None}
+    es_map = {to_day_key(v.date): v.value for v in es_data if v.value is not None}
 
     overlap_days = sum(1 for dk in garmin_map if dk in whoop_map)
     has_enough_overlap = overlap_days >= MIN_OVERLAP_FOR_BLENDING
 
-    all_dates = set(garmin_map.keys()) | set(whoop_map.keys())
+    all_dates = set(garmin_map.keys()) | set(whoop_map.keys()) | set(es_map.keys())
     result: list[UnifiedMetricPoint] = []
 
     for date_key in all_dates:
         g_val = garmin_map.get(date_key)
         w_val = whoop_map.get(date_key)
+        es_val = es_map.get(date_key)
         g_weight = _calculate_source_weight(garmin_stats, g_val, metric_type)
         w_weight = _calculate_source_weight(whoop_stats, w_val, metric_type)
         g_z = _compute_source_z(g_val, garmin_stats)
         w_z = _compute_source_z(w_val, whoop_stats)
+        es_z = _compute_source_z(es_val, es_stats) if es_stats else None
+        es_weight = (
+            _calculate_source_weight(es_stats, es_val, metric_type) if es_stats else 0.0
+        )
 
         fused_value, fused_z, confidence, provider = _fuse_point(
             g_val, w_val, g_weight, w_weight, g_z, w_z, has_enough_overlap
         )
+
+        if es_val is not None and fused_value is not None and es_weight > 0:
+            total_w = (g_weight + w_weight) + es_weight
+            if total_w > 0:
+                fused_value = (
+                    fused_value * (g_weight + w_weight) + es_val * es_weight
+                ) / total_w
+                if fused_z is not None and es_z is not None:
+                    fused_z = (
+                        fused_z * (g_weight + w_weight) + es_z * es_weight
+                    ) / total_w
+                confidence = min(1.0, confidence * 1.1)
+                provider = "blended"
+        elif es_val is not None and fused_value is None:
+            fused_value = es_val
+            fused_z = es_z
+            confidence = min(1.0, es_weight * 0.8)
+            provider = "eight_sleep"
 
         if metric_type == "strain" and fused_value is not None:
             fused_value = max(0.0, min(WHOOP_MAX_STRAIN, fused_value))
@@ -246,8 +273,10 @@ def blended_merge(
                 z_score=fused_z,
                 garmin_value=g_val,
                 whoop_value=w_val,
+                eight_sleep_value=es_val,
                 garmin_z_score=g_z,
                 whoop_z_score=w_z,
+                eight_sleep_z_score=es_z,
                 provider=provider,
                 confidence=confidence,
             )
@@ -259,25 +288,46 @@ def blended_merge(
 def fuse_hrv(
     garmin_hrv: list[DataPoint],
     whoop_hrv: list[DataPoint],
+    eight_sleep_hrv: list[DataPoint] | None = None,
     ref_date: date | None = None,
 ) -> list[UnifiedMetricPoint]:
-    return blended_merge(garmin_hrv, whoop_hrv, "hrv", ref_date=ref_date)
+    return blended_merge(
+        garmin_hrv,
+        whoop_hrv,
+        "hrv",
+        ref_date=ref_date,
+        eight_sleep_data=eight_sleep_hrv,
+    )
 
 
 def fuse_sleep(
     garmin_sleep: list[DataPoint],
     whoop_sleep: list[DataPoint],
+    eight_sleep_sleep: list[DataPoint] | None = None,
     ref_date: date | None = None,
 ) -> list[UnifiedMetricPoint]:
-    return blended_merge(garmin_sleep, whoop_sleep, "sleep", ref_date=ref_date)
+    return blended_merge(
+        garmin_sleep,
+        whoop_sleep,
+        "sleep",
+        ref_date=ref_date,
+        eight_sleep_data=eight_sleep_sleep,
+    )
 
 
 def fuse_resting_hr(
     garmin_rhr: list[DataPoint],
     whoop_rhr: list[DataPoint],
+    eight_sleep_rhr: list[DataPoint] | None = None,
     ref_date: date | None = None,
 ) -> list[UnifiedMetricPoint]:
-    return blended_merge(garmin_rhr, whoop_rhr, "resting_hr", ref_date=ref_date)
+    return blended_merge(
+        garmin_rhr,
+        whoop_rhr,
+        "resting_hr",
+        ref_date=ref_date,
+        eight_sleep_data=eight_sleep_rhr,
+    )
 
 
 def fuse_strain(
@@ -303,6 +353,51 @@ def fuse_calories(
     return blended_merge(garmin_calories, whoop_calories, "calories", ref_date=ref_date)
 
 
+def fuse_respiratory_rate(
+    garmin_rr: list[DataPoint],
+    whoop_rr: list[DataPoint],
+    eight_sleep_rr: list[DataPoint] | None = None,
+    ref_date: date | None = None,
+) -> list[UnifiedMetricPoint]:
+    return blended_merge(
+        garmin_rr,
+        whoop_rr,
+        "respiratory_rate",
+        ref_date=ref_date,
+        eight_sleep_data=eight_sleep_rr,
+    )
+
+
+def fuse_sleep_deep(
+    garmin_deep: list[DataPoint],
+    whoop_deep: list[DataPoint],
+    eight_sleep_deep: list[DataPoint] | None = None,
+    ref_date: date | None = None,
+) -> list[UnifiedMetricPoint]:
+    return blended_merge(
+        garmin_deep,
+        whoop_deep,
+        "sleep_deep",
+        ref_date=ref_date,
+        eight_sleep_data=eight_sleep_deep,
+    )
+
+
+def fuse_sleep_rem(
+    garmin_rem: list[DataPoint],
+    whoop_rem: list[DataPoint],
+    eight_sleep_rem: list[DataPoint] | None = None,
+    ref_date: date | None = None,
+) -> list[UnifiedMetricPoint]:
+    return blended_merge(
+        garmin_rem,
+        whoop_rem,
+        "sleep_rem",
+        ref_date=ref_date,
+        eight_sleep_data=eight_sleep_rem,
+    )
+
+
 def unified_to_data_points(data: list[UnifiedMetricPoint]) -> list[DataPoint]:
     return [DataPoint(date=d.date, value=d.value) for d in data]
 
@@ -318,38 +413,67 @@ def get_latest_fused_input(data: list[UnifiedMetricPoint]) -> FusedZScoreInput |
 
 
 def get_fusion_stats(data: list[UnifiedMetricPoint]) -> dict:
-    garmin_only = sum(
-        1 for d in data if d.garmin_value is not None and d.whoop_value is None
-    )
-    whoop_only = sum(
-        1 for d in data if d.whoop_value is not None and d.garmin_value is None
-    )
-    blended = sum(
-        1 for d in data if d.garmin_value is not None and d.whoop_value is not None
-    )
     garmin_days = sum(1 for d in data if d.garmin_value is not None)
     whoop_days = sum(1 for d in data if d.whoop_value is not None)
+    es_days = sum(1 for d in data if d.eight_sleep_value is not None)
+    blended = sum(
+        1
+        for d in data
+        if sum(
+            v is not None for v in [d.garmin_value, d.whoop_value, d.eight_sleep_value]
+        )
+        >= 2
+    )
+    garmin_only = sum(
+        1
+        for d in data
+        if d.garmin_value is not None
+        and d.whoop_value is None
+        and d.eight_sleep_value is None
+    )
+    whoop_only = sum(
+        1
+        for d in data
+        if d.whoop_value is not None
+        and d.garmin_value is None
+        and d.eight_sleep_value is None
+    )
+    eight_sleep_only = sum(
+        1
+        for d in data
+        if d.eight_sleep_value is not None
+        and d.garmin_value is None
+        and d.whoop_value is None
+    )
     avg_confidence = mean_or_none([d.confidence for d in data]) or 0.0
     total = len(data)
     return {
         "total": total,
         "garmin_only": garmin_only,
         "whoop_only": whoop_only,
+        "eight_sleep_only": eight_sleep_only,
         "blended": blended,
         "avg_confidence": avg_confidence,
         "garmin_coverage": garmin_days / total if total > 0 else 0,
         "whoop_coverage": whoop_days / total if total > 0 else 0,
+        "eight_sleep_coverage": es_days / total if total > 0 else 0,
     }
 
 
 def get_data_source_summary(fused: FusedHealthData) -> list[DataSourceSummary]:
-    metrics = [
+    metrics: list[tuple[str, list[UnifiedMetricPoint]]] = [
         ("HRV", fused.hrv.unified),
         ("Sleep", fused.sleep.unified),
         ("Resting HR", fused.resting_hr.unified),
         ("Strain", fused.strain.unified),
         ("Calories", fused.calories.unified),
     ]
+    if fused.respiratory_rate:
+        metrics.append(("Respiratory Rate", fused.respiratory_rate.unified))
+    if fused.sleep_deep:
+        metrics.append(("Deep Sleep", fused.sleep_deep.unified))
+    if fused.sleep_rem:
+        metrics.append(("REM Sleep", fused.sleep_rem.unified))
     result: list[DataSourceSummary] = []
     for name, data in metrics:
         stats = get_fusion_stats(data)
@@ -359,6 +483,7 @@ def get_data_source_summary(fused: FusedHealthData) -> list[DataSourceSummary]:
                 total=stats["total"],
                 garmin_only=stats["garmin_only"],
                 whoop_only=stats["whoop_only"],
+                eight_sleep_only=stats["eight_sleep_only"],
                 blended=stats["blended"],
                 avg_confidence=stats["avg_confidence"],
             )
@@ -371,6 +496,7 @@ def _build_fused_metric(
     metric: str,
     garmin_raw: list[DataPoint],
     whoop_raw: list[DataPoint],
+    eight_sleep_raw: list[DataPoint] | None = None,
 ) -> FusedMetric:
     blended_points = unified_to_data_points(unified)
     blended = MetricSeries(metric=metric, source="blended", points=blended_points)
@@ -384,7 +510,18 @@ def _build_fused_metric(
         if whoop_raw
         else None
     )
-    return FusedMetric(unified=unified, blended=blended, garmin=garmin, whoop=whoop)
+    eight_sleep = (
+        MetricSeries(metric=metric, source="eight_sleep", points=eight_sleep_raw)
+        if eight_sleep_raw
+        else None
+    )
+    return FusedMetric(
+        unified=unified,
+        blended=blended,
+        garmin=garmin,
+        whoop=whoop,
+        eight_sleep=eight_sleep,
+    )
 
 
 def create_fused_health_data(raw, ref_date: date | None = None) -> FusedHealthData:
@@ -392,24 +529,100 @@ def create_fused_health_data(raw, ref_date: date | None = None) -> FusedHealthDa
 
     r: RawHealthData = raw
 
-    hrv_unified = fuse_hrv(r.hrv_garmin, r.hrv_whoop, ref_date=ref_date)
-    sleep_unified = fuse_sleep(r.sleep_garmin, r.sleep_whoop, ref_date=ref_date)
-    rhr_unified = fuse_resting_hr(r.rhr_garmin, r.rhr_whoop, ref_date=ref_date)
+    hrv_unified = fuse_hrv(
+        r.hrv_garmin,
+        r.hrv_whoop,
+        r.hrv_eight_sleep,
+        ref_date=ref_date,
+    )
+    sleep_unified = fuse_sleep(
+        r.sleep_garmin,
+        r.sleep_whoop,
+        r.sleep_eight_sleep,
+        ref_date=ref_date,
+    )
+    rhr_unified = fuse_resting_hr(
+        r.rhr_garmin,
+        r.rhr_whoop,
+        r.rhr_eight_sleep,
+        ref_date=ref_date,
+    )
     strain_unified = fuse_strain(r.strain_whoop, r.strain_garmin, ref_date=ref_date)
     calories_unified = fuse_calories(
         r.calories_garmin, r.calories_whoop, ref_date=ref_date
     )
+    rr_unified = fuse_respiratory_rate(
+        r.respiratory_rate_garmin,
+        r.respiratory_rate_whoop,
+        r.respiratory_rate_eight_sleep,
+        ref_date=ref_date,
+    )
+    deep_unified = fuse_sleep_deep(
+        r.sleep_deep_garmin,
+        r.sleep_deep_whoop,
+        r.sleep_deep_eight_sleep,
+        ref_date=ref_date,
+    )
+    rem_unified = fuse_sleep_rem(
+        r.sleep_rem_garmin,
+        r.sleep_rem_whoop,
+        r.sleep_rem_eight_sleep,
+        ref_date=ref_date,
+    )
 
     return FusedHealthData(
-        hrv=_build_fused_metric(hrv_unified, "hrv", r.hrv_garmin, r.hrv_whoop),
-        sleep=_build_fused_metric(
-            sleep_unified, "sleep", r.sleep_garmin, r.sleep_whoop
+        hrv=_build_fused_metric(
+            hrv_unified,
+            "hrv",
+            r.hrv_garmin,
+            r.hrv_whoop,
+            r.hrv_eight_sleep,
         ),
-        resting_hr=_build_fused_metric(rhr_unified, "rhr", r.rhr_garmin, r.rhr_whoop),
+        sleep=_build_fused_metric(
+            sleep_unified,
+            "sleep",
+            r.sleep_garmin,
+            r.sleep_whoop,
+            r.sleep_eight_sleep,
+        ),
+        resting_hr=_build_fused_metric(
+            rhr_unified,
+            "rhr",
+            r.rhr_garmin,
+            r.rhr_whoop,
+            r.rhr_eight_sleep,
+        ),
         strain=_build_fused_metric(
-            strain_unified, "strain", r.strain_garmin, r.strain_whoop
+            strain_unified,
+            "strain",
+            r.strain_garmin,
+            r.strain_whoop,
         ),
         calories=_build_fused_metric(
-            calories_unified, "calories", r.calories_garmin, r.calories_whoop
+            calories_unified,
+            "calories",
+            r.calories_garmin,
+            r.calories_whoop,
+        ),
+        respiratory_rate=_build_fused_metric(
+            rr_unified,
+            "respiratory_rate",
+            r.respiratory_rate_garmin,
+            r.respiratory_rate_whoop,
+            r.respiratory_rate_eight_sleep,
+        ),
+        sleep_deep=_build_fused_metric(
+            deep_unified,
+            "sleep_deep",
+            r.sleep_deep_garmin,
+            r.sleep_deep_whoop,
+            r.sleep_deep_eight_sleep,
+        ),
+        sleep_rem=_build_fused_metric(
+            rem_unified,
+            "sleep_rem",
+            r.sleep_rem_garmin,
+            r.sleep_rem_whoop,
+            r.sleep_rem_eight_sleep,
         ),
     )
