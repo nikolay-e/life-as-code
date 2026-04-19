@@ -29,6 +29,7 @@
 - Failed syncs trigger exponential backoff (0/20m/3h/24h/72h)
 - Reset backoff: `DELETE FROM sync_backoff WHERE source = '<source>'`
 - Check backoff status: `GET /api/sync/backoff-status`
+- "Sync already in progress" (advisory lock contention) should NOT trigger backoff — it's normal during pod restarts when scheduler and backend race for the same lock
 
 ## Eight Sleep Integration
 
@@ -63,11 +64,18 @@
 - During rollout, "Request failed:" may flash on login page — transient, resolves after backend pod is ready
 - Playwright browser caches old SW — need manual "Update now" click on first visit after deploy, then auto-update works
 
-## Recharts Type Compatibility
+## Recharts Charts
 
+- `ResponsiveContainer` with `height="100%"` collapses to 0 when parent has no explicit height — always use `height={number}` for chart containers inside `ChartCard`
 - Tooltip `formatter` prop: never use explicit `(value: number)` — Recharts types expect `number | undefined`
+
 - Use inferred types: `formatter={(value, name) => ...}` like existing charts
 - `formatDateTick` doesn't exist — use inline `(value: number) => format(new Date(value), "MMM d")`
+
+## Accessibility
+
+- Login page must use `<main>` landmark to satisfy axe `region` rule
+- Crawler `button-name` violations can be intermittent (timing-dependent dynamic rendering) — run crawler twice if critical appears
 
 ## K8s Events
 

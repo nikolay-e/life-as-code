@@ -148,6 +148,14 @@ _GAP_DETECTION_SOURCES = {
 }
 
 
+def _is_only_lock_contention(result: dict) -> bool:
+    results = result.get("results", [])
+    if not results:
+        return False
+    errors = [e for r in results for e in r.get("errors", [])]
+    return bool(errors) and all("Sync already in progress" in e for e in errors)
+
+
 def _sync_source_for_user(user_id: int, source: str, sync_func) -> None:
     days = (
         _get_sync_days_with_backfill(user_id, source)
@@ -161,6 +169,12 @@ def _sync_source_for_user(user_id: int, source: str, sync_func) -> None:
 
         if success:
             backoff_manager.record_success(user_id, source)
+        elif _is_only_lock_contention(result):
+            logger.info(
+                "scheduler_sync_skipped_lock_contention",
+                user_id=user_id,
+                source=source,
+            )
         else:
             is_rate_limit = _has_rate_limit_errors(result)
             backoff_manager.record_failure(user_id, source, is_rate_limit=is_rate_limit)

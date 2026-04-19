@@ -33,7 +33,7 @@ export function LoginPage() {
   };
 
   return (
-    <div
+    <main
       className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-800 p-4"
       style={{
         paddingTop: "max(1rem, env(safe-area-inset-top))",
@@ -126,6 +126,6 @@ export function LoginPage() {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </main>
   );
 }
