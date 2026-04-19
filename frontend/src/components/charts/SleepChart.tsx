@@ -12,9 +12,17 @@ import {
   Line,
 } from "recharts";
 import { format } from "date-fns";
-import type { SleepData, WhoopSleepData } from "../../types/api";
+import type {
+  SleepData,
+  WhoopSleepData,
+  EightSleepSessionData,
+} from "../../types/api";
 import { EmptyChartMessage } from "./shared";
-import { chartTooltipStyle, MULTI_PROVIDER_CONFIGS } from "./chart-config";
+import {
+  chartTooltipStyle,
+  MULTI_PROVIDER_CONFIGS,
+  SOURCE_COLORS,
+} from "./chart-config";
 import { loessSmooth } from "../../lib/statistics";
 import { dateToTimestamp } from "../../lib/chart-utils";
 import {
@@ -25,6 +33,7 @@ import {
 interface SleepChartProps {
   readonly garminData: SleepData[];
   readonly whoopData?: WhoopSleepData[];
+  readonly eightSleepData?: EightSleepSessionData[];
   readonly showBreakdown?: boolean;
   readonly showTrends?: boolean;
   readonly bandwidthShort?: number;
@@ -44,6 +53,7 @@ export const SleepChart = memo(
   ({
     garminData,
     whoopData = [],
+    eightSleepData = [],
     showBreakdown = false,
     showTrends = false,
     bandwidthShort = LOESS_BANDWIDTH_SHORT,
@@ -63,18 +73,28 @@ export const SleepChart = memo(
       [whoopData],
     );
 
+    const eightSleepMap = useMemo(
+      () => new Map(eightSleepData.map((d) => [d.date, d])),
+      [eightSleepData],
+    );
+
     const allDates = useMemo(() => {
-      const dates = new Set([...garminMap.keys(), ...whoopMap.keys()]);
+      const dates = new Set([
+        ...garminMap.keys(),
+        ...whoopMap.keys(),
+        ...eightSleepMap.keys(),
+      ]);
       return Array.from(dates).sort(
         (a, b) => new Date(a).getTime() - new Date(b).getTime(),
       );
-    }, [garminMap, whoopMap]);
+    }, [garminMap, whoopMap, eightSleepMap]);
 
     const chartData = useMemo(
       () =>
         allDates.map((date) => {
           const garmin = garminMap.get(date);
           const whoop = whoopMap.get(date);
+          const es = eightSleepMap.get(date);
           return {
             date,
             timestamp: dateToTimestamp(date),
@@ -84,13 +104,16 @@ export const SleepChart = memo(
             whoopTotal: whoop?.total_sleep_duration_minutes
               ? whoop.total_sleep_duration_minutes / 60
               : null,
+            eightSleepTotal: es?.sleep_duration_seconds
+              ? es.sleep_duration_seconds / 3600
+              : null,
             deep: garmin?.deep_minutes ? garmin.deep_minutes / 60 : 0,
             light: garmin?.light_minutes ? garmin.light_minutes / 60 : 0,
             rem: garmin?.rem_minutes ? garmin.rem_minutes / 60 : 0,
             awake: garmin?.awake_minutes ? garmin.awake_minutes / 60 : 0,
           };
         }),
-      [allDates, garminMap, whoopMap],
+      [allDates, garminMap, whoopMap, eightSleepMap],
     );
 
     const xDomain = useMemo(() => {
@@ -104,19 +127,27 @@ export const SleepChart = memo(
     }, [dateRange]);
 
     const hasData = chartData.some(
-      (d) => d.garminTotal !== null || d.whoopTotal !== null,
+      (d) =>
+        d.garminTotal !== null ||
+        d.whoopTotal !== null ||
+        d.eightSleepTotal !== null,
     );
 
     const chartDataWithTrends = useMemo(() => {
       if (!showTrends || chartData.length === 0) return chartData;
 
-      const withAvg = chartData.map((d) => ({
-        ...d,
-        avgValue:
-          d.garminTotal !== null && d.whoopTotal !== null
-            ? (d.garminTotal + d.whoopTotal) / 2
-            : (d.garminTotal ?? d.whoopTotal),
-      }));
+      const withAvg = chartData.map((d) => {
+        const vals = [d.garminTotal, d.whoopTotal, d.eightSleepTotal].filter(
+          (v): v is number => v !== null,
+        );
+        return {
+          ...d,
+          avgValue:
+            vals.length > 0
+              ? vals.reduce((a, b) => a + b, 0) / vals.length
+              : null,
+        };
+      });
 
       const loessShort = loessSmooth(withAvg, "avgValue", bandwidthShort);
       const loessLong = loessSmooth(withAvg, "avgValue", bandwidthLong);
@@ -230,6 +261,9 @@ export const SleepChart = memo(
               if (name === "whoopTotal") {
                 return [formatHours(Number(value)), "Whoop"];
               }
+              if (name === "eightSleepTotal") {
+                return [formatHours(Number(value)), "Eight Sleep"];
+              }
               return [formatHours(Number(value)), name];
             }}
             contentStyle={chartTooltipStyle}
@@ -239,6 +273,7 @@ export const SleepChart = memo(
               formatter={(value: string) => {
                 if (value === "garminTotal") return "Garmin";
                 if (value === "whoopTotal") return "Whoop";
+                if (value === "eightSleepTotal") return "Eight Sleep";
                 if (value === "trendShort") return "Short trend";
                 if (value === "trendLong") return "Long trend";
                 return value;
@@ -256,6 +291,12 @@ export const SleepChart = memo(
             fill={config.whoopColor}
             radius={[4, 4, 0, 0]}
             name="whoopTotal"
+          />
+          <Bar
+            dataKey="eightSleepTotal"
+            fill={SOURCE_COLORS.eightSleep}
+            radius={[4, 4, 0, 0]}
+            name="eightSleepTotal"
           />
           {showTrends && (
             <Line

@@ -319,6 +319,7 @@ export function DashboardOverview() {
             <SleepChart
               garminData={data?.sleep ?? []}
               whoopData={data?.whoop_sleep ?? []}
+              eightSleepData={data?.eight_sleep_sessions ?? []}
               showTrends
               bandwidthShort={bandwidthShort}
               bandwidthLong={bandwidthLong}

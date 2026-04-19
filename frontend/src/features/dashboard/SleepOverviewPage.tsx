@@ -309,6 +309,7 @@ export function SleepOverviewPage() {
           <SleepChart
             garminData={healthData?.sleep ?? []}
             whoopData={healthData?.whoop_sleep ?? []}
+            eightSleepData={eightSleepData}
             showTrends
             dateRange={dateRange}
           />
