@@ -22,7 +22,7 @@ from .fusion import (
     get_latest_fused_input,
 )
 from .longevity import LongevityInsightsInput, calculate_longevity_insights
-from .metric_series import FusedHealthData, MetricSeries
+from .metric_series import FusedHealthData, FusedMetric, MetricSeries
 from .metrics import (
     HealthScoreInput,
     baseline_cache_scope,
@@ -122,6 +122,28 @@ def _compute_metric_baselines(
     return result
 
 
+def _source_points(metric: FusedMetric, source: str) -> list[DataPoint]:
+    src = getattr(metric, source, None)
+    return src.points if src else []
+
+
+def _detect_source_anomalies(
+    fused: FusedHealthData,
+    source: str,
+    stress_data: list[DataPoint],
+    baseline_window: int,
+    ref_date: date | None,
+) -> AnomalyMetrics:
+    return detect_anomalies(
+        _source_points(fused.hrv, source),
+        _source_points(fused.resting_hr, source),
+        _source_points(fused.sleep, source),
+        stress_data if source == "garmin" else [],
+        baseline_window,
+        ref_date=ref_date,
+    )
+
+
 def _detect_multi_source_anomalies(
     fused: FusedHealthData,
     stress_data: list[DataPoint],
@@ -132,38 +154,19 @@ def _detect_multi_source_anomalies(
 
     today = ref_date or local_today()
 
-    garmin_result = detect_anomalies(
-        fused.hrv.garmin.points if fused.hrv.garmin else [],
-        fused.resting_hr.garmin.points if fused.resting_hr.garmin else [],
-        fused.sleep.garmin.points if fused.sleep.garmin else [],
-        stress_data,
-        baseline_window,
-        ref_date=ref_date,
-    )
-    whoop_result = detect_anomalies(
-        fused.hrv.whoop.points if fused.hrv.whoop else [],
-        fused.resting_hr.whoop.points if fused.resting_hr.whoop else [],
-        fused.sleep.whoop.points if fused.sleep.whoop else [],
-        [],
-        baseline_window,
-        ref_date=ref_date,
-    )
-    eight_sleep_result = detect_anomalies(
-        fused.hrv.eight_sleep.points if fused.hrv.eight_sleep else [],
-        fused.resting_hr.eight_sleep.points if fused.resting_hr.eight_sleep else [],
-        fused.sleep.eight_sleep.points if fused.sleep.eight_sleep else [],
-        [],
-        baseline_window,
-        ref_date=ref_date,
-    )
+    source_results = [
+        (
+            name,
+            _detect_source_anomalies(
+                fused, name, stress_data, baseline_window, ref_date
+            ),
+        )
+        for name in ("garmin", "whoop", "eight_sleep")
+    ]
 
     all_anomalies: list[AnomalyResult] = []
     seen: set[tuple[str, str]] = set()
-    for source_name, result in [
-        ("garmin", garmin_result),
-        ("whoop", whoop_result),
-        ("eight_sleep", eight_sleep_result),
-    ]:
+    for source_name, result in source_results:
         for a in result.anomalies:
             key = (a.date, a.metric)
             if key not in seen:

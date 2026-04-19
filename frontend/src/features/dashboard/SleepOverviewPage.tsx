@@ -232,18 +232,20 @@ export function SleepOverviewPage() {
   const sleepQuality = advancedInsights?.sleep_quality;
   const sleepTemp = advancedInsights?.sleep_temperature;
 
-  const sleepScoreBaseline = baselines["sleep_score"] as
-    | (typeof baselines)[string]
-    | undefined;
-  const sleepLatencyBaseline = baselines["sleep_latency"] as
-    | (typeof baselines)[string]
-    | undefined;
-  const tossBaseline = baselines["toss_and_turn"] as
-    | (typeof baselines)[string]
-    | undefined;
-  const respRateBaseline = baselines["respiratory_rate"] as
-    | (typeof baselines)[string]
-    | undefined;
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Record keys may be absent at runtime
+  const sleepScoreCurrent = baselines.sleep_score?.current_value ?? null;
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  const sleepScoreMean = baselines.sleep_score?.mean ?? null;
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  const sleepLatencyCurrent = baselines.sleep_latency?.current_value ?? null;
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  const tossCurrent = baselines.toss_and_turn?.current_value ?? null;
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  const tossMean = baselines.toss_and_turn?.mean ?? null;
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  const respCurrent = baselines.respiratory_rate?.current_value ?? null;
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  const respMean = baselines.respiratory_rate?.mean ?? null;
 
   const eightSleepData = healthData?.eight_sleep_sessions ?? [];
 
@@ -268,16 +270,16 @@ export function SleepOverviewPage() {
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <SummaryCard
           title="Sleep Score"
-          value={formatScore(sleepScoreBaseline?.current_value)}
-          subtitle={formatScoreSubtitle(sleepScoreBaseline?.mean)}
+          value={formatScore(sleepScoreCurrent)}
+          subtitle={formatScoreSubtitle(sleepScoreMean)}
           icon={Star}
         />
         <SummaryCard
           title="Sleep Duration"
           value={
-            sleepMetrics.avg_sleep_short !== null
-              ? formatSleepMinutes(sleepMetrics.avg_sleep_short)
-              : "—"
+            sleepMetrics.avg_sleep_short === null
+              ? "—"
+              : formatSleepMinutes(sleepMetrics.avg_sleep_short)
           }
           subtitle={`target: ${formatSleepMinutes(sleepMetrics.target_sleep)}`}
           icon={Moon}
@@ -290,8 +292,8 @@ export function SleepOverviewPage() {
         />
         <SummaryCard
           title="Sleep Latency"
-          value={formatLatency(sleepLatencyBaseline?.current_value)}
-          subtitle={latencySubtitle(sleepLatencyBaseline?.current_value)}
+          value={formatLatency(sleepLatencyCurrent)}
+          subtitle={latencySubtitle(sleepLatencyCurrent)}
           icon={Clock}
         />
       </div>
@@ -424,9 +426,9 @@ export function SleepOverviewPage() {
                   value={sleepQuality.deep_sleep_pct}
                   unit="%"
                   good={
-                    sleepQuality.deep_sleep_pct !== null
-                      ? sleepQuality.deep_sleep_pct >= 15
-                      : undefined
+                    sleepQuality.deep_sleep_pct === null
+                      ? undefined
+                      : sleepQuality.deep_sleep_pct >= 15
                   }
                 />
                 <MetricValue
@@ -434,9 +436,9 @@ export function SleepOverviewPage() {
                   value={sleepQuality.rem_sleep_pct}
                   unit="%"
                   good={
-                    sleepQuality.rem_sleep_pct !== null
-                      ? sleepQuality.rem_sleep_pct >= 20
-                      : undefined
+                    sleepQuality.rem_sleep_pct === null
+                      ? undefined
+                      : sleepQuality.rem_sleep_pct >= 20
                   }
                 />
               </div>
@@ -446,9 +448,9 @@ export function SleepOverviewPage() {
                   value={sleepQuality.efficiency}
                   unit="%"
                   good={
-                    sleepQuality.efficiency !== null
-                      ? sleepQuality.efficiency >= 85
-                      : undefined
+                    sleepQuality.efficiency === null
+                      ? undefined
+                      : sleepQuality.efficiency >= 85
                   }
                 />
                 <MetricValue
@@ -538,24 +540,16 @@ export function SleepOverviewPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              <MetricValue
-                label="Current"
-                value={tossBaseline?.current_value}
-                unit="times"
-              />
-              <MetricValue
-                label="Average"
-                value={tossBaseline?.mean}
-                unit="times"
-              />
+              <MetricValue label="Current" value={tossCurrent} unit="times" />
+              <MetricValue label="Average" value={tossMean} unit="times" />
               <MetricValue
                 label="Respiratory Rate"
-                value={respRateBaseline?.current_value}
+                value={respCurrent}
                 unit="br/min"
               />
               <MetricValue
                 label="Resp. Rate Avg"
-                value={respRateBaseline?.mean}
+                value={respMean}
                 unit="br/min"
               />
             </div>
@@ -596,9 +590,9 @@ function ScoreCard({
         <div className="flex justify-between text-xs text-muted-foreground mt-1">
           <span>
             avg:{" "}
-            {mean !== null && mean !== undefined
-              ? String(Math.round(mean))
-              : "—"}
+            {mean === null || mean === undefined
+              ? "—"
+              : String(Math.round(mean))}
           </span>
           {zScore !== null && zScore !== undefined && (
             <span className={zScoreColor(zScore)}>
@@ -608,13 +602,13 @@ function ScoreCard({
         </div>
         {series && series.length > 0 && (
           <div className="flex gap-[2px] mt-2 h-8 items-end">
-            {series.slice(-14).map((point, i) => {
+            {series.slice(-14).map((point) => {
               const v = point.value;
               if (v === null) return null;
               const height = Math.max(4, (v / 100) * 32);
               return (
                 <div
-                  key={i}
+                  key={point.date}
                   className="flex-1 rounded-sm bg-sleep/60"
                   style={{ height: `${String(height)}px` }}
                 />

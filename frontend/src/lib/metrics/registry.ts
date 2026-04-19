@@ -306,9 +306,9 @@ export const METRIC_REGISTRY: MetricDef[] = [
     gradientId: "sleepLatencyGradient",
     selectRaw: (d) =>
       toMetricData(d?.eight_sleep_sessions ?? [], (r) =>
-        r.latency_asleep_seconds !== null
-          ? Math.round(r.latency_asleep_seconds / 60)
-          : null,
+        r.latency_asleep_seconds === null
+          ? null
+          : Math.round(r.latency_asleep_seconds / 60),
       ),
     format: (v) => formatDefault(v, 0, "min"),
   },

@@ -202,6 +202,28 @@ def _fuse_point(
     return None, None, 0.0, "garmin"
 
 
+def _blend_eight_sleep(
+    fused_value: float | None,
+    fused_z: float | None,
+    confidence: float,
+    provider: DataProvider,
+    es_val: float | None,
+    es_z: float | None,
+    es_weight: float,
+    gw_weight: float,
+) -> tuple[float | None, float | None, float, DataProvider]:
+    if es_val is not None and fused_value is not None and es_weight > 0:
+        total_w = gw_weight + es_weight
+        if total_w > 0:
+            fused_value = (fused_value * gw_weight + es_val * es_weight) / total_w
+            if fused_z is not None and es_z is not None:
+                fused_z = (fused_z * gw_weight + es_z * es_weight) / total_w
+            return fused_value, fused_z, min(1.0, confidence * 1.1), "blended"
+    elif es_val is not None and fused_value is None:
+        return es_val, es_z, min(1.0, es_weight * 0.8), "eight_sleep"
+    return fused_value, fused_z, confidence, provider
+
+
 def blended_merge(
     garmin_data: list[DataPoint],
     whoop_data: list[DataPoint],
@@ -245,23 +267,16 @@ def blended_merge(
             g_val, w_val, g_weight, w_weight, g_z, w_z, has_enough_overlap
         )
 
-        if es_val is not None and fused_value is not None and es_weight > 0:
-            total_w = (g_weight + w_weight) + es_weight
-            if total_w > 0:
-                fused_value = (
-                    fused_value * (g_weight + w_weight) + es_val * es_weight
-                ) / total_w
-                if fused_z is not None and es_z is not None:
-                    fused_z = (
-                        fused_z * (g_weight + w_weight) + es_z * es_weight
-                    ) / total_w
-                confidence = min(1.0, confidence * 1.1)
-                provider = "blended"
-        elif es_val is not None and fused_value is None:
-            fused_value = es_val
-            fused_z = es_z
-            confidence = min(1.0, es_weight * 0.8)
-            provider = "eight_sleep"
+        fused_value, fused_z, confidence, provider = _blend_eight_sleep(
+            fused_value,
+            fused_z,
+            confidence,
+            provider,
+            es_val,
+            es_z,
+            es_weight,
+            g_weight + w_weight,
+        )
 
         if metric_type == "strain" and fused_value is not None:
             fused_value = max(0.0, min(WHOOP_MAX_STRAIN, fused_value))
