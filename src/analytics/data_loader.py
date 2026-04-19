@@ -121,7 +121,6 @@ def load_raw_health_data(
         Weight,
         WhoopCycle,
         WhoopRecovery,
-        WhoopSleep,
         WorkoutSet,
     )
 
@@ -129,18 +128,17 @@ def load_raw_health_data(
     cutoff = anchor - timedelta(days=days_back)
     raw = RawHealthData()
 
-    garmin_hrv = (
+    all_hrv = (
         db.query(HRV)
-        .filter(
-            HRV.user_id == user_id,
-            HRV.date >= cutoff,
-            HRV.date <= anchor,
-            HRV.source == "garmin",
-        )
+        .filter(HRV.user_id == user_id, HRV.date >= cutoff, HRV.date <= anchor)
         .order_by(HRV.date)
         .all()
     )
-    raw.hrv_garmin = _to_points(garmin_hrv, "hrv_avg")
+    raw.hrv_garmin = _to_points([r for r in all_hrv if r.source == "garmin"], "hrv_avg")
+    raw.hrv_whoop = _to_points([r for r in all_hrv if r.source == "whoop"], "hrv_avg")
+    raw.hrv_eight_sleep = _to_points(
+        [r for r in all_hrv if r.source == "eight_sleep"], "hrv_avg"
+    )
 
     whoop_recovery = (
         db.query(WhoopRecovery)
@@ -152,21 +150,18 @@ def load_raw_health_data(
         .order_by(WhoopRecovery.date)
         .all()
     )
-    raw.hrv_whoop = _to_points(whoop_recovery, "hrv_rmssd")
-    raw.rhr_whoop = _to_points(whoop_recovery, "resting_heart_rate")
     raw.recovery = _to_points(whoop_recovery, "recovery_score")
 
-    garmin_sleep = (
+    all_sleep = (
         db.query(Sleep)
-        .filter(
-            Sleep.user_id == user_id,
-            Sleep.date >= cutoff,
-            Sleep.date <= anchor,
-            Sleep.source == "garmin",
-        )
+        .filter(Sleep.user_id == user_id, Sleep.date >= cutoff, Sleep.date <= anchor)
         .order_by(Sleep.date)
         .all()
     )
+    garmin_sleep = [r for r in all_sleep if r.source == "garmin"]
+    whoop_sleep = [r for r in all_sleep if r.source == "whoop"]
+    es_sleep = [r for r in all_sleep if r.source == "eight_sleep"]
+
     raw.sleep_garmin = _to_points(garmin_sleep, "total_sleep_minutes")
     raw.sleep_deep_garmin = _to_points(garmin_sleep, "deep_minutes")
     raw.sleep_rem_garmin = _to_points(garmin_sleep, "rem_minutes")
@@ -188,34 +183,35 @@ def load_raw_health_data(
     ]
     raw.respiratory_rate_garmin = _to_points(garmin_sleep, "respiratory_rate")
 
-    whoop_sleep = (
-        db.query(WhoopSleep)
-        .filter(
-            WhoopSleep.user_id == user_id,
-            WhoopSleep.date >= cutoff,
-            WhoopSleep.date <= anchor,
-        )
-        .order_by(WhoopSleep.date)
-        .all()
-    )
-    raw.sleep_whoop = _to_points(whoop_sleep, "total_sleep_duration_minutes")
-    raw.sleep_deep_whoop = _to_points(whoop_sleep, "deep_sleep_minutes")
-    raw.sleep_rem_whoop = _to_points(whoop_sleep, "rem_sleep_minutes")
-    raw.sleep_efficiency_whoop = _to_points(whoop_sleep, "sleep_efficiency_percentage")
+    raw.sleep_whoop = _to_points(whoop_sleep, "total_sleep_minutes")
+    raw.sleep_deep_whoop = _to_points(whoop_sleep, "deep_minutes")
+    raw.sleep_rem_whoop = _to_points(whoop_sleep, "rem_minutes")
     raw.respiratory_rate_whoop = _to_points(whoop_sleep, "respiratory_rate")
 
-    garmin_hr = (
+    raw.sleep_eight_sleep = _to_points(es_sleep, "total_sleep_minutes")
+    raw.sleep_deep_eight_sleep = _to_points(es_sleep, "deep_minutes")
+    raw.sleep_rem_eight_sleep = _to_points(es_sleep, "rem_minutes")
+    raw.sleep_light_eight_sleep = _to_points(es_sleep, "light_minutes")
+    raw.respiratory_rate_eight_sleep = _to_points(es_sleep, "respiratory_rate")
+    raw.sleep_score_eight_sleep = _to_points(es_sleep, "sleep_score")
+
+    all_hr = (
         db.query(HeartRate)
         .filter(
             HeartRate.user_id == user_id,
             HeartRate.date >= cutoff,
             HeartRate.date <= anchor,
-            HeartRate.source == "garmin",
         )
         .order_by(HeartRate.date)
         .all()
     )
-    raw.rhr_garmin = _to_points(garmin_hr, "resting_hr")
+    raw.rhr_garmin = _to_points(
+        [r for r in all_hr if r.source == "garmin"], "resting_hr"
+    )
+    raw.rhr_whoop = _to_points([r for r in all_hr if r.source == "whoop"], "resting_hr")
+    raw.rhr_eight_sleep = _to_points(
+        [r for r in all_hr if r.source == "eight_sleep"], "resting_hr"
+    )
 
     stress_rows = (
         db.query(Stress.date, Stress.source, Stress.avg_stress)
@@ -372,44 +368,6 @@ def load_raw_health_data(
         .order_by(EightSleepSession.date)
         .all()
     )
-    raw.hrv_eight_sleep = _to_points(eight_sleep_sessions, "hrv")
-    raw.rhr_eight_sleep = _to_points(eight_sleep_sessions, "heart_rate")
-    raw.sleep_eight_sleep = [
-        DataPoint(
-            date=row.date.isoformat(),
-            value=round(row.sleep_duration_seconds / 60, 1),
-        )
-        for row in eight_sleep_sessions
-        if row.sleep_duration_seconds is not None
-    ]
-    raw.sleep_deep_eight_sleep = [
-        DataPoint(
-            date=row.date.isoformat(),
-            value=round(row.deep_duration_seconds / 60, 1),
-        )
-        for row in eight_sleep_sessions
-        if row.deep_duration_seconds is not None
-    ]
-    raw.sleep_rem_eight_sleep = [
-        DataPoint(
-            date=row.date.isoformat(),
-            value=round(row.rem_duration_seconds / 60, 1),
-        )
-        for row in eight_sleep_sessions
-        if row.rem_duration_seconds is not None
-    ]
-    raw.sleep_light_eight_sleep = [
-        DataPoint(
-            date=row.date.isoformat(),
-            value=round(row.light_duration_seconds / 60, 1),
-        )
-        for row in eight_sleep_sessions
-        if row.light_duration_seconds is not None
-    ]
-    raw.respiratory_rate_eight_sleep = _to_points(
-        eight_sleep_sessions, "respiratory_rate"
-    )
-    raw.sleep_score_eight_sleep = _to_points(eight_sleep_sessions, "score")
     raw.bed_temp = _to_points(eight_sleep_sessions, "bed_temp_celsius")
     raw.room_temp = _to_points(eight_sleep_sessions, "room_temp_celsius")
     raw.sleep_latency = [
