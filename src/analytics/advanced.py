@@ -30,6 +30,7 @@ from .types import (
     LagCorrelationPair,
     RecoveryEnhancedMetrics,
     SleepQualityMetrics,
+    SleepTemperatureCorrelation,
     WeekdayWeekendSplit,
 )
 
@@ -788,9 +789,92 @@ class AdvancedInsightsInput:
     recovery_data: list[DataPoint] = field(default_factory=list)
     workout_dates: list[DataPoint] = field(default_factory=list)
     vo2_max_data: list[DataPoint] = field(default_factory=list)
+    bed_temp_data: list[DataPoint] = field(default_factory=list)
+    room_temp_data: list[DataPoint] = field(default_factory=list)
+    sleep_score_data: list[DataPoint] = field(default_factory=list)
+    sleep_latency_data: list[DataPoint] = field(default_factory=list)
     short_window: int = 7
     baseline_window: int = 90
     ref_date: date | None = None
+
+
+def _calculate_sleep_temperature_correlation(
+    bed_temp: list[DataPoint],
+    room_temp: list[DataPoint],
+    sleep_score: list[DataPoint],
+    sleep_deep: list[DataPoint],
+    sleep_total: list[DataPoint],
+) -> SleepTemperatureCorrelation | None:
+    from .date_utils import to_day_key
+    from .stats import pearson_correlation
+
+    bed_map = {to_day_key(p.date): p.value for p in bed_temp if p.value is not None}
+    room_map = {to_day_key(p.date): p.value for p in room_temp if p.value is not None}
+    score_map = {
+        to_day_key(p.date): p.value for p in sleep_score if p.value is not None
+    }
+    deep_map = {to_day_key(p.date): p.value for p in sleep_deep if p.value is not None}
+    total_map = {
+        to_day_key(p.date): p.value for p in sleep_total if p.value is not None
+    }
+
+    common_bed_score = sorted(set(bed_map) & set(score_map))
+    common_room_score = sorted(set(room_map) & set(score_map))
+    common_bed_deep = sorted(set(bed_map) & set(deep_map) & set(total_map))
+
+    sample_size = max(len(common_bed_score), len(common_room_score))
+    if sample_size < 7:
+        return None
+
+    bed_score_r = (
+        pearson_correlation(
+            [bed_map[d] for d in common_bed_score],
+            [score_map[d] for d in common_bed_score],
+        )
+        if len(common_bed_score) >= 7
+        else None
+    )
+
+    room_score_r = (
+        pearson_correlation(
+            [room_map[d] for d in common_room_score],
+            [score_map[d] for d in common_room_score],
+        )
+        if len(common_room_score) >= 7
+        else None
+    )
+
+    bed_deep_r = None
+    if len(common_bed_deep) >= 7:
+        deep_pcts = [
+            deep_map[d] / total_map[d] * 100
+            for d in common_bed_deep
+            if total_map[d] > 0
+        ]
+        bed_vals = [bed_map[d] for d in common_bed_deep if total_map[d] > 0]
+        if len(bed_vals) >= 7:
+            bed_deep_r = pearson_correlation(bed_vals, deep_pcts)
+
+    optimal_bed = None
+    if common_bed_score:
+        top_scores = sorted(common_bed_score, key=lambda d: score_map[d], reverse=True)
+        top_n = max(3, len(top_scores) // 5)
+        optimal_bed = round(sum(bed_map[d] for d in top_scores[:top_n]) / top_n, 1)
+
+    optimal_room = None
+    if common_room_score:
+        top_scores = sorted(common_room_score, key=lambda d: score_map[d], reverse=True)
+        top_n = max(3, len(top_scores) // 5)
+        optimal_room = round(sum(room_map[d] for d in top_scores[:top_n]) / top_n, 1)
+
+    return SleepTemperatureCorrelation(
+        bed_temp_sleep_score_r=bed_score_r,
+        bed_temp_deep_pct_r=bed_deep_r,
+        room_temp_sleep_score_r=room_score_r,
+        optimal_bed_temp=optimal_bed,
+        optimal_room_temp=optimal_room,
+        sample_size=sample_size,
+    )
 
 
 def calculate_advanced_insights(inp: AdvancedInsightsInput) -> AdvancedInsights:
@@ -838,6 +922,14 @@ def _calculate_advanced_insights_impl(inp: AdvancedInsightsInput) -> AdvancedIns
         inp.recovery_data, inp.strain_data, sw, bw, rd
     )
 
+    sleep_temperature = _calculate_sleep_temperature_correlation(
+        inp.bed_temp_data,
+        inp.room_temp_data,
+        inp.sleep_score_data,
+        inp.sleep_deep,
+        inp.sleep_data,
+    )
+
     return AdvancedInsights(
         hrv_advanced=hrv_advanced,
         sleep_quality=sleep_quality,
@@ -846,4 +938,5 @@ def _calculate_advanced_insights_impl(inp: AdvancedInsightsInput) -> AdvancedIns
         cross_domain=cross_domain,
         allostatic_load=allostatic_load,
         recovery_enhanced=recovery_enhanced,
+        sleep_temperature=sleep_temperature,
     )

@@ -17,6 +17,7 @@ import {
   Check,
   Loader2,
   Dumbbell,
+  Moon,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Spinner } from "../../components/ui/spinner";
@@ -29,6 +30,7 @@ import { format, subDays } from "date-fns";
 
 const navItems = [
   { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard", end: true },
+  { to: "/dashboard/sleep", icon: Moon, label: "Sleep", end: false },
   {
     to: "/dashboard/statistics",
     icon: TrendingUp,

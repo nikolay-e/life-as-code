@@ -10,6 +10,9 @@ METRIC_QUERIES = {
     "rhr": "SELECT date, AVG(resting_hr) as value FROM heart_rate WHERE user_id = :uid AND resting_hr IS NOT NULL GROUP BY date ORDER BY date",
     "sleep_total": "SELECT date, AVG(total_sleep_minutes) as value FROM sleep WHERE user_id = :uid AND total_sleep_minutes IS NOT NULL GROUP BY date ORDER BY date",
     "steps": "SELECT date, SUM(total_steps) as value FROM steps WHERE user_id = :uid AND total_steps IS NOT NULL GROUP BY date ORDER BY date",
+    "respiratory_rate": "SELECT date, AVG(respiratory_rate) as value FROM (SELECT date, respiratory_rate FROM sleep WHERE user_id = :uid AND respiratory_rate IS NOT NULL UNION ALL SELECT date, respiratory_rate FROM eight_sleep_sessions WHERE user_id = :uid AND respiratory_rate IS NOT NULL) t GROUP BY date ORDER BY date",
+    "bed_temp": "SELECT date, AVG(bed_temp_celsius) as value FROM eight_sleep_sessions WHERE user_id = :uid AND bed_temp_celsius IS NOT NULL GROUP BY date ORDER BY date",
+    "sleep_score": "SELECT date, AVG(score) as value FROM eight_sleep_sessions WHERE user_id = :uid AND score IS NOT NULL GROUP BY date ORDER BY date",
 }
 
 ANOMALY_QUERY = """
@@ -21,11 +24,16 @@ SELECT
     COALESCE(AVG(h.hrv_avg), 0) as hrv,
     COALESCE(AVG(w.weight_kg), 0) as weight,
     COALESCE(AVG(e.active_energy), 0) as active_energy,
-    COALESCE(AVG(str.avg_stress), 0) as avg_stress
+    COALESCE(AVG(str.avg_stress), 0) as avg_stress,
+    COALESCE(AVG(es.bed_temp_celsius), 0) as bed_temp,
+    COALESCE(AVG(es.room_temp_celsius), 0) as room_temp,
+    COALESCE(AVG(COALESCE(sl.respiratory_rate, es.respiratory_rate)), 0) as respiratory_rate,
+    COALESCE(AVG(es.score), 0) as sleep_score
 FROM (
     SELECT DISTINCT date FROM steps WHERE user_id = :uid AND date >= :start_date
     UNION SELECT DISTINCT date FROM sleep WHERE user_id = :uid AND date >= :start_date
     UNION SELECT DISTINCT date FROM heart_rate WHERE user_id = :uid AND date >= :start_date
+    UNION SELECT DISTINCT date FROM eight_sleep_sessions WHERE user_id = :uid AND date >= :start_date
 ) s
 LEFT JOIN steps st ON st.date = s.date AND st.user_id = :uid
 LEFT JOIN sleep sl ON sl.date = s.date AND sl.user_id = :uid
@@ -34,6 +42,7 @@ LEFT JOIN hrv h ON h.date = s.date AND h.user_id = :uid
 LEFT JOIN weight w ON w.date = s.date AND w.user_id = :uid
 LEFT JOIN energy e ON e.date = s.date AND e.user_id = :uid
 LEFT JOIN stress str ON str.date = s.date AND str.user_id = :uid
+LEFT JOIN eight_sleep_sessions es ON es.date = s.date AND es.user_id = :uid
 GROUP BY s.date
 ORDER BY s.date
 """
@@ -77,6 +86,10 @@ def load_anomaly_features(
         "weight",
         "active_energy",
         "avg_stress",
+        "bed_temp",
+        "room_temp",
+        "respiratory_rate",
+        "sleep_score",
     ]
     df = pd.DataFrame(rows, columns=columns)
     df["date"] = pd.to_datetime(df["date"])

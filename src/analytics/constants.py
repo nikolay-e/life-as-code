@@ -64,6 +64,12 @@ METRIC_AGGREGATION: dict[str, str] = {
     "sleep_score": "last",
     "bed_temp": "last",
     "room_temp": "last",
+    "sleep_latency": "last",
+    "sleep_fitness": "last",
+    "sleep_routine": "last",
+    "sleep_quality_es": "last",
+    "toss_and_turn": "last",
+    "sleep_light": "last",
 }
 
 METRIC_COMPLETENESS_THRESHOLDS: dict[str, float] = {
@@ -84,6 +90,8 @@ PHYSIOLOGICAL_LIMITS: dict[str, dict[str, float]] = {
     "respiratory_rate": {"min": 5, "max": 40, "typical_min": 10, "typical_max": 25},
     "sleep_deep": {"min": 0, "max": 300, "typical_min": 30, "typical_max": 180},
     "sleep_rem": {"min": 0, "max": 300, "typical_min": 30, "typical_max": 180},
+    "sleep_latency": {"min": 0, "max": 120, "typical_min": 1, "typical_max": 60},
+    "sleep_light": {"min": 0, "max": 480, "typical_min": 60, "typical_max": 360},
 }
 
 MIN_OVERLAP_FOR_BLENDING = 7

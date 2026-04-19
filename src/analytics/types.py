@@ -378,6 +378,15 @@ class RecoveryEnhancedMetrics(BaseModel):
     recovery_half_life_days: float | None
 
 
+class SleepTemperatureCorrelation(BaseModel):
+    bed_temp_sleep_score_r: float | None
+    bed_temp_deep_pct_r: float | None
+    room_temp_sleep_score_r: float | None
+    optimal_bed_temp: float | None
+    optimal_room_temp: float | None
+    sample_size: int
+
+
 class AdvancedInsights(BaseModel):
     hrv_advanced: HRVAdvancedMetrics
     sleep_quality: SleepQualityMetrics
@@ -386,6 +395,7 @@ class AdvancedInsights(BaseModel):
     cross_domain: CrossDomainMetrics
     allostatic_load: AllostaticLoadMetrics
     recovery_enhanced: RecoveryEnhancedMetrics
+    sleep_temperature: SleepTemperatureCorrelation | None = None
 
 
 class BiologicalAgeComponent(BaseModel):

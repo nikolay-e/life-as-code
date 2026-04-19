@@ -37,11 +37,20 @@ export interface EightSleepSessionData {
   date: string;
   score: number | null;
   sleep_duration_seconds: number | null;
+  light_duration_seconds: number | null;
+  deep_duration_seconds: number | null;
+  rem_duration_seconds: number | null;
   heart_rate: number | null;
   hrv: number | null;
   respiratory_rate: number | null;
   bed_temp_celsius: number | null;
   room_temp_celsius: number | null;
+  latency_asleep_seconds: number | null;
+  latency_out_seconds: number | null;
+  sleep_fitness_score: number | null;
+  sleep_routine_score: number | null;
+  sleep_quality_score: number | null;
+  tnt: number | null;
 }
 
 export interface SleepData {
@@ -352,6 +361,15 @@ export interface RecoveryEnhancedMetrics {
   recovery_half_life_days: number | null;
 }
 
+export interface SleepTemperatureCorrelation {
+  bed_temp_sleep_score_r: number | null;
+  bed_temp_deep_pct_r: number | null;
+  room_temp_sleep_score_r: number | null;
+  optimal_bed_temp: number | null;
+  optimal_room_temp: number | null;
+  sample_size: number;
+}
+
 export interface AdvancedInsights {
   hrv_advanced: HRVAdvancedMetrics;
   sleep_quality: SleepQualityMetrics;
@@ -360,6 +378,7 @@ export interface AdvancedInsights {
   cross_domain: CrossDomainMetrics;
   allostatic_load: AllostaticLoadMetrics;
   recovery_enhanced: RecoveryEnhancedMetrics;
+  sleep_temperature?: SleepTemperatureCorrelation;
 }
 
 export interface DataPoint {

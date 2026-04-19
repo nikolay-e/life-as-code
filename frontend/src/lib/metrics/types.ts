@@ -27,7 +27,12 @@ export type MetricName =
   | "sleep_rem"
   | "sleep_score"
   | "bed_temp"
-  | "room_temp";
+  | "room_temp"
+  | "sleep_latency"
+  | "sleep_fitness"
+  | "sleep_routine"
+  | "sleep_quality_es"
+  | "toss_and_turn";
 
 export interface MetricDef {
   key: string;

@@ -24,6 +24,11 @@ export const TRENDS_METRIC_KEYS = [
   "sleep_score",
   "bed_temp",
   "room_temp",
+  "sleep_latency",
+  "sleep_fitness",
+  "sleep_routine",
+  "sleep_quality_es",
+  "toss_and_turn",
 ] as const;
 
 export type DashboardMetricKey = (typeof DASHBOARD_METRIC_KEYS)[number];

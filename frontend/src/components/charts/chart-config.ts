@@ -16,6 +16,7 @@ export const chartTooltipStyle: CSSProperties = {
 export const SOURCE_COLORS = {
   garmin: "hsl(var(--garmin))",
   whoop: "hsl(var(--whoop))",
+  eightSleep: "hsl(220 70% 55%)",
   googleFit: "hsl(var(--google-fit))",
   appleHealth: "hsl(var(--apple-health))",
 } as const;

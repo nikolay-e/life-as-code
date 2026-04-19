@@ -462,6 +462,10 @@ def _compute_health_analysis_impl(
             recovery_data=recovery_data,
             workout_dates=raw.workout_dates,
             vo2_max_data=raw.vo2_max,
+            bed_temp_data=raw.bed_temp,
+            room_temp_data=raw.room_temp,
+            sleep_score_data=raw.sleep_score_eight_sleep,
+            sleep_latency_data=raw.sleep_latency,
             short_window=config.short_term,
             baseline_window=config.baseline,
             ref_date=target_date,
@@ -509,6 +513,11 @@ def _compute_health_analysis_impl(
             "respiratory_rate": respiratory_rate_data,
             "sleep_deep": sleep_deep,
             "sleep_rem": sleep_rem,
+            "sleep_latency": raw.sleep_latency,
+            "sleep_fitness": raw.sleep_fitness_score,
+            "sleep_routine": raw.sleep_routine_score,
+            "sleep_quality_es": raw.sleep_quality_score_es,
+            "toss_and_turn": raw.toss_and_turn,
         },
         config.baseline,
         config.short_term,
@@ -535,6 +544,20 @@ def _compute_health_analysis_impl(
         "room_temp": to_daily_series_for_metric(raw.room_temp, "room_temp"),
         "sleep_score": to_daily_series_for_metric(
             raw.sleep_score_eight_sleep, "sleep_score"
+        ),
+        "sleep_latency": to_daily_series_for_metric(raw.sleep_latency, "sleep_latency"),
+        "sleep_fitness": to_daily_series_for_metric(
+            raw.sleep_fitness_score, "sleep_fitness"
+        ),
+        "sleep_routine": to_daily_series_for_metric(
+            raw.sleep_routine_score, "sleep_routine"
+        ),
+        "sleep_quality_es": to_daily_series_for_metric(
+            raw.sleep_quality_score_es, "sleep_quality_es"
+        ),
+        "toss_and_turn": to_daily_series_for_metric(raw.toss_and_turn, "toss_and_turn"),
+        "sleep_light": to_daily_series_for_metric(
+            raw.sleep_light_eight_sleep, "sleep_light"
         ),
     }
 

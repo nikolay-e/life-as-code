@@ -34,6 +34,11 @@ const TrainingsPage = lazy(() =>
     default: m.TrainingsPage,
   })),
 );
+const SleepOverviewPage = lazy(() =>
+  import("./features/dashboard/SleepOverviewPage").then((m) => ({
+    default: m.SleepOverviewPage,
+  })),
+);
 const SettingsPage = lazy(() =>
   import("./pages/SettingsPage").then((m) => ({ default: m.SettingsPage })),
 );
@@ -57,6 +62,10 @@ export default function App() {
             <Route element={<ProtectedRoute />}>
               <Route element={<DashboardLayout />}>
                 <Route path="/dashboard" element={<DashboardOverview />} />
+                <Route
+                  path="/dashboard/sleep"
+                  element={<SleepOverviewPage />}
+                />
                 <Route
                   path="/dashboard/statistics"
                   element={<StatisticsPage />}

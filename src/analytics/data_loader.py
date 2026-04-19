@@ -52,6 +52,11 @@ class RawHealthData:
     sleep_score_eight_sleep: list[DataPoint] = field(default_factory=list)
     bed_temp: list[DataPoint] = field(default_factory=list)
     room_temp: list[DataPoint] = field(default_factory=list)
+    sleep_latency: list[DataPoint] = field(default_factory=list)
+    sleep_fitness_score: list[DataPoint] = field(default_factory=list)
+    sleep_routine_score: list[DataPoint] = field(default_factory=list)
+    sleep_quality_score_es: list[DataPoint] = field(default_factory=list)
+    toss_and_turn: list[DataPoint] = field(default_factory=list)
     workout_dates: list[DataPoint] = field(default_factory=list)
     vo2_max: list[DataPoint] = field(default_factory=list)
     training_readiness: list[DataPoint] = field(default_factory=list)
@@ -407,6 +412,18 @@ def load_raw_health_data(
     raw.sleep_score_eight_sleep = _to_points(eight_sleep_sessions, "score")
     raw.bed_temp = _to_points(eight_sleep_sessions, "bed_temp_celsius")
     raw.room_temp = _to_points(eight_sleep_sessions, "room_temp_celsius")
+    raw.sleep_latency = [
+        DataPoint(
+            date=row.date.isoformat(),
+            value=round(row.latency_asleep_seconds / 60, 1),
+        )
+        for row in eight_sleep_sessions
+        if row.latency_asleep_seconds is not None
+    ]
+    raw.sleep_fitness_score = _to_points(eight_sleep_sessions, "sleep_fitness_score")
+    raw.sleep_routine_score = _to_points(eight_sleep_sessions, "sleep_routine_score")
+    raw.sleep_quality_score_es = _to_points(eight_sleep_sessions, "sleep_quality_score")
+    raw.toss_and_turn = _to_points(eight_sleep_sessions, "tnt")
 
     return raw
 
