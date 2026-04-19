@@ -1,7 +1,13 @@
 // Provider Registry - Centralized provider configuration
 // Add new providers here to extend the system
 
-export type DataProvider = "garmin" | "whoop" | "hevy" | "google" | "blended";
+export type DataProvider =
+  | "garmin"
+  | "whoop"
+  | "hevy"
+  | "google"
+  | "eight_sleep"
+  | "blended";
 
 export interface ProviderConfig {
   id: DataProvider;
@@ -50,6 +56,15 @@ export const PROVIDER_CONFIGS: Record<DataProvider, ProviderConfig> = {
     bgClass: "bg-red-500/10",
     badgeColor: "#EA4335",
     priority: 4,
+  },
+  eight_sleep: {
+    id: "eight_sleep",
+    name: "Eight Sleep",
+    shortName: "8S",
+    colorClass: "text-teal-500",
+    bgClass: "bg-teal-500/10",
+    badgeColor: "#14B8A6",
+    priority: 3,
   },
   blended: {
     id: "blended",

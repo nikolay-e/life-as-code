@@ -502,9 +502,27 @@ function createEmptyDayWorkout(date: string): DayAggregatedWorkout {
   };
 }
 
+const ACTIVITY_ALIASES: Record<string, string> = {
+  "assault-bike": "Indoor Cycling",
+  "assault bike": "Indoor Cycling",
+  cycling: "Indoor Cycling",
+  "functional fitness": "Strength",
+  weightlifting: "Strength",
+};
+
+function normalizeActivityName(name: string): string {
+  const lower = name.toLowerCase().trim();
+  if (ACTIVITY_ALIASES[lower]) return ACTIVITY_ALIASES[lower];
+  return name.trim().charAt(0).toUpperCase() + name.trim().slice(1);
+}
+
 function addUniqueActivity(day: DayAggregatedWorkout, name: string): void {
-  if (!day.activities.includes(name)) {
-    day.activities.push(name);
+  const normalized = normalizeActivityName(name);
+  const exists = day.activities.some(
+    (a) => a.toLowerCase() === normalized.toLowerCase(),
+  );
+  if (!exists) {
+    day.activities.push(normalized);
   }
 }
 
@@ -600,13 +618,44 @@ function aggregateGarminActivities(
   }
 }
 
+const DEDUP_WINDOW_MS = 10 * 60 * 1000;
+
+function deduplicateWhoopWorkouts(
+  workouts: HealthData["whoop_workout"],
+): HealthData["whoop_workout"] {
+  const kept: HealthData["whoop_workout"][number][] = [];
+  for (const w of workouts) {
+    const name = normalizeActivityName(w.sport_name ?? DEFAULT_ACTIVITY_NAME);
+    const wStart = w.start_time ? parseISO(w.start_time).getTime() : 0;
+    const duplicate = kept.find((k) => {
+      const kName = normalizeActivityName(
+        k.sport_name ?? DEFAULT_ACTIVITY_NAME,
+      );
+      if (kName.toLowerCase() !== name.toLowerCase()) return false;
+      if (!k.start_time || !w.start_time) return k.date === w.date;
+      return (
+        Math.abs(parseISO(k.start_time).getTime() - wStart) <= DEDUP_WINDOW_MS
+      );
+    });
+    if (duplicate) {
+      if ((w.strain ?? 0) > (duplicate.strain ?? 0)) {
+        kept.splice(kept.indexOf(duplicate), 1, w);
+      }
+    } else {
+      kept.push(w);
+    }
+  }
+  return kept;
+}
+
 function aggregateWhoopWorkouts(
   whoopWorkouts: HealthData["whoop_workout"],
   byDate: Map<string, DayAggregatedWorkout>,
   thirtyDaysAgo: Date,
   now: Date,
 ): void {
-  for (const w of whoopWorkouts) {
+  const deduped = deduplicateWhoopWorkouts(whoopWorkouts);
+  for (const w of deduped) {
     const wDate = parseISO(w.date);
     if (wDate < thirtyDaysAgo || wDate > now) continue;
     let day = byDate.get(w.date);

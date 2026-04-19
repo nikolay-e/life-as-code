@@ -216,10 +216,10 @@ export function DataStatusPage() {
     }
     if (status.cadence === "sporadic" && isSporadicRecentlySynced(status)) {
       return {
-        icon: CheckCircle,
-        colorClass: "text-success",
-        bgClass: "bg-success/10",
-        label: "Up to date",
+        icon: Clock,
+        colorClass: "text-warning",
+        bgClass: "bg-warning/10",
+        label: `No new data · ${String(daysSinceUpdate)}d ago`,
       };
     }
     if (status.cadence === "sporadic" && daysSinceUpdate <= 30) {

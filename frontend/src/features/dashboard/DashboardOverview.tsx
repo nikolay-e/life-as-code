@@ -273,8 +273,15 @@ export function DashboardOverview() {
             const baseline = analyticsData?.metric_baselines[def.key];
             const currentVal = baseline?.current_value ?? null;
             const shortAvg = baseline?.short_term_mean ?? null;
-            const subtitle =
-              shortAvg === null ? "Current" : `7d avg: ${def.format(shortAvg)}`;
+            const latencyDays = baseline?.latency_days ?? null;
+            const staleThreshold = def.key === "weight" ? 3 : 2;
+            const isStale =
+              latencyDays !== null && latencyDays > staleThreshold;
+            const subtitle = isStale
+              ? `${String(latencyDays)}d ago`
+              : shortAvg === null
+                ? "Current"
+                : `7d avg: ${def.format(shortAvg)}`;
             return (
               <MetricCard
                 key={def.key}
@@ -282,8 +289,8 @@ export function DashboardOverview() {
                 value={def.format(currentVal)}
                 subtitle={subtitle}
                 icon={def.icon}
-                colorClass={def.iconColorClass}
-                bgClass={def.iconBgClass}
+                colorClass={isStale ? "text-warning" : def.iconColorClass}
+                bgClass={isStale ? "bg-warning/10" : def.iconBgClass}
               />
             );
           },

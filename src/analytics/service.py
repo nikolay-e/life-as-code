@@ -288,6 +288,9 @@ def _compute_health_analysis_impl(
     strain_q = calculate_data_quality(
         adjusted_strain, SCORE_QUALITY_WINDOW, "strain", ref_date=target_date
     )
+    _, adjusted_calories, _ = should_use_today_metric(
+        calories_data, "calories", ref_date=target_date
+    )
 
     health_score = calculate_health_score(
         HealthScoreInput(
@@ -304,7 +307,7 @@ def _compute_health_analysis_impl(
             steps_quality=steps_q,
             strain_quality=strain_q,
             fused_inputs=fused_inputs,
-            calories_data=calories_data,
+            calories_data=adjusted_calories,
             weight_data=weight_data,
             baseline_window=config.baseline,
             short_term_window=config.short_term,
@@ -508,11 +511,11 @@ def _compute_health_analysis_impl(
             "hrv": hrv_data,
             "rhr": rhr_data,
             "sleep": sleep_data,
-            "stress": stress_data,
+            "stress": adjusted_stress,
             "steps": adjusted_steps,
             "weight": weight_data,
             "strain": adjusted_strain,
-            "calories": calories_data,
+            "calories": adjusted_calories,
             "respiratory_rate": respiratory_rate_data,
             "sleep_deep": sleep_deep,
             "sleep_rem": sleep_rem,

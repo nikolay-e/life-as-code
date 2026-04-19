@@ -401,6 +401,11 @@ export function HealthScoreSection({
                       <span className={PROVIDER_CONFIGS.whoop.colorClass}>
                         {s.whoop_only}
                         {PROVIDER_CONFIGS.whoop.shortName}
+                      </span>{" "}
+                      /{" "}
+                      <span className={PROVIDER_CONFIGS.eight_sleep.colorClass}>
+                        {s.eight_sleep_only}
+                        {PROVIDER_CONFIGS.eight_sleep.shortName}
                       </span>
                       {s.blended > 0 && (
                         <span

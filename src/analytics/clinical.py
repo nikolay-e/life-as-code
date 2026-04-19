@@ -353,7 +353,14 @@ def detect_anomalies(
 
     anomalies: list[AnomalyResult] = []
     anomalies += _collect_metric_anomalies(
-        hrv_data, "hrv", "HRV", baseline_window, lookback_days, ref_date, invert=True
+        hrv_data,
+        "hrv",
+        "HRV",
+        baseline_window,
+        lookback_days,
+        ref_date,
+        invert=True,
+        both_directions=False,
     )
     anomalies += _collect_metric_anomalies(
         rhr_data,
@@ -372,6 +379,7 @@ def detect_anomalies(
         lookback_days,
         ref_date,
         invert=True,
+        both_directions=False,
     )
     anomalies += _collect_metric_anomalies(
         stress_data,

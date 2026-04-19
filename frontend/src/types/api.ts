@@ -603,6 +603,7 @@ export interface DataSourceSummary {
   total: number;
   garmin_only: number;
   whoop_only: number;
+  eight_sleep_only: number;
   blended: number;
   avg_confidence: number;
 }
