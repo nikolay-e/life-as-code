@@ -8,8 +8,8 @@
 ## Browser QA
 
 - Login credentials are auto-filled on the login page — just click "Sign In"
-- All 5 pages to check: Dashboard, Statistics, Trainings, Data Status, Settings
-- Page routes are `/dashboard`, `/dashboard/statistics`, `/dashboard/trainings`, `/dashboard/data-status`, `/dashboard/settings` — NOT `/statistics` etc.
+- All 6 pages to check: Dashboard, Sleep, Statistics, Trainings, Data Status, Settings
+- Page routes are `/dashboard`, `/dashboard/sleep`, `/dashboard/statistics`, `/dashboard/trainings`, `/dashboard/data-status`, `/dashboard/settings`
 - 401 on `/api/auth/me` at login page is expected (session check before login)
 
 ## Backend Logs
@@ -55,6 +55,18 @@
 - `typescript:S7735` ("Unexpected negated condition"): fix `value !== null ? expr : default` → `value === null ? default : expr`; conjunctions (`!== null && condition`) are NOT flagged
 - `typescript:S3358` ("nested ternary"): extract inner ternary to a named variable before the outer ternary
 - `typescript:S3776` ("cognitive complexity"): extract inner loop bodies to named helper functions
+
+## PWA Updates
+
+- PWA auto-updates silently when new version detected — no user prompt
+- During rollout, "Request failed:" may flash on login page — transient, resolves after backend pod is ready
+- Playwright browser caches old SW — need manual "Update now" click on first visit after deploy, then auto-update works
+
+## Recharts Type Compatibility
+
+- Tooltip `formatter` prop: never use explicit `(value: number)` — Recharts types expect `number | undefined`
+- Use inferred types: `formatter={(value, name) => ...}` like existing charts
+- `formatDateTick` doesn't exist — use inline `(value: number) => format(new Date(value), "MMM d")`
 
 ## K8s Events
 
