@@ -35,12 +35,15 @@
 - Auth response may not include userId — the `/users/me` endpoint must be used as fallback
 - Empty user ID in URL (double slash like `/users//trends`) means the user ID extraction failed
 - API response structure may nest user data under a `"user"` key
+- Eight Sleep data (HRV, HR, sleep duration, deep/REM/light, respiratory rate, score, bed/room temp) feeds into the fusion layer alongside Garmin and Whoop
+- New data sources must be added to: `RawHealthData` fields, `load_raw_health_data` queries, `SOURCE_PRIORITY`, fusion functions, `FusedMetric`/`FusedHealthData`, frontend `METRIC_REGISTRY`, and `TRENDS_METRIC_KEYS`
+- Frontend `metric_baselines` and `raw_series` are `Record<string, ...>` — new keys auto-surface in Statistics page without schema changes
 
 ## Testing Infrastructure
 
 - Integration tests need a real PostgreSQL — CI has its own test DB, local dev needs port-forward
 - API tests (test_api.py) call `exit(1)` if DB connection fails — they cannot run without a database
-- 28 non-DB tests pass locally; 14 DB tests require `TEST_DATABASE_URL` env var or matching credentials
+- 18 analytics tests pass locally without DB; API tests require `TEST_DATABASE_URL` env var
 
 ## SonarCloud
 
