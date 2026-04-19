@@ -12,7 +12,8 @@ import {
 import type { EightSleepSessionData } from "../../types/api";
 import { chartTooltipStyle } from "./chart-config";
 import { EmptyChartMessage } from "./shared";
-import { dateToTimestamp, formatDateTick } from "../../lib/chart-utils";
+import { format } from "date-fns";
+import { dateToTimestamp } from "../../lib/chart-utils";
 
 interface TemperatureChartProps {
   readonly data: EightSleepSessionData[];
@@ -68,7 +69,7 @@ export const TemperatureChart = memo(
             type="number"
             scale="time"
             domain={["dataMin", "dataMax"]}
-            tickFormatter={formatDateTick}
+            tickFormatter={(value: number) => format(new Date(value), "MMM d")}
             tick={{ fontSize: 11 }}
           />
           <YAxis
@@ -79,10 +80,10 @@ export const TemperatureChart = memo(
           <Tooltip
             contentStyle={chartTooltipStyle}
             labelFormatter={(ts: number) => new Date(ts).toLocaleDateString()}
-            formatter={(value: number, name: string) => [
-              `${value.toFixed(1)}°C`,
-              name === "bedTemp" ? "Bed" : "Room",
-            ]}
+            formatter={(value: number | undefined, name: string) => {
+              const v = value ?? 0;
+              return [v.toFixed(1) + "°C", name === "bedTemp" ? "Bed" : "Room"];
+            }}
           />
           <Area
             type="monotone"
