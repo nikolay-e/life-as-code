@@ -62,7 +62,7 @@ export const SleepLatencyChart = memo(
           <Tooltip
             contentStyle={chartTooltipStyle}
             labelFormatter={(ts: number) => new Date(ts).toLocaleDateString()}
-            formatter={(value: number | undefined) => [
+            formatter={(value) => [
               `${String(value ?? 0)} min`,
               "Time to Sleep",
             ]}

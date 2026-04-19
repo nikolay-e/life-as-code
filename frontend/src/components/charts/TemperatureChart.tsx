@@ -80,8 +80,8 @@ export const TemperatureChart = memo(
           <Tooltip
             contentStyle={chartTooltipStyle}
             labelFormatter={(ts: number) => new Date(ts).toLocaleDateString()}
-            formatter={(value: number | undefined, name: string) => {
-              const v = value ?? 0;
+            formatter={(value, name) => {
+              const v = Number(value ?? 0);
               return [v.toFixed(1) + "°C", name === "bedTemp" ? "Bed" : "Room"];
             }}
           />
