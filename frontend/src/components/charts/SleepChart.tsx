@@ -12,11 +12,7 @@ import {
   Line,
 } from "recharts";
 import { format } from "date-fns";
-import type {
-  SleepData,
-  WhoopSleepData,
-  EightSleepSessionData,
-} from "../../types/api";
+import type { SleepData } from "../../types/api";
 import { EmptyChartMessage } from "./shared";
 import {
   chartTooltipStyle,
@@ -31,9 +27,7 @@ import {
 } from "../../lib/constants";
 
 interface SleepChartProps {
-  readonly garminData: SleepData[];
-  readonly whoopData?: WhoopSleepData[];
-  readonly eightSleepData?: EightSleepSessionData[];
+  readonly data: SleepData[];
   readonly showBreakdown?: boolean;
   readonly showTrends?: boolean;
   readonly bandwidthShort?: number;
@@ -51,9 +45,7 @@ const SLEEP_STAGE_COLORS = {
 
 export const SleepChart = memo(
   ({
-    garminData,
-    whoopData = [],
-    eightSleepData = [],
+    data,
     showBreakdown = false,
     showTrends = false,
     bandwidthShort = LOESS_BANDWIDTH_SHORT,
@@ -63,49 +55,60 @@ export const SleepChart = memo(
   }: SleepChartProps) => {
     const config = MULTI_PROVIDER_CONFIGS.sleep;
 
-    const garminMap = useMemo(
-      () => new Map(garminData.map((d) => [d.date, d])),
-      [garminData],
+    const garminByDate = useMemo(
+      () =>
+        new Map(
+          data
+            .filter((d) => !d.source || d.source === "garmin")
+            .map((d) => [d.date, d]),
+        ),
+      [data],
     );
-
-    const whoopMap = useMemo(
-      () => new Map(whoopData.map((d) => [d.date, d])),
-      [whoopData],
+    const whoopByDate = useMemo(
+      () =>
+        new Map(
+          data.filter((d) => d.source === "whoop").map((d) => [d.date, d]),
+        ),
+      [data],
     );
-
-    const eightSleepMap = useMemo(
-      () => new Map(eightSleepData.map((d) => [d.date, d])),
-      [eightSleepData],
+    const esByDate = useMemo(
+      () =>
+        new Map(
+          data
+            .filter((d) => d.source === "eight_sleep")
+            .map((d) => [d.date, d]),
+        ),
+      [data],
     );
 
     const allDates = useMemo(() => {
       const dates = new Set([
-        ...garminMap.keys(),
-        ...whoopMap.keys(),
-        ...eightSleepMap.keys(),
+        ...garminByDate.keys(),
+        ...whoopByDate.keys(),
+        ...esByDate.keys(),
       ]);
       return Array.from(dates).sort(
         (a, b) => new Date(a).getTime() - new Date(b).getTime(),
       );
-    }, [garminMap, whoopMap, eightSleepMap]);
+    }, [garminByDate, whoopByDate, esByDate]);
 
     const chartData = useMemo(
       () =>
         allDates.map((date) => {
-          const garmin = garminMap.get(date);
-          const whoop = whoopMap.get(date);
-          const es = eightSleepMap.get(date);
+          const garmin = garminByDate.get(date);
+          const whoop = whoopByDate.get(date);
+          const es = esByDate.get(date);
           return {
             date,
             timestamp: dateToTimestamp(date),
             garminTotal: garmin?.total_sleep_minutes
               ? garmin.total_sleep_minutes / 60
               : null,
-            whoopTotal: whoop?.total_sleep_duration_minutes
-              ? whoop.total_sleep_duration_minutes / 60
+            whoopTotal: whoop?.total_sleep_minutes
+              ? whoop.total_sleep_minutes / 60
               : null,
-            eightSleepTotal: es?.sleep_duration_seconds
-              ? es.sleep_duration_seconds / 3600
+            eightSleepTotal: es?.total_sleep_minutes
+              ? es.total_sleep_minutes / 60
               : null,
             deep: garmin?.deep_minutes ? garmin.deep_minutes / 60 : 0,
             light: garmin?.light_minutes ? garmin.light_minutes / 60 : 0,
@@ -113,7 +116,7 @@ export const SleepChart = memo(
             awake: garmin?.awake_minutes ? garmin.awake_minutes / 60 : 0,
           };
         }),
-      [allDates, garminMap, whoopMap, eightSleepMap],
+      [allDates, garminByDate, whoopByDate, esByDate],
     );
 
     const xDomain = useMemo(() => {

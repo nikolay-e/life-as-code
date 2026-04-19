@@ -55,6 +55,7 @@ export interface EightSleepSessionData {
 
 export interface SleepData {
   date: string;
+  source?: string;
   deep_minutes: number | null;
   light_minutes: number | null;
   rem_minutes: number | null;
@@ -72,6 +73,7 @@ export interface SleepData {
 
 export interface HRVData {
   date: string;
+  source?: string;
   hrv_avg: number | null;
   hrv_status: string | null;
 }
@@ -88,6 +90,7 @@ export interface WeightData {
 
 export interface HeartRateData {
   date: string;
+  source?: string;
   resting_hr: number | null;
   max_hr: number | null;
   avg_hr: number | null;

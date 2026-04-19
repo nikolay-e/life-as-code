@@ -1,21 +1,15 @@
 import { memo } from "react";
-import type {
-  HeartRateData,
-  WhoopRecoveryData,
-  EightSleepSessionData,
-} from "../../types/api";
+import type { HeartRateData } from "../../types/api";
 import { MULTI_PROVIDER_CONFIGS } from "./chart-config";
 import { MultiProviderLineChart } from "./MultiProviderLineChart";
-import { mergeProviderData } from "../../lib/chart-utils";
+import { splitBySource } from "../../lib/chart-utils";
 import {
   LOESS_BANDWIDTH_SHORT,
   LOESS_BANDWIDTH_LONG,
 } from "../../lib/constants";
 
 interface HeartRateChartProps {
-  readonly garminData: HeartRateData[];
-  readonly whoopData?: WhoopRecoveryData[];
-  readonly eightSleepData?: EightSleepSessionData[];
+  readonly data: HeartRateData[];
   readonly showTrends?: boolean;
   readonly bandwidthShort?: number;
   readonly bandwidthLong?: number;
@@ -24,9 +18,7 @@ interface HeartRateChartProps {
 
 export const HeartRateChart = memo(
   ({
-    garminData,
-    whoopData = [],
-    eightSleepData = [],
+    data,
     showTrends = false,
     bandwidthShort = LOESS_BANDWIDTH_SHORT,
     bandwidthLong = LOESS_BANDWIDTH_LONG,
@@ -34,14 +26,7 @@ export const HeartRateChart = memo(
   }: HeartRateChartProps) => {
     const config = MULTI_PROVIDER_CONFIGS.restingHr;
 
-    const mergedData = mergeProviderData(
-      garminData,
-      whoopData,
-      (d) => d.resting_hr,
-      (d) => d.resting_heart_rate,
-      eightSleepData,
-      (d) => d.heart_rate,
-    );
+    const mergedData = splitBySource(data, (d) => d.resting_hr);
 
     return (
       <MultiProviderLineChart

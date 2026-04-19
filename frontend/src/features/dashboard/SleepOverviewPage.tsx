@@ -307,9 +307,7 @@ export function SleepOverviewPage() {
           iconBgClass="bg-sleep-muted"
         >
           <SleepChart
-            garminData={healthData?.sleep ?? []}
-            whoopData={healthData?.whoop_sleep ?? []}
-            eightSleepData={eightSleepData}
+            data={healthData?.sleep ?? []}
             showTrends
             dateRange={dateRange}
           />
@@ -325,8 +323,7 @@ export function SleepOverviewPage() {
           iconBgClass="bg-sleep-muted"
         >
           <SleepChart
-            garminData={healthData?.sleep ?? []}
-            whoopData={healthData?.whoop_sleep ?? []}
+            data={healthData?.sleep ?? []}
             showBreakdown
             dateRange={dateRange}
           />

@@ -299,9 +299,7 @@ export function DashboardOverview() {
         >
           <ChartErrorBoundary resetKeys={[startDate, endDate]}>
             <HRVChart
-              garminData={data?.hrv ?? []}
-              whoopData={data?.whoop_recovery ?? []}
-              eightSleepData={data?.eight_sleep_sessions ?? []}
+              data={data?.hrv ?? []}
               showTrends
               bandwidthShort={bandwidthShort}
               bandwidthLong={bandwidthLong}
@@ -318,9 +316,7 @@ export function DashboardOverview() {
         >
           <ChartErrorBoundary resetKeys={[startDate, endDate]}>
             <SleepChart
-              garminData={data?.sleep ?? []}
-              whoopData={data?.whoop_sleep ?? []}
-              eightSleepData={data?.eight_sleep_sessions ?? []}
+              data={data?.sleep ?? []}
               showTrends
               bandwidthShort={bandwidthShort}
               bandwidthLong={bandwidthLong}
@@ -354,9 +350,7 @@ export function DashboardOverview() {
         >
           <ChartErrorBoundary resetKeys={[startDate, endDate]}>
             <HeartRateChart
-              garminData={data?.heart_rate ?? []}
-              whoopData={data?.whoop_recovery ?? []}
-              eightSleepData={data?.eight_sleep_sessions ?? []}
+              data={data?.heart_rate ?? []}
               showTrends
               bandwidthShort={bandwidthShort}
               bandwidthLong={bandwidthLong}

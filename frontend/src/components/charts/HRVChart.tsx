@@ -1,21 +1,15 @@
 import { memo } from "react";
-import type {
-  HRVData,
-  WhoopRecoveryData,
-  EightSleepSessionData,
-} from "../../types/api";
+import type { HRVData } from "../../types/api";
 import { MULTI_PROVIDER_CONFIGS } from "./chart-config";
 import { MultiProviderLineChart } from "./MultiProviderLineChart";
-import { mergeProviderData } from "../../lib/chart-utils";
+import { splitBySource } from "../../lib/chart-utils";
 import {
   LOESS_BANDWIDTH_SHORT,
   LOESS_BANDWIDTH_LONG,
 } from "../../lib/constants";
 
 interface HRVChartProps {
-  readonly garminData: HRVData[];
-  readonly whoopData?: WhoopRecoveryData[];
-  readonly eightSleepData?: EightSleepSessionData[];
+  readonly data: HRVData[];
   readonly showTrends?: boolean;
   readonly bandwidthShort?: number;
   readonly bandwidthLong?: number;
@@ -24,9 +18,7 @@ interface HRVChartProps {
 
 export const HRVChart = memo(
   ({
-    garminData,
-    whoopData = [],
-    eightSleepData = [],
+    data,
     showTrends = false,
     bandwidthShort = LOESS_BANDWIDTH_SHORT,
     bandwidthLong = LOESS_BANDWIDTH_LONG,
@@ -34,14 +26,7 @@ export const HRVChart = memo(
   }: HRVChartProps) => {
     const config = MULTI_PROVIDER_CONFIGS.hrv;
 
-    const mergedData = mergeProviderData(
-      garminData,
-      whoopData,
-      (d) => d.hrv_avg,
-      (d) => d.hrv_rmssd,
-      eightSleepData,
-      (d) => d.hrv,
-    );
+    const mergedData = splitBySource(data, (d) => d.hrv_avg);
 
     return (
       <MultiProviderLineChart
