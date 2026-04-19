@@ -77,6 +77,14 @@
 - Login page must use `<main>` landmark to satisfy axe `region` rule
 - Crawler `button-name` violations can be intermittent (timing-dependent dynamic rendering) — run crawler twice if critical appears
 
+## Research Environment
+
+- `research/` changes do NOT trigger Docker image rebuilds — backend/frontend/ML images stay at previous SHA
+- SonarCloud analyzes `research/` Python files — `dict()` constructor calls (S7498), `np.where` vs `np.nonzero` (S6729) are common findings in notebook code
+- S2115 (password in DB URL): avoid hardcoded connection strings with empty passwords in defaults — use env var with empty string fallback
+- connectorx does NOT support parameterized queries (`execute_options` with params) — use validated identifiers + int cast instead
+- Dependabot may fail on `research/pyproject.toml` if chronos-forecasting pins transformers to `<5` and Dependabot tries to bump to 5.x — this is expected, not actionable
+
 ## K8s Events
 
 - Migration pod warnings (FailedToRetrieveImagePullSecret, secret not found) are transient — check exitCode, not events
