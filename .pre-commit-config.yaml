@@ -86,10 +86,10 @@ repos:
       - id: ruff
         name: ruff (correctness-focused checks)
         args: ["--fix", "--exit-non-zero-on-fix"]
-        files: ^src/
+        files: ^(src|research/src)/
       - id: ruff-format
         name: ruff-format (Python formatting)
-        files: ^src/
+        files: ^(src|research/src)/
 
   # ============================================================================
   # PYTHON SECURITY
@@ -259,6 +259,24 @@ repos:
         additional_dependencies:
           - stylelint@16.12.0
           - stylelint-config-recommended@13.0.0
+
+  # ============================================================================
+  # JUPYTER NOTEBOOKS (research)
+  # ============================================================================
+  - repo: https://github.com/mwouts/jupytext
+    rev: v1.16.6
+    hooks:
+      - id: jupytext
+        name: jupytext (sync .py ↔ .ipynb)
+        args: ["--sync"]
+        files: ^research/notebooks/
+
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.8.1
+    hooks:
+      - id: nbstripout
+        name: nbstripout (strip notebook outputs)
+        files: ^research/
 
   # ============================================================================
   # SHELL SCRIPTS
