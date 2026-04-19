@@ -1,7 +1,7 @@
 from functools import lru_cache
 
 from cryptography.fernet import Fernet
-from pydantic import field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,9 +17,18 @@ class AppSettings(BaseSettings):
 
     postgres_user: str = "life_as_code_user"
     postgres_password: str
-    postgres_db: str = "life_as_code"
-    postgres_host: str = "localhost"
-    postgres_port: int = 5432
+    postgres_db: str = Field(
+        default="life_as_code",
+        validation_alias=AliasChoices("postgres_db", "db_name"),
+    )
+    postgres_host: str = Field(
+        default="localhost",
+        validation_alias=AliasChoices("postgres_host", "db_host"),
+    )
+    postgres_port: int = Field(
+        default=5432,
+        validation_alias=AliasChoices("postgres_port", "db_port"),
+    )
     database_url: str | None = None
 
     admin_username: str | None = None
