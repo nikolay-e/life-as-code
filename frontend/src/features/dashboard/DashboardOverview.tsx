@@ -277,11 +277,11 @@ export function DashboardOverview() {
             const staleThreshold = def.key === "weight" ? 3 : 2;
             const isStale =
               latencyDays !== null && latencyDays > staleThreshold;
+            const freshSubtitle =
+              shortAvg === null ? "Current" : `7d avg: ${def.format(shortAvg)}`;
             const subtitle = isStale
               ? `${String(latencyDays)}d ago`
-              : shortAvg === null
-                ? "Current"
-                : `7d avg: ${def.format(shortAvg)}`;
+              : freshSubtitle;
             return (
               <MetricCard
                 key={def.key}
