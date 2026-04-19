@@ -27,7 +27,7 @@ from src.loader import db, load
 conn = db()
 
 # %% [markdown]
-# ## Build Feature Matrix (mirrors src/ml/data_loader.py ANOMALY_QUERY)
+# ## Build Feature Matrix
 
 # %%
 features = conn.sql(
@@ -58,7 +58,10 @@ features = conn.sql(
     """
 ).pl()
 
-print(f"Feature matrix: {features.shape[0]} days × {features.shape[1]} cols")
+print(
+    f"Feature matrix: {features.shape[0]} days "
+    f"x {features.shape[1]} cols"
+)
 features.tail()
 
 # %% [markdown]
@@ -77,7 +80,9 @@ contamination_levels = [0.01, 0.03, 0.05, 0.07, 0.10]
 results = {}
 
 for cont in contamination_levels:
-    model = IsolationForest(n_estimators=200, contamination=cont, random_state=42)
+    model = IsolationForest(
+        n_estimators=200, contamination=cont, random_state=42
+    )
     model.fit(X)
     raw_scores = -model.decision_function(X)
     scores = rankdata(raw_scores) / len(raw_scores)
@@ -93,18 +98,25 @@ SELECTED_CONT = 0.05
 scores = results[SELECTED_CONT]["scores"]
 threshold = 1 - SELECTED_CONT
 
-score_df = pl.DataFrame({"date": dates, "anomaly_score": scores})
-
 fig = go.Figure()
 fig.add_trace(go.Scatter(
-    x=dates, y=scores,
-    mode="lines", name="Anomaly Score",
+    x=dates,
+    y=scores,
+    mode="lines",
+    name="Anomaly Score",
     line=dict(color="steelblue"),
 ))
-fig.add_hline(y=threshold, line_dash="dash", line_color="red", annotation_text=f"Threshold ({SELECTED_CONT})")
+fig.add_hline(
+    y=threshold,
+    line_dash="dash",
+    line_color="red",
+    annotation_text=f"Threshold ({SELECTED_CONT})",
+)
 fig.update_layout(
-    title=f"Anomaly Scores Over Time (contamination={SELECTED_CONT})",
-    xaxis_title="Date", yaxis_title="Anomaly Score (0-1)",
+    title=f"Anomaly Scores Over Time "
+    f"(contamination={SELECTED_CONT})",
+    xaxis_title="Date",
+    yaxis_title="Anomaly Score (0-1)",
 )
 fig.show()
 
@@ -124,7 +136,10 @@ if len(anomaly_indices) > 0:
     for idx in anomaly_indices:
         z_scores = (X[idx] - mean_vals) / std_vals
         top_3 = np.argsort(np.abs(z_scores))[-3:][::-1]
-        factors = {feature_cols[i]: round(float(z_scores[i]), 2) for i in top_3}
+        factors = {
+            feature_cols[i]: round(float(z_scores[i]), 2)
+            for i in top_3
+        }
         contributing.append({
             "date": dates[idx],
             "score": round(float(scores[idx]), 3),
@@ -132,7 +147,10 @@ if len(anomaly_indices) > 0:
         })
 
     for entry in contributing[-10:]:
-        print(f"{entry['date']}: score={entry['score']}, factors={entry['top_factors']}")
+        print(
+            f"{entry['date']}: score={entry['score']}, "
+            f"factors={entry['top_factors']}"
+        )
 
 # %% [markdown]
 # ## Compare with Production Anomalies
@@ -141,17 +159,31 @@ if len(anomaly_indices) > 0:
 try:
     prod_anomalies = load("_prod_anomalies")
     if prod_anomalies.height > 0:
-        print(f"Production anomalies: {prod_anomalies.height} records")
+        print(
+            f"Production anomalies: "
+            f"{prod_anomalies.height} records"
+        )
         print(prod_anomalies.sort("date").tail(10))
 
-        local_anomaly_dates = {str(dates[i]) for i in anomaly_indices}
-        prod_dates = set(prod_anomalies["date"].cast(pl.Utf8).to_list())
-        overlap = local_anomaly_dates & prod_dates
-        print(f"\nOverlap: {len(overlap)} / local={len(local_anomaly_dates)}, prod={len(prod_dates)}")
+        local_dates = {
+            str(dates[i]) for i in anomaly_indices
+        }
+        prod_dates = set(
+            prod_anomalies["date"].cast(pl.Utf8).to_list()
+        )
+        overlap = local_dates & prod_dates
+        print(
+            f"\nOverlap: {len(overlap)} / "
+            f"local={len(local_dates)}, "
+            f"prod={len(prod_dates)}"
+        )
     else:
         print("Production anomalies table is empty")
 except FileNotFoundError:
-    print("No _prod_anomalies snapshot — run export with default tables")
+    print(
+        "No _prod_anomalies snapshot "
+        "- run export with default tables"
+    )
 
 # %% [markdown]
 # ## Sensitivity Analysis: Contamination vs Anomaly Count

@@ -2,6 +2,7 @@ import argparse
 import hashlib
 import io
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -23,6 +24,14 @@ KUBECTL_NAMESPACE = "shared-database"
 KUBECTL_POD = "shared-postgres-1"
 KUBECTL_DB = "lifeascode_production"
 KUBECTL_USER = "postgres"
+
+_VALID_IDENTIFIER = re.compile(r"^[a-z_][a-z0-9_]*$")
+
+
+def _validate_identifier(name: str) -> str:
+    if not _VALID_IDENTIFIER.match(name):
+        raise ValueError(f"Invalid SQL identifier: {name!r}")
+    return name
 
 
 def _snapshot_dir_name() -> str:
@@ -48,14 +57,19 @@ def _date_stats(df: pl.DataFrame) -> dict:
     return result
 
 
+def _sql_string_list(names: list[str]) -> str:
+    return ",".join(f"'{_validate_identifier(n)}'" for n in names)
+
+
 # --- connectorx mode (direct DB connection) ---
 
 
 def _compute_schema_hash_connectorx(db_uri: str, table_names: list[str]) -> str:
+    in_list = _sql_string_list(table_names)
     query = (
         "SELECT table_name, column_name, data_type "
         "FROM information_schema.columns "
-        f"WHERE table_name IN ({','.join(repr(t) for t in table_names)}) "
+        f"WHERE table_name IN ({in_list}) "
         "ORDER BY table_name, ordinal_position"
     )
     try:
@@ -66,12 +80,19 @@ def _compute_schema_hash_connectorx(db_uri: str, table_names: list[str]) -> str:
         return "sha256:unknown"
 
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10), reraise=True)
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(min=1, max=10),
+    reraise=True,
+)
 def _export_table_connectorx(
     db_uri: str, table_name: str, user_id: int, output_path: Path
 ) -> dict:
-    query = f"SELECT * FROM {table_name} WHERE user_id = {user_id}"
-    df = pl.read_database_uri(query, db_uri, engine="connectorx")
+    safe_table = _validate_identifier(table_name)
+    query = f"SELECT * FROM {safe_table} WHERE user_id = %s"
+    df = pl.read_database_uri(
+        query, db_uri, engine="connectorx", execute_options={"params": [user_id]}
+    )
     df.write_parquet(output_path, compression="zstd")
     return _date_stats(df)
 
@@ -106,12 +127,12 @@ def _kubectl_query(sql: str) -> str:
 
 
 def _compute_schema_hash_kubectl(table_names: list[str]) -> str:
-    in_list = ",".join(f"'{t}'" for t in table_names)
+    in_list = _sql_string_list(table_names)
     query = (
-        f"SELECT table_name, column_name, data_type "
-        f"FROM information_schema.columns "
+        "SELECT table_name, column_name, data_type "
+        "FROM information_schema.columns "
         f"WHERE table_name IN ({in_list}) "
-        f"ORDER BY table_name, ordinal_position"
+        "ORDER BY table_name, ordinal_position"
     )
     try:
         csv_data = _kubectl_query(query)
@@ -120,10 +141,17 @@ def _compute_schema_hash_kubectl(table_names: list[str]) -> str:
         return "sha256:unknown"
 
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10), reraise=True)
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(min=1, max=10),
+    reraise=True,
+)
 def _export_table_kubectl(table_name: str, user_id: int, output_path: Path) -> dict:
+    safe_table = _validate_identifier(table_name)
+    safe_uid = int(user_id)
     sql = (
-        f"COPY (SELECT * FROM {table_name} WHERE user_id = {user_id}) "
+        f"COPY (SELECT * FROM {safe_table} "
+        f"WHERE user_id = {safe_uid}) "
         f"TO STDOUT WITH (FORMAT csv, HEADER true)"
     )
     csv_data = _kubectl_query(sql)
@@ -140,7 +168,7 @@ def _export_table_kubectl(table_name: str, user_id: int, output_path: Path) -> d
 # --- shared logic ---
 
 
-def _cleanup_old_snapshots(keep_last: int) -> None:
+def _cleanup_old_snapshots(keep_last: int, exclude: Path | None = None) -> None:
     if keep_last <= 0:
         return
     dirs = sorted(
@@ -153,6 +181,8 @@ def _cleanup_old_snapshots(keep_last: int) -> None:
         reverse=True,
     )
     for old_dir in dirs[keep_last:]:
+        if exclude and old_dir.resolve() == exclude.resolve():
+            continue
         shutil.rmtree(old_dir)
         print(f"  Removed old snapshot: {old_dir.name}")
 
@@ -216,7 +246,10 @@ def export_snapshot(
             manifest["tables"][logical] = info
             print(f"  {logical}: {info['rows']} rows")
         except Exception as e:
-            print(f"  {logical}: FAILED after retries — {e}", file=sys.stderr)
+            print(
+                f"  {logical}: FAILED after retries — {e}",
+                file=sys.stderr,
+            )
             failed.append(logical)
 
     manifest["status"] = "partial" if failed else "complete"
@@ -225,7 +258,7 @@ def export_snapshot(
     _write_manifest(manifest_path, manifest)
 
     _update_latest_symlink(snapshot_dir)
-    _cleanup_old_snapshots(keep_last)
+    _cleanup_old_snapshots(keep_last, exclude=snapshot_dir)
 
     return snapshot_dir
 
@@ -234,14 +267,17 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Export health data to parquet")
     parser.add_argument("--user-id", type=int, default=DEFAULT_USER_ID)
     parser.add_argument(
-        "--tables", type=str, default=None, help="Comma-separated table names"
+        "--tables",
+        type=str,
+        default=None,
+        help="Comma-separated table names",
     )
     parser.add_argument("--keep-last", type=int, default=DEFAULT_KEEP_LAST)
     parser.add_argument("--db-url", type=str, default=None)
     parser.add_argument(
         "--via-kubectl",
         action="store_true",
-        help="Export via kubectl exec instead of direct DB connection",
+        help="Export via kubectl exec instead of direct DB",
     )
     args = parser.parse_args()
 

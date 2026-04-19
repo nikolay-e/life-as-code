@@ -15,12 +15,11 @@
 
 # %% [markdown]
 # # Cross-Metric Correlations & Lag Analysis
-# Explore relationships between health metrics: sleep → HRV, strain → recovery, etc.
+# Explore relationships between health metrics.
 
 # %%
 import polars as pl
 import plotly.express as px
-import plotly.graph_objects as go
 from scipy import stats
 
 from src.loader import db
@@ -64,7 +63,10 @@ daily.head()
 
 # %%
 numeric_cols = [
-    c for c in daily.columns if c != "date" and daily[c].dtype in [pl.Float64, pl.Int64, pl.Float32, pl.Int32]
+    c
+    for c in daily.columns
+    if c != "date"
+    and daily[c].dtype in [pl.Float64, pl.Int64, pl.Float32, pl.Int32]
 ]
 corr_df = daily.select(numeric_cols).to_pandas().corr()
 
@@ -84,7 +86,8 @@ fig.show()
 
 # %%
 lag_df = daily.filter(
-    pl.col("total_sleep_minutes").is_not_null() & pl.col("hrv_avg").is_not_null()
+    pl.col("total_sleep_minutes").is_not_null()
+    & pl.col("hrv_avg").is_not_null()
 ).sort("date")
 
 if lag_df.height > 14:
@@ -108,24 +111,42 @@ if lag_df.height > 14:
 
 # %%
 target_col = "hrv_avg"
-feature_cols = ["total_sleep_minutes", "deep_minutes", "total_steps", "avg_stress", "active_energy"]
+feature_cols = [
+    "total_sleep_minutes",
+    "deep_minutes",
+    "total_steps",
+    "avg_stress",
+    "active_energy",
+]
 max_lag = 7
 
 lag_results = []
-sorted_df = lag_df.sort("date")
 
 for feat in feature_cols:
-    feat_vals = sorted_df.filter(pl.col(feat).is_not_null())[feat].to_list()
-    target_vals = sorted_df.filter(pl.col(target_col).is_not_null())[target_col].to_list()
-    min_len = min(len(feat_vals), len(target_vals))
+    paired = daily.filter(
+        pl.col(feat).is_not_null()
+        & pl.col(target_col).is_not_null()
+    ).sort("date")
+
+    if paired.height < 14:
+        continue
+
+    feat_vals = paired[feat].to_list()
+    target_vals = paired[target_col].to_list()
 
     for lag in range(max_lag + 1):
-        if min_len - lag < 14:
+        n = len(feat_vals) - lag
+        if n < 14:
             continue
-        x = feat_vals[: min_len - lag]
-        y = target_vals[lag:min_len]
+        x = feat_vals[:n]
+        y = target_vals[lag : lag + n]
         r, p = stats.pearsonr(x, y)
-        lag_results.append({"feature": feat, "lag_days": lag, "r": round(r, 3), "p": round(p, 4)})
+        lag_results.append({
+            "feature": feat,
+            "lag_days": lag,
+            "r": round(r, 3),
+            "p": round(p, 4),
+        })
 
 lag_corr = pl.DataFrame(lag_results)
 print(lag_corr.sort(["feature", "lag_days"]))

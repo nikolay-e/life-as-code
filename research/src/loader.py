@@ -1,4 +1,5 @@
 import json
+import re
 import warnings
 from pathlib import Path
 
@@ -6,6 +7,8 @@ import duckdb
 import polars as pl
 
 from src.config import SNAPSHOTS_DIR
+
+_VALID_IDENTIFIER = re.compile(r"^_?[a-z][a-z0-9_]*$")
 
 
 def snapshot_path(name: str | None = None) -> Path:
@@ -44,12 +47,13 @@ def _validate_manifest(path: Path) -> None:
     if not manifest_path.exists():
         warnings.warn(f"No manifest.json in {path.name}", stacklevel=3)
         return
-    manifest = json.loads(manifest_path.read_text())
-    status = manifest.get("status")
+    data = json.loads(manifest_path.read_text())
+    status = data.get("status")
     if status == "partial":
-        failed = manifest.get("failed_tables", [])
+        failed = data.get("failed_tables", [])
         warnings.warn(
-            f"Snapshot {path.name} is partial. Failed tables: {failed}", stacklevel=3
+            f"Snapshot {path.name} is partial. Failed tables: {failed}",
+            stacklevel=3,
         )
     elif status == "in_progress":
         warnings.warn(
@@ -72,12 +76,18 @@ def load(table: str, snapshot: str | None = None) -> pl.DataFrame:
     return scan(table, snapshot).collect()
 
 
-def db(snapshot: str | None = None) -> duckdb.DuckDBPyConnection:
+def db(
+    snapshot: str | None = None,
+) -> duckdb.DuckDBPyConnection:
     base = snapshot_path(snapshot)
     conn = duckdb.connect()
     for pq in base.glob("*.parquet"):
         view_name = pq.stem
-        conn.execute(f"CREATE VIEW {view_name} AS SELECT * FROM read_parquet('{pq}')")
+        if not _VALID_IDENTIFIER.match(view_name):
+            continue
+        conn.execute(
+            f"CREATE VIEW \"{view_name}\" AS SELECT * FROM read_parquet('{pq}')"
+        )
     return conn
 
 
