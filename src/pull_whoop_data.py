@@ -14,7 +14,16 @@ from enums import DataSource, DataType
 from errors import CredentialsDecryptionError, CredentialsNotFoundError
 from http_client import AuthenticationError, HTTPClient
 from logging_config import get_logger
-from models import UserCredentials, WhoopCycle, WhoopRecovery, WhoopSleep, WhoopWorkout
+from models import (
+    HRV,
+    HeartRate,
+    Sleep,
+    UserCredentials,
+    WhoopCycle,
+    WhoopRecovery,
+    WhoopSleep,
+    WhoopWorkout,
+)
 from security import encrypt_data_for_user
 from sync_manager import (
     SyncResult,
@@ -402,6 +411,73 @@ def _sync_whoop_data_type(
     return sync_result
 
 
+def _write_whoop_normalized(
+    user_id: int,
+    start_date: datetime.date | None,
+    end_date: datetime.date,
+) -> None:
+    with get_db_session_context() as db:
+        recovery_query = select(WhoopRecovery).where(
+            WhoopRecovery.user_id == user_id,
+            WhoopRecovery.date <= end_date,
+        )
+        if start_date:
+            recovery_query = recovery_query.where(WhoopRecovery.date >= start_date)
+
+        for rec in db.scalars(recovery_query):
+            if rec.hrv_rmssd is not None:
+                upsert_data(
+                    db,
+                    HRV,
+                    {"date": rec.date, "source": "whoop", "hrv_avg": rec.hrv_rmssd},
+                    ["date", "source"],
+                    user_id,
+                )
+            if rec.resting_heart_rate is not None:
+                upsert_data(
+                    db,
+                    HeartRate,
+                    {
+                        "date": rec.date,
+                        "source": "whoop",
+                        "resting_hr": rec.resting_heart_rate,
+                    },
+                    ["date", "source"],
+                    user_id,
+                )
+
+        sleep_query = select(WhoopSleep).where(
+            WhoopSleep.user_id == user_id,
+            WhoopSleep.date <= end_date,
+        )
+        if start_date:
+            sleep_query = sleep_query.where(WhoopSleep.date >= start_date)
+
+        for slp in db.scalars(sleep_query):
+            upsert_data(
+                db,
+                Sleep,
+                {
+                    "date": slp.date,
+                    "source": "whoop",
+                    "total_sleep_minutes": slp.total_sleep_duration_minutes,
+                    "deep_minutes": slp.deep_sleep_minutes,
+                    "light_minutes": slp.light_sleep_minutes,
+                    "rem_minutes": slp.rem_sleep_minutes,
+                    "awake_minutes": slp.awake_minutes,
+                    "respiratory_rate": slp.respiratory_rate,
+                },
+                ["date", "source"],
+                user_id,
+            )
+
+        db.commit()
+        logger.info(
+            "whoop_normalized_write_complete",
+            user_id=user_id,
+        )
+
+
 def sync_whoop_data_for_user(
     user_id: int, days: int = 90, full_sync: bool = False
 ) -> dict[str, Any]:
@@ -451,6 +527,12 @@ def sync_whoop_data_for_user(
             "total_errors": sum(len(r.errors) for r in results),
             "success": all(r.success for r in results),
         }
+
+        if summary["success"]:
+            try:
+                _write_whoop_normalized(user_id, start_date, end_date)
+            except Exception:
+                logger.exception("whoop_normalized_write_failed", user_id=user_id)
 
         logger.info(
             "whoop_sync_completed",

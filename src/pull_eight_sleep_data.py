@@ -10,12 +10,13 @@ from eight_sleep_schemas import EightSleepSessionData
 from enums import DataSource, DataType
 from errors import CredentialsDecryptionError, CredentialsNotFoundError
 from logging_config import get_logger
-from models import EightSleepSession, UserCredentials
+from models import HRV, EightSleepSession, HeartRate, Sleep, UserCredentials
 from security import encrypt_data_for_user
 from sync_manager import (
     extract_and_parse,
     get_provider_credentials,
     get_sync_date_range,
+    upsert_data,
 )
 
 logger = get_logger(__name__)
@@ -198,6 +199,61 @@ class EightSleepAPIClient:
         self._session.close()
 
 
+def _write_eight_sleep_normalized(
+    user_id: int,
+    start_date: datetime.date | None,
+    end_date: datetime.date,
+) -> None:
+    with get_db_session_context() as db:
+        query = select(EightSleepSession).where(
+            EightSleepSession.user_id == user_id,
+            EightSleepSession.date <= end_date,
+        )
+        if start_date:
+            query = query.where(EightSleepSession.date >= start_date)
+
+        for ses in db.scalars(query):
+            if ses.hrv is not None:
+                upsert_data(
+                    db,
+                    HRV,
+                    {"date": ses.date, "source": "eight_sleep", "hrv_avg": ses.hrv},
+                    ["date", "source"],
+                    user_id,
+                )
+            if ses.heart_rate is not None:
+                upsert_data(
+                    db,
+                    HeartRate,
+                    {
+                        "date": ses.date,
+                        "source": "eight_sleep",
+                        "resting_hr": int(ses.heart_rate),
+                    },
+                    ["date", "source"],
+                    user_id,
+                )
+
+            def _sec_to_min(seconds):
+                return round(seconds / 60.0, 1) if seconds is not None else None
+
+            sleep_data = {
+                "date": ses.date,
+                "source": "eight_sleep",
+                "total_sleep_minutes": _sec_to_min(ses.sleep_duration_seconds),
+                "deep_minutes": _sec_to_min(ses.deep_duration_seconds),
+                "light_minutes": _sec_to_min(ses.light_duration_seconds),
+                "rem_minutes": _sec_to_min(ses.rem_duration_seconds),
+                "respiratory_rate": ses.respiratory_rate,
+                "sleep_score": ses.score,
+            }
+            if sleep_data["total_sleep_minutes"] is not None:
+                upsert_data(db, Sleep, sleep_data, ["date", "source"], user_id)
+
+        db.commit()
+        logger.info("eight_sleep_normalized_write_complete", user_id=user_id)
+
+
 def sync_eight_sleep_data_for_user(
     user_id: int, days: int = 90, full_sync: bool = False
 ) -> dict:
@@ -258,6 +314,14 @@ def sync_eight_sleep_data_for_user(
             "errors": sync_result.errors[:5],
             "error_count": len(sync_result.errors),
         }
+
+        if summary["success"]:
+            try:
+                _write_eight_sleep_normalized(
+                    user_id, date_range.start_date, date_range.end_date
+                )
+            except Exception:
+                logger.exception("eight_sleep_normalized_write_failed", user_id=user_id)
 
         logger.info(
             "eight_sleep_sync_completed",
