@@ -44,7 +44,11 @@ export function ReloadPrompt() {
   if (!offlineReady) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 max-w-sm animate-in slide-in-from-bottom-4">
+    <div
+      role="status"
+      aria-live="polite"
+      className="fixed bottom-4 right-4 z-50 max-w-sm animate-in slide-in-from-bottom-4"
+    >
       <div className="rounded-lg border border-slate-700 bg-slate-800 p-4 shadow-lg">
         <div className="flex items-start gap-3">
           <div className="flex-shrink-0">
@@ -60,6 +64,7 @@ export function ReloadPrompt() {
           </div>
           <button
             onClick={closeOffline}
+            aria-label="Dismiss"
             className="flex-shrink-0 rounded p-1 text-slate-400 hover:bg-slate-700 hover:text-slate-200"
           >
             <X className="h-4 w-4" />

@@ -163,6 +163,7 @@ export function DashboardLayout() {
               size="icon"
               onClick={handleCopyAll}
               disabled={copyState === "loading"}
+              aria-label="Copy full health report"
               title="Copy full health report"
               className="h-8 w-8"
             >
@@ -205,6 +206,7 @@ export function DashboardLayout() {
               variant="ghost"
               size="icon"
               onClick={handleLogout}
+              aria-label="Logout"
               title="Logout"
               className="hover:bg-destructive/10 hover:text-destructive"
             >
