@@ -393,10 +393,10 @@ function BiomarkerForm({
       {
         date,
         marker_name: markerName.trim(),
-        value: parseFloat(value),
+        value: Number.parseFloat(value),
         unit: unit.trim() || "units",
-        reference_range_low: refLow ? parseFloat(refLow) : undefined,
-        reference_range_high: refHigh ? parseFloat(refHigh) : undefined,
+        reference_range_low: refLow ? Number.parseFloat(refLow) : undefined,
+        reference_range_high: refHigh ? Number.parseFloat(refHigh) : undefined,
         lab_name: labName.trim() || undefined,
         notes: notes.trim() || undefined,
       },
