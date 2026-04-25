@@ -535,7 +535,7 @@ export function TrainingsPage() {
           <CardContent className="pt-6">
             <div className="text-center py-8">
               <Dumbbell className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium mb-2">No workouts found</h3>
+              <h2 className="text-lg font-medium mb-2">No workouts found</h2>
               <p className="text-muted-foreground">
                 No workout data available for the selected period. Sync your
                 Hevy, Garmin, or Whoop account to see your training history.
