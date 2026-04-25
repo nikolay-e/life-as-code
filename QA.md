@@ -102,3 +102,19 @@
 
 - Migration pod warnings (FailedToRetrieveImagePullSecret, secret not found) are transient — check exitCode, not events
 - Migration pod with exitCode 0 and status Completed = success despite warning events
+
+## Color Contrast (a11y)
+
+- shadcn/ui default `--muted-foreground` (46.9% lightness) on `bg-muted` (#f1f5f9) gives ~4.3:1 — below AA threshold
+- Fix: reduce lightness to 42% for reliable ≥4.5:1 on both white and muted backgrounds
+- CI axe may find issues local axe doesn't — headless Chrome color scheme differences
+- `color-contrast` violations are global (75 nodes across all pages) when caused by CSS custom properties — fix the variable, not individual elements
+
+## Heading Order (a11y)
+
+- h1 → h3 skip triggers `heading-order` violation — use h2 after h1, even for empty-state messages
+- Check all `<h3>` through `<h6>` in dashboard pages — most should be `<h2>` since page title is `<h1>`
+
+## SonarCloud Patterns
+
+- `typescript:S7773` — prefer `Number.parseFloat` over global `parseFloat`
