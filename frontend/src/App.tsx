@@ -39,6 +39,11 @@ const SleepOverviewPage = lazy(() =>
     default: m.SleepOverviewPage,
   })),
 );
+const HealthLogPage = lazy(() =>
+  import("./features/dashboard/HealthLogPage").then((m) => ({
+    default: m.HealthLogPage,
+  })),
+);
 const SettingsPage = lazy(() =>
   import("./pages/SettingsPage").then((m) => ({ default: m.SettingsPage })),
 );
@@ -73,6 +78,10 @@ export default function App() {
                 <Route
                   path="/dashboard/trainings"
                   element={<TrainingsPage />}
+                />
+                <Route
+                  path="/dashboard/health-log"
+                  element={<HealthLogPage />}
                 />
                 <Route
                   path="/dashboard/data-status"

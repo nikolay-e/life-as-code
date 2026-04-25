@@ -2,10 +2,12 @@ import type {
   AnalyticsResponse,
   AuthResponse,
   BackoffStatus,
+  BloodBiomarkerData,
   CredentialTestResult,
   CredentialsStatus,
   GarminActivityData,
   HealthData,
+  InterventionData,
   SyncStatus,
   User,
   UserThresholds,
@@ -214,6 +216,72 @@ export const api = {
       const query = days ? `?days=${String(days)}` : "?full=true";
       return request(`/sync/eight_sleep${query}`, { method: "POST" });
     },
+  },
+
+  longevity: {
+    getInterventions: (active?: boolean): Promise<InterventionData[]> => {
+      const query = active ? "?active=true" : "";
+      return request(`/longevity/interventions${query}`);
+    },
+
+    createIntervention: (data: {
+      name: string;
+      category: string;
+      start_date: string;
+      end_date?: string | null;
+      dosage?: string | null;
+      frequency?: string | null;
+      notes?: string | null;
+    }): Promise<InterventionData> =>
+      request("/longevity/interventions", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+
+    updateIntervention: (
+      id: number,
+      data: Partial<{
+        name: string;
+        category: string;
+        end_date: string | null;
+        dosage: string | null;
+        frequency: string | null;
+        notes: string | null;
+        active: boolean;
+      }>,
+    ): Promise<InterventionData> =>
+      request(`/longevity/interventions/${String(id)}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+
+    deleteIntervention: (id: number): Promise<{ deleted: boolean }> =>
+      request(`/longevity/interventions/${String(id)}`, { method: "DELETE" }),
+
+    getBiomarkers: (marker?: string): Promise<BloodBiomarkerData[]> => {
+      const query = marker ? `?marker=${encodeURIComponent(marker)}` : "";
+      return request(`/longevity/biomarkers${query}`);
+    },
+
+    createBiomarker: (data: {
+      date: string;
+      marker_name: string;
+      value: number;
+      unit: string;
+      reference_range_low?: number | null;
+      reference_range_high?: number | null;
+      longevity_optimal_low?: number | null;
+      longevity_optimal_high?: number | null;
+      lab_name?: string | null;
+      notes?: string | null;
+    }): Promise<BloodBiomarkerData> =>
+      request("/longevity/biomarkers", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+
+    deleteBiomarker: (id: number): Promise<{ deleted: boolean }> =>
+      request(`/longevity/biomarkers/${String(id)}`, { method: "DELETE" }),
   },
 };
 

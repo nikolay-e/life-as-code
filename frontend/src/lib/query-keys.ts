@@ -19,3 +19,9 @@ export const settingsKeys = {
   thresholds: () => [...settingsKeys.all, "thresholds"] as const,
   credentials: () => [...settingsKeys.all, "credentials"] as const,
 };
+
+export const longevityKeys = {
+  all: ["longevity"] as const,
+  interventions: () => [...longevityKeys.all, "interventions"] as const,
+  biomarkers: () => [...longevityKeys.all, "biomarkers"] as const,
+};
