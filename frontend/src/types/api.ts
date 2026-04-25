@@ -707,7 +707,7 @@ export interface InterventionData {
   frequency: string | null;
   target_metrics: Record<string, unknown> | null;
   notes: string | null;
-  active: number;
+  active: boolean;
 }
 
 export interface FunctionalTestData {

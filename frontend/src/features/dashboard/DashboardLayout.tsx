@@ -18,6 +18,7 @@ import {
   Loader2,
   Dumbbell,
   Moon,
+  Pill,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Spinner } from "../../components/ui/spinner";
@@ -41,6 +42,12 @@ const navItems = [
     to: "/dashboard/trainings",
     icon: Dumbbell,
     label: "Trainings",
+    end: false,
+  },
+  {
+    to: "/dashboard/health-log",
+    icon: Pill,
+    label: "Health Log",
     end: false,
   },
   {
