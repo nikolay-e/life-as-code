@@ -6,26 +6,43 @@ html {
 }
 
 @theme {
-  /* Base colors */
-  --color-background: hsl(0 0% 100%);
-  --color-foreground: hsl(222.2 84% 4.9%);
-  --color-card: hsl(0 0% 100%);
-  --color-card-foreground: hsl(222.2 84% 4.9%);
-  --color-popover: hsl(0 0% 100%);
-  --color-popover-foreground: hsl(222.2 84% 4.9%);
-  --color-primary: hsl(221.2 83.2% 53.3%);
-  --color-primary-foreground: hsl(210 40% 98%);
-  --color-secondary: hsl(210 40% 96.1%);
-  --color-secondary-foreground: hsl(222.2 47.4% 11.2%);
-  --color-muted: hsl(210 40% 96.1%);
-  --color-muted-foreground: hsl(215.4 16.3% 46.9%);
-  --color-accent: hsl(210 40% 96.1%);
-  --color-accent-foreground: hsl(222.2 47.4% 11.2%);
-  --color-destructive: hsl(0 84.2% 60.2%);
-  --color-destructive-foreground: hsl(210 40% 98%);
-  --color-border: hsl(214.3 31.8% 91.4%);
-  --color-input: hsl(214.3 31.8% 91.4%);
-  --color-ring: hsl(221.2 83.2% 53.3%);
+  /* Typography — luxury minimalism */
+  --font-serif: "Fraunces", "Times New Roman", serif;
+  --font-sans: "Geist", system-ui, -apple-system, sans-serif;
+  --font-mono: "Geist Mono", "SF Mono", ui-monospace, monospace;
+
+  /* Base colors — apothecary palette: bone / ink / brass */
+  --color-background: hsl(38 35% 93%);
+  --color-foreground: hsl(43 18% 9%);
+  --color-card: hsl(38 35% 93%);
+  --color-card-foreground: hsl(43 18% 9%);
+  --color-popover: hsl(38 35% 95%);
+  --color-popover-foreground: hsl(43 18% 9%);
+  --color-primary: hsl(43 18% 9%);
+  --color-primary-foreground: hsl(38 35% 93%);
+  --color-secondary: hsl(38 30% 89%);
+  --color-secondary-foreground: hsl(43 18% 9%);
+  --color-muted: hsl(38 28% 89%);
+  --color-muted-foreground: hsl(40 12% 38%);
+  --color-accent: hsl(38 56% 38%);
+  --color-accent-foreground: hsl(38 35% 95%);
+  --color-destructive: hsl(11 56% 34%);
+  --color-destructive-foreground: hsl(38 35% 95%);
+  --color-border: hsl(38 18% 80%);
+  --color-input: hsl(38 18% 70%);
+  --color-ring: hsl(38 56% 38%);
+
+  /* Brass — single accent across the system */
+  --color-brass: hsl(38 56% 38%);
+  --color-brass-soft: hsl(40 50% 52%);
+  --color-brass-deep: hsl(36 60% 22%);
+  --color-moss: hsl(108 20% 27%);
+  --color-rust: hsl(11 56% 34%);
+
+  /* Hairline rules */
+  --color-line: hsl(43 18% 9% / 0.1);
+  --color-line-soft: hsl(43 18% 9% / 0.05);
+  --color-line-strong: hsl(43 18% 9% / 0.18);
 
   /* Health metric semantic colors */
   --color-hrv: hsl(199 89% 48%);
@@ -79,128 +96,133 @@ html {
   --color-warning: hsl(38 92% 50%);
   --color-warning-foreground: hsl(0 0% 100%);
 
-  /* Border radius */
-  --radius: 0.625rem;
+  /* Border radius — editorial: nearly square, hairline-friendly */
+  --radius: 0.125rem;
   --radius-lg: var(--radius);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-md: var(--radius);
+  --radius-sm: 0.0625rem;
+  --radius-xl: 0.25rem;
 
-  /* Shadows */
-  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.03);
-  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04);
-  --shadow-md:
-    0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
-  --shadow-lg:
-    0 10px 15px -3px rgb(0 0 0 / 0.05), 0 4px 6px -4px rgb(0 0 0 / 0.05);
-  --shadow-card:
-    0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.02);
+  /* Shadows — editorial: nearly absent */
+  --shadow-xs: none;
+  --shadow-sm: none;
+  --shadow-md: 0 1px 0 rgb(24 22 15 / 0.03);
+  --shadow-lg: 0 30px 60px -30px rgb(24 22 15 / 0.06);
+  --shadow-card: none;
   --shadow-card-hover:
-    0 4px 12px -2px rgb(0 0 0 / 0.08), 0 2px 6px -2px rgb(0 0 0 / 0.04);
+    0 1px 0 rgb(24 22 15 / 0.04), 0 16px 36px -20px rgb(24 22 15 / 0.06);
 }
 
 :root {
-  --background: 0 0% 100%;
-  --foreground: 222.2 84% 4.9%;
-  --card: 0 0% 100%;
-  --card-foreground: 222.2 84% 4.9%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 222.2 84% 4.9%;
-  --primary: 221.2 83.2% 53.3%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 210 40% 96.1%;
-  --secondary-foreground: 222.2 47.4% 11.2%;
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215.4 16.3% 42%;
-  --accent: 210 40% 96.1%;
-  --accent-foreground: 222.2 47.4% 11.2%;
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 214.3 31.8% 91.4%;
-  --input: 214.3 31.8% 91.4%;
-  --ring: 221.2 83.2% 53.3%;
+  /* Apothecary palette */
+  --background: 38 35% 93%;
+  --foreground: 43 18% 9%;
+  --card: 38 35% 93%;
+  --card-foreground: 43 18% 9%;
+  --popover: 38 35% 95%;
+  --popover-foreground: 43 18% 9%;
+  --primary: 43 18% 9%;
+  --primary-foreground: 38 35% 93%;
+  --secondary: 38 30% 89%;
+  --secondary-foreground: 43 18% 9%;
+  --muted: 38 28% 89%;
+  --muted-foreground: 40 12% 38%;
+  --accent: 38 56% 38%;
+  --accent-foreground: 38 35% 95%;
+  --destructive: 11 56% 34%;
+  --destructive-foreground: 38 35% 95%;
+  --border: 38 18% 80%; /* hairline — soft bone-grey */
+  --input: 38 18% 70%;
+  --ring: 38 56% 38%;
 
-  /* Health metrics */
-  --hrv: 199 89% 48%;
-  --hrv-foreground: 0 0% 100%;
-  --hrv-muted: 199 89% 94%;
-  --sleep: 258 90% 66%;
-  --sleep-foreground: 0 0% 100%;
-  --sleep-muted: 258 90% 96%;
-  --heart: 0 84% 60%;
-  --heart-foreground: 0 0% 100%;
-  --heart-muted: 0 84% 95%;
-  --steps: 142 71% 45%;
-  --steps-foreground: 0 0% 100%;
-  --steps-muted: 142 71% 94%;
-  --stress: 38 92% 50%;
-  --stress-foreground: 0 0% 100%;
-  --stress-muted: 38 92% 95%;
-  --weight: 262 83% 58%;
-  --weight-foreground: 0 0% 100%;
-  --weight-muted: 262 83% 96%;
-  --workout: 173 80% 40%;
-  --workout-foreground: 0 0% 100%;
-  --workout-muted: 173 80% 94%;
-  --whoop: 280 70% 50%;
-  --whoop-foreground: 0 0% 100%;
-  --whoop-muted: 280 70% 94%;
-  --whoop-strain: 15 90% 55%;
-  --whoop-strain-foreground: 0 0% 100%;
-  --whoop-strain-muted: 15 90% 94%;
-  --garmin: 200 100% 45%;
-  --garmin-foreground: 0 0% 100%;
-  --garmin-muted: 200 100% 94%;
-  --google-fit: 145 65% 42%;
-  --google-fit-foreground: 0 0% 100%;
-  --google-fit-muted: 145 65% 94%;
-  --apple-health: 340 80% 55%;
-  --apple-health-foreground: 0 0% 100%;
-  --apple-health-muted: 340 80% 94%;
+  /* Brass + secondary semantics */
+  --brass: 38 56% 38%;
+  --brass-soft: 40 50% 52%;
+  --brass-deep: 36 60% 22%;
+  --moss: 108 20% 27%;
+  --rust: 11 56% 34%;
 
-  /* New Garmin metrics */
-  --vo2max: 210 100% 50%;
-  --vo2max-foreground: 0 0% 100%;
-  --vo2max-muted: 210 100% 94%;
-  --training: 45 100% 50%;
-  --training-foreground: 0 0% 100%;
-  --training-muted: 45 100% 94%;
-  --training-acute: 200 80% 50%;
-  --training-chronic: 280 60% 50%;
-  --acwr-optimal: 142 76% 36%;
-  --acwr-caution: 45 100% 50%;
-  --acwr-danger: 0 84% 60%;
-  --fitness: 320 70% 55%;
-  --fitness-foreground: 0 0% 100%;
-  --fitness-muted: 320 70% 94%;
-  --endurance: 185 80% 45%;
-  --endurance-foreground: 0 0% 100%;
-  --endurance-muted: 185 80% 94%;
-  --calories: 25 95% 53%;
-  --calories-foreground: 0 0% 100%;
-  --calories-muted: 25 95% 94%;
+  /* Health metrics — collapsed to luxury palette (ink + brass + moss/rust accents) */
+  --hrv: 43 18% 9%;
+  --hrv-foreground: 38 35% 95%;
+  --hrv-muted: 38 28% 89%;
+  --sleep: 43 18% 9%;
+  --sleep-foreground: 38 35% 95%;
+  --sleep-muted: 38 28% 89%;
+  --heart: 11 56% 34%;
+  --heart-foreground: 38 35% 95%;
+  --heart-muted: 11 30% 88%;
+  --steps: 43 18% 9%;
+  --steps-foreground: 38 35% 95%;
+  --steps-muted: 38 28% 89%;
+  --stress: 38 56% 38%;
+  --stress-foreground: 38 35% 95%;
+  --stress-muted: 38 40% 88%;
+  --weight: 43 18% 9%;
+  --weight-foreground: 38 35% 95%;
+  --weight-muted: 38 28% 89%;
+  --workout: 108 20% 27%;
+  --workout-foreground: 38 35% 95%;
+  --workout-muted: 108 14% 86%;
+  --whoop: 38 56% 38%;
+  --whoop-foreground: 38 35% 95%;
+  --whoop-muted: 38 40% 88%;
+  --whoop-strain: 11 56% 34%;
+  --whoop-strain-foreground: 38 35% 95%;
+  --whoop-strain-muted: 11 30% 88%;
+  --garmin: 43 18% 9%;
+  --garmin-foreground: 38 35% 95%;
+  --garmin-muted: 38 28% 89%;
+  --google-fit: 108 20% 27%;
+  --google-fit-foreground: 38 35% 95%;
+  --google-fit-muted: 108 14% 86%;
+  --apple-health: 11 56% 34%;
+  --apple-health-foreground: 38 35% 95%;
+  --apple-health-muted: 11 30% 88%;
+
+  /* Garmin/Whoop secondary metrics — collapsed into the same palette */
+  --vo2max: 38 56% 38%;
+  --vo2max-foreground: 38 35% 95%;
+  --vo2max-muted: 38 40% 88%;
+  --training: 43 18% 9%;
+  --training-foreground: 38 35% 95%;
+  --training-muted: 38 28% 89%;
+  --training-acute: 43 18% 9%;
+  --training-chronic: 38 56% 38%;
+  --acwr-optimal: 108 20% 27%;
+  --acwr-caution: 38 56% 38%;
+  --acwr-danger: 11 56% 34%;
+  --fitness: 38 56% 38%;
+  --fitness-foreground: 38 35% 95%;
+  --fitness-muted: 38 40% 88%;
+  --endurance: 43 18% 9%;
+  --endurance-foreground: 38 35% 95%;
+  --endurance-muted: 38 28% 89%;
+  --calories: 38 56% 38%;
+  --calories-foreground: 38 35% 95%;
+  --calories-muted: 38 40% 88%;
 
   /* Status */
-  --success: 142 76% 36%;
-  --success-foreground: 0 0% 100%;
-  --warning: 38 92% 50%;
-  --warning-foreground: 0 0% 100%;
+  --success: 108 20% 27%;
+  --success-foreground: 38 35% 95%;
+  --warning: 38 56% 38%;
+  --warning-foreground: 38 35% 95%;
 
-  /* Chart colors for gradients */
-  --chart-hrv: 199 89% 48%;
-  --chart-hrv-light: 199 89% 68%;
-  --chart-sleep: 258 90% 66%;
-  --chart-sleep-light: 258 90% 82%;
-  --chart-heart: 0 84% 60%;
-  --chart-heart-light: 0 84% 78%;
-  --chart-steps: 142 71% 45%;
-  --chart-steps-light: 142 71% 70%;
-  --chart-stress: 38 92% 50%;
-  --chart-stress-light: 38 92% 72%;
-  --chart-weight: 262 83% 58%;
-  --chart-weight-light: 262 83% 78%;
-  --chart-workout: 173 80% 40%;
-  --chart-workout-light: 173 80% 65%;
+  /* Chart colors for gradients — luxury palette */
+  --chart-hrv: 43 18% 9%;
+  --chart-hrv-light: 43 14% 38%;
+  --chart-sleep: 43 18% 9%;
+  --chart-sleep-light: 43 14% 38%;
+  --chart-heart: 11 56% 34%;
+  --chart-heart-light: 11 40% 60%;
+  --chart-steps: 43 18% 9%;
+  --chart-steps-light: 43 14% 38%;
+  --chart-stress: 38 56% 38%;
+  --chart-stress-light: 40 50% 60%;
+  --chart-weight: 43 18% 9%;
+  --chart-weight-light: 43 14% 38%;
+  --chart-workout: 108 20% 27%;
+  --chart-workout-light: 108 18% 50%;
 }
 
 .dark {
@@ -314,11 +336,76 @@ html {
 body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
+  font-family: var(--font-sans);
   font-feature-settings:
     "rlig" 1,
-    "calt" 1;
+    "calt" 1,
+    "ss01",
+    "cv01",
+    "cv11";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision;
+  position: relative;
+}
+
+/* Paper grain — subtle, warm */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 240 240' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.95' numOctaves='3' /%3E%3CfeColorMatrix values='0 0 0 0 0.094 0 0 0 0 0.086 0 0 0 0 0.059 0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.40'/%3E%3C/svg%3E");
+  background-size: 240px 240px;
+  mix-blend-mode: multiply;
+  opacity: 0.35;
+}
+
+/* Lift app content above the grain layer */
+#root {
+  position: relative;
+  z-index: 2;
+}
+
+/* Editorial type utilities */
+.type-serif {
+  font-family: var(--font-serif);
+  font-variation-settings:
+    "opsz" 144,
+    "SOFT" 80;
+  letter-spacing: -0.02em;
+}
+.type-serif-italic {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-variation-settings:
+    "opsz" 144,
+    "SOFT" 100;
+}
+.type-numeral {
+  font-family: var(--font-serif);
+  font-variation-settings:
+    "opsz" 144,
+    "SOFT" 60;
+  font-weight: 350;
+  letter-spacing: -0.04em;
+  line-height: 0.88;
+  font-feature-settings: "lnum", "tnum";
+}
+.type-mono-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-weight: 400;
+}
+.type-mono-label {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  font-weight: 400;
 }
 
 /* Smooth transitions for theme switching and interactions */

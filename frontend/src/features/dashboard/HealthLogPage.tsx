@@ -1,14 +1,7 @@
 import { useState, type FormEvent } from "react";
+import { format } from "date-fns";
 import { toast } from "sonner";
-import {
-  Pill,
-  FlaskConical,
-  Plus,
-  Square,
-  Trash2,
-  ChevronDown,
-  ChevronRight,
-} from "lucide-react";
+import { Plus, Square, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 import {
   useInterventions,
   useCreateIntervention,
@@ -19,19 +12,14 @@ import {
   useDeleteBiomarker,
 } from "../../hooks/useHealthLog";
 import { Button } from "../../components/ui/button";
-import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "../../components/ui/card";
 import { LoadingState } from "../../components/ui/loading-state";
 import { ErrorCard } from "../../components/ui/error-card";
 import { cn } from "../../lib/utils";
 import { getLocalDateString, getLocalToday } from "../../lib/health";
 import type { InterventionData, BloodBiomarkerData } from "../../types/api";
+import { Masthead } from "../../components/luxury/Masthead";
+import { SectionHead, SerifEm } from "../../components/luxury/SectionHead";
 
 type Tab = "medications" | "labs";
 type Category = InterventionData["category"];
@@ -74,6 +62,25 @@ const BIOMARKER_PRESETS: { name: string; unit: string }[] = [
 
 const todayStr = () => getLocalDateString(getLocalToday());
 
+const editorialFieldClass =
+  "w-full bg-transparent border-0 border-b border-border px-0 py-2 text-sm font-serif text-foreground placeholder:text-muted-foreground placeholder:font-serif placeholder:italic focus:outline-none focus:border-foreground transition-colors";
+
+const editorialLabelClass =
+  "type-mono-label text-muted-foreground block mb-1.5";
+
+function formatDayKey(dateStr: string): { day: string; rest: string } {
+  try {
+    const d = new Date(`${dateStr}T00:00:00`);
+    if (Number.isNaN(d.getTime())) return { day: dateStr, rest: "" };
+    return {
+      day: format(d, "dd MMM").toUpperCase(),
+      rest: format(d, "EEE").toUpperCase(),
+    };
+  } catch {
+    return { day: dateStr, rest: "" };
+  }
+}
+
 function InterventionForm({
   onClose,
 }: Readonly<{
@@ -111,100 +118,118 @@ function InterventionForm({
   };
 
   return (
-    <Card className="border-dashed">
-      <CardContent className="pt-4">
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <Label htmlFor="med-name">Name *</Label>
-              <Input
-                id="med-name"
-                value={name}
-                onChange={(e) => {
-                  setName(e.target.value);
-                }}
-                placeholder="e.g. Metformin"
-                required
-              />
-            </div>
-            <div>
-              <Label htmlFor="med-category">Category</Label>
-              <select
-                id="med-category"
-                value={category}
-                onChange={(e) => {
-                  setCategory(e.target.value as Category);
-                }}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                {CATEGORIES.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <Label htmlFor="med-dosage">Dosage</Label>
-              <Input
-                id="med-dosage"
-                value={dosage}
-                onChange={(e) => {
-                  setDosage(e.target.value);
-                }}
-                placeholder="e.g. 500mg"
-              />
-            </div>
-            <div>
-              <Label htmlFor="med-frequency">Frequency</Label>
-              <Input
-                id="med-frequency"
-                value={frequency}
-                onChange={(e) => {
-                  setFrequency(e.target.value);
-                }}
-                placeholder="e.g. 2x daily"
-              />
-            </div>
-            <div>
-              <Label htmlFor="med-start">Start Date</Label>
-              <Input
-                id="med-start"
-                type="date"
-                value={startDate}
-                onChange={(e) => {
-                  setStartDate(e.target.value);
-                }}
-                required
-              />
-            </div>
-            <div>
-              <Label htmlFor="med-notes">Notes</Label>
-              <Input
-                id="med-notes"
-                value={notes}
-                onChange={(e) => {
-                  setNotes(e.target.value);
-                }}
-                placeholder="Optional notes"
-              />
-            </div>
+    <div className="border-t border-b border-border py-7 my-2">
+      <div className="type-mono-eyebrow text-muted-foreground mb-5">
+        new entry · intervention
+      </div>
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5">
+          <div>
+            <Label htmlFor="med-name" className={editorialLabelClass}>
+              Name *
+            </Label>
+            <input
+              id="med-name"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+              }}
+              placeholder="Metformin"
+              required
+              className={editorialFieldClass}
+            />
           </div>
-          <div className="flex gap-2 justify-end">
-            <Button type="button" variant="ghost" size="sm" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button type="submit" size="sm" disabled={create.isPending}>
-              {create.isPending ? "Saving..." : "Save"}
-            </Button>
+          <div>
+            <Label htmlFor="med-category" className={editorialLabelClass}>
+              Category
+            </Label>
+            <select
+              id="med-category"
+              value={category}
+              onChange={(e) => {
+                setCategory(e.target.value as Category);
+              }}
+              className={editorialFieldClass}
+            >
+              {CATEGORIES.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
           </div>
-        </form>
-      </CardContent>
-    </Card>
+          <div>
+            <Label htmlFor="med-dosage" className={editorialLabelClass}>
+              Dosage
+            </Label>
+            <input
+              id="med-dosage"
+              value={dosage}
+              onChange={(e) => {
+                setDosage(e.target.value);
+              }}
+              placeholder="500 mg"
+              className={editorialFieldClass}
+            />
+          </div>
+          <div>
+            <Label htmlFor="med-frequency" className={editorialLabelClass}>
+              Frequency
+            </Label>
+            <input
+              id="med-frequency"
+              value={frequency}
+              onChange={(e) => {
+                setFrequency(e.target.value);
+              }}
+              placeholder="twice daily"
+              className={editorialFieldClass}
+            />
+          </div>
+          <div>
+            <Label htmlFor="med-start" className={editorialLabelClass}>
+              Start Date
+            </Label>
+            <input
+              id="med-start"
+              type="date"
+              value={startDate}
+              onChange={(e) => {
+                setStartDate(e.target.value);
+              }}
+              required
+              className={editorialFieldClass}
+            />
+          </div>
+          <div>
+            <Label htmlFor="med-notes" className={editorialLabelClass}>
+              Notes
+            </Label>
+            <input
+              id="med-notes"
+              value={notes}
+              onChange={(e) => {
+                setNotes(e.target.value);
+              }}
+              placeholder="optional"
+              className={editorialFieldClass}
+            />
+          </div>
+        </div>
+        <div className="flex gap-2 justify-end pt-2">
+          <Button type="button" variant="ghost" size="sm" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" size="sm" disabled={create.isPending}>
+            {create.isPending ? "Saving..." : "Save"}
+          </Button>
+        </div>
+      </form>
+    </div>
   );
 }
 
-function InterventionCard({
+function InterventionRow({
   item,
 }: Readonly<{
   item: InterventionData;
@@ -232,56 +257,77 @@ function InterventionCard({
   };
 
   const isActive = item.active;
+  const dateLabel = formatDayKey(item.start_date);
 
   return (
     <div
       className={cn(
-        "flex items-center justify-between p-3 rounded-lg border",
-        isActive ? "bg-background" : "bg-muted/30 opacity-70",
+        "grid grid-cols-[80px_1fr_auto] gap-6 items-start py-6 border-b border-border",
+        !isActive && "opacity-60",
       )}
     >
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-sm truncate">{item.name}</span>
-          <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-            {item.category}
-          </span>
+      <div className="type-mono-label text-muted-foreground leading-tight">
+        <div className="text-foreground">{dateLabel.day}</div>
+        <div className="mt-0.5">{dateLabel.rest}</div>
+      </div>
+
+      <div className="min-w-0">
+        <div
+          className="font-serif text-[19px] leading-snug tracking-[-0.01em] text-foreground"
+          style={{
+            fontVariationSettings: '"opsz" 14, "SOFT" 30',
+            fontWeight: 400,
+          }}
+        >
+          {item.name}
         </div>
-        <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-0.5 text-xs text-muted-foreground">
+        <div className="mt-1 flex flex-wrap gap-x-5 gap-y-0.5 type-mono-label text-muted-foreground">
           {item.dosage && <span>{item.dosage}</span>}
           {item.frequency && <span>{item.frequency}</span>}
           <span>from {item.start_date}</span>
           {item.end_date && <span>to {item.end_date}</span>}
         </div>
         {item.notes && (
-          <p className="text-xs text-muted-foreground mt-0.5 truncate">
+          <p
+            className="mt-2 font-serif italic text-sm text-muted-foreground leading-relaxed max-w-[60ch]"
+            style={{
+              fontVariationSettings: '"opsz" 14, "SOFT" 50',
+              fontWeight: 380,
+            }}
+          >
             {item.notes}
           </p>
         )}
       </div>
-      <div className="flex items-center gap-1 ml-2 shrink-0">
-        {isActive && (
+
+      <div className="flex items-start gap-3 shrink-0">
+        <span className="type-mono-label text-muted-foreground border border-border px-2 py-1">
+          {item.category}
+        </span>
+        <div className="flex items-center gap-1">
+          {isActive && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={handleStop}
+              disabled={update.isPending}
+              aria-label="Stop medication"
+            >
+              <Square className="h-3.5 w-3.5" />
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
-            onClick={handleStop}
-            disabled={update.isPending}
-            aria-label="Stop medication"
+            className="h-7 w-7 hover:text-destructive"
+            onClick={handleDelete}
+            disabled={remove.isPending}
+            aria-label={`Delete ${item.name}`}
           >
-            <Square className="h-3.5 w-3.5" />
+            <Trash2 className="h-3.5 w-3.5" />
           </Button>
-        )}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 hover:text-destructive"
-          onClick={handleDelete}
-          disabled={remove.isPending}
-          aria-label={`Delete ${item.name}`}
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
+        </div>
       </div>
     </div>
   );
@@ -299,9 +345,23 @@ function MedicationsTab() {
   const inactive = (interventions ?? []).filter((i) => !i.active);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Active</h2>
+    <section className="pt-10">
+      <SectionHead
+        title={
+          <>
+            Active <SerifEm>protocols</SerifEm>
+          </>
+        }
+        meta={
+          <>
+            {active.length} active · {inactive.length} archived
+            <br />
+            interventions ledger
+          </>
+        }
+      />
+
+      <div className="flex justify-end mb-4">
         <Button
           variant="outline"
           size="sm"
@@ -309,8 +369,8 @@ function MedicationsTab() {
             setShowForm(!showForm);
           }}
         >
-          <Plus className="h-4 w-4 mr-1" />
-          Add
+          <Plus className="h-3.5 w-3.5 mr-1" />
+          Add Entry
         </Button>
       </div>
 
@@ -323,43 +383,49 @@ function MedicationsTab() {
       )}
 
       {active.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-4 text-center">
-          No active medications or supplements
+        <p
+          className="font-serif italic text-muted-foreground py-12 text-center text-lg"
+          style={{
+            fontVariationSettings: '"opsz" 14, "SOFT" 50',
+            fontWeight: 380,
+          }}
+        >
+          No active interventions recorded.
         </p>
       ) : (
-        <div className="space-y-2">
+        <div className="border-t border-border">
           {active.map((item) => (
-            <InterventionCard key={item.id} item={item} />
+            <InterventionRow key={item.id} item={item} />
           ))}
         </div>
       )}
 
       {inactive.length > 0 && (
-        <div>
+        <div className="mt-10 pt-6 border-t border-border">
           <button
             type="button"
             onClick={() => {
               setShowHistory(!showHistory);
             }}
-            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            className="flex items-center gap-2 type-mono-eyebrow text-muted-foreground hover:text-foreground transition-colors"
           >
             {showHistory ? (
-              <ChevronDown className="h-4 w-4" />
+              <ChevronDown className="h-3.5 w-3.5" />
             ) : (
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-3.5 w-3.5" />
             )}
-            History ({inactive.length})
+            archived · {inactive.length}
           </button>
           {showHistory && (
-            <div className="space-y-2 mt-2">
+            <div className="mt-4 border-t border-border">
               {inactive.map((item) => (
-                <InterventionCard key={item.id} item={item} />
+                <InterventionRow key={item.id} item={item} />
               ))}
             </div>
           )}
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -417,131 +483,156 @@ function BiomarkerForm({
   };
 
   return (
-    <Card className="border-dashed">
-      <CardContent className="pt-4">
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            <div>
-              <Label htmlFor="bio-date">Date *</Label>
-              <Input
-                id="bio-date"
-                type="date"
-                value={date}
-                onChange={(e) => {
-                  setDate(e.target.value);
-                }}
-                required
-              />
-            </div>
-            <div>
-              <Label htmlFor="bio-marker">Marker *</Label>
-              <Input
-                id="bio-marker"
-                list="biomarker-presets"
-                value={markerName}
-                onChange={(e) => {
-                  handleMarkerChange(e.target.value);
-                }}
-                placeholder="e.g. TSH"
-                required
-              />
-              <datalist id="biomarker-presets">
-                {BIOMARKER_PRESETS.map((p) => (
-                  <option key={p.name} value={p.name} />
-                ))}
-              </datalist>
-            </div>
-            <div>
-              <Label htmlFor="bio-value">Value *</Label>
-              <Input
-                id="bio-value"
-                type="number"
-                step="any"
-                value={value}
-                onChange={(e) => {
-                  setValue(e.target.value);
-                }}
-                placeholder="e.g. 2.5"
-                required
-              />
-            </div>
-            <div>
-              <Label htmlFor="bio-unit">Unit</Label>
-              <Input
-                id="bio-unit"
-                list="unit-presets"
-                value={unit}
-                onChange={(e) => {
-                  setUnit(e.target.value);
-                }}
-                placeholder="e.g. mIU/L"
-              />
-              <datalist id="unit-presets">
-                {[...new Set(BIOMARKER_PRESETS.map((p) => p.unit))].map((u) => (
-                  <option key={u} value={u} />
-                ))}
-              </datalist>
-            </div>
-            <div>
-              <Label htmlFor="bio-ref-low">Ref. Low</Label>
-              <Input
-                id="bio-ref-low"
-                type="number"
-                step="any"
-                value={refLow}
-                onChange={(e) => {
-                  setRefLow(e.target.value);
-                }}
-                placeholder="Optional"
-              />
-            </div>
-            <div>
-              <Label htmlFor="bio-ref-high">Ref. High</Label>
-              <Input
-                id="bio-ref-high"
-                type="number"
-                step="any"
-                value={refHigh}
-                onChange={(e) => {
-                  setRefHigh(e.target.value);
-                }}
-                placeholder="Optional"
-              />
-            </div>
-            <div>
-              <Label htmlFor="bio-lab">Lab Name</Label>
-              <Input
-                id="bio-lab"
-                value={labName}
-                onChange={(e) => {
-                  setLabName(e.target.value);
-                }}
-                placeholder="Optional"
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <Label htmlFor="bio-notes">Notes</Label>
-              <Input
-                id="bio-notes"
-                value={notes}
-                onChange={(e) => {
-                  setNotes(e.target.value);
-                }}
-                placeholder="Optional notes"
-              />
-            </div>
+    <div className="border-t border-b border-border py-7 my-2">
+      <div className="type-mono-eyebrow text-muted-foreground mb-5">
+        new entry · biomarker
+      </div>
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-5">
+          <div>
+            <Label htmlFor="bio-date" className={editorialLabelClass}>
+              Date *
+            </Label>
+            <input
+              id="bio-date"
+              type="date"
+              value={date}
+              onChange={(e) => {
+                setDate(e.target.value);
+              }}
+              required
+              className={editorialFieldClass}
+            />
           </div>
-          <div className="flex gap-2 justify-end">
-            <Button type="button" variant="ghost" size="sm" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button type="submit" size="sm" disabled={create.isPending}>
-              {create.isPending ? "Saving..." : "Save"}
-            </Button>
+          <div>
+            <Label htmlFor="bio-marker" className={editorialLabelClass}>
+              Marker *
+            </Label>
+            <input
+              id="bio-marker"
+              list="biomarker-presets"
+              value={markerName}
+              onChange={(e) => {
+                handleMarkerChange(e.target.value);
+              }}
+              placeholder="TSH"
+              required
+              className={editorialFieldClass}
+            />
+            <datalist id="biomarker-presets">
+              {BIOMARKER_PRESETS.map((p) => (
+                <option key={p.name} value={p.name} />
+              ))}
+            </datalist>
           </div>
-        </form>
-      </CardContent>
-    </Card>
+          <div>
+            <Label htmlFor="bio-value" className={editorialLabelClass}>
+              Value *
+            </Label>
+            <input
+              id="bio-value"
+              type="number"
+              step="any"
+              value={value}
+              onChange={(e) => {
+                setValue(e.target.value);
+              }}
+              placeholder="2.5"
+              required
+              className={editorialFieldClass}
+            />
+          </div>
+          <div>
+            <Label htmlFor="bio-unit" className={editorialLabelClass}>
+              Unit
+            </Label>
+            <input
+              id="bio-unit"
+              list="unit-presets"
+              value={unit}
+              onChange={(e) => {
+                setUnit(e.target.value);
+              }}
+              placeholder="mIU/L"
+              className={editorialFieldClass}
+            />
+            <datalist id="unit-presets">
+              {[...new Set(BIOMARKER_PRESETS.map((p) => p.unit))].map((u) => (
+                <option key={u} value={u} />
+              ))}
+            </datalist>
+          </div>
+          <div>
+            <Label htmlFor="bio-ref-low" className={editorialLabelClass}>
+              Ref. Low
+            </Label>
+            <input
+              id="bio-ref-low"
+              type="number"
+              step="any"
+              value={refLow}
+              onChange={(e) => {
+                setRefLow(e.target.value);
+              }}
+              placeholder="optional"
+              className={editorialFieldClass}
+            />
+          </div>
+          <div>
+            <Label htmlFor="bio-ref-high" className={editorialLabelClass}>
+              Ref. High
+            </Label>
+            <input
+              id="bio-ref-high"
+              type="number"
+              step="any"
+              value={refHigh}
+              onChange={(e) => {
+                setRefHigh(e.target.value);
+              }}
+              placeholder="optional"
+              className={editorialFieldClass}
+            />
+          </div>
+          <div>
+            <Label htmlFor="bio-lab" className={editorialLabelClass}>
+              Lab Name
+            </Label>
+            <input
+              id="bio-lab"
+              value={labName}
+              onChange={(e) => {
+                setLabName(e.target.value);
+              }}
+              placeholder="optional"
+              className={editorialFieldClass}
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <Label htmlFor="bio-notes" className={editorialLabelClass}>
+              Notes
+            </Label>
+            <input
+              id="bio-notes"
+              value={notes}
+              onChange={(e) => {
+                setNotes(e.target.value);
+              }}
+              placeholder="optional"
+              className={editorialFieldClass}
+            />
+          </div>
+        </div>
+        <div className="flex gap-2 justify-end pt-2">
+          <Button type="button" variant="ghost" size="sm" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" size="sm" disabled={create.isPending}>
+            {create.isPending ? "Saving..." : "Save"}
+          </Button>
+        </div>
+      </form>
+    </div>
   );
 }
 
@@ -597,9 +688,23 @@ function LabResultsTab() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Lab Results</h2>
+    <section className="pt-10">
+      <SectionHead
+        title={
+          <>
+            Lab <SerifEm>results</SerifEm>
+          </>
+        }
+        meta={
+          <>
+            {items.length} measurements · {grouped.size} dates
+            <br />
+            biomarker archive
+          </>
+        }
+      />
+
+      <div className="flex justify-end mb-4">
         <Button
           variant="outline"
           size="sm"
@@ -607,8 +712,8 @@ function LabResultsTab() {
             setShowForm(!showForm);
           }}
         >
-          <Plus className="h-4 w-4 mr-1" />
-          Add
+          <Plus className="h-3.5 w-3.5 mr-1" />
+          Add Result
         </Button>
       </div>
 
@@ -621,18 +726,29 @@ function LabResultsTab() {
       )}
 
       {items.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-4 text-center">
-          No lab results recorded
+        <p
+          className="font-serif italic text-muted-foreground py-12 text-center text-lg"
+          style={{
+            fontVariationSettings: '"opsz" 14, "SOFT" 50',
+            fontWeight: 380,
+          }}
+        >
+          No lab results recorded.
         </p>
       ) : (
-        <div className="space-y-4">
-          {[...grouped.entries()].map(([date, dateItems]) => (
-            <Card key={date}>
-              <CardHeader className="py-3 px-4">
-                <CardTitle className="text-sm font-medium">{date}</CardTitle>
-              </CardHeader>
-              <CardContent className="px-4 pb-3 pt-0">
-                <div className="divide-y">
+        <div className="border-t border-border">
+          {[...grouped.entries()].map(([date, dateItems]) => {
+            const dateLabel = formatDayKey(date);
+            return (
+              <div
+                key={date}
+                className="grid grid-cols-[80px_1fr] gap-6 items-start py-6 border-b border-border"
+              >
+                <div className="type-mono-label text-muted-foreground leading-tight">
+                  <div className="text-foreground">{dateLabel.day}</div>
+                  <div className="mt-0.5">{dateLabel.rest}</div>
+                </div>
+                <div className="space-y-3">
                   {dateItems.map((item) => {
                     const outOfRange = isOutOfRange(item);
                     const range = formatRange(
@@ -642,31 +758,43 @@ function LabResultsTab() {
                     return (
                       <div
                         key={item.id}
-                        className="flex items-center justify-between py-2 first:pt-0 last:pb-0"
+                        className="flex items-baseline justify-between gap-4 py-2 border-b border-border/50 last:border-b-0"
                       >
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-baseline gap-2">
-                            <span className="text-sm font-medium">
+                          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                            <span
+                              className="font-serif text-[17px] tracking-[-0.01em] text-foreground"
+                              style={{
+                                fontVariationSettings: '"opsz" 14, "SOFT" 30',
+                                fontWeight: 400,
+                              }}
+                            >
                               {item.marker_name}
                             </span>
                             <span
                               className={cn(
-                                "text-sm font-mono",
+                                "font-mono text-sm tabular-nums",
                                 outOfRange
-                                  ? "text-red-600 dark:text-red-400 font-semibold"
+                                  ? "text-brass font-medium"
                                   : "text-foreground",
                               )}
                             >
                               {item.value} {item.unit}
                             </span>
                             {range && (
-                              <span className="text-xs text-muted-foreground">
-                                ref: {range}
+                              <span className="type-mono-label text-muted-foreground">
+                                ref · {range}
                               </span>
                             )}
                           </div>
                           {(item.lab_name ?? item.notes) && (
-                            <p className="text-xs text-muted-foreground truncate">
+                            <p
+                              className="mt-1 font-serif italic text-sm text-muted-foreground"
+                              style={{
+                                fontVariationSettings: '"opsz" 14, "SOFT" 50',
+                                fontWeight: 380,
+                              }}
+                            >
                               {[item.lab_name, item.notes]
                                 .filter(Boolean)
                                 .join(" — ")}
@@ -689,51 +817,60 @@ function LabResultsTab() {
                     );
                   })}
                 </div>
-              </CardContent>
-            </Card>
-          ))}
+              </div>
+            );
+          })}
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
 export function HealthLogPage() {
   const [tab, setTab] = useState<Tab>("medications");
+  const todayDate = new Date();
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Health Log</h1>
-        <p className="text-muted-foreground mt-1">
-          Track medications, supplements, and lab results
-        </p>
-      </div>
+    <div className="space-y-0">
+      <Masthead
+        leftLine="Section · Log"
+        title={
+          <>
+            The <SerifEm>diary</SerifEm>
+          </>
+        }
+        rightLine={format(todayDate, "d LLLL yyyy")}
+      />
 
-      <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-lg w-fit">
-        <Button
-          variant={tab === "medications" ? "default" : "ghost"}
-          size="sm"
-          onClick={() => {
-            setTab("medications");
-          }}
-          className="gap-1.5"
-        >
-          <Pill className="h-4 w-4" />
-          Medications
-        </Button>
-        <Button
-          variant={tab === "labs" ? "default" : "ghost"}
-          size="sm"
-          onClick={() => {
-            setTab("labs");
-          }}
-          className="gap-1.5"
-        >
-          <FlaskConical className="h-4 w-4" />
-          Lab Results
-        </Button>
-      </div>
+      <section className="py-7">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-5 pb-4 border-b border-border">
+          <span className="type-mono-eyebrow text-muted-foreground">
+            ledger
+          </span>
+          <div className="flex flex-wrap gap-0">
+            <Button
+              variant={tab === "medications" ? "default" : "outline"}
+              size="sm"
+              onClick={() => {
+                setTab("medications");
+              }}
+              className="first:ml-0"
+            >
+              Interventions
+            </Button>
+            <Button
+              variant={tab === "labs" ? "default" : "outline"}
+              size="sm"
+              onClick={() => {
+                setTab("labs");
+              }}
+              className="-ml-px"
+            >
+              Lab Results
+            </Button>
+          </div>
+        </div>
+      </section>
 
       {tab === "medications" ? <MedicationsTab /> : <LabResultsTab />}
     </div>

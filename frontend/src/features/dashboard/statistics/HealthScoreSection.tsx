@@ -1,11 +1,4 @@
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "../../../components/ui/card";
-import {
   formatZScore,
   getZScoreColor,
   getHealthScoreLabel,
@@ -19,8 +12,6 @@ import type {
   DataSourceSummary,
 } from "../../../types/api";
 import {
-  type LucideIcon,
-  Gauge,
   TrendingUp,
   TrendingDown,
   Minus,
@@ -29,6 +20,8 @@ import {
   Clock,
 } from "lucide-react";
 import { cn } from "../../../lib/utils";
+import { ZCard } from "../../../components/luxury/ZCard";
+import { SectionHead, SerifEm } from "../../../components/luxury/SectionHead";
 import { getConfidenceColor, signPrefix, formatDaysLabel } from "./stat-utils";
 
 function getQualityBadgeAppearance(confidence: number): {
@@ -36,42 +29,58 @@ function getQualityBadgeAppearance(confidence: number): {
   Icon: typeof CheckCircle;
 } {
   if (confidence < 0.6) {
-    return { color: "text-red-600 dark:text-red-400", Icon: AlertTriangle };
+    return { color: "text-rust", Icon: AlertTriangle };
   }
   if (confidence < 0.8) {
-    return { color: "text-yellow-600 dark:text-yellow-400", Icon: Clock };
+    return { color: "text-brass", Icon: Clock };
   }
-  return { color: "text-green-600 dark:text-green-400", Icon: CheckCircle };
+  return { color: "text-moss", Icon: CheckCircle };
 }
 
-function DataQualityBadge({
-  baseline,
-}: Readonly<{ baseline: MetricBaseline }>) {
-  const coveragePercent = Math.round(baseline.quality_coverage * 100);
-  const confidencePercent = Math.round(baseline.quality_confidence * 100);
-  const { color, Icon } = getQualityBadgeAppearance(
-    baseline.quality_confidence,
-  );
-
+function ScorePillar({
+  label,
+  value,
+  detail,
+  large = false,
+}: Readonly<{
+  label: string;
+  value: number | null;
+  detail: string;
+  large?: boolean;
+}>) {
   return (
-    <div className="flex items-center gap-1.5 text-xs">
-      <Icon className={cn("h-3 w-3", color)} />
-      <span className={color}>{confidencePercent}% conf</span>
-      <span className="text-muted-foreground">({coveragePercent}% cov)</span>
-      {baseline.latency_days != null && baseline.latency_days > 1 && (
-        <span className="text-muted-foreground">
-          · {baseline.latency_days}d ago
-        </span>
-      )}
+    <div className="flex flex-col gap-2 px-6 py-7">
+      <span className="type-mono-eyebrow text-muted-foreground">{label}</span>
+      <span
+        className={cn(
+          "font-serif leading-none tracking-[-0.04em]",
+          large
+            ? "text-[clamp(56px,7vw,96px)]"
+            : "text-[clamp(40px,4.5vw,60px)]",
+          getHealthScoreColor(value),
+        )}
+        style={{
+          fontVariationSettings: '"opsz" 144, "SOFT" 50',
+          fontWeight: 320,
+          fontFeatureSettings: '"lnum","tnum"',
+        }}
+      >
+        {value == null ? "—" : value.toFixed(2)}
+      </span>
+      <span
+        className={cn(
+          "type-mono-label",
+          large ? getHealthScoreColor(value) : "text-muted-foreground",
+        )}
+      >
+        {large ? getHealthScoreLabel(value) : detail}
+      </span>
     </div>
   );
 }
 
 interface MetricCardProps {
   readonly title: string;
-  readonly icon: LucideIcon;
-  readonly iconColorClass: string;
-  readonly iconBgClass: string;
   readonly baseline: MetricBaseline;
   readonly format: (value: number | null) => string;
   readonly invertZScore?: boolean;
@@ -83,9 +92,6 @@ interface MetricCardProps {
 
 function MetricCard({
   title,
-  icon: Icon,
-  iconColorClass,
-  iconBgClass,
   baseline,
   format: formatValue,
   invertZScore = false,
@@ -99,100 +105,90 @@ function MetricCard({
     : baseline.z_score;
   const displayZScore =
     invertZScore && rawZScore != null ? -rawZScore : rawZScore;
-
-  const zScoreLabel = useShiftedZScore ? "period z" : "z-score";
+  const zScoreLabel = useShiftedZScore ? "period z" : "z";
 
   const trendIcon = (() => {
     if (baseline.trend_slope === null) {
-      return <Minus className="h-4 w-4 text-muted-foreground" />;
+      return <Minus className="h-3.5 w-3.5 text-muted-foreground" />;
     }
     if (baseline.trend_slope > 0) {
-      return <TrendingUp className="h-4 w-4 text-green-500" />;
+      return <TrendingUp className="h-3.5 w-3.5 text-moss" />;
     }
-    return <TrendingDown className="h-4 w-4 text-red-500" />;
+    return <TrendingDown className="h-3.5 w-3.5 text-rust" />;
   })();
 
+  const formatted = formatValue(baseline.current_value);
+  const match = /^(.+?)\s*([a-zA-Z%/]+(?:\/[a-zA-Z]+)?)$/.exec(formatted);
+  const numStr = match ? match[1] : formatted;
+  const unitStr = match ? match[2] : undefined;
+
+  const coveragePercent = Math.round(baseline.quality_coverage * 100);
+  const confidencePercent = Math.round(baseline.quality_confidence * 100);
+  const { color: confColor } = getQualityBadgeAppearance(
+    baseline.quality_confidence,
+  );
+
+  if (baseline.valid_points === 0) {
+    return (
+      <ZCard
+        name={title}
+        period="vs baseline"
+        value="—"
+        zScore={null}
+        zLabel={zScoreLabel}
+        footer={<>No data available</>}
+      />
+    );
+  }
+
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className={cn("p-1.5 rounded-lg", iconBgClass)}>
-              <Icon className={cn("h-4 w-4", iconColorClass)} />
+    <ZCard
+      name={title}
+      period={`${formatDaysLabel(baselineDays)} median`}
+      value={numStr}
+      unit={unitStr}
+      zScore={displayZScore}
+      zLabel={zScoreLabel}
+      footer={
+        <div className="flex flex-col gap-2">
+          <div className="grid grid-cols-3 gap-3 text-foreground">
+            <div className="flex flex-col gap-0.5">
+              <span className="type-mono-label text-muted-foreground">
+                {formatDaysLabel(shortTermDays)} avg
+              </span>
+              <span className="font-mono text-[12px] tracking-tight">
+                {formatValue(baseline.short_term_mean)}
+              </span>
             </div>
-            <CardTitle className="text-base">{title}</CardTitle>
+            <div className="flex flex-col gap-0.5">
+              <span className="type-mono-label text-muted-foreground">
+                {formatDaysLabel(baselineDays)} avg
+              </span>
+              <span className="font-mono text-[12px] tracking-tight">
+                {formatValue(baseline.mean)}
+              </span>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="type-mono-label text-muted-foreground">
+                trend · {formatDaysLabel(trendWindow)}
+              </span>
+              <span className="flex items-center gap-1 font-mono text-[12px] tracking-tight">
+                {trendIcon}
+                {baseline.trend_slope == null
+                  ? "—"
+                  : `${signPrefix(baseline.trend_slope)}${baseline.trend_slope.toFixed(2)}/d`}
+              </span>
+            </div>
           </div>
-          <DataQualityBadge baseline={baseline} />
+          <div className="flex justify-between gap-2 pt-2 border-t border-border type-mono-label text-muted-foreground normal-case tracking-wide">
+            <span className={confColor}>{confidencePercent}% conf</span>
+            <span>{coveragePercent}% cov</span>
+            <span>cv {(baseline.cv * 100).toFixed(1)}%</span>
+            <span>{baseline.valid_points} pts</span>
+          </div>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {baseline.valid_points === 0 ? (
-          <p className="text-sm text-muted-foreground">No data available</p>
-        ) : (
-          <>
-            <div className="flex items-baseline justify-between">
-              <div>
-                <span className="text-2xl font-bold">
-                  {formatValue(baseline.current_value)}
-                </span>
-                <span className="text-sm text-muted-foreground ml-2">
-                  current
-                </span>
-              </div>
-              <div className="text-right">
-                <div
-                  className={cn(
-                    "text-lg font-semibold",
-                    getZScoreColor(displayZScore),
-                  )}
-                >
-                  {formatZScore(displayZScore)}
-                </div>
-                <p className="text-[10px] text-muted-foreground">
-                  {zScoreLabel}
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2 text-sm">
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  {formatDaysLabel(shortTermDays)} avg
-                </p>
-                <p className="font-medium">
-                  {formatValue(baseline.short_term_mean)}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  {formatDaysLabel(baselineDays)} avg
-                </p>
-                <p className="font-medium">{formatValue(baseline.mean)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  trend ({formatDaysLabel(trendWindow)})
-                </p>
-                <div className="flex items-center gap-1">
-                  {trendIcon}
-                  <span className="font-medium">
-                    {baseline.trend_slope == null
-                      ? "—"
-                      : `${signPrefix(baseline.trend_slope)}${baseline.trend_slope.toFixed(2)}/d`}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t">
-              <span>CV: {(baseline.cv * 100).toFixed(1)}%</span>
-              <span>Outliers: {(baseline.outlier_rate * 100).toFixed(1)}%</span>
-              <span>{baseline.valid_points} pts</span>
-            </div>
-          </>
-        )}
-      </CardContent>
-    </Card>
+      }
+    />
   );
 }
 
@@ -218,217 +214,183 @@ export function HealthScoreSection({
   useShiftedZScore,
 }: HealthScoreSectionProps) {
   const stepsUsesToday = Boolean(healthScore.steps_status.use_today);
+  const hasTrainingLoad = healthScore.training_load != null;
+
   return (
-    <>
-      <Card className="border-2">
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-primary/10">
-              <Gauge className="h-6 w-6 text-primary" />
-            </div>
-            <div>
-              <CardTitle>Health Status Score</CardTitle>
-              <CardDescription>
-                {healthScore.training_load == null
-                  ? "Composite: recovery core (75%) + behavior support (25%)"
-                  : "Composite: recovery core (60%) + training load (20%) + behavior (20%)"}
-              </CardDescription>
-            </div>
+    <div className="flex flex-col gap-12">
+      <article className="border border-border bg-background">
+        <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-3 px-6 pt-6 pb-4 border-b border-border">
+          <div className="flex flex-col gap-1.5">
+            <span className="type-mono-eyebrow text-muted-foreground">
+              composite score
+            </span>
+            <h3
+              className="font-serif text-[clamp(22px,2.4vw,28px)] leading-none tracking-[-0.02em]"
+              style={{
+                fontVariationSettings: '"opsz" 144, "SOFT" 80',
+                fontWeight: 350,
+              }}
+            >
+              Health <SerifEm>status</SerifEm>
+            </h3>
           </div>
-        </CardHeader>
-        <CardContent>
-          <div
-            className={cn(
-              "grid gap-6 md:grid-cols-2",
-              healthScore.training_load == null
-                ? "lg:grid-cols-3"
-                : "lg:grid-cols-4",
-            )}
-          >
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground mb-1">Overall</p>
-              <p
+          <p className="type-mono-label text-muted-foreground normal-case tracking-wide max-w-md md:text-right">
+            {hasTrainingLoad
+              ? "recovery core 60% · training load 20% · behavior 20%"
+              : "recovery core 75% · behavior support 25%"}
+          </p>
+        </header>
+
+        <div
+          className={cn(
+            "grid divide-y md:divide-y-0 md:divide-x divide-border",
+            hasTrainingLoad ? "md:grid-cols-4" : "md:grid-cols-3",
+          )}
+        >
+          <ScorePillar
+            label="overall"
+            value={healthScore.overall}
+            detail=""
+            large
+          />
+          <ScorePillar
+            label="recovery core"
+            value={healthScore.recovery_core}
+            detail="HRV · RHR · Sleep · Stress"
+          />
+          {hasTrainingLoad && (
+            <ScorePillar
+              label="training load"
+              value={healthScore.training_load}
+              detail="Strain optimality"
+            />
+          )}
+          <ScorePillar
+            label="behavior support"
+            value={healthScore.behavior_support}
+            detail="Steps · Calories · Weight"
+          />
+        </div>
+
+        <div className="px-6 py-6 border-t border-border">
+          <div className="flex items-end justify-between gap-3 mb-4">
+            <span className="type-mono-eyebrow text-muted-foreground">
+              contributors
+            </span>
+            <span className="type-mono-label text-muted-foreground normal-case tracking-wide">
+              day {Math.round(dayCompleteness * 100)}% complete
+              {!stepsUsesToday && (
+                <span className="text-brass ml-2">· steps using yesterday</span>
+              )}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-px bg-border border border-border">
+            {healthScore.contributors.map((c) => (
+              <div
+                key={c.name}
                 className={cn(
-                  "text-4xl font-bold",
-                  getHealthScoreColor(healthScore.overall),
+                  "flex flex-col gap-1 px-3 py-3 bg-background",
+                  c.is_gated && "opacity-60",
                 )}
               >
-                {healthScore.overall == null
-                  ? "—"
-                  : healthScore.overall.toFixed(2)}
-              </p>
-              <p
-                className={cn(
-                  "text-sm font-medium mt-1",
-                  getHealthScoreColor(healthScore.overall),
-                )}
-              >
-                {getHealthScoreLabel(healthScore.overall)}
-              </p>
-            </div>
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground mb-1">
-                Recovery Core
-              </p>
-              <p
-                className={cn(
-                  "text-3xl font-bold",
-                  getHealthScoreColor(healthScore.recovery_core),
-                )}
-              >
-                {healthScore.recovery_core == null
-                  ? "—"
-                  : healthScore.recovery_core.toFixed(2)}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                HRV + RHR + Sleep + Stress
-              </p>
-            </div>
-            {healthScore.training_load != null && (
-              <div className="text-center">
-                <p className="text-sm text-muted-foreground mb-1">
-                  Training Load
-                </p>
-                <p
+                <span className="type-mono-label text-muted-foreground">
+                  {c.name}
+                </span>
+                <span
                   className={cn(
-                    "text-3xl font-bold",
-                    getHealthScoreColor(healthScore.training_load),
+                    "font-mono text-[14px] tracking-tight",
+                    c.is_gated
+                      ? "text-muted-foreground line-through"
+                      : getZScoreColor(c.goodness_z_score),
                   )}
                 >
-                  {healthScore.training_load.toFixed(2)}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Strain optimality
-                </p>
-              </div>
-            )}
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground mb-1">
-                Behavior Support
-              </p>
-              <p
-                className={cn(
-                  "text-3xl font-bold",
-                  getHealthScoreColor(healthScore.behavior_support),
-                )}
-              >
-                {healthScore.behavior_support == null
-                  ? "—"
-                  : healthScore.behavior_support.toFixed(2)}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Steps + Calories + Weight
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-6 pt-4 border-t">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-medium">Contributors</p>
-              <p className="text-xs text-muted-foreground">
-                Day {Math.round(dayCompleteness * 100)}% complete
-                {!stepsUsesToday && (
-                  <span className="text-yellow-500 ml-1">
-                    · Steps using yesterday
+                  {formatZScore(c.goodness_z_score)}
+                </span>
+                <span className="type-mono-label text-muted-foreground/70 normal-case tracking-wide">
+                  raw {formatZScore(c.raw_z_score)} ·{" "}
+                  <span className={getConfidenceColor(c.confidence)}>
+                    {(c.confidence * 100).toFixed(0)}%
+                  </span>
+                </span>
+                {c.long_term_percentile != null && (
+                  <span className="type-mono-label text-muted-foreground/60 normal-case tracking-wide">
+                    P{c.long_term_percentile.toFixed(0)} all-time
                   </span>
                 )}
-              </p>
+                {c.is_gated && (
+                  <span className="type-mono-label text-rust normal-case tracking-wide">
+                    {c.gate_reason}
+                  </span>
+                )}
+                {!c.is_gated && c.gate_reason && (
+                  <span className="type-mono-label text-muted-foreground/60 normal-case tracking-wide">
+                    {c.gate_reason}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {dataSourceSummary.length > 0 && (
+          <div className="px-6 py-6 border-t border-border">
+            <div className="flex items-end justify-between mb-4">
+              <span className="type-mono-eyebrow text-muted-foreground">
+                smart data fusion
+              </span>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-              {healthScore.contributors.map((c) => (
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-px bg-border border border-border">
+              {dataSourceSummary.map((s) => (
                 <div
-                  key={c.name}
-                  className={cn(
-                    "text-center p-2 rounded-lg",
-                    c.is_gated
-                      ? "bg-muted/30 border border-dashed border-muted-foreground/30"
-                      : "bg-muted/50",
-                  )}
+                  key={s.metric}
+                  className="flex flex-col gap-1 px-3 py-3 bg-background"
                 >
-                  <p className="text-xs text-muted-foreground">{c.name}</p>
-                  <p
-                    className={cn(
-                      "text-sm font-semibold",
-                      c.is_gated
-                        ? "text-muted-foreground line-through"
-                        : getZScoreColor(c.goodness_z_score),
+                  <span className="type-mono-label text-foreground/80">
+                    {s.metric}
+                  </span>
+                  <span className="font-mono text-[12px] tracking-tight text-muted-foreground">
+                    <span className={PROVIDER_CONFIGS.garmin.colorClass}>
+                      {s.garmin_only}
+                      {PROVIDER_CONFIGS.garmin.shortName}
+                    </span>{" "}
+                    /{" "}
+                    <span className={PROVIDER_CONFIGS.whoop.colorClass}>
+                      {s.whoop_only}
+                      {PROVIDER_CONFIGS.whoop.shortName}
+                    </span>{" "}
+                    /{" "}
+                    <span className={PROVIDER_CONFIGS.eight_sleep.colorClass}>
+                      {s.eight_sleep_only}
+                      {PROVIDER_CONFIGS.eight_sleep.shortName}
+                    </span>
+                    {s.blended > 0 && (
+                      <span
+                        className={`${PROVIDER_CONFIGS.blended.colorClass} ml-1`}
+                      >
+                        ({s.blended})
+                      </span>
                     )}
-                  >
-                    {formatZScore(c.goodness_z_score)}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground/70">
-                    raw: {formatZScore(c.raw_z_score)}
-                  </p>
-                  <p
-                    className={cn(
-                      "text-[10px]",
-                      getConfidenceColor(c.confidence),
-                    )}
-                  >
-                    conf: {(c.confidence * 100).toFixed(0)}%
-                  </p>
-                  {c.long_term_percentile != null && (
-                    <p className="text-[10px] text-muted-foreground/50">
-                      P{c.long_term_percentile.toFixed(0)} all-time
-                    </p>
-                  )}
-                  {c.is_gated && (
-                    <p className="text-[10px] text-red-400">{c.gate_reason}</p>
-                  )}
-                  {!c.is_gated && c.gate_reason && (
-                    <p className="text-[10px] text-muted-foreground/60">
-                      {c.gate_reason}
-                    </p>
-                  )}
+                  </span>
+                  <span className="type-mono-label text-muted-foreground/70 normal-case tracking-wide">
+                    conf {(s.avg_confidence * 100).toFixed(0)}%
+                  </span>
                 </div>
               ))}
             </div>
           </div>
-
-          {dataSourceSummary.length > 0 && (
-            <div className="mt-4 pt-4 border-t">
-              <p className="text-sm font-medium mb-3">Smart Data Fusion</p>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
-                {dataSourceSummary.map((s) => (
-                  <div key={s.metric} className="p-2 rounded-lg bg-muted/30">
-                    <p className="font-medium">{s.metric}</p>
-                    <p className="text-muted-foreground">
-                      <span className={PROVIDER_CONFIGS.garmin.colorClass}>
-                        {s.garmin_only}
-                        {PROVIDER_CONFIGS.garmin.shortName}
-                      </span>{" "}
-                      /{" "}
-                      <span className={PROVIDER_CONFIGS.whoop.colorClass}>
-                        {s.whoop_only}
-                        {PROVIDER_CONFIGS.whoop.shortName}
-                      </span>{" "}
-                      /{" "}
-                      <span className={PROVIDER_CONFIGS.eight_sleep.colorClass}>
-                        {s.eight_sleep_only}
-                        {PROVIDER_CONFIGS.eight_sleep.shortName}
-                      </span>
-                      {s.blended > 0 && (
-                        <span
-                          className={`${PROVIDER_CONFIGS.blended.colorClass} ml-1`}
-                        >
-                          ({s.blended}🔗)
-                        </span>
-                      )}
-                    </p>
-                    <p className="text-muted-foreground/70">
-                      conf: {(s.avg_confidence * 100).toFixed(0)}%
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        )}
+      </article>
 
       <div>
-        <h2 className="text-xl font-semibold mb-4">Individual Metrics</h2>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <SectionHead
+          title={
+            <>
+              Individual <SerifEm>metrics</SerifEm>
+            </>
+          }
+          meta={<>per-metric baseline deviation</>}
+        />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 border-t border-border lg:[&>*]:border-l lg:[&>*]:border-border lg:[&>*:nth-child(3n+1)]:border-l-0 md:[&>*:nth-child(2n)]:border-l md:[&>*:nth-child(2n)]:border-border">
           {METRIC_REGISTRY.filter((def) => def.key in metricBaselines).map(
             (def) => {
               const baseline = metricBaselines[def.key];
@@ -436,9 +398,6 @@ export function HealthScoreSection({
                 <MetricCard
                   key={def.key}
                   title={def.title}
-                  icon={def.icon}
-                  iconColorClass={def.iconColorClass}
-                  iconBgClass={def.iconBgClass}
                   baseline={baseline}
                   format={(value) => def.format(value)}
                   invertZScore={def.invertZScore}
@@ -452,6 +411,6 @@ export function HealthScoreSection({
           )}
         </div>
       </div>
-    </>
+    </div>
   );
 }

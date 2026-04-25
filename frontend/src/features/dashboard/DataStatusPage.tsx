@@ -1,23 +1,11 @@
 import { useHealthData, useSyncStatus } from "../../hooks/useHealthData";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "../../components/ui/card";
 import { LoadingState } from "../../components/ui/loading-state";
 import { ErrorCard } from "../../components/ui/error-card";
 import { format, parseISO, differenceInDays } from "date-fns";
-import {
-  CheckCircle,
-  AlertCircle,
-  Clock,
-  Database,
-  Activity,
-  RefreshCw,
-} from "lucide-react";
 import { cn } from "../../lib/utils";
 import { getLatestSyncDate, getLastSyncForSource } from "../../lib/sync-utils";
+import { Masthead } from "../../components/luxury/Masthead";
+import { SectionHead, SerifEm } from "../../components/luxury/SectionHead";
 
 type DataCadence = "daily" | "sporadic";
 
@@ -33,9 +21,40 @@ interface DataSourceStatus {
 interface SourceGroup {
   name: string;
   syncKey: string;
-  color: string;
   items: DataSourceStatus[];
 }
+
+type StatusTone = "ok" | "warn" | "off";
+
+interface ProviderStatusInfo {
+  tone: StatusTone;
+  label: string;
+}
+
+const TONE_TEXT: Record<StatusTone, string> = {
+  ok: "text-moss",
+  warn: "text-brass",
+  off: "text-muted-foreground",
+};
+
+const TONE_DOT: Record<StatusTone, string> = {
+  ok: "bg-moss",
+  warn: "bg-brass",
+  off: "bg-muted-foreground",
+};
+
+const TONE_RING: Record<StatusTone, string> = {
+  ok: "ring-moss/20",
+  warn: "ring-brass/20",
+  off: "ring-muted-foreground/15",
+};
+
+const PROVIDER_TITLE: Record<string, string> = {
+  garmin: "Garmin Connect",
+  whoop: "Whoop",
+  hevy: "Hevy",
+  eight_sleep: "Eight Sleep",
+};
 
 export function DataStatusPage() {
   const { data, isLoading, error } = useHealthData(365);
@@ -86,7 +105,6 @@ export function DataStatusPage() {
     {
       name: "Garmin",
       syncKey: "garmin",
-      color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
       items: [
         getDataSourceStatus(data?.sleep, "Sleep", "Garmin"),
         getDataSourceStatus(data?.hrv, "HRV", "Garmin"),
@@ -116,8 +134,6 @@ export function DataStatusPage() {
     {
       name: "Whoop",
       syncKey: "whoop",
-      color:
-        "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
       items: [
         getDataSourceStatus(data?.whoop_recovery, "Recovery", "Whoop"),
         getDataSourceStatus(data?.whoop_sleep, "Sleep", "Whoop"),
@@ -133,8 +149,6 @@ export function DataStatusPage() {
     {
       name: "Hevy",
       syncKey: "hevy",
-      color:
-        "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
       items: [
         getDataSourceStatus(data?.workouts, "Workouts", "Hevy", "sporadic"),
       ],
@@ -142,8 +156,6 @@ export function DataStatusPage() {
     {
       name: "Eight Sleep",
       syncKey: "eight_sleep",
-      color:
-        "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300",
       items: [
         getDataSourceStatus(
           data?.eight_sleep_sessions,
@@ -175,22 +187,14 @@ export function DataStatusPage() {
     return differenceInDays(new Date(), parseISO(lastSync)) <= 7;
   };
 
-  const getStatusInfo = (status: DataSourceStatus) => {
+  const getStatusInfo = (
+    status: DataSourceStatus,
+  ): ProviderStatusInfo & { detailLabel: string } => {
     if (status.count === 0) {
-      return {
-        icon: AlertCircle,
-        colorClass: "text-muted-foreground",
-        bgClass: "bg-muted",
-        label: "No data",
-      };
+      return { tone: "off", label: "Idle", detailLabel: "No data" };
     }
     if (!status.latestDate) {
-      return {
-        icon: AlertCircle,
-        colorClass: "text-destructive",
-        bgClass: "bg-destructive/10",
-        label: "Stale",
-      };
+      return { tone: "warn", label: "Stale", detailLabel: "Stale" };
     }
 
     const daysSinceUpdate = differenceInDays(
@@ -199,176 +203,207 @@ export function DataStatusPage() {
     );
 
     if (daysSinceUpdate <= 1) {
-      return {
-        icon: CheckCircle,
-        colorClass: "text-success",
-        bgClass: "bg-success/10",
-        label: "Up to date",
-      };
+      return { tone: "ok", label: "Live", detailLabel: "Up to date" };
     }
     if (daysSinceUpdate <= 7) {
       return {
-        icon: Clock,
-        colorClass: "text-warning",
-        bgClass: "bg-warning/10",
-        label: `${String(daysSinceUpdate)}d ago`,
+        tone: "warn",
+        label: "Lag",
+        detailLabel: `${String(daysSinceUpdate)}d ago`,
       };
     }
     if (status.cadence === "sporadic" && isSporadicRecentlySynced(status)) {
       return {
-        icon: Clock,
-        colorClass: "text-warning",
-        bgClass: "bg-warning/10",
-        label: `No new data · ${String(daysSinceUpdate)}d ago`,
+        tone: "warn",
+        label: "Quiet",
+        detailLabel: `No new data · ${String(daysSinceUpdate)}d ago`,
       };
     }
     if (status.cadence === "sporadic" && daysSinceUpdate <= 30) {
       return {
-        icon: Clock,
-        colorClass: "text-warning",
-        bgClass: "bg-warning/10",
-        label: `${String(daysSinceUpdate)}d ago`,
+        tone: "warn",
+        label: "Lag",
+        detailLabel: `${String(daysSinceUpdate)}d ago`,
       };
     }
-    return {
-      icon: AlertCircle,
-      colorClass: "text-destructive",
-      bgClass: "bg-destructive/10",
-      label: "Stale",
-    };
+    return { tone: "off", label: "Stale", detailLabel: "Stale" };
+  };
+
+  const getProviderStatus = (group: SourceGroup): ProviderStatusInfo => {
+    const activeItems = group.items.filter((i) => i.count > 0);
+    if (activeItems.length === 0) {
+      return { tone: "off", label: "Idle" };
+    }
+    const itemTones = activeItems.map((i) => getStatusInfo(i).tone);
+    if (itemTones.every((t) => t === "ok")) {
+      return { tone: "ok", label: "Live" };
+    }
+    if (itemTones.some((t) => t === "off")) {
+      return { tone: "warn", label: "Partial" };
+    }
+    return { tone: "warn", label: "Lag" };
+  };
+
+  const getProviderDomains = (group: SourceGroup): string => {
+    const active = group.items.filter((i) => i.count > 0);
+    const names = (active.length > 0 ? active : group.items).map((i) => i.name);
+    return names.join(" · ");
   };
 
   const totalRecords = allSources.reduce((sum, ds) => sum + ds.count, 0);
   const activeSources = allSources.filter((ds) => ds.count > 0).length;
+  const latestSyncDate = getLatestSyncDate(syncStatus);
+  const todayDate = new Date();
+  const dateLine = format(todayDate, "d LLLL yyyy");
 
-  const syncSources = sourceGroups.filter((g) =>
-    g.items.some((i) => i.count > 0),
+  const visibleGroups = sourceGroups.filter(
+    (g) =>
+      g.items.some((i) => i.count > 0) ||
+      getLastSyncForSource(syncStatus, g.syncKey) != null,
   );
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Data Status</h1>
-        <p className="text-muted-foreground mt-1">
-          Monitor your health data sources
-        </p>
-      </div>
+    <div className="space-y-0">
+      <Masthead
+        leftLine="Section · Data"
+        title={
+          <>
+            The <SerifEm>pipeline</SerifEm>
+          </>
+        }
+        rightLine={
+          <>
+            {dateLine}
+            <br />
+            {totalRecords.toLocaleString()} records · {activeSources}/
+            {String(allSources.length)} sources
+          </>
+        }
+      />
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-start justify-between">
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">
-                  Total Records
-                </p>
-                <p className="text-3xl font-bold tracking-tight">
-                  {totalRecords.toLocaleString()}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Across all sources
-                </p>
-              </div>
-              <div className="p-2.5 rounded-xl bg-primary/10">
-                <Database className="h-5 w-5 text-primary" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <section className="pt-12">
+        <SectionHead
+          title={
+            <>
+              Connected <SerifEm>sources</SerifEm>
+            </>
+          }
+          meta="freshness window 24h"
+        />
 
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-start justify-between">
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">
-                  Active Sources
-                </p>
-                <p className="text-3xl font-bold tracking-tight">
-                  {activeSources}
-                  <span className="text-lg font-normal text-muted-foreground">
-                    /{String(allSources.length)}
-                  </span>
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Data types tracked
-                </p>
-              </div>
-              <div className="p-2.5 rounded-xl bg-success/10">
-                <Activity className="h-5 w-5 text-success" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="border-t border-border">
+          {visibleGroups.map((group) => {
+            const groupRecords = group.items.reduce((s, i) => s + i.count, 0);
+            const lastSync = getLastSyncForSource(syncStatus, group.syncKey);
+            const providerStatus = getProviderStatus(group);
+            const title = PROVIDER_TITLE[group.syncKey] ?? group.name;
+            const domains = getProviderDomains(group);
 
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-start justify-between">
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">
-                  Last Sync
-                </p>
-                {(() => {
-                  const withDates = syncStatus?.filter(
-                    (s): s is typeof s & { last_sync_date: string } =>
-                      s.last_sync_date != null,
-                  );
-                  const lastSync = withDates?.sort(
-                    (a, b) =>
-                      new Date(b.last_sync_date).getTime() -
-                      new Date(a.last_sync_date).getTime(),
-                  )[0];
-                  return (
-                    <>
-                      <p className="text-3xl font-bold tracking-tight">
-                        {lastSync?.last_sync_date
-                          ? format(parseISO(lastSync.last_sync_date), "MMM d")
-                          : "Never"}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {lastSync?.source ?? "No sync recorded"}
-                      </p>
-                    </>
-                  );
-                })()}
-              </div>
-              <div className="p-2.5 rounded-xl bg-muted">
-                <Clock className="h-5 w-5 text-muted-foreground" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader className="pb-4">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-muted">
-              <RefreshCw className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <div>
-              <CardTitle>Sync Status</CardTitle>
-              <p className="text-sm text-muted-foreground mt-1">
-                Recent synchronization activity
-              </p>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-6 sm:grid-cols-5">
-            <SyncStatusItem
-              label="Last Sync"
-              date={getLatestSyncDate(syncStatus)}
-            />
-            {syncSources.map((group) => (
-              <SyncStatusItem
+            return (
+              <div
                 key={group.syncKey}
-                label={group.name}
-                date={getLastSyncForSource(syncStatus, group.syncKey)}
-              />
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+                className="grid grid-cols-1 md:grid-cols-[200px_1fr_auto] gap-4 md:gap-8 items-start md:items-center py-7 border-b border-border"
+              >
+                <span
+                  className="font-serif italic text-[24px] leading-none"
+                  style={{
+                    fontVariationSettings: '"opsz" 144, "SOFT" 100',
+                    fontWeight: 400,
+                  }}
+                >
+                  {title}
+                </span>
+                <div className="type-mono-label text-muted-foreground space-y-1.5">
+                  <div>
+                    <strong className="text-foreground font-medium">
+                      Last sync
+                    </strong>{" "}
+                    ·{" "}
+                    {lastSync
+                      ? format(parseISO(lastSync), "d LLL HH:mm").toLowerCase()
+                      : "never"}
+                    {" · "}
+                    {groupRecords.toLocaleString()} records
+                  </div>
+                  <div>{domains}</div>
+                </div>
+                <ProviderStatusBadge
+                  tone={providerStatus.tone}
+                  label={providerStatus.label}
+                />
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="pt-14">
+        <SectionHead
+          title={
+            <>
+              Pipeline <SerifEm>vitals</SerifEm>
+            </>
+          }
+          meta="aggregate state"
+        />
+        <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-border border-y border-border">
+          <FieldCell
+            label="Records, total"
+            value={totalRecords.toLocaleString()}
+            mono
+          />
+          <FieldCell
+            label="Active sources"
+            value={`${String(activeSources)} / ${String(allSources.length)}`}
+            mono
+          />
+          <FieldCell
+            label="Last sync"
+            value={
+              latestSyncDate
+                ? format(
+                    parseISO(latestSyncDate),
+                    "d LLL · HH:mm",
+                  ).toLowerCase()
+                : "never"
+            }
+            mono
+          />
+        </div>
+      </section>
+
+      <section className="pt-14">
+        <SectionHead
+          title={
+            <>
+              Synchronisation <SerifEm>cadence</SerifEm>
+            </>
+          }
+          meta="last touch per provider"
+        />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-border border-y border-border lg:[&>*:nth-child(3)]:border-l">
+          {sourceGroups
+            .filter((g) => g.items.some((i) => i.count > 0))
+            .map((group) => {
+              const lastSync = getLastSyncForSource(syncStatus, group.syncKey);
+              return (
+                <FieldCell
+                  key={group.syncKey}
+                  label={PROVIDER_TITLE[group.syncKey] ?? group.name}
+                  value={
+                    lastSync
+                      ? format(
+                          parseISO(lastSync),
+                          "d LLL · HH:mm",
+                        ).toLowerCase()
+                      : "never"
+                  }
+                  mono
+                />
+              );
+            })}
+        </div>
+      </section>
 
       {sourceGroups.map((group) => {
         const groupRecords = group.items.reduce((s, i) => s + i.count, 0);
@@ -378,107 +413,159 @@ export function DataStatusPage() {
         ) {
           return null;
         }
+        const lastSync = getLastSyncForSource(syncStatus, group.syncKey);
+        const title = PROVIDER_TITLE[group.syncKey] ?? group.name;
 
         return (
-          <Card key={group.syncKey}>
-            <CardHeader className="pb-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span
-                    className={cn(
-                      "text-xs font-bold px-2.5 py-1 rounded-full",
-                      group.color,
-                    )}
+          <section key={group.syncKey} className="pt-14">
+            <SectionHead
+              title={
+                <>
+                  {title.split(" ")[0]}{" "}
+                  <SerifEm>
+                    {title.split(" ").slice(1).join(" ") || "stream"}
+                  </SerifEm>
+                </>
+              }
+              meta={
+                <>
+                  {groupRecords.toLocaleString()} records
+                  {lastSync && (
+                    <>
+                      <br />
+                      last sync ·{" "}
+                      {format(parseISO(lastSync), "d LLL HH:mm").toLowerCase()}
+                    </>
+                  )}
+                </>
+              }
+            />
+            <div className="border-t border-border">
+              {group.items.map((source) => {
+                const statusInfo = getStatusInfo(source);
+                return (
+                  <div
+                    key={`${group.syncKey}-${source.name}`}
+                    className="grid grid-cols-1 md:grid-cols-[200px_1fr_auto] gap-4 md:gap-8 items-start md:items-center py-5 border-b border-border"
                   >
-                    {group.name}
-                  </span>
-                  <span className="text-sm text-muted-foreground">
-                    {groupRecords.toLocaleString()} records
-                  </span>
-                </div>
-                <SyncTimestamp
-                  date={getLastSyncForSource(syncStatus, group.syncKey)}
-                />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="divide-y divide-border">
-                {group.items.map((source) => {
-                  const statusInfo = getStatusInfo(source);
-                  const StatusIcon = statusInfo.icon;
-
-                  return (
-                    <div
-                      key={`${group.syncKey}-${source.name}`}
-                      className="flex items-center justify-between py-3 first:pt-0 last:pb-0"
+                    <span
+                      className="font-serif italic text-[20px] leading-none"
+                      style={{
+                        fontVariationSettings: '"opsz" 144, "SOFT" 100',
+                        fontWeight: 400,
+                      }}
                     >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={cn("p-1.5 rounded-lg", statusInfo.bgClass)}
-                        >
-                          <StatusIcon
-                            className={cn("h-3.5 w-3.5", statusInfo.colorClass)}
-                          />
-                        </div>
-                        <div>
-                          <p className="font-medium text-sm">{source.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {source.count > 0
-                              ? `${source.count.toLocaleString()} records`
-                              : "No data"}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        {source.latestDate ? (
+                      {source.name}
+                    </span>
+                    <div className="type-mono-label text-muted-foreground space-y-1">
+                      <div>
+                        <strong className="text-foreground font-medium">
+                          {source.count > 0
+                            ? source.count.toLocaleString()
+                            : "0"}{" "}
+                          records
+                        </strong>
+                        {source.latestDate && (
                           <>
-                            <p className="text-sm font-medium">
-                              {format(
-                                parseISO(source.latestDate),
-                                "MMM d, yyyy",
-                              )}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {statusInfo.label}
-                            </p>
+                            {" · latest "}
+                            {format(
+                              parseISO(source.latestDate),
+                              "d LLL yyyy",
+                            ).toLowerCase()}
                           </>
-                        ) : (
-                          <p className="text-sm text-muted-foreground">-</p>
                         )}
                       </div>
+                      {source.oldestDate && source.count > 0 && (
+                        <div>
+                          since{" "}
+                          {format(
+                            parseISO(source.oldestDate),
+                            "d LLL yyyy",
+                          ).toLowerCase()}
+                          {" · "}
+                          {source.cadence === "sporadic"
+                            ? "sporadic cadence"
+                            : "daily cadence"}
+                        </div>
+                      )}
                     </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
+                    <ProviderStatusBadge
+                      tone={statusInfo.tone}
+                      label={statusInfo.detailLabel}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </section>
         );
       })}
     </div>
   );
 }
 
-interface SyncStatusItemProps {
+interface ProviderStatusBadgeProps {
+  readonly tone: StatusTone;
   readonly label: string;
-  readonly date: string | null;
 }
 
-function SyncStatusItem({ label, date }: SyncStatusItemProps) {
+function ProviderStatusBadge({ tone, label }: ProviderStatusBadgeProps) {
   return (
-    <div className="space-y-1">
-      <p className="text-sm font-medium text-muted-foreground">{label}</p>
-      <p className="text-lg font-semibold">
-        {date ? format(parseISO(date), "PPp") : "Never"}
-      </p>
+    <div
+      className={cn(
+        "inline-flex items-center gap-2.5 type-mono-label",
+        TONE_TEXT[tone],
+      )}
+    >
+      <span className="relative inline-flex items-center justify-center">
+        <span
+          className={cn(
+            "w-1.5 h-1.5 rounded-full ring-4",
+            TONE_DOT[tone],
+            TONE_RING[tone],
+          )}
+        />
+        {tone === "ok" && (
+          <span
+            className={cn(
+              "absolute inline-flex w-1.5 h-1.5 rounded-full opacity-60 animate-ping",
+              TONE_DOT[tone],
+            )}
+          />
+        )}
+      </span>
+      <span className="uppercase">{label}</span>
     </div>
   );
 }
 
-function SyncTimestamp({ date }: { readonly date: string | null }) {
-  if (!date) return null;
+interface FieldCellProps {
+  readonly label: string;
+  readonly value: string;
+  readonly mono?: boolean;
+}
+
+function FieldCell({ label, value, mono = false }: FieldCellProps) {
   return (
-    <p className="text-xs text-muted-foreground">
-      Last sync: {format(parseISO(date), "MMM d, h:mm a")}
-    </p>
+    <div className="px-0 sm:px-6 py-5 first:pl-0 last:pr-0">
+      <div className="type-mono-label text-muted-foreground mb-2">{label}</div>
+      <div
+        className={cn(
+          mono
+            ? "font-mono text-[14px] tracking-[0.02em] text-foreground"
+            : "font-serif text-[19px] text-foreground",
+        )}
+        style={
+          mono
+            ? undefined
+            : {
+                fontVariationSettings: '"opsz" 14, "SOFT" 40',
+                fontWeight: 400,
+              }
+        }
+      >
+        {value}
+      </div>
+    </div>
   );
 }

@@ -4,16 +4,9 @@ import { useAuthStore } from "./store";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "../../components/ui/card";
 import { Spinner } from "../../components/ui/spinner";
 import { VersionInfo } from "../../components/ui/version-info";
-import { Heart, Activity, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 export function LoginPage() {
   const [username, setUsername] = useState("");
@@ -34,98 +27,114 @@ export function LoginPage() {
 
   return (
     <main
-      className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-800 p-4"
+      className="min-h-screen bg-background grid place-items-center px-5"
       style={{
-        paddingTop: "max(1rem, env(safe-area-inset-top))",
-        paddingBottom: "max(1rem, env(safe-area-inset-bottom))",
+        paddingTop: "max(2rem, env(safe-area-inset-top))",
+        paddingBottom: "max(2rem, env(safe-area-inset-bottom))",
       }}
     >
-      <div className="absolute inset-0 bg-grid-slate-100 [mask-image:linear-gradient(0deg,white,rgba(255,255,255,0.6))] dark:bg-grid-slate-700/25 dark:[mask-image:linear-gradient(0deg,rgba(255,255,255,0.1),rgba(255,255,255,0.5))]" />
+      <div className="w-full max-w-[420px]">
+        {/* Brand */}
+        <div className="text-center mb-12">
+          <span
+            className="font-serif text-[44px] leading-none tracking-[-0.03em]"
+            style={{
+              fontVariationSettings: '"opsz" 144, "SOFT" 100',
+              fontWeight: 380,
+            }}
+          >
+            vita<span className="text-brass">.</span>
+          </span>
+          <div className="mt-3 type-mono-label text-muted-foreground">
+            longevity intelligence
+          </div>
+        </div>
 
-      <Card className="w-full max-w-md relative animate-fade-in-up shadow-lg border-0 bg-card/80 backdrop-blur-sm">
-        <CardHeader className="space-y-4 text-center pb-2">
-          <div className="flex justify-center">
-            <div className="flex items-center gap-2 p-3 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 ring-1 ring-primary/20">
-              <Heart className="h-7 w-7 text-primary" />
-              <Activity className="h-7 w-7 text-primary" />
+        {/* Form */}
+        <form
+          onSubmit={handleSubmit}
+          className="border-t border-foreground pt-9"
+        >
+          {error && (
+            <div className="mb-6 p-3 border border-rust text-rust type-mono-eyebrow">
+              {error}
             </div>
-          </div>
-          <div className="space-y-1">
-            <CardTitle className="text-2xl font-bold tracking-tight">
-              Life-as-Code
-            </CardTitle>
-            <CardDescription className="text-muted-foreground">
-              Your personal health analytics portal
-            </CardDescription>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-4">
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {error && (
-              <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm animate-fade-in">
-                {error}
-              </div>
-            )}
+          )}
+
+          <div className="space-y-7">
             <div className="space-y-2">
-              <Label htmlFor="username" className="text-sm font-medium">
+              <Label
+                htmlFor="username"
+                className="type-mono-label text-muted-foreground"
+              >
                 Username
               </Label>
               <Input
                 id="username"
                 type="text"
-                placeholder="Enter your username"
+                placeholder="enter your username"
                 value={username}
                 onChange={(e) => {
                   setUsername(e.target.value);
                 }}
                 disabled={isLoading}
                 required
-                className="h-11 bg-background/50 border-muted-foreground/20 focus:border-primary focus:bg-background transition-colors"
+                className="h-12 bg-transparent border-0 border-b border-border rounded-none px-0 font-serif text-[18px] focus-visible:ring-0 focus-visible:border-foreground placeholder:text-muted-foreground/50"
+                style={{ fontVariationSettings: '"opsz" 14, "SOFT" 40' }}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-sm font-medium">
+              <Label
+                htmlFor="password"
+                className="type-mono-label text-muted-foreground"
+              >
                 Password
               </Label>
               <Input
                 id="password"
                 type="password"
-                placeholder="Enter your password"
+                placeholder="enter your password"
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value);
                 }}
                 disabled={isLoading}
                 required
-                className="h-11 bg-background/50 border-muted-foreground/20 focus:border-primary focus:bg-background transition-colors"
+                className="h-12 bg-transparent border-0 border-b border-border rounded-none px-0 font-serif text-[18px] focus-visible:ring-0 focus-visible:border-foreground placeholder:text-muted-foreground/50"
+                style={{ fontVariationSettings: '"opsz" 14, "SOFT" 40' }}
               />
             </div>
-            <Button
-              type="submit"
-              className="w-full h-11 text-base font-medium shadow-sm"
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <>
-                  <Spinner size="sm" className="mr-2" />
-                  Signing in...
-                </>
-              ) : (
-                <>
-                  Sign In
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </>
-              )}
-            </Button>
-          </form>
-          <p className="mt-6 text-center text-sm text-muted-foreground">
-            Contact your administrator for account access.
-          </p>
-          <div className="mt-4">
-            <VersionInfo />
           </div>
-        </CardContent>
-      </Card>
+
+          <Button
+            type="submit"
+            className="w-full h-12 mt-9"
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <>
+                <Spinner size="sm" className="mr-2" />
+                Signing in…
+              </>
+            ) : (
+              <>
+                Sign in
+                <ArrowRight className="ml-2 h-3.5 w-3.5" />
+              </>
+            )}
+          </Button>
+        </form>
+
+        <p
+          className="mt-8 text-center font-serif italic text-muted-foreground text-[15px]"
+          style={{ fontVariationSettings: '"opsz" 14, "SOFT" 100' }}
+        >
+          Contact your administrator for account access.
+        </p>
+        <div className="mt-6 flex justify-center type-mono-label text-muted-foreground">
+          <VersionInfo />
+        </div>
+      </div>
     </main>
   );
 }

@@ -1,19 +1,14 @@
-import { Card, CardContent } from "../../../components/ui/card";
 import { formatSleepMinutes } from "../../../lib/metrics";
 import type {
   RecoveryMetrics,
   SleepMetrics,
   ActivityMetrics,
 } from "../../../types/api";
-import { Heart, Moon, Zap, Footprints } from "lucide-react";
 import { cn } from "../../../lib/utils";
+import { ZCard } from "../../../components/luxury/ZCard";
 import {
-  getHrvRhrColor,
   getHrvRhrLabel,
-  getSleepDebtColor,
-  getAcwrColor,
   getAcwrLabel,
-  getStepsChangeColor,
   signPrefix,
   formatDaysLabel,
 } from "./stat-utils";
@@ -33,93 +28,59 @@ export function RecoverySection({
   shortTermDays,
   trendWindow,
 }: RecoverySectionProps) {
+  const hrvRhr = recoveryMetrics.hrv_rhr_imbalance;
+  const sleepDebt = sleepMetrics.sleep_debt_short;
+  const acwr = activityMetrics.acwr;
+  const stepsChange = activityMetrics.steps_change;
+
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      <Card>
-        <CardContent className="pt-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Heart className="h-4 w-4 text-red-500" />
-            <span className="text-sm font-medium">HRV-RHR Imbalance</span>
-          </div>
-          <p
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 border-t border-border md:[&>*:nth-child(2n)]:border-l md:[&>*:nth-child(2n)]:border-border lg:[&>*]:border-l lg:[&>*]:border-border lg:[&>*:first-child]:border-l-0">
+      <ZCard
+        name="HRV–RHR balance"
+        period="autonomic axis"
+        value={hrvRhr == null ? "—" : hrvRhr.toFixed(2)}
+        zScore={hrvRhr == null ? null : -hrvRhr}
+        zLabel="balance"
+        footer={getHrvRhrLabel(hrvRhr)}
+      />
+      <ZCard
+        name="Sleep debt"
+        period={`${formatDaysLabel(shortTermDays)} window`}
+        value={formatSleepMinutes(sleepDebt)}
+        zScore={null}
+        zLabel="debt"
+        footer={
+          <>vs target {formatSleepMinutes(sleepMetrics.target_sleep)}/night</>
+        }
+      />
+      <ZCard
+        name="Acute / chronic"
+        period="training load"
+        value={acwr == null ? "—" : acwr.toFixed(2)}
+        zScore={acwr == null ? null : (acwr - 1) * 2}
+        zLabel="ratio"
+        footer={getAcwrLabel(acwr)}
+      />
+      <ZCard
+        name="Steps trend"
+        period={`${formatDaysLabel(trendWindow)} vs prev`}
+        value={
+          stepsChange == null
+            ? "—"
+            : `${signPrefix(stepsChange)}${Math.round(stepsChange).toLocaleString()}`
+        }
+        zScore={stepsChange == null ? null : stepsChange / 2000}
+        zLabel="δ"
+        footer={
+          <span
             className={cn(
-              "text-2xl font-bold",
-              getHrvRhrColor(recoveryMetrics.hrv_rhr_imbalance),
+              stepsChange != null && stepsChange < 0 && "text-rust",
             )}
           >
-            {recoveryMetrics.hrv_rhr_imbalance == null
-              ? "—"
-              : recoveryMetrics.hrv_rhr_imbalance.toFixed(2)}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {getHrvRhrLabel(recoveryMetrics.hrv_rhr_imbalance)}
-          </p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardContent className="pt-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Moon className="h-4 w-4 text-indigo-500" />
-            <span className="text-sm font-medium">
-              Sleep Debt ({formatDaysLabel(shortTermDays)})
-            </span>
-          </div>
-          <p
-            className={cn(
-              "text-2xl font-bold",
-              getSleepDebtColor(sleepMetrics.sleep_debt_short),
-            )}
-          >
-            {formatSleepMinutes(sleepMetrics.sleep_debt_short)}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            vs target {formatSleepMinutes(sleepMetrics.target_sleep)}/night
-          </p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardContent className="pt-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Zap className="h-4 w-4 text-orange-500" />
-            <span className="text-sm font-medium">Acute:Chronic Ratio</span>
-          </div>
-          <p
-            className={cn(
-              "text-2xl font-bold",
-              getAcwrColor(activityMetrics.acwr),
-            )}
-          >
-            {activityMetrics.acwr == null
-              ? "—"
-              : activityMetrics.acwr.toFixed(2)}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {getAcwrLabel(activityMetrics.acwr)}
-          </p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardContent className="pt-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Footprints className="h-4 w-4 text-emerald-500" />
-            <span className="text-sm font-medium">Steps Trend</span>
-          </div>
-          <p
-            className={cn(
-              "text-2xl font-bold",
-              getStepsChangeColor(activityMetrics.steps_change),
-            )}
-          >
-            {activityMetrics.steps_change == null
-              ? "—"
-              : `${signPrefix(activityMetrics.steps_change)}${Math.round(activityMetrics.steps_change).toLocaleString()}`}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {formatDaysLabel(trendWindow)} vs prev{" "}
-            {formatDaysLabel(trendWindow)}
-          </p>
-        </CardContent>
-      </Card>
+            {formatDaysLabel(trendWindow)} window
+          </span>
+        }
+      />
     </div>
   );
 }

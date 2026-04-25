@@ -1,10 +1,9 @@
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   useHealthDataRange,
   useSyncStatus,
   useAutoSync,
 } from "../../hooks/useHealthData";
-import { Card, CardContent } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { LoadingState } from "../../components/ui/loading-state";
@@ -25,13 +24,11 @@ import {
   RefreshCw,
   Heart,
   Zap,
-  Calendar,
   Moon,
   Scale,
   Footprints,
   Flame,
   Loader2,
-  type LucideIcon,
 } from "lucide-react";
 import {
   METRIC_REGISTRY,
@@ -48,42 +45,76 @@ import {
   LOESS_BANDWIDTH_SHORT,
   LOESS_BANDWIDTH_LONG,
 } from "../../lib/constants";
+import { Masthead } from "../../components/luxury/Masthead";
+import { SectionHead, SerifEm } from "../../components/luxury/SectionHead";
+import { Vital } from "../../components/luxury/Vital";
+import { RingChart } from "../../components/luxury/RingChart";
 
 const DASHBOARD_KEYS = new Set<string>(DASHBOARD_METRIC_KEYS);
 
-interface MetricCardProps {
-  readonly title: string;
-  readonly value: string;
-  readonly subtitle: string;
-  readonly icon: LucideIcon;
-  readonly colorClass: string;
-  readonly bgClass: string;
+function deriveRecovery(
+  recoveryFromAnalytics: number | null | undefined,
+  fallbackHrv: number | null | undefined,
+  fallbackHrvBaseline: number | null | undefined,
+): number {
+  if (recoveryFromAnalytics != null && Number.isFinite(recoveryFromAnalytics)) {
+    return Math.max(0, Math.min(100, Math.round(recoveryFromAnalytics)));
+  }
+  if (
+    fallbackHrv != null &&
+    fallbackHrvBaseline != null &&
+    fallbackHrvBaseline > 0
+  ) {
+    const ratio = fallbackHrv / fallbackHrvBaseline;
+    return Math.max(0, Math.min(100, Math.round(50 + (ratio - 1) * 100)));
+  }
+  return 0;
 }
 
-function MetricCard({
-  title,
-  value,
-  subtitle,
-  icon: Icon,
-  colorClass,
-  bgClass,
-}: MetricCardProps) {
-  return (
-    <Card className="overflow-hidden">
-      <CardContent className="p-5">
-        <div className="flex items-start justify-between">
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-muted-foreground">{title}</p>
-            <p className="text-3xl font-bold tracking-tight">{value}</p>
-            <p className="text-xs text-muted-foreground">{subtitle}</p>
-          </div>
-          <div className={`p-2.5 rounded-xl ${bgClass}`}>
-            <Icon className={`h-5 w-5 ${colorClass}`} />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
+function recoveryVerdict(score: number): {
+  headline: string;
+  emphasis: string;
+  subline: string;
+} {
+  if (score >= 80) {
+    return {
+      headline: "Recovered.",
+      emphasis: "Train hard.",
+      subline: "primed",
+    };
+  }
+  if (score >= 65) {
+    return {
+      headline: "Steady.",
+      emphasis: "Productive day.",
+      subline: "ready",
+    };
+  }
+  if (score >= 45) {
+    return {
+      headline: "Moderate.",
+      emphasis: "Train light.",
+      subline: "cautious",
+    };
+  }
+  return { headline: "Depleted.", emphasis: "Recover today.", subline: "rest" };
+}
+
+function fmtDelta(value: number | null, unit = ""): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  const sign = value > 0 ? "+" : value < 0 ? "" : "±";
+  const arrow = value > 0 ? "↑" : value < 0 ? "↓" : "→";
+  return `${arrow} ${sign}${value.toFixed(value >= 10 ? 0 : 1)}${unit}`;
+}
+
+function deltaTone(
+  value: number | null,
+  goodDirection: "up" | "down",
+): "up" | "down" | "flat" {
+  if (value == null || !Number.isFinite(value)) return "flat";
+  if (Math.abs(value) < 0.5) return "flat";
+  if (value > 0) return goodDirection === "up" ? "up" : "down";
+  return goodDirection === "down" ? "up" : "down";
 }
 
 export function DashboardOverview() {
@@ -149,160 +180,348 @@ export function DashboardOverview() {
     return Math.round(sorted[Math.min(idx, sorted.length - 1)]);
   }, [data, rangeDays]);
 
+  // Hero recovery + verdict
+  const recoveryBaseline = analyticsData?.metric_baselines.recovery;
+  const hrvBaseline = analyticsData?.metric_baselines.hrv;
+  const recovery = deriveRecovery(
+    recoveryBaseline?.current_value,
+    hrvBaseline?.current_value,
+    hrvBaseline?.mean,
+  );
+  const verdict = recoveryVerdict(recovery);
+
+  const hrvCurrent = hrvBaseline?.current_value;
+  const hrvBaselineMean = hrvBaseline?.mean;
+  const hrvDelta =
+    hrvCurrent != null && hrvBaselineMean != null
+      ? hrvCurrent - hrvBaselineMean
+      : null;
+
+  // Sparkline data (last ~30 datapoints from current range)
+  const hrvSpark = useMemo(
+    () =>
+      (data?.hrv ?? [])
+        .slice(-30)
+        .map((p) => p.hrv_avg)
+        .filter((v): v is number => v != null),
+    [data],
+  );
+  const heartSpark = useMemo(
+    () =>
+      (data?.heart_rate ?? [])
+        .slice(-30)
+        .map((p) => p.resting_hr)
+        .filter((v): v is number => v != null),
+    [data],
+  );
+  const sleepSpark = useMemo(
+    () =>
+      (data?.sleep ?? [])
+        .slice(-30)
+        .map((p) => (p.total_sleep_minutes ?? 0) / 60)
+        .filter((v) => v > 0),
+    [data],
+  );
+  const stepsSpark = useMemo(
+    () =>
+      (data?.steps ?? [])
+        .slice(-30)
+        .map((p) => p.total_steps)
+        .filter((v): v is number => v != null),
+    [data],
+  );
+
   if (isLoading) {
     return <LoadingState message="Loading health data..." />;
   }
-
   if (error) {
     return (
       <ErrorCard message={`Failed to load health data: ${error.message}`} />
     );
   }
 
+  const lastSync = getLatestSyncDate(syncStatus);
+  const todayDate = new Date();
+  const dateLine = format(todayDate, "d LLLL yyyy");
+  const weekday = format(todayDate, "EEEE");
+
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">
-              Health Dashboard
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              Track your daily health metrics
-            </p>
+    <div className="space-y-0">
+      {/* ───────── Masthead ───────── */}
+      <Masthead
+        leftLine={`№ ${format(todayDate, "DDD")} · ${weekday}`}
+        title={
+          <>
+            The <SerifEm>daily</SerifEm> readout
+          </>
+        }
+        rightLine={dateLine}
+      />
+
+      {/* ───────── Hero ───────── */}
+      <section className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-10 lg:gap-16 items-center py-14 lg:py-22 border-b border-border">
+        <div>
+          <span className="type-mono-eyebrow text-muted-foreground block mb-5">
+            Today's verdict
+          </span>
+          <h1
+            className="font-serif leading-[0.86] tracking-[-0.045em] text-[clamp(48px,9vw,116px)]"
+            style={{
+              fontVariationSettings: '"opsz" 144, "SOFT" 100',
+              fontWeight: 350,
+            }}
+          >
+            {verdict.headline}{" "}
+            <span
+              className="text-brass"
+              style={{
+                fontStyle: "italic",
+                fontVariationSettings: '"opsz" 144, "SOFT" 100',
+                fontWeight: 400,
+              }}
+            >
+              {verdict.emphasis}
+            </span>
+          </h1>
+          <p
+            className="mt-7 font-serif text-[clamp(16px,1.5vw,19px)] leading-[1.55] text-muted-foreground max-w-[48ch]"
+            style={{
+              fontVariationSettings: '"opsz" 14, "SOFT" 30',
+              fontWeight: 380,
+            }}
+          >
+            {hrvCurrent != null && hrvBaselineMean != null ? (
+              <>
+                HRV closed at{" "}
+                <strong className="text-foreground font-medium">
+                  {Math.round(hrvCurrent)} ms
+                </strong>
+                {hrvDelta != null ? (
+                  hrvDelta > 0 ? (
+                    <>
+                      {" "}
+                      — above your baseline by{" "}
+                      <strong className="text-foreground font-medium">
+                        {Math.abs(hrvDelta).toFixed(1)} ms
+                      </strong>
+                      .
+                    </>
+                  ) : (
+                    <>
+                      {" "}
+                      — below your baseline by{" "}
+                      <strong className="text-foreground font-medium">
+                        {Math.abs(hrvDelta).toFixed(1)} ms
+                      </strong>
+                      .
+                    </>
+                  )
+                ) : (
+                  "."
+                )}{" "}
+                Today's window leans toward{" "}
+                {recovery >= 70
+                  ? "productive load"
+                  : recovery >= 50
+                    ? "moderate work"
+                    : "active recovery"}
+                .
+              </>
+            ) : (
+              <>
+                Awaiting fresh signals. Connect a device in Settings to begin
+                the daily briefing.
+              </>
+            )}
+          </p>
+          <div className="mt-7 flex items-center gap-2.5">
+            <span className="type-mono-label text-muted-foreground">
+              briefing
+            </span>
+            <span
+              className="font-serif italic text-[17px]"
+              style={{
+                fontVariationSettings: '"opsz" 144, "SOFT" 100',
+                fontWeight: 400,
+              }}
+            >
+              drafted at {format(todayDate, "HH:mm")}
+            </span>
           </div>
-          <div className="flex items-center gap-1.5 p-1 bg-muted/50 rounded-lg flex-wrap">
-            <Calendar className="h-4 w-4 text-muted-foreground ml-2" />
+        </div>
+
+        <RingChart
+          value={recovery}
+          label="recovery"
+          subLabel={verdict.subline}
+          notes={{
+            tl: lastSync
+              ? `last sync · ${format(new Date(toTimeMs(lastSync)), "HH:mm")}`
+              : undefined,
+            tr: `${String(recovery)}/100`,
+            bl:
+              hrvDelta != null
+                ? `δ ${hrvDelta > 0 ? "+" : ""}${hrvDelta.toFixed(1)} hrv`
+                : undefined,
+            br: `${String(selectedDays)}d view`,
+          }}
+        />
+      </section>
+
+      {/* ───────── Range selector ───────── */}
+      <section className="py-7">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-5 pb-4 border-b border-border">
+          <span className="type-mono-eyebrow text-muted-foreground">
+            window
+          </span>
+          <div className="flex flex-wrap gap-0">
             <Button
-              variant={selectedRange === "today" ? "default" : "ghost"}
+              variant={selectedRange === "today" ? "default" : "outline"}
               size="sm"
               onClick={() => {
                 setSelectedRange("today");
               }}
-              className="min-w-[60px] flex flex-col h-auto py-1.5"
+              className="-ml-px first:ml-0"
             >
-              <span className="font-medium">Today</span>
-              <span className="text-[10px] opacity-70">Latest</span>
+              Today
             </Button>
             {MODE_ORDER.map((m) => {
               const cfg = TREND_MODES[m];
               return (
                 <Button
                   key={m}
-                  variant={selectedRange === m ? "default" : "ghost"}
+                  variant={selectedRange === m ? "default" : "outline"}
                   size="sm"
                   onClick={() => {
                     setSelectedRange(m);
                   }}
-                  className="min-w-[60px] flex flex-col h-auto py-1.5"
+                  className="-ml-px"
                 >
-                  <span className="font-medium">{cfg.label}</span>
-                  <span className="text-[10px] opacity-70">
-                    {cfg.description}
-                  </span>
+                  {cfg.label} · {cfg.description}
                 </Button>
               );
             })}
             <Button
-              variant={selectedRange === "custom" ? "default" : "ghost"}
+              variant={selectedRange === "custom" ? "default" : "outline"}
               size="sm"
               onClick={() => {
                 setSelectedRange("custom");
               }}
-              className="min-w-[60px] flex flex-col h-auto py-1.5"
+              className="-ml-px"
             >
-              <span className="font-medium">Custom</span>
-              <span className="text-[10px] opacity-70">Range</span>
+              Custom
             </Button>
           </div>
-          {isCustom && (
-            <div className="flex items-center gap-2 mt-2">
-              <Input
-                type="date"
-                value={customStartDate}
-                onChange={(e) => {
-                  setCustomStartDate(e.target.value);
-                }}
-                className="w-36"
-              />
-              <span className="text-muted-foreground">—</span>
-              <Input
-                type="date"
-                value={customEndDate}
-                onChange={(e) => {
-                  setCustomEndDate(e.target.value);
-                }}
-                className="w-36"
-              />
-              <span className="text-sm text-muted-foreground">
-                ({selectedDays} days)
-              </span>
-            </div>
-          )}
         </div>
-        {(() => {
-          const lastSync = getLatestSyncDate(syncStatus);
-          if (isSyncing) {
-            return (
-              <div className="flex items-center gap-2 text-sm text-primary">
-                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                <span>Syncing data...</span>
-              </div>
-            );
-          }
-          return (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              {isFetching ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-              ) : (
-                lastSync && <RefreshCw className="h-3.5 w-3.5" />
-              )}
-              {lastSync && (
-                <span>
-                  Last sync: {format(new Date(toTimeMs(lastSync)), "PPp")}
-                </span>
-              )}
-            </div>
-          );
-        })()}
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {METRIC_REGISTRY.filter((def) => DASHBOARD_KEYS.has(def.key)).map(
-          (def) => {
-            const baseline = analyticsData?.metric_baselines[def.key];
-            const currentVal = baseline?.current_value ?? null;
-            const shortAvg = baseline?.short_term_mean ?? null;
-            const latencyDays = baseline?.latency_days ?? null;
-            const staleThreshold = def.key === "weight" ? 3 : 2;
-            const isStale =
-              latencyDays !== null && latencyDays > staleThreshold;
-            const freshSubtitle =
-              shortAvg === null ? "Current" : `7d avg: ${def.format(shortAvg)}`;
-            const subtitle = isStale
-              ? `${String(latencyDays)}d ago`
-              : freshSubtitle;
-            return (
-              <MetricCard
-                key={def.key}
-                title={def.title}
-                value={def.format(currentVal)}
-                subtitle={subtitle}
-                icon={def.icon}
-                colorClass={isStale ? "text-warning" : def.iconColorClass}
-                bgClass={isStale ? "bg-warning/10" : def.iconBgClass}
-              />
-            );
-          },
+        {isCustom && (
+          <div className="flex items-center gap-2 mt-4">
+            <Input
+              type="date"
+              value={customStartDate}
+              onChange={(e) => {
+                setCustomStartDate(e.target.value);
+              }}
+              className="w-36"
+            />
+            <span className="text-muted-foreground">—</span>
+            <Input
+              type="date"
+              value={customEndDate}
+              onChange={(e) => {
+                setCustomEndDate(e.target.value);
+              }}
+              className="w-36"
+            />
+            <span className="type-mono-label text-muted-foreground">
+              ({selectedDays} days)
+            </span>
+          </div>
         )}
-      </div>
+        <div className="mt-3 flex items-center gap-2 type-mono-label text-muted-foreground">
+          {isSyncing ? (
+            <>
+              <RefreshCw className="h-3 w-3 animate-spin text-brass" />
+              <span>syncing data…</span>
+            </>
+          ) : isFetching ? (
+            <>
+              <Loader2 className="h-3 w-3 animate-spin text-brass" />
+              <span>fetching…</span>
+            </>
+          ) : lastSync ? (
+            <span>
+              last sync · {format(new Date(toTimeMs(lastSync)), "PPp")}
+            </span>
+          ) : null}
+        </div>
+      </section>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      {/* ───────── Vital signs ───────── */}
+      <section className="pt-10">
+        <SectionHead
+          title={
+            <>
+              Vital <SerifEm>signs</SerifEm>
+            </>
+          }
+          meta={
+            <>
+              {DASHBOARD_KEYS.size} metrics · last 24h
+              <br />
+              vs 12-week baseline
+            </>
+          }
+        />
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y divide-border sm:divide-y-0 sm:divide-x sm:[&>*:nth-child(3)]:border-l-0 sm:[&>*:nth-child(3)]:border-t lg:[&>*:nth-child(3)]:border-l lg:[&>*:nth-child(3)]:border-t-0">
+          {METRIC_REGISTRY.filter((def) => DASHBOARD_KEYS.has(def.key))
+            .slice(0, 4)
+            .map((def) => {
+              const baseline = analyticsData?.metric_baselines[def.key];
+              const current = baseline?.current_value ?? null;
+              const mean = baseline?.mean ?? null;
+              const delta =
+                current != null && mean != null ? current - mean : null;
+              const goodDir =
+                def.key === "rhr" || def.key === "stress" ? "down" : "up";
+              const spark =
+                def.key === "hrv"
+                  ? hrvSpark
+                  : def.key === "rhr"
+                    ? heartSpark
+                    : def.key === "sleep"
+                      ? sleepSpark
+                      : def.key === "steps"
+                        ? stepsSpark
+                        : [];
+              const formatted = def.format(current);
+              const match = /^(.+?)\s*([a-zA-Z%/]+(?:\/[a-zA-Z]+)?)$/.exec(
+                formatted,
+              );
+              const numStr = match ? match[1] : formatted;
+              const unitStr = match ? match[2] : undefined;
+              return (
+                <Vital
+                  key={def.key}
+                  name={def.title}
+                  value={numStr}
+                  unit={unitStr}
+                  delta={fmtDelta(delta)}
+                  deltaTone={deltaTone(delta, goodDir)}
+                  spark={spark}
+                />
+              );
+            })}
+        </div>
+      </section>
+
+      {/* ───────── Charts grid ───────── */}
+      <section className="pt-14 grid gap-6 lg:grid-cols-2">
         <ChartCard
           title="HRV"
           icon={Activity}
-          iconColorClass="text-hrv"
-          iconBgClass="bg-hrv-muted"
+          iconColorClass="text-foreground"
+          iconBgClass="border border-border"
         >
           <ChartErrorBoundary resetKeys={[startDate, endDate]}>
             <HRVChart
@@ -318,8 +537,8 @@ export function DashboardOverview() {
         <ChartCard
           title="Sleep"
           icon={Moon}
-          iconColorClass="text-sleep"
-          iconBgClass="bg-sleep-muted"
+          iconColorClass="text-foreground"
+          iconBgClass="border border-border"
         >
           <ChartErrorBoundary resetKeys={[startDate, endDate]}>
             <SleepChart
@@ -335,8 +554,8 @@ export function DashboardOverview() {
         <ChartCard
           title="Weight Trend"
           icon={Scale}
-          iconColorClass="text-weight"
-          iconBgClass="bg-weight-muted"
+          iconColorClass="text-foreground"
+          iconBgClass="border border-border"
         >
           <ChartErrorBoundary resetKeys={[startDate, endDate]}>
             <WeightChart
@@ -351,9 +570,9 @@ export function DashboardOverview() {
 
         <ChartCard
           title="Resting HR"
-          icon={Activity}
-          iconColorClass="text-heart"
-          iconBgClass="bg-heart-muted"
+          icon={Heart}
+          iconColorClass="text-foreground"
+          iconBgClass="border border-border"
         >
           <ChartErrorBoundary resetKeys={[startDate, endDate]}>
             <HeartRateChart
@@ -365,14 +584,12 @@ export function DashboardOverview() {
             />
           </ChartErrorBoundary>
         </ChartCard>
-      </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
         <ChartCard
           title="Daily Steps"
           icon={Footprints}
-          iconColorClass="text-steps"
-          iconBgClass="bg-steps-muted"
+          iconColorClass="text-foreground"
+          iconBgClass="border border-border"
         >
           <ChartErrorBoundary resetKeys={[startDate, endDate]}>
             <StepsChart
@@ -389,8 +606,8 @@ export function DashboardOverview() {
         <ChartCard
           title="Recovery / Training Readiness"
           icon={Heart}
-          iconColorClass="text-whoop"
-          iconBgClass="bg-whoop-muted"
+          iconColorClass="text-foreground"
+          iconBgClass="border border-border"
         >
           <ChartErrorBoundary resetKeys={[startDate, endDate]}>
             <RecoveryChart
@@ -407,8 +624,8 @@ export function DashboardOverview() {
         <ChartCard
           title="Training Load"
           icon={Zap}
-          iconColorClass="text-training"
-          iconBgClass="bg-training-muted"
+          iconColorClass="text-foreground"
+          iconBgClass="border border-border"
         >
           <ChartErrorBoundary resetKeys={[startDate, endDate]}>
             <TrainingLoadChart
@@ -422,8 +639,8 @@ export function DashboardOverview() {
         <ChartCard
           title="Calories Burned"
           icon={Flame}
-          iconColorClass="text-calories"
-          iconBgClass="bg-calories-muted"
+          iconColorClass="text-foreground"
+          iconBgClass="border border-border"
         >
           <ChartErrorBoundary resetKeys={[startDate, endDate]}>
             <CaloriesChart
@@ -437,7 +654,7 @@ export function DashboardOverview() {
             />
           </ChartErrorBoundary>
         </ChartCard>
-      </div>
+      </section>
     </div>
   );
 }

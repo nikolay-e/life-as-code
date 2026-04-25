@@ -4,7 +4,19 @@ export default {
   content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
     extend: {
+      fontFamily: {
+        serif: ["Fraunces", "Times New Roman", "serif"],
+        sans: ["Geist", "system-ui", "-apple-system", "sans-serif"],
+        mono: ["Geist Mono", "SF Mono", "ui-monospace", "monospace"],
+      },
       colors: {
+        brass: {
+          DEFAULT: "hsl(var(--brass))",
+          soft: "hsl(var(--brass-soft))",
+          deep: "hsl(var(--brass-deep))",
+        },
+        moss: "hsl(var(--moss))",
+        rust: "hsl(var(--rust))",
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

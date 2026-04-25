@@ -1,10 +1,3 @@
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "../../../components/ui/card";
 import { getZScoreColor } from "../../../lib/health/format";
 import type {
   OverreachingMetrics,
@@ -17,24 +10,13 @@ import type {
   AdvancedInsights,
 } from "../../../types/api";
 import {
-  Moon,
-  Activity,
-  TrendingUp,
   Minus,
-  Heart,
-  Scale,
-  Brain,
-  Flame,
-  GitBranch,
-  Radar,
   ArrowUpRight,
   ArrowDownRight,
-  RefreshCw,
-  Thermometer,
-  Unlink,
-  Dumbbell,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "../../../lib/utils";
+import { SectionHead, SerifEm } from "../../../components/luxury/SectionHead";
 import {
   getCorrelationColor,
   getHrvSdColor,
@@ -45,358 +27,377 @@ import {
   formatMetricLabel,
 } from "./stat-utils";
 
-function OverreachingCard({
-  overreaching,
-}: Readonly<{
-  overreaching: OverreachingMetrics;
-}>) {
+interface PanelProps {
+  readonly title: string;
+  readonly description?: string;
+  readonly badge?: { readonly label: string; readonly toneClass: string };
+  readonly className?: string;
+  readonly children: React.ReactNode;
+}
+
+function Panel({ title, description, badge, className, children }: PanelProps) {
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center gap-2">
-          <Flame className="h-4 w-4 text-orange-500" />
-          <CardTitle className="text-base">Overreaching Score</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="flex items-baseline gap-2 mb-3">
-          <span
-            className={cn(
-              "text-3xl font-bold",
-              overreaching.risk_level === "low" && "text-green-500",
-              overreaching.risk_level === "moderate" && "text-yellow-500",
-              overreaching.risk_level === "high" && "text-orange-500",
-              overreaching.risk_level === "critical" && "text-red-500",
-            )}
+    <article
+      className={cn(
+        "border border-border bg-background flex flex-col transition-colors duration-300 hover:bg-secondary/40",
+        className,
+      )}
+    >
+      <header className="px-5 py-4 border-b border-border flex items-start justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <h3
+            className="font-serif text-[18px] leading-none tracking-[-0.01em]"
+            style={{
+              fontVariationSettings: '"opsz" 144, "SOFT" 100',
+              fontStyle: "italic",
+              fontWeight: 400,
+            }}
           >
-            {overreaching.score == null ? "—" : overreaching.score.toFixed(2)}
-          </span>
-          {overreaching.risk_level && (
-            <span
-              className={cn(
-                "text-sm font-medium px-2 py-0.5 rounded-full",
-                overreaching.risk_level === "low" &&
-                  "bg-green-500/10 text-green-600",
-                overreaching.risk_level === "moderate" &&
-                  "bg-yellow-500/10 text-yellow-600",
-                overreaching.risk_level === "high" &&
-                  "bg-orange-500/10 text-orange-600",
-                overreaching.risk_level === "critical" &&
-                  "bg-red-500/10 text-red-600",
-              )}
-            >
-              {overreaching.risk_level}
+            {title}
+          </h3>
+          {description && (
+            <span className="type-mono-label text-muted-foreground normal-case tracking-wide">
+              {description}
             </span>
           )}
         </div>
-        <div className="grid grid-cols-2 gap-2 text-sm">
-          <div>
-            <p className="text-xs text-muted-foreground">Low HRV streak</p>
-            <p className="font-medium">
-              {overreaching.consecutive_low_recovery_days} days
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Components</p>
-            <div className="text-xs space-x-1">
-              {(overreaching.components.strain_component ?? null) !== null && (
-                <span className="text-orange-500">
-                  S:
-                  {(overreaching.components.strain_component as number).toFixed(
-                    1,
-                  )}
-                </span>
-              )}
-              {(overreaching.components.hrv_component ?? null) !== null && (
-                <span className="text-red-500">
-                  H:
-                  {(overreaching.components.hrv_component as number).toFixed(1)}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+        {badge && (
+          <span
+            className={cn(
+              "type-mono-label px-2 py-0.5 border border-border",
+              badge.toneClass,
+            )}
+          >
+            {badge.label}
+          </span>
+        )}
+      </header>
+      <div className="px-5 py-5 flex-1">{children}</div>
+    </article>
+  );
+}
+
+interface RowProps {
+  readonly label: React.ReactNode;
+  readonly value: React.ReactNode;
+  readonly toneClass?: string;
+}
+
+function Row({ label, value, toneClass }: RowProps) {
+  return (
+    <div className="flex justify-between items-center gap-3 py-1">
+      <span className="type-mono-label text-muted-foreground normal-case tracking-wide">
+        {label}
+      </span>
+      <span
+        className={cn(
+          "font-mono text-[13px] tracking-tight",
+          toneClass ?? "text-foreground",
+        )}
+        style={{ fontFeatureSettings: '"lnum","tnum"' }}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function HeroValue({
+  value,
+  toneClass,
+}: Readonly<{ value: React.ReactNode; toneClass?: string }>) {
+  return (
+    <div
+      className={cn(
+        "font-serif text-[clamp(40px,5vw,60px)] leading-none tracking-[-0.04em] mb-4",
+        toneClass ?? "text-foreground",
+      )}
+      style={{
+        fontVariationSettings: '"opsz" 144, "SOFT" 50',
+        fontWeight: 320,
+        fontFeatureSettings: '"lnum","tnum"',
+      }}
+    >
+      {value}
+    </div>
+  );
+}
+
+function getRiskTone(level: string | null | undefined): string {
+  switch (level) {
+    case "low":
+      return "text-moss";
+    case "moderate":
+      return "text-brass";
+    case "high":
+      return "text-rust";
+    case "critical":
+      return "text-rust";
+    default:
+      return "text-muted-foreground";
+  }
+}
+
+function OverreachingCard({
+  overreaching,
+}: Readonly<{ overreaching: OverreachingMetrics }>) {
+  return (
+    <Panel
+      title="Overreaching"
+      description="strain vs HRV signal"
+      badge={
+        overreaching.risk_level
+          ? {
+              label: overreaching.risk_level,
+              toneClass: getRiskTone(overreaching.risk_level),
+            }
+          : undefined
+      }
+    >
+      <HeroValue
+        value={overreaching.score == null ? "—" : overreaching.score.toFixed(2)}
+        toneClass={getRiskTone(overreaching.risk_level)}
+      />
+      <Row
+        label="Low recovery streak"
+        value={`${String(overreaching.consecutive_low_recovery_days)}d`}
+      />
+      {(overreaching.components.strain_component ?? null) !== null && (
+        <Row
+          label="Strain component"
+          value={(overreaching.components.strain_component as number).toFixed(
+            1,
+          )}
+          toneClass="text-brass"
+        />
+      )}
+      {(overreaching.components.hrv_component ?? null) !== null && (
+        <Row
+          label="HRV component"
+          value={(overreaching.components.hrv_component as number).toFixed(1)}
+          toneClass="text-rust"
+        />
+      )}
+    </Panel>
   );
 }
 
 function CorrelationsCard({
   correlations,
-}: Readonly<{
-  correlations: CorrelationMetrics;
-}>) {
+}: Readonly<{ correlations: CorrelationMetrics }>) {
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center gap-2">
-          <GitBranch className="h-4 w-4 text-purple-500" />
-          <CardTitle className="text-base">Correlations</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-3">
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">HRV ↔ RHR</span>
-            <span
-              className={cn(
-                "font-mono text-sm",
-                getCorrelationColor(correlations.hrv_rhr_correlation),
-              )}
-            >
-              {correlations.hrv_rhr_correlation == null
-                ? "—"
-                : correlations.hrv_rhr_correlation.toFixed(2)}
-            </span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">Sleep → HRV</span>
-            <span
-              className={cn(
-                "font-mono text-sm",
-                correlations.sleep_hrv_lag_correlation != null &&
-                  correlations.sleep_hrv_lag_correlation > 0.3
-                  ? "text-green-500"
-                  : "text-muted-foreground",
-              )}
-            >
-              {correlations.sleep_hrv_lag_correlation == null
-                ? "—"
-                : correlations.sleep_hrv_lag_correlation.toFixed(2)}
-            </span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">
-              Strain → Recovery
-            </span>
-            <span
-              className={cn(
-                "font-mono text-sm",
-                correlations.strain_recovery_correlation != null &&
-                  correlations.strain_recovery_correlation < -0.2
-                  ? "text-green-500"
-                  : "text-muted-foreground",
-              )}
-            >
-              {correlations.strain_recovery_correlation == null
-                ? "—"
-                : correlations.strain_recovery_correlation.toFixed(2)}
-            </span>
-          </div>
-          <p className="text-xs text-muted-foreground pt-1 border-t">
-            Sample size: {correlations.sample_size} days
-          </p>
-        </div>
-      </CardContent>
-    </Card>
+    <Panel
+      title="Correlations"
+      description={`sample ${String(correlations.sample_size)}d`}
+    >
+      <Row
+        label="HRV ↔ RHR"
+        value={
+          correlations.hrv_rhr_correlation == null
+            ? "—"
+            : correlations.hrv_rhr_correlation.toFixed(2)
+        }
+        toneClass={getCorrelationColor(correlations.hrv_rhr_correlation)}
+      />
+      <Row
+        label="Sleep → HRV"
+        value={
+          correlations.sleep_hrv_lag_correlation == null
+            ? "—"
+            : correlations.sleep_hrv_lag_correlation.toFixed(2)
+        }
+        toneClass={
+          correlations.sleep_hrv_lag_correlation != null &&
+          correlations.sleep_hrv_lag_correlation > 0.3
+            ? "text-moss"
+            : "text-muted-foreground"
+        }
+      />
+      <Row
+        label="Strain → Recovery"
+        value={
+          correlations.strain_recovery_correlation == null
+            ? "—"
+            : correlations.strain_recovery_correlation.toFixed(2)
+        }
+        toneClass={
+          correlations.strain_recovery_correlation != null &&
+          correlations.strain_recovery_correlation < -0.2
+            ? "text-moss"
+            : "text-muted-foreground"
+        }
+      />
+    </Panel>
   );
 }
 
+const VELOCITY_STATUS_ICONS: Record<string, LucideIcon> = {
+  improving: ArrowUpRight,
+  declining: ArrowDownRight,
+  stable: Minus,
+  gaining: ArrowUpRight,
+  losing: ArrowDownRight,
+};
+
+const VELOCITY_STATUS_TONES: Record<string, string> = {
+  improving: "text-moss",
+  declining: "text-rust",
+  stable: "text-muted-foreground",
+  gaining: "text-brass",
+  losing: "text-foreground",
+};
+
 function VelocityCard({ velocity }: Readonly<{ velocity: VelocityMetrics }>) {
+  const items = [
+    {
+      label: "HRV",
+      value: velocity.hrv_velocity,
+      unit: "ms/d",
+      status: velocity.interpretation.hrv,
+    },
+    {
+      label: "RHR",
+      value: velocity.rhr_velocity,
+      unit: "bpm/d",
+      status: velocity.interpretation.rhr,
+    },
+    {
+      label: "Weight",
+      value: velocity.weight_velocity,
+      unit: "kg/d",
+      status: velocity.interpretation.weight,
+    },
+    {
+      label: "Sleep",
+      value: velocity.sleep_velocity,
+      unit: "min/d",
+      status: velocity.interpretation.sleep,
+    },
+  ];
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center gap-2">
-          <TrendingUp className="h-4 w-4 text-blue-500" />
-          <CardTitle className="text-base">Trends (Velocity)</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-2">
-          {[
-            {
-              label: "HRV",
-              value: velocity.hrv_velocity,
-              unit: "ms/d",
-              status: velocity.interpretation.hrv,
-            },
-            {
-              label: "RHR",
-              value: velocity.rhr_velocity,
-              unit: "bpm/d",
-              status: velocity.interpretation.rhr,
-            },
-            {
-              label: "Weight",
-              value: velocity.weight_velocity,
-              unit: "kg/d",
-              status: velocity.interpretation.weight,
-            },
-            {
-              label: "Sleep",
-              value: velocity.sleep_velocity,
-              unit: "min/d",
-              status: velocity.interpretation.sleep,
-            },
-          ].map(({ label, value, unit, status }) => (
-            <div key={label} className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">{label}</span>
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-sm">
-                  {value == null
-                    ? "—"
-                    : `${signPrefix(value)}${value.toFixed(2)} ${unit}`}
-                </span>
-                {status && (
-                  <span
-                    className={cn(
-                      "text-xs",
-                      status === "improving" && "text-green-500",
-                      status === "declining" && "text-red-500",
-                      status === "stable" && "text-muted-foreground",
-                      status === "gaining" && "text-yellow-500",
-                      status === "losing" && "text-blue-500",
-                    )}
-                  >
-                    {status === "improving" && (
-                      <ArrowUpRight className="h-3 w-3" />
-                    )}
-                    {status === "declining" && (
-                      <ArrowDownRight className="h-3 w-3" />
-                    )}
-                    {status === "stable" && <Minus className="h-3 w-3" />}
-                    {status === "gaining" && (
-                      <ArrowUpRight className="h-3 w-3" />
-                    )}
-                    {status === "losing" && (
-                      <ArrowDownRight className="h-3 w-3" />
-                    )}
-                  </span>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+    <Panel title="Velocity" description="rate of change">
+      {items.map(({ label, value, unit, status }) => {
+        const Icon = status ? VELOCITY_STATUS_ICONS[status] : undefined;
+        const toneClass = status
+          ? VELOCITY_STATUS_TONES[status]
+          : "text-foreground";
+        return (
+          <Row
+            key={label}
+            label={label}
+            value={
+              <span className="flex items-center gap-2">
+                {value == null
+                  ? "—"
+                  : `${signPrefix(value)}${value.toFixed(2)} ${unit}`}
+                {Icon && <Icon className={cn("h-3 w-3", toneClass)} />}
+              </span>
+            }
+          />
+        );
+      })}
+    </Panel>
   );
 }
 
 function AnomaliesCard({ anomalies }: Readonly<{ anomalies: AnomalyMetrics }>) {
   if (anomalies.anomaly_count === 0) return null;
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Radar className="h-4 w-4 text-amber-500" />
-            <CardTitle className="text-base">
-              Anomalies Detected ({anomalies.anomaly_count})
-            </CardTitle>
-          </div>
-          {anomalies.has_recent_anomaly && (
-            <span className="text-xs px-2 py-1 rounded-full bg-amber-500/10 text-amber-600">
-              Recent
-            </span>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-4">
-          {anomalies.anomalies.slice(0, 8).map((anomaly) => (
+    <Panel
+      title={`Anomalies (${String(anomalies.anomaly_count)})`}
+      description="z-score deviations"
+      badge={
+        anomalies.has_recent_anomaly
+          ? { label: "recent", toneClass: "text-brass" }
+          : undefined
+      }
+      className="md:col-span-2 lg:col-span-3"
+    >
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+        {anomalies.anomalies.slice(0, 8).map((anomaly) => {
+          const tone =
+            anomaly.severity === "critical"
+              ? "text-rust border-rust/30 bg-rust/5"
+              : anomaly.severity === "alert"
+                ? "text-brass border-brass/30 bg-brass/5"
+                : "text-foreground border-border bg-secondary/30";
+          return (
             <div
               key={`${anomaly.date}-${anomaly.metric}`}
-              className={cn(
-                "p-2 rounded-lg border text-sm",
-                anomaly.severity === "critical" &&
-                  "bg-red-500/10 border-red-500/30",
-                anomaly.severity === "alert" &&
-                  "bg-orange-500/10 border-orange-500/30",
-                anomaly.severity === "warning" &&
-                  "bg-yellow-500/10 border-yellow-500/30",
-              )}
+              className={cn("p-3 border", tone)}
             >
               <div className="flex items-center justify-between mb-1">
-                <span className="font-medium">{anomaly.metric}</span>
                 <span
-                  className={cn(
-                    "text-xs px-1.5 py-0.5 rounded",
-                    anomaly.severity === "critical" &&
-                      "bg-red-500/20 text-red-600",
-                    anomaly.severity === "alert" &&
-                      "bg-orange-500/20 text-orange-600",
-                    anomaly.severity === "warning" &&
-                      "bg-yellow-500/20 text-yellow-600",
-                  )}
+                  className="font-serif text-[14px]"
+                  style={{
+                    fontVariationSettings: '"opsz" 144, "SOFT" 100',
+                    fontStyle: "italic",
+                    fontWeight: 400,
+                  }}
                 >
+                  {anomaly.metric}
+                </span>
+                <span className="type-mono-label normal-case tracking-wide">
                   {anomaly.severity}
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground">
-                z={anomaly.z_score.toFixed(1)} on{" "}
+              <span className="type-mono-label text-muted-foreground normal-case tracking-wide">
+                z={anomaly.z_score.toFixed(1)} ·{" "}
                 {new Date(anomaly.date).toLocaleDateString("en-US", {
                   month: "short",
                   day: "numeric",
                 })}
-              </p>
+              </span>
             </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+          );
+        })}
+      </div>
+    </Panel>
   );
 }
 
 function RecoveryCapacityCard({
   recoveryCapacity,
-}: Readonly<{
-  recoveryCapacity: RecoveryCapacityMetrics;
-}>) {
+}: Readonly<{ recoveryCapacity: RecoveryCapacityMetrics }>) {
+  const rate =
+    recoveryCapacity.high_strain_events > 0
+      ? Math.round(
+          (recoveryCapacity.recovered_events /
+            recoveryCapacity.high_strain_events) *
+            100,
+        )
+      : null;
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center gap-2">
-          <RefreshCw className="h-4 w-4 text-green-500" />
-          <CardTitle className="text-base">Recovery Capacity</CardTitle>
+    <Panel title="Recovery capacity" description="HRV bounce after high strain">
+      <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+        <Row
+          label="Avg recovery"
+          value={
+            recoveryCapacity.avg_recovery_days == null
+              ? "—"
+              : `${recoveryCapacity.avg_recovery_days.toFixed(1)}d`
+          }
+        />
+        <Row
+          label="Efficiency"
+          value={
+            recoveryCapacity.recovery_efficiency == null
+              ? "—"
+              : recoveryCapacity.recovery_efficiency.toFixed(2)
+          }
+        />
+        <Row
+          label="High strain events"
+          value={recoveryCapacity.high_strain_events}
+        />
+        <Row label="Recovered" value={recoveryCapacity.recovered_events} />
+      </div>
+      {rate != null && (
+        <div className="pt-3 mt-3 border-t border-border">
+          <Row label="Recovery rate" value={`${String(rate)}%`} />
         </div>
-        <CardDescription>
-          How quickly HRV returns to baseline after high strain
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <p className="text-xs text-muted-foreground">Avg Recovery Days</p>
-            <p className="text-lg font-semibold">
-              {recoveryCapacity.avg_recovery_days == null
-                ? "—"
-                : `${recoveryCapacity.avg_recovery_days.toFixed(1)} days`}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Recovery Efficiency</p>
-            <p className="text-lg font-semibold">
-              {recoveryCapacity.recovery_efficiency == null
-                ? "—"
-                : recoveryCapacity.recovery_efficiency.toFixed(2)}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">High Strain Events</p>
-            <p className="text-lg font-semibold">
-              {recoveryCapacity.high_strain_events}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Recovered Events</p>
-            <p className="text-lg font-semibold">
-              {recoveryCapacity.recovered_events}
-            </p>
-          </div>
-        </div>
-        {recoveryCapacity.high_strain_events > 0 && (
-          <p className="text-xs text-muted-foreground mt-2">
-            Recovery rate:{" "}
-            {Math.round(
-              (recoveryCapacity.recovered_events /
-                recoveryCapacity.high_strain_events) *
-                100,
-            )}
-            %
-          </p>
-        )}
-      </CardContent>
-    </Card>
+      )}
+    </Panel>
   );
 }
 
@@ -404,79 +405,45 @@ function IllnessRiskCard({
   illnessRisk,
 }: Readonly<{ illnessRisk: IllnessRiskSignal }>) {
   return (
-    <Card
-      className={cn(
-        illnessRisk.risk_level === "high" && "border-red-500/50",
-        illnessRisk.risk_level === "moderate" && "border-yellow-500/50",
-      )}
+    <Panel
+      title="Pre-illness risk"
+      description="HRV drop · RHR rise · sleep deficit"
+      badge={
+        illnessRisk.risk_level
+          ? {
+              label: illnessRisk.risk_level,
+              toneClass: getRiskTone(illnessRisk.risk_level),
+            }
+          : undefined
+      }
     >
-      <CardHeader className="pb-2">
-        <div className="flex items-center gap-2">
-          <Thermometer
-            className={cn(
-              "h-4 w-4",
-              illnessRisk.risk_level === "high" && "text-red-500",
-              illnessRisk.risk_level === "moderate" && "text-yellow-500",
-              illnessRisk.risk_level === "low" && "text-green-500",
-              illnessRisk.risk_level === null && "text-muted-foreground",
-            )}
-          />
-          <CardTitle className="text-base">Pre-Illness Risk</CardTitle>
-          {illnessRisk.risk_level && (
-            <span
-              className={cn(
-                "text-xs px-1.5 py-0.5 rounded ml-auto",
-                illnessRisk.risk_level === "high" &&
-                  "bg-red-500/20 text-red-600",
-                illnessRisk.risk_level === "moderate" &&
-                  "bg-yellow-500/20 text-yellow-600",
-                illnessRisk.risk_level === "low" &&
-                  "bg-green-500/20 text-green-600",
-              )}
-            >
-              {illnessRisk.risk_level}
-            </span>
-          )}
-        </div>
-        <CardDescription>
-          Combined HRV drop, RHR rise, and sleep deficit signal
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-2">
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">
-              Combined Deviation
-            </span>
-            <span className="font-mono text-sm">
-              {illnessRisk.combined_deviation == null
-                ? "—"
-                : illnessRisk.combined_deviation.toFixed(2)}
-            </span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">
-              Consecutive Days
-            </span>
-            <span className="font-mono text-sm">
-              {illnessRisk.consecutive_days_elevated}
-            </span>
-          </div>
-          <div className="text-xs text-muted-foreground pt-2 border-t">
-            <span className="block">
-              HRV Drop: {illnessRisk.components.hrv_drop?.toFixed(2) ?? "—"}σ
-            </span>
-            <span className="block">
-              RHR Rise: {illnessRisk.components.rhr_rise?.toFixed(2) ?? "—"}σ
-            </span>
-            <span className="block">
-              Sleep Drop: {illnessRisk.components.sleep_drop?.toFixed(2) ?? "—"}
-              σ
-            </span>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+      <Row
+        label="Combined deviation"
+        value={
+          illnessRisk.combined_deviation == null
+            ? "—"
+            : illnessRisk.combined_deviation.toFixed(2)
+        }
+      />
+      <Row
+        label="Consecutive days"
+        value={illnessRisk.consecutive_days_elevated}
+      />
+      <div className="pt-3 mt-3 border-t border-border flex flex-col gap-1">
+        <Row
+          label="HRV drop"
+          value={`${illnessRisk.components.hrv_drop?.toFixed(2) ?? "—"}σ`}
+        />
+        <Row
+          label="RHR rise"
+          value={`${illnessRisk.components.rhr_rise?.toFixed(2) ?? "—"}σ`}
+        />
+        <Row
+          label="Sleep drop"
+          value={`${illnessRisk.components.sleep_drop?.toFixed(2) ?? "—"}σ`}
+        />
+      </div>
+    </Panel>
   );
 }
 
@@ -489,63 +456,35 @@ function DecorrelationCard({
 }>) {
   if (decorrelation.current_correlation == null) return null;
   return (
-    <Card
-      className={decorrelation.is_decorrelated ? "border-orange-500/50" : ""}
+    <Panel
+      title="HRV–RHR correlation"
+      description="negative is healthy"
+      badge={
+        decorrelation.is_decorrelated
+          ? { label: "decorrelated", toneClass: "text-brass" }
+          : undefined
+      }
     >
-      <CardHeader className="pb-2">
-        <div className="flex items-center gap-2">
-          <Unlink
-            className={cn(
-              "h-4 w-4",
-              decorrelation.is_decorrelated
-                ? "text-orange-500"
-                : "text-muted-foreground",
-            )}
-          />
-          <CardTitle className="text-base">HRV-RHR Correlation</CardTitle>
-          {decorrelation.is_decorrelated && (
-            <span className="text-xs px-1.5 py-0.5 rounded ml-auto bg-orange-500/20 text-orange-600">
-              decorrelated
-            </span>
-          )}
-        </div>
-        <CardDescription>
-          Normally negative correlation; decorrelation may signal stress
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-2">
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">Current (14d)</span>
-            <span className="font-mono text-sm">
-              r = {decorrelation.current_correlation.toFixed(2)}
-            </span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">
-              Baseline ({baselineDays}d)
-            </span>
-            <span className="font-mono text-sm">
-              r = {decorrelation.baseline_correlation?.toFixed(2) ?? "—"}
-            </span>
-          </div>
-          {decorrelation.correlation_delta != null && (
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Delta</span>
-              <span
-                className={cn(
-                  "font-mono text-sm",
-                  decorrelation.correlation_delta > 0.1 && "text-orange-500",
-                )}
-              >
-                {signPrefix(decorrelation.correlation_delta)}
-                {decorrelation.correlation_delta.toFixed(2)}
-              </span>
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+      <Row
+        label="Current (14d)"
+        value={`r ${decorrelation.current_correlation.toFixed(2)}`}
+      />
+      <Row
+        label={`Baseline (${String(baselineDays)}d)`}
+        value={`r ${decorrelation.baseline_correlation?.toFixed(2) ?? "—"}`}
+      />
+      {decorrelation.correlation_delta != null && (
+        <Row
+          label="Delta"
+          value={`${signPrefix(decorrelation.correlation_delta)}${decorrelation.correlation_delta.toFixed(2)}`}
+          toneClass={
+            decorrelation.correlation_delta > 0.1
+              ? "text-brass"
+              : "text-foreground"
+          }
+        />
+      )}
+    </Panel>
   );
 }
 
@@ -554,55 +493,25 @@ function HrvAdvancedCard({
 }: Readonly<{ insights: AdvancedInsights }>) {
   const h = insights.hrv_advanced;
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center gap-2">
-          <Heart className="h-4 w-4 text-rose-500" />
-          <CardTitle className="text-base">HRV Advanced</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-2">
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">lnRMSSD</span>
-            <span className="font-mono text-sm font-semibold">
-              {h.ln_rmssd_current?.toFixed(2) ?? "—"}
-            </span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">7d Mean</span>
-            <span className="font-mono text-sm">
-              {h.ln_rmssd_mean_7d?.toFixed(2) ?? "—"}
-            </span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">SD (7d)</span>
-            <span
-              className={cn(
-                "font-mono text-sm",
-                getHrvSdColor(h.ln_rmssd_sd_7d),
-              )}
-            >
-              {h.ln_rmssd_sd_7d?.toFixed(3) ?? "—"}
-            </span>
-          </div>
-          <div className="pt-2 border-t text-xs text-muted-foreground">
-            <div className="flex justify-between">
-              <span>HRV-RHR r(14d)</span>
-              <span className="font-mono">
-                {h.hrv_rhr_rolling_r_14d?.toFixed(2) ?? "—"}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span>HRV-RHR r(60d)</span>
-              <span className="font-mono">
-                {h.hrv_rhr_rolling_r_60d?.toFixed(2) ?? "—"}
-              </span>
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+    <Panel title="HRV advanced" description="lnRMSSD detail">
+      <Row label="lnRMSSD" value={h.ln_rmssd_current?.toFixed(2) ?? "—"} />
+      <Row label="7d mean" value={h.ln_rmssd_mean_7d?.toFixed(2) ?? "—"} />
+      <Row
+        label="SD (7d)"
+        value={h.ln_rmssd_sd_7d?.toFixed(3) ?? "—"}
+        toneClass={getHrvSdColor(h.ln_rmssd_sd_7d)}
+      />
+      <div className="pt-3 mt-3 border-t border-border flex flex-col gap-1">
+        <Row
+          label="HRV–RHR r (14d)"
+          value={h.hrv_rhr_rolling_r_14d?.toFixed(2) ?? "—"}
+        />
+        <Row
+          label="HRV–RHR r (60d)"
+          value={h.hrv_rhr_rolling_r_60d?.toFixed(2) ?? "—"}
+        />
+      </div>
+    </Panel>
   );
 }
 
@@ -611,133 +520,90 @@ function SleepQualityCard({
 }: Readonly<{ insights: AdvancedInsights }>) {
   const sq = insights.sleep_quality;
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center gap-2">
-          <Moon className="h-4 w-4 text-indigo-500" />
-          <CardTitle className="text-base">Sleep Quality</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-2">
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">Efficiency</span>
-            <span className="font-mono text-sm">
-              {sq.efficiency?.toFixed(1) ?? "—"}%
-            </span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">Deep Sleep</span>
-            <span
-              className={cn(
-                "font-mono text-sm",
-                sq.deep_sleep_pct != null && sq.deep_sleep_pct >= 15
-                  ? "text-green-500"
-                  : "text-yellow-500",
+    <Panel title="Sleep quality" description="architecture & response">
+      <Row label="Efficiency" value={`${sq.efficiency?.toFixed(1) ?? "—"}%`} />
+      <Row
+        label="Deep sleep"
+        value={`${sq.deep_sleep_pct?.toFixed(1) ?? "—"}%`}
+        toneClass={
+          sq.deep_sleep_pct != null && sq.deep_sleep_pct >= 15
+            ? "text-moss"
+            : "text-brass"
+        }
+      />
+      <Row
+        label="REM sleep"
+        value={`${sq.rem_sleep_pct?.toFixed(1) ?? "—"}%`}
+        toneClass={
+          sq.rem_sleep_pct != null && sq.rem_sleep_pct >= 20
+            ? "text-moss"
+            : "text-brass"
+        }
+      />
+      <Row
+        label="Consistency"
+        value={`${sq.consistency_score?.toFixed(0) ?? "—"}/100`}
+      />
+      <div className="pt-3 mt-3 border-t border-border flex flex-col gap-1">
+        <Row
+          label="Sleep → HRV"
+          value={
+            <>
+              r {sq.sleep_hrv_responsiveness?.toFixed(2) ?? "—"}
+              {sq.sleep_hrv_p_value != null && sq.sleep_hrv_p_value < 0.05 && (
+                <span className="text-moss ml-1">*</span>
               )}
-            >
-              {sq.deep_sleep_pct?.toFixed(1) ?? "—"}%
-            </span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">REM Sleep</span>
-            <span
-              className={cn(
-                "font-mono text-sm",
-                sq.rem_sleep_pct != null && sq.rem_sleep_pct >= 20
-                  ? "text-green-500"
-                  : "text-yellow-500",
-              )}
-            >
-              {sq.rem_sleep_pct?.toFixed(1) ?? "—"}%
-            </span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">Consistency</span>
-            <span className="font-mono text-sm">
-              {sq.consistency_score?.toFixed(0) ?? "—"}/100
-            </span>
-          </div>
-          <div className="pt-2 border-t text-xs text-muted-foreground">
-            <div className="flex justify-between">
-              <span>Sleep→HRV</span>
-              <span className="font-mono">
-                r {sq.sleep_hrv_responsiveness?.toFixed(2) ?? "—"}
-                {sq.sleep_hrv_p_value != null &&
-                  sq.sleep_hrv_p_value < 0.05 && (
-                    <span className="text-green-500 ml-1">*</span>
-                  )}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span>Fragmentation</span>
-              <span className="font-mono">
-                {sq.fragmentation_index?.toFixed(1) ?? "—"}/hr
-              </span>
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+            </>
+          }
+        />
+        <Row
+          label="Fragmentation"
+          value={`${sq.fragmentation_index?.toFixed(1) ?? "—"}/hr`}
+        />
+      </div>
+    </Panel>
   );
 }
 
 function FitnessCard({ insights }: Readonly<{ insights: AdvancedInsights }>) {
   const f = insights.fitness;
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center gap-2">
-          <Dumbbell className="h-4 w-4 text-blue-500" />
-          <CardTitle className="text-base">Fitness & Training</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-2">
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">Last Workout</span>
-            <span
-              className={cn(
-                "font-mono text-sm",
-                f.days_since_last_workout != null &&
-                  f.days_since_last_workout > 7
-                  ? "text-red-500"
-                  : "text-green-500",
-              )}
-            >
-              {f.days_since_last_workout == null
-                ? "—"
-                : `${String(f.days_since_last_workout)}d ago`}
+    <Panel
+      title="Fitness & training"
+      description="training load &amp; freshness"
+    >
+      <Row
+        label="Last workout"
+        value={
+          f.days_since_last_workout == null
+            ? "—"
+            : `${String(f.days_since_last_workout)}d ago`
+        }
+        toneClass={
+          f.days_since_last_workout != null && f.days_since_last_workout > 7
+            ? "text-rust"
+            : "text-moss"
+        }
+      />
+      <Row
+        label="Frequency"
+        value={`${String(f.training_frequency_7d)}/w · ${String(f.training_frequency_30d)}/mo`}
+      />
+      <Row
+        label="CTL / ATL / TSB"
+        value={
+          <>
+            {f.ctl?.toFixed(1) ?? "—"} / {f.atl?.toFixed(1) ?? "—"} /{" "}
+            <span className={cn(getTsbColor(f.tsb))}>
+              {f.tsb?.toFixed(1) ?? "—"}
             </span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">Frequency</span>
-            <span className="font-mono text-sm">
-              {f.training_frequency_7d}/w · {f.training_frequency_30d}/mo
-            </span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">
-              CTL / ATL / TSB
-            </span>
-            <span className="font-mono text-sm">
-              {f.ctl?.toFixed(1) ?? "—"} / {f.atl?.toFixed(1) ?? "—"} /{" "}
-              <span className={cn(getTsbColor(f.tsb))}>
-                {f.tsb?.toFixed(1) ?? "—"}
-              </span>
-            </span>
-          </div>
-          {f.vo2_max_current != null && (
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">VO2 Max</span>
-              <span className="font-mono text-sm">
-                {f.vo2_max_current.toFixed(1)}
-              </span>
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+          </>
+        }
+      />
+      {f.vo2_max_current != null && (
+        <Row label="VO₂ max" value={f.vo2_max_current.toFixed(1)} />
+      )}
+    </Panel>
   );
 }
 
@@ -746,47 +612,28 @@ function AllostaticLoadCard({
 }: Readonly<{ insights: AdvancedInsights }>) {
   const al = insights.allostatic_load;
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center gap-2">
-          <Activity className="h-4 w-4 text-cyan-500" />
-          <CardTitle className="text-base">Allostatic Load</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-2">
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">
-              Composite Score
-            </span>
-            <span
-              className={cn(
-                "font-mono text-sm font-semibold",
-                getAllostaticScoreColor(al.composite_score),
-              )}
-            >
-              {al.composite_score?.toFixed(1) ?? "—"}
-            </span>
-          </div>
-          <div className="text-xs text-muted-foreground pt-2 border-t space-y-1">
-            {Object.entries(al.breach_rates).map(([metric, rate]) => (
-              <div key={metric} className="flex justify-between">
-                <span>{formatMetricLabel(metric)}</span>
-                <span
-                  className={cn(
-                    "font-mono",
-                    rate > 0.3 && "text-red-500",
-                    rate > 0.15 && rate <= 0.3 && "text-yellow-500",
-                  )}
-                >
-                  {(rate * 100).toFixed(0)}%
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+    <Panel title="Allostatic load" description="composite stress score">
+      <HeroValue
+        value={al.composite_score?.toFixed(1) ?? "—"}
+        toneClass={getAllostaticScoreColor(al.composite_score)}
+      />
+      <div className="pt-3 border-t border-border flex flex-col gap-1">
+        {Object.entries(al.breach_rates).map(([metric, rate]) => (
+          <Row
+            key={metric}
+            label={formatMetricLabel(metric)}
+            value={`${(rate * 100).toFixed(0)}%`}
+            toneClass={
+              rate > 0.3
+                ? "text-rust"
+                : rate > 0.15
+                  ? "text-brass"
+                  : "text-foreground"
+            }
+          />
+        ))}
+      </div>
+    </Panel>
   );
 }
 
@@ -796,44 +643,21 @@ function HrvResidualCard({
   const residual = insights.cross_domain.hrv_residual;
   if (residual.r_squared == null) return null;
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center gap-2">
-          <Brain className="h-4 w-4 text-violet-500" />
-          <CardTitle className="text-base">HRV Residual</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-2">
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">Predicted</span>
-            <span className="font-mono text-sm">
-              {residual.predicted?.toFixed(1) ?? "—"} ms
-            </span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">Actual</span>
-            <span className="font-mono text-sm">
-              {residual.actual?.toFixed(1) ?? "—"} ms
-            </span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">Residual z</span>
-            <span
-              className={cn(
-                "font-mono text-sm",
-                getZScoreColor(residual.residual_z),
-              )}
-            >
-              {residual.residual_z?.toFixed(2) ?? "—"}σ
-            </span>
-          </div>
-          <div className="text-xs text-muted-foreground pt-2 border-t">
-            R² = {residual.r_squared.toFixed(3)}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+    <Panel
+      title="HRV residual"
+      description={`R² = ${residual.r_squared.toFixed(3)}`}
+    >
+      <Row
+        label="Predicted"
+        value={`${residual.predicted?.toFixed(1) ?? "—"} ms`}
+      />
+      <Row label="Actual" value={`${residual.actual?.toFixed(1) ?? "—"} ms`} />
+      <Row
+        label="Residual z"
+        value={`${residual.residual_z?.toFixed(2) ?? "—"}σ`}
+        toneClass={getZScoreColor(residual.residual_z)}
+      />
+    </Panel>
   );
 }
 
@@ -843,40 +667,22 @@ function CrossDomainCard({
   const cd = insights.cross_domain;
   if (cd.weight_hrv_coupling == null) return null;
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center gap-2">
-          <Scale className="h-4 w-4 text-emerald-500" />
-          <CardTitle className="text-base">Cross-Domain</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-2">
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">Weight↔HRV</span>
-            <span
-              className={cn(
-                "font-mono text-sm",
-                getCrossCorrelationColor(cd.weight_hrv_coupling),
-              )}
-            >
-              r {cd.weight_hrv_coupling.toFixed(2)}
-            </span>
-          </div>
-          <div className="text-xs text-muted-foreground pt-2 border-t space-y-1">
-            {Object.entries(cd.weekday_weekend).map(([metric, split]) => (
-              <div key={metric} className="flex justify-between">
-                <span>{formatMetricLabel(metric)}</span>
-                <span className="font-mono">
-                  {split.weekday_mean?.toFixed(0) ?? "—"} /{" "}
-                  {split.weekend_mean?.toFixed(0) ?? "—"}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+    <Panel title="Cross-domain" description="weekday vs weekend means">
+      <Row
+        label="Weight ↔ HRV"
+        value={`r ${cd.weight_hrv_coupling.toFixed(2)}`}
+        toneClass={getCrossCorrelationColor(cd.weight_hrv_coupling)}
+      />
+      <div className="pt-3 mt-3 border-t border-border flex flex-col gap-1">
+        {Object.entries(cd.weekday_weekend).map(([metric, split]) => (
+          <Row
+            key={metric}
+            label={formatMetricLabel(metric)}
+            value={`${split.weekday_mean?.toFixed(0) ?? "—"} / ${split.weekend_mean?.toFixed(0) ?? "—"}`}
+          />
+        ))}
+      </div>
+    </Panel>
   );
 }
 
@@ -904,7 +710,7 @@ export function AdvancedSection({
   baselineDays,
 }: AdvancedSectionProps) {
   return (
-    <>
+    <div className="flex flex-col gap-12">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <OverreachingCard overreaching={overreaching} />
         <CorrelationsCard correlations={correlations} />
@@ -913,18 +719,25 @@ export function AdvancedSection({
 
       <AnomaliesCard anomalies={anomalies} />
 
-      <RecoveryCapacityCard recoveryCapacity={recoveryCapacity} />
-
-      <IllnessRiskCard illnessRisk={illnessRisk} />
-
-      <DecorrelationCard
-        decorrelation={decorrelation}
-        baselineDays={baselineDays}
-      />
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <RecoveryCapacityCard recoveryCapacity={recoveryCapacity} />
+        <IllnessRiskCard illnessRisk={illnessRisk} />
+        <DecorrelationCard
+          decorrelation={decorrelation}
+          baselineDays={baselineDays}
+        />
+      </div>
 
       {advancedInsights && (
         <div>
-          <h2 className="text-xl font-semibold mb-4">Advanced Insights</h2>
+          <SectionHead
+            title={
+              <>
+                Deeper <SerifEm>insights</SerifEm>
+              </>
+            }
+            meta={<>HRV · sleep · fitness · cross-domain</>}
+          />
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <HrvAdvancedCard insights={advancedInsights} />
             <SleepQualityCard insights={advancedInsights} />
@@ -935,6 +748,6 @@ export function AdvancedSection({
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

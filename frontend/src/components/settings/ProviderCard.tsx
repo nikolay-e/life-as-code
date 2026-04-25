@@ -2,15 +2,7 @@ import type { ReactNode } from "react";
 import type { UseMutationResult } from "@tanstack/react-query";
 import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
-import {
-  CheckCircle,
-  XCircle,
-  RefreshCw,
-  ExternalLink,
-  AlertCircle,
-  Pencil,
-  Trash2,
-} from "lucide-react";
+import { RefreshCw, ExternalLink, Pencil, Trash2 } from "lucide-react";
 import type { BackoffSourceStatus, SyncResponse } from "../../types/api";
 
 interface ProviderCardProps {
@@ -34,26 +26,51 @@ interface ProviderCardProps {
   readonly backoffStatus?: BackoffSourceStatus;
 }
 
-function getStatusText(
+type StatusTone = "ok" | "warn" | "err" | "off";
+
+interface StatusInfo {
+  readonly tone: StatusTone;
+  readonly text: string;
+}
+
+function getStatusInfo(
   isConfigured: boolean,
-  isConnected?: boolean,
-  isTokenExpired?: boolean,
-  backoffStatus?: BackoffSourceStatus,
-): string {
+  isConnected: boolean | undefined,
+  isTokenExpired: boolean | undefined,
+  backoffStatus: BackoffSourceStatus | undefined,
+): StatusInfo {
   if (backoffStatus?.status === "exhausted") {
-    return "Sync failed — manual retry required";
+    return { tone: "err", text: "Failed" };
   }
   if (backoffStatus?.status === "retrying") {
-    return `Sync issues — retrying in ${String(backoffStatus.backoff_minutes)}m`;
+    return {
+      tone: "warn",
+      text: `Retry · ${String(backoffStatus.backoff_minutes)}m`,
+    };
   }
   if (isTokenExpired) {
-    return "Token expired";
+    return { tone: "warn", text: "Re-auth" };
   }
-  if (isConnected !== undefined) {
-    return isConnected ? "Connected" : "Not connected";
+  const connected = isConnected ?? isConfigured;
+  if (connected) {
+    return { tone: "ok", text: "Live" };
   }
-  return isConfigured ? "Connected" : "Not configured";
+  return { tone: "off", text: "Idle" };
 }
+
+const STATUS_DOT: Record<StatusTone, string> = {
+  ok: "bg-moss shadow-[0_0_0_4px_rgba(63,82,54,0.18)]",
+  warn: "bg-brass shadow-[0_0_0_4px_rgba(154,115,39,0.18)]",
+  err: "bg-rust shadow-[0_0_0_4px_rgba(149,68,42,0.18)]",
+  off: "bg-muted-foreground/40",
+};
+
+const STATUS_TEXT: Record<StatusTone, string> = {
+  ok: "text-moss",
+  warn: "text-brass",
+  err: "text-rust",
+  off: "text-muted-foreground",
+};
 
 interface SyncButtonProps {
   readonly name: string;
@@ -74,10 +91,76 @@ function SyncButton({ name, isPending, onClick, disabled }: SyncButtonProps) {
       {isPending ? (
         <Spinner size="sm" className="mr-2" label={`Syncing ${name}`} />
       ) : (
-        <RefreshCw className="h-4 w-4 mr-2" aria-hidden="true" />
+        <RefreshCw className="h-3 w-3 mr-2" aria-hidden="true" />
       )}
       Sync
     </Button>
+  );
+}
+
+interface StatusPipProps {
+  readonly tone: StatusTone;
+  readonly text: string;
+}
+
+function StatusPip({ tone, text }: StatusPipProps) {
+  return (
+    <span className="inline-flex items-center gap-2 type-mono-eyebrow">
+      <span
+        className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[tone]}`}
+        aria-hidden="true"
+      />
+      <span className={STATUS_TEXT[tone]}>{text}</span>
+    </span>
+  );
+}
+
+interface ServiceRowProps {
+  readonly name: string;
+  readonly meta: ReactNode;
+  readonly status: ReactNode;
+  readonly actions?: ReactNode;
+  readonly editForm?: ReactNode;
+  readonly isEditing?: boolean;
+  readonly ariaLabel: string;
+  readonly isLastItem?: boolean;
+}
+
+function ServiceRow({
+  name,
+  meta,
+  status,
+  actions,
+  editForm,
+  isEditing,
+  ariaLabel,
+  isLastItem,
+}: ServiceRowProps) {
+  return (
+    <div className={isLastItem ? "" : "border-b border-border"}>
+      <article
+        className="grid grid-cols-1 md:grid-cols-[200px_1fr_auto] gap-4 md:gap-8 items-start md:items-center py-6"
+        aria-label={ariaLabel}
+      >
+        <h3
+          className="font-serif text-[22px] md:text-[24px] leading-none tracking-[-0.01em] italic"
+          style={{
+            fontVariationSettings: '"opsz" 144, "SOFT" 100',
+            fontWeight: 400,
+          }}
+        >
+          {name}
+        </h3>
+        <div className="flex flex-col gap-1 type-mono-eyebrow text-muted-foreground">
+          {meta}
+        </div>
+        <div className="flex items-center gap-3 md:gap-4 flex-wrap md:justify-end">
+          {status}
+          {actions}
+        </div>
+      </article>
+      {isEditing && editForm}
+    </div>
   );
 }
 
@@ -93,65 +176,44 @@ interface ReadOnlyProviderCardProps {
 
 export function ReadOnlyProviderCard({
   name,
-  shortName,
-  colorClass,
   hasData = true,
   statusText = "Data imported",
   lastSyncDate,
   isLastItem,
 }: ReadOnlyProviderCardProps) {
+  const tone: StatusTone = hasData ? "ok" : "off";
+  const pipText = hasData ? "Live" : "Idle";
+
   return (
-    <article
-      className={`flex items-center justify-between py-4 ${isLastItem ? "" : "border-b"}`}
-      aria-label={`${name} provider: ${hasData ? statusText : "No data"}`}
-    >
-      <div className="flex items-center gap-4">
-        <div
-          className={`w-10 h-10 rounded-full ${colorClass} flex items-center justify-center`}
-        >
-          <span
-            className={`font-bold ${colorClass.replace("bg-", "text-").replace("-100", "-600").replace("-900", "-300")}`}
-          >
-            {shortName}
+    <ServiceRow
+      name={name}
+      ariaLabel={`${name} provider: ${hasData ? statusText : "No data"}`}
+      isLastItem={isLastItem}
+      meta={
+        <>
+          <span>
+            <strong className="text-foreground font-medium">Source</strong> ·
+            manual import
           </span>
-        </div>
-        <div>
-          <h3 className="font-medium">{name}</h3>
-          <div className="flex items-center gap-2 text-sm">
-            {hasData ? (
-              <>
-                <CheckCircle
-                  className="h-4 w-4 text-green-500"
-                  aria-hidden="true"
-                />
-                <span className="text-green-600 dark:text-green-400">
-                  {statusText}
-                </span>
-              </>
-            ) : (
-              <>
-                <XCircle
-                  className="h-4 w-4 text-muted-foreground"
-                  aria-hidden="true"
-                />
-                <span className="text-muted-foreground">No data</span>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-      <div className="text-sm text-muted-foreground">
-        {lastSyncDate &&
-          `Last import: ${new Date(lastSyncDate).toLocaleDateString()}`}
-      </div>
-    </article>
+          {lastSyncDate ? (
+            <span>
+              <strong className="text-foreground font-medium">
+                Last import
+              </strong>{" "}
+              · {new Date(lastSyncDate).toLocaleDateString()}
+            </span>
+          ) : (
+            <span>{statusText}</span>
+          )}
+        </>
+      }
+      status={<StatusPip tone={tone} text={pipText} />}
+    />
   );
 }
 
 export function ProviderCard({
   name,
-  shortName,
-  colorClass,
   isConfigured,
   isConnected,
   isTokenExpired,
@@ -169,7 +231,7 @@ export function ProviderCard({
   backoffStatus,
 }: ProviderCardProps) {
   const connected = isConnected ?? isConfigured;
-  const statusText = getStatusText(
+  const statusInfo = getStatusInfo(
     isConfigured,
     isConnected,
     isTokenExpired,
@@ -182,9 +244,9 @@ export function ProviderCard({
         <a
           href={authUrl}
           aria-label={`Reconnect ${name} account`}
-          className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium border border-input bg-background shadow-xs hover:bg-accent hover:text-accent-foreground h-8 px-3"
+          className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-mono text-[11px] tracking-[0.18em] uppercase font-normal h-8 px-3 border border-border bg-background text-foreground transition-all duration-300 hover:border-primary hover:bg-secondary/40"
         >
-          <ExternalLink className="h-4 w-4 mr-2" aria-hidden="true" />
+          <ExternalLink className="h-3 w-3" aria-hidden="true" />
           Reconnect
         </a>
       );
@@ -200,7 +262,7 @@ export function ProviderCard({
               onClick={onEdit}
               aria-label={`Edit ${name} credentials`}
             >
-              <Pencil className="h-3.5 w-3.5 mr-1" aria-hidden="true" />
+              <Pencil className="h-3 w-3 mr-2" aria-hidden="true" />
               Edit
             </Button>
           )}
@@ -210,13 +272,13 @@ export function ProviderCard({
               size="sm"
               onClick={onDisconnect}
               disabled={isDisconnecting}
-              className="text-destructive hover:text-destructive"
+              className="text-rust hover:text-rust"
               aria-label={`Disconnect ${name}`}
             >
               {isDisconnecting ? (
-                <Spinner size="sm" className="mr-1" label="Disconnecting" />
+                <Spinner size="sm" className="mr-2" label="Disconnecting" />
               ) : (
-                <Trash2 className="h-3.5 w-3.5 mr-1" aria-hidden="true" />
+                <Trash2 className="h-3 w-3 mr-2" aria-hidden="true" />
               )}
               Disconnect
             </Button>
@@ -235,10 +297,10 @@ export function ProviderCard({
         <a
           href={authUrl}
           aria-label={`Connect ${name} account`}
-          className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium border border-input bg-background shadow-xs hover:bg-accent hover:text-accent-foreground h-8 px-3"
+          className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-mono text-[11px] tracking-[0.18em] uppercase font-normal h-8 px-3 border border-border bg-background text-foreground transition-all duration-300 hover:border-primary hover:bg-secondary/40"
         >
-          <ExternalLink className="h-4 w-4 mr-2" aria-hidden="true" />
-          Connect Account
+          <ExternalLink className="h-3 w-3" aria-hidden="true" />
+          Connect
         </a>
       );
     }
@@ -251,7 +313,7 @@ export function ProviderCard({
           disabled
           aria-label="OAuth not configured"
         >
-          OAuth not configured
+          OAuth missing
         </Button>
       );
     }
@@ -264,7 +326,7 @@ export function ProviderCard({
           onClick={onEdit}
           aria-label={`Configure ${name}`}
         >
-          <Pencil className="h-4 w-4 mr-2" aria-hidden="true" />
+          <Pencil className="h-3 w-3 mr-2" aria-hidden="true" />
           Configure
         </Button>
       );
@@ -280,94 +342,46 @@ export function ProviderCard({
     );
   };
 
+  const meta = connected ? (
+    <>
+      <span>
+        <strong className="text-foreground font-medium">Status</strong> ·{" "}
+        {statusInfo.tone === "warn"
+          ? "attention required"
+          : statusInfo.tone === "err"
+            ? "manual retry required"
+            : "credentials sealed · Fernet"}
+      </span>
+      {credentialHint && (
+        <span>
+          <strong className="text-foreground font-medium">Account</strong> ·{" "}
+          {credentialHint}
+        </span>
+      )}
+    </>
+  ) : (
+    <>
+      <span>
+        <strong className="text-foreground font-medium">Not configured</strong>
+      </span>
+      <span>
+        {showOAuthNotConfigured
+          ? "OAuth client missing — configure via Kubernetes secret"
+          : "Add credentials to begin sync"}
+      </span>
+    </>
+  );
+
   return (
-    <div className={isLastItem ? "" : "border-b"}>
-      <article
-        className="flex items-center justify-between py-4"
-        aria-label={`${name} provider status: ${statusText}`}
-      >
-        <div className="flex items-center gap-4">
-          <div
-            className={`w-10 h-10 rounded-full ${colorClass} flex items-center justify-center`}
-          >
-            <span
-              className={`font-bold ${colorClass.replace("bg-", "text-").replace("-100", "-600").replace("-900", "-300")}`}
-            >
-              {shortName}
-            </span>
-          </div>
-          <div>
-            <h3 className="font-medium">{name}</h3>
-            <div className="flex items-center gap-2 text-sm">
-              {backoffStatus?.status === "exhausted" && (
-                <>
-                  <XCircle
-                    className="h-4 w-4 text-red-500"
-                    aria-hidden="true"
-                  />
-                  <span className="text-red-600 dark:text-red-400">
-                    {statusText}
-                  </span>
-                </>
-              )}
-              {backoffStatus?.status === "retrying" && (
-                <>
-                  <AlertCircle
-                    className="h-4 w-4 text-yellow-500"
-                    aria-hidden="true"
-                  />
-                  <span className="text-yellow-600 dark:text-yellow-400">
-                    {statusText}
-                  </span>
-                </>
-              )}
-              {(!backoffStatus || backoffStatus.status === "ok") &&
-                isTokenExpired && (
-                  <>
-                    <AlertCircle
-                      className="h-4 w-4 text-orange-500"
-                      aria-hidden="true"
-                    />
-                    <span className="text-orange-600 dark:text-orange-400">
-                      {statusText}
-                    </span>
-                  </>
-                )}
-              {(!backoffStatus || backoffStatus.status === "ok") &&
-                !isTokenExpired &&
-                connected && (
-                  <>
-                    <CheckCircle
-                      className="h-4 w-4 text-green-500"
-                      aria-hidden="true"
-                    />
-                    <span className="text-green-600 dark:text-green-400">
-                      {statusText}
-                    </span>
-                  </>
-                )}
-              {(!backoffStatus || backoffStatus.status === "ok") &&
-                !isTokenExpired &&
-                !connected && (
-                  <>
-                    <XCircle
-                      className="h-4 w-4 text-muted-foreground"
-                      aria-hidden="true"
-                    />
-                    <span className="text-muted-foreground">{statusText}</span>
-                  </>
-                )}
-            </div>
-            {credentialHint && (
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {credentialHint}
-              </p>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">{renderActionButtons()}</div>
-      </article>
-      {isEditing && editForm}
-    </div>
+    <ServiceRow
+      name={name}
+      ariaLabel={`${name} provider status: ${statusInfo.text}`}
+      isLastItem={isLastItem}
+      meta={meta}
+      status={<StatusPip tone={statusInfo.tone} text={statusInfo.text} />}
+      actions={renderActionButtons()}
+      editForm={editForm}
+      isEditing={isEditing}
+    />
   );
 }

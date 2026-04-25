@@ -1,15 +1,8 @@
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "../../../components/ui/card";
 import type {
   ActivityMetrics,
   WeightMetrics,
   RecoveryMetrics,
 } from "../../../types/api";
-import { Activity, Scale, Brain } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import {
   getWeightChangeColor,
@@ -26,6 +19,54 @@ export interface ActivitySectionProps {
   readonly baselineDays: number;
 }
 
+interface PanelProps {
+  readonly title: string;
+  readonly children: React.ReactNode;
+}
+
+function Panel({ title, children }: PanelProps) {
+  return (
+    <article className="border border-border bg-background transition-colors duration-300 hover:bg-secondary/40">
+      <header className="px-6 py-4 border-b border-border">
+        <h3
+          className="font-serif text-[20px] leading-none tracking-[-0.01em]"
+          style={{
+            fontVariationSettings: '"opsz" 144, "SOFT" 100',
+            fontStyle: "italic",
+            fontWeight: 400,
+          }}
+        >
+          {title}
+        </h3>
+      </header>
+      <div className="p-6">{children}</div>
+    </article>
+  );
+}
+
+interface RowProps {
+  readonly label: string;
+  readonly value: React.ReactNode;
+  readonly toneClass?: string;
+}
+
+function Row({ label, value, toneClass }: RowProps) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="type-mono-label text-muted-foreground">{label}</span>
+      <span
+        className={cn(
+          "font-mono text-[15px] tracking-tight",
+          toneClass ?? "text-foreground",
+        )}
+        style={{ fontFeatureSettings: '"lnum","tnum"' }}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
 export function ActivitySection({
   activityMetrics,
   weightMetrics,
@@ -34,179 +75,114 @@ export function ActivitySection({
   baselineDays,
 }: ActivitySectionProps) {
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Activity className="h-4 w-4" />
-            Activity Analysis
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-xs text-muted-foreground">
-                Steps {formatDaysLabel(shortTermDays)} avg
-              </p>
-              <p className="font-medium">
-                {activityMetrics.steps_avg_short == null
-                  ? "—"
-                  : Math.round(
-                      activityMetrics.steps_avg_short,
-                    ).toLocaleString()}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">
-                Steps {formatDaysLabel(baselineDays)} avg
-              </p>
-              <p className="font-medium">
-                {activityMetrics.steps_avg_long == null
-                  ? "—"
-                  : Math.round(activityMetrics.steps_avg_long).toLocaleString()}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Acute Load</p>
-              <p className="font-medium">
-                {activityMetrics.acute_load?.toFixed(1) ?? "—"}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Chronic Load</p>
-              <p className="font-medium">
-                {activityMetrics.chronic_load?.toFixed(1) ?? "—"}
-              </p>
-            </div>
-          </div>
-          <div className="pt-2 border-t">
-            <div className="flex justify-between text-sm">
-              <span>
-                ACWR:{" "}
-                <span className="font-medium">
-                  {activityMetrics.acwr?.toFixed(2) ?? "—"}
-                </span>
-              </span>
-              <span>
-                Steps CV:{" "}
-                <span className="font-medium">
-                  {(activityMetrics.steps_cv * 100).toFixed(0)}%
-                </span>
-              </span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <Panel title="Activity">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-5">
+          <Row
+            label={`Steps · ${formatDaysLabel(shortTermDays)} avg`}
+            value={
+              activityMetrics.steps_avg_short == null
+                ? "—"
+                : Math.round(activityMetrics.steps_avg_short).toLocaleString()
+            }
+          />
+          <Row
+            label={`Steps · ${formatDaysLabel(baselineDays)} avg`}
+            value={
+              activityMetrics.steps_avg_long == null
+                ? "—"
+                : Math.round(activityMetrics.steps_avg_long).toLocaleString()
+            }
+          />
+          <Row
+            label="Acute load"
+            value={activityMetrics.acute_load?.toFixed(1) ?? "—"}
+          />
+          <Row
+            label="Chronic load"
+            value={activityMetrics.chronic_load?.toFixed(1) ?? "—"}
+          />
+        </div>
+        <div className="mt-5 pt-4 border-t border-border grid grid-cols-2 gap-x-6">
+          <Row label="ACWR" value={activityMetrics.acwr?.toFixed(2) ?? "—"} />
+          <Row
+            label="Steps CV"
+            value={`${(activityMetrics.steps_cv * 100).toFixed(0)}%`}
+          />
+        </div>
+      </Panel>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Scale className="h-4 w-4" />
-            Weight Analysis
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-xs text-muted-foreground">
-                EMA {formatDaysLabel(shortTermDays)}
-              </p>
-              <p className="font-medium">
-                {weightMetrics.ema_short == null
-                  ? "—"
-                  : `${weightMetrics.ema_short.toFixed(1)} kg`}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">
-                EMA {formatDaysLabel(baselineDays)}
-              </p>
-              <p className="font-medium">
-                {weightMetrics.ema_long == null
-                  ? "—"
-                  : `${weightMetrics.ema_long.toFixed(1)} kg`}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">
-                {formatDaysLabel(shortTermDays)} change
-              </p>
-              <p
-                className={cn(
-                  "font-medium",
-                  getWeightChangeColor(weightMetrics.period_change),
-                )}
-              >
-                {weightMetrics.period_change == null
-                  ? "—"
-                  : `${signPrefix(weightMetrics.period_change)}${weightMetrics.period_change.toFixed(2)} kg`}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">
-                Volatility {formatDaysLabel(shortTermDays)}
-              </p>
-              <p className="font-medium">
-                ±{weightMetrics.volatility_short.toFixed(2)} kg
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <Panel title="Weight">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-5">
+          <Row
+            label={`EMA · ${formatDaysLabel(shortTermDays)}`}
+            value={
+              weightMetrics.ema_short == null
+                ? "—"
+                : `${weightMetrics.ema_short.toFixed(1)} kg`
+            }
+          />
+          <Row
+            label={`EMA · ${formatDaysLabel(baselineDays)}`}
+            value={
+              weightMetrics.ema_long == null
+                ? "—"
+                : `${weightMetrics.ema_long.toFixed(1)} kg`
+            }
+          />
+          <Row
+            label={`${formatDaysLabel(shortTermDays)} change`}
+            value={
+              weightMetrics.period_change == null
+                ? "—"
+                : `${signPrefix(weightMetrics.period_change)}${weightMetrics.period_change.toFixed(2)} kg`
+            }
+            toneClass={getWeightChangeColor(weightMetrics.period_change)}
+          />
+          <Row
+            label={`Volatility · ${formatDaysLabel(shortTermDays)}`}
+            value={`±${weightMetrics.volatility_short.toFixed(2)} kg`}
+          />
+        </div>
+      </Panel>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Brain className="h-4 w-4" />
-            Stress Analysis
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-xs text-muted-foreground">
-                {formatDaysLabel(shortTermDays)} load
-              </p>
-              <p className="font-medium">
-                {recoveryMetrics.stress_load_short == null
-                  ? "—"
-                  : Math.round(recoveryMetrics.stress_load_short)}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">
-                {formatDaysLabel(baselineDays)} load
-              </p>
-              <p className="font-medium">
-                {recoveryMetrics.stress_load_long == null
-                  ? "—"
-                  : Math.round(recoveryMetrics.stress_load_long)}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Trend</p>
-              <p
-                className={cn(
-                  "font-medium",
-                  getStressTrendColor(recoveryMetrics.stress_trend),
-                )}
-              >
-                {recoveryMetrics.stress_trend == null
-                  ? "—"
-                  : `${signPrefix(recoveryMetrics.stress_trend)}${recoveryMetrics.stress_trend.toFixed(1)}`}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Recovery CV</p>
-              <p className="font-medium">
-                {recoveryMetrics.recovery_cv == null
-                  ? "—"
-                  : `${(recoveryMetrics.recovery_cv * 100).toFixed(1)}%`}
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <Panel title="Stress">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-5">
+          <Row
+            label={`${formatDaysLabel(shortTermDays)} load`}
+            value={
+              recoveryMetrics.stress_load_short == null
+                ? "—"
+                : Math.round(recoveryMetrics.stress_load_short)
+            }
+          />
+          <Row
+            label={`${formatDaysLabel(baselineDays)} load`}
+            value={
+              recoveryMetrics.stress_load_long == null
+                ? "—"
+                : Math.round(recoveryMetrics.stress_load_long)
+            }
+          />
+          <Row
+            label="Trend"
+            value={
+              recoveryMetrics.stress_trend == null
+                ? "—"
+                : `${signPrefix(recoveryMetrics.stress_trend)}${recoveryMetrics.stress_trend.toFixed(1)}`
+            }
+            toneClass={getStressTrendColor(recoveryMetrics.stress_trend)}
+          />
+          <Row
+            label="Recovery CV"
+            value={
+              recoveryMetrics.recovery_cv == null
+                ? "—"
+                : `${(recoveryMetrics.recovery_cv * 100).toFixed(1)}%`
+            }
+          />
+        </div>
+      </Panel>
     </div>
   );
 }
