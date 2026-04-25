@@ -101,6 +101,8 @@
 - Fix: reduce lightness to 42% for reliable ≥4.5:1 on both white and muted backgrounds
 - CI axe may find issues local axe doesn't — headless Chrome color scheme differences
 - `color-contrast` violations are global (75 nodes across all pages) when caused by CSS custom properties — fix the variable, not individual elements
+- `opacity-60` on a parent silently kills child contrast — axe reports the *effective* mixed color, not the underlying values. If a badge inside an `opacity` wrapper fails contrast, raise opacity to 100% (or remove it) and pick a stronger token (e.g. `--brass-deep` instead of `--brass`) for small text on bone backgrounds.
+- `bg-green-600 text-white` ≈ contrast 2.06 — Tailwind's `green-600` is too light for white text. Use a deeper token (`--moss` ≈ `108 20% 27%`) instead.
 
 ## SonarCloud Patterns
 
