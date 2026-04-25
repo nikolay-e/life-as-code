@@ -35,6 +35,7 @@ class ProviderCredentials:
     eight_sleep_email: str | None = None
     eight_sleep_password: str | None = None
     eight_sleep_access_token: str | None = None
+    eight_sleep_token_expires_at: datetime.datetime | None = None
 
 
 def get_sync_date_range(
@@ -224,6 +225,7 @@ def _get_eight_sleep_credentials(
                 creds.encrypted_eight_sleep_password, user_id
             ),
             eight_sleep_access_token=access_token,
+            eight_sleep_token_expires_at=creds.eight_sleep_token_expires_at,
         )
     except Exception as e:
         raise CredentialsDecryptionError(

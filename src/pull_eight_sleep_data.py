@@ -38,12 +38,13 @@ class EightSleepAPIClient:
         password: str,
         access_token: str | None = None,
         user_id: int | None = None,
+        token_expires_at: datetime.datetime | None = None,
     ):
         self._email = email
         self._password = password
         self._access_token = access_token
         self._eight_sleep_user_id: str | None = None
-        self._token_expires_at: datetime.datetime | None = None
+        self._token_expires_at = token_expires_at
         self._app_user_id = user_id
         self._session = requests.Session()
 
@@ -105,16 +106,27 @@ class EightSleepAPIClient:
             logger.info("eight_sleep_token_expired_refreshing")
             self.authenticate()
 
+    def _request_with_reauth(
+        self, method: str, url: str, **kwargs
+    ) -> requests.Response:
+        self._ensure_authenticated()
+        response = self._session.request(method, url, **kwargs)
+        if response.status_code == 401:
+            logger.info("eight_sleep_token_rejected_reauthenticating")
+            self.authenticate()
+            response = self._session.request(method, url, **kwargs)
+        response.raise_for_status()
+        return response
+
     def _get_user_id(self) -> str:
         if self._eight_sleep_user_id:
             return self._eight_sleep_user_id
 
-        self._ensure_authenticated()
-        response = self._session.get(
+        response = self._request_with_reauth(
+            "GET",
             f"{API_BASE_URL}/users/me",
             timeout=REQUEST_TIMEOUT,
         )
-        response.raise_for_status()
         data = response.json()
 
         user_data = data.get("user", data) if isinstance(data, dict) else data
@@ -142,7 +154,6 @@ class EightSleepAPIClient:
         start_date: datetime.date,
         end_date: datetime.date,
     ) -> list[dict]:
-        self._ensure_authenticated()
         eight_sleep_user_id = self._get_user_id()
 
         all_trends: list[dict] = []
@@ -160,7 +171,8 @@ class EightSleepAPIClient:
                 end=chunk_end.isoformat(),
             )
 
-            response = self._session.get(
+            response = self._request_with_reauth(
+                "GET",
                 f"{API_BASE_URL}/users/{eight_sleep_user_id}/trends",
                 params={
                     "from": chunk_start.isoformat(),
@@ -172,7 +184,6 @@ class EightSleepAPIClient:
                 },
                 timeout=REQUEST_TIMEOUT,
             )
-            response.raise_for_status()
             data = response.json()
 
             if isinstance(data, list):
@@ -272,6 +283,7 @@ def sync_eight_sleep_data_for_user(
             password=creds.eight_sleep_password,
             access_token=creds.eight_sleep_access_token,
             user_id=user_id,
+            token_expires_at=creds.eight_sleep_token_expires_at,
         )
 
         date_range = get_sync_date_range(
