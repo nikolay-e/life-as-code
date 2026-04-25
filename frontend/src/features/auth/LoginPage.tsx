@@ -36,7 +36,7 @@ export function LoginPage() {
       <div className="w-full max-w-[420px]">
         {/* Brand */}
         <div className="text-center mb-12">
-          <span
+          <h1
             className="font-serif text-[44px] leading-none tracking-[-0.03em]"
             style={{
               fontVariationSettings: '"opsz" 144, "SOFT" 100',
@@ -44,7 +44,7 @@ export function LoginPage() {
             }}
           >
             vita<span className="text-brass">.</span>
-          </span>
+          </h1>
           <div className="mt-3 type-mono-label text-muted-foreground">
             longevity intelligence
           </div>
