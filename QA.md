@@ -55,10 +55,7 @@
 - Main code smell hotspot: `frontend/src/lib/report-formatter.ts` — complex string formatting logic
 - Quality gate typically passes (no bugs/vulnerabilities pattern)
 - `python:S5713` on `pull_garmin_data.py` exception tuples is a false positive — garminconnect exceptions have no inheritance relationship; ignore
-- SonarCloud analysis runs on latest pushed commit; verify issues against current HEAD (not deployed image tag) — stale issues disappear after push
 - `typescript:S7735` ("Unexpected negated condition"): fix `value !== null ? expr : default` → `value === null ? default : expr`; conjunctions (`!== null && condition`) are NOT flagged
-- `typescript:S3358` ("nested ternary"): extract inner ternary to a named variable before the outer ternary
-- `typescript:S3776` ("cognitive complexity"): extract inner loop bodies to named helper functions
 
 ## PWA Updates
 
@@ -98,11 +95,6 @@
 - connectorx does NOT support parameterized queries (`execute_options` with params) — use validated identifiers + int cast instead
 - Dependabot may fail on `research/pyproject.toml` if chronos-forecasting pins transformers to `<5` and Dependabot tries to bump to 5.x — this is expected, not actionable
 
-## K8s Events
-
-- Migration pod warnings (FailedToRetrieveImagePullSecret, secret not found) are transient — check exitCode, not events
-- Migration pod with exitCode 0 and status Completed = success despite warning events
-
 ## Color Contrast (a11y)
 
 - shadcn/ui default `--muted-foreground` (46.9% lightness) on `bg-muted` (#f1f5f9) gives ~4.3:1 — below AA threshold
@@ -110,11 +102,24 @@
 - CI axe may find issues local axe doesn't — headless Chrome color scheme differences
 - `color-contrast` violations are global (75 nodes across all pages) when caused by CSS custom properties — fix the variable, not individual elements
 
-## Heading Order (a11y)
-
-- h1 → h3 skip triggers `heading-order` violation — use h2 after h1, even for empty-state messages
-- Check all `<h3>` through `<h6>` in dashboard pages — most should be `<h2>` since page title is `<h1>`
-
 ## SonarCloud Patterns
 
-- `typescript:S7773` — prefer `Number.parseFloat` over global `parseFloat`
+- `typescript:S5852` (regex backtracking): Sonar flags any `.+?\s*` or similar lazy quantifier even when input is short/safe. Fix by replacing regex parsing with manual char-class scan or `String.trimEnd()` — extract a shared util like `splitValueUnit` to avoid copy-paste.
+- `typescript:S2245` (Math.random): pseudorandom is flagged everywhere. For DEV-only mock data generators (gated by `import.meta.env.DEV`), bulk-mark as SAFE via `POST /api/hotspots/change_status` with comment explaining gate.
+- `typescript:S5725` (SRI on external CSS): Google Fonts URL is dynamic — SRI hash would invalidate on each font update. Mark as SAFE; ensure `crossorigin` is set.
+- `typescript:S6767` (unused PropTypes): when removing visual props (e.g., avatar `shortName`/`colorClass` after editorial reskin), remove from BOTH the interface AND every JSX call site — Tailwind/CVA won't catch this, only tsc strict mode does.
+- `typescript:S7748` (zero fraction): `14.0` → `14`, `19.0` → `19`. Mass-fix with `perl -i -pe 's/\b14\.0([^0-9])/14$1/g'`.
+- `typescript:S7764` (prefer globalThis): `window.localStorage` → `globalThis.localStorage`, `typeof window` → `typeof globalThis.window`. Affects every browser-only guard.
+- `typescript:S7755` (prefer .at()): `arr[arr.length - 1]` → `arr.at(-1)` (returns `T | undefined` — handle the undefined case explicitly).
+
+## Demo Mode for Frontend QA
+
+- DEV-only `?demo=1` query installs a fetch interceptor + sets fake auth — useful for visual verification of pages that need backend data when running frontend-only.
+- Mock shapes MUST match real API exactly: `getDetailedWorkouts` returns `WorkoutExerciseDetail[]` not `{ workouts: [] }`. `longevity/interventions` returns array directly. Always `grep "request(\"/path"` in `lib/api.ts` for the return type signature before mocking.
+- When extending demo-mode for new pages, mock `analytics_response` with explicit nested fields (not partial); pages access deep paths like `health_score.steps_status.use_today` that crash on undefined.
+
+## Editorial Reskin Migration
+
+- Swapping the design system (palette, typography, hairlines) is safe IF: (a) base color tokens get redefined in `index.css` with same names so all `text-foo`/`bg-foo` keep working, (b) shared atoms (Card, Button) update CVA classes but keep variant prop names so callsites don't break.
+- Health metric color tokens (`--hrv`, `--sleep`, etc.) can be collapsed to a luxury palette (ink+brass+moss+rust) by overriding their HSL values; Recharts auto-picks up the new colors via `hsl(var(--xxx))` references.
+- Window-exposed Zustand store via `import.meta.env.DEV` guard is safe and tree-shakes out of prod.
