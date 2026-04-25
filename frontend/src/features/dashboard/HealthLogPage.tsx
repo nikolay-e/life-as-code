@@ -1,7 +1,15 @@
 import { useState, type FormEvent } from "react";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { Pill, FlaskConical, Plus, Square, Trash2, ChevronDown, ChevronRight } from "lucide-react";
+import {
+  Pill,
+  FlaskConical,
+  Plus,
+  Square,
+  Trash2,
+  ChevronDown,
+  ChevronRight,
+} from "lucide-react";
 import {
   useInterventions,
   useCreateIntervention,
@@ -96,9 +104,7 @@ function InterventionForm({
           onClose();
         },
         onError: (err) =>
-          toast.error(
-            err instanceof Error ? err.message : "Failed to add",
-          ),
+          toast.error(err instanceof Error ? err.message : "Failed to add"),
       },
     );
   };
@@ -113,7 +119,9 @@ function InterventionForm({
               <Input
                 id="med-name"
                 value={name}
-                onChange={(e) => { setName(e.target.value); }}
+                onChange={(e) => {
+                  setName(e.target.value);
+                }}
                 placeholder="e.g. Metformin"
                 required
               />
@@ -123,7 +131,9 @@ function InterventionForm({
               <select
                 id="med-category"
                 value={category}
-                onChange={(e) => { setCategory(e.target.value); }}
+                onChange={(e) => {
+                  setCategory(e.target.value);
+                }}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
                 {CATEGORIES.map((c) => (
@@ -138,7 +148,9 @@ function InterventionForm({
               <Input
                 id="med-dosage"
                 value={dosage}
-                onChange={(e) => { setDosage(e.target.value); }}
+                onChange={(e) => {
+                  setDosage(e.target.value);
+                }}
                 placeholder="e.g. 500mg"
               />
             </div>
@@ -147,7 +159,9 @@ function InterventionForm({
               <Input
                 id="med-frequency"
                 value={frequency}
-                onChange={(e) => { setFrequency(e.target.value); }}
+                onChange={(e) => {
+                  setFrequency(e.target.value);
+                }}
                 placeholder="e.g. 2x daily"
               />
             </div>
@@ -157,7 +171,9 @@ function InterventionForm({
                 id="med-start"
                 type="date"
                 value={startDate}
-                onChange={(e) => { setStartDate(e.target.value); }}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                }}
                 required
               />
             </div>
@@ -166,7 +182,9 @@ function InterventionForm({
               <Input
                 id="med-notes"
                 value={notes}
-                onChange={(e) => { setNotes(e.target.value); }}
+                onChange={(e) => {
+                  setNotes(e.target.value);
+                }}
                 placeholder="Optional notes"
               />
             </div>
@@ -248,7 +266,7 @@ function InterventionCard({
             className="h-7 w-7"
             onClick={handleStop}
             disabled={update.isPending}
-            title="Stop medication"
+            aria-label="Stop medication"
           >
             <Square className="h-3.5 w-3.5" />
           </Button>
@@ -259,7 +277,7 @@ function InterventionCard({
           className="h-7 w-7 hover:text-destructive"
           onClick={handleDelete}
           disabled={remove.isPending}
-          title="Delete"
+          aria-label={`Delete ${item.name}`}
         >
           <Trash2 className="h-3.5 w-3.5" />
         </Button>
@@ -286,7 +304,9 @@ function MedicationsTab() {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => { setShowForm(!showForm); }}
+          onClick={() => {
+            setShowForm(!showForm);
+          }}
         >
           <Plus className="h-4 w-4 mr-1" />
           Add
@@ -294,7 +314,11 @@ function MedicationsTab() {
       </div>
 
       {showForm && (
-        <InterventionForm onClose={() => { setShowForm(false); }} />
+        <InterventionForm
+          onClose={() => {
+            setShowForm(false);
+          }}
+        />
       )}
 
       {active.length === 0 ? (
@@ -313,7 +337,9 @@ function MedicationsTab() {
         <div>
           <button
             type="button"
-            onClick={() => { setShowHistory(!showHistory); }}
+            onClick={() => {
+              setShowHistory(!showHistory);
+            }}
             className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             {showHistory ? (
@@ -384,9 +410,7 @@ function BiomarkerForm({
           setNotes("");
         },
         onError: (err) =>
-          toast.error(
-            err instanceof Error ? err.message : "Failed to add",
-          ),
+          toast.error(err instanceof Error ? err.message : "Failed to add"),
       },
     );
   };
@@ -402,7 +426,9 @@ function BiomarkerForm({
                 id="bio-date"
                 type="date"
                 value={date}
-                onChange={(e) => { setDate(e.target.value); }}
+                onChange={(e) => {
+                  setDate(e.target.value);
+                }}
                 required
               />
             </div>
@@ -412,7 +438,9 @@ function BiomarkerForm({
                 id="bio-marker"
                 list="biomarker-presets"
                 value={markerName}
-                onChange={(e) => { handleMarkerChange(e.target.value); }}
+                onChange={(e) => {
+                  handleMarkerChange(e.target.value);
+                }}
                 placeholder="e.g. TSH"
                 required
               />
@@ -429,7 +457,9 @@ function BiomarkerForm({
                 type="number"
                 step="any"
                 value={value}
-                onChange={(e) => { setValue(e.target.value); }}
+                onChange={(e) => {
+                  setValue(e.target.value);
+                }}
                 placeholder="e.g. 2.5"
                 required
               />
@@ -440,15 +470,15 @@ function BiomarkerForm({
                 id="bio-unit"
                 list="unit-presets"
                 value={unit}
-                onChange={(e) => { setUnit(e.target.value); }}
+                onChange={(e) => {
+                  setUnit(e.target.value);
+                }}
                 placeholder="e.g. mIU/L"
               />
               <datalist id="unit-presets">
-                {[...new Set(BIOMARKER_PRESETS.map((p) => p.unit))].map(
-                  (u) => (
-                    <option key={u} value={u} />
-                  ),
-                )}
+                {[...new Set(BIOMARKER_PRESETS.map((p) => p.unit))].map((u) => (
+                  <option key={u} value={u} />
+                ))}
               </datalist>
             </div>
             <div>
@@ -458,7 +488,9 @@ function BiomarkerForm({
                 type="number"
                 step="any"
                 value={refLow}
-                onChange={(e) => { setRefLow(e.target.value); }}
+                onChange={(e) => {
+                  setRefLow(e.target.value);
+                }}
                 placeholder="Optional"
               />
             </div>
@@ -469,7 +501,9 @@ function BiomarkerForm({
                 type="number"
                 step="any"
                 value={refHigh}
-                onChange={(e) => { setRefHigh(e.target.value); }}
+                onChange={(e) => {
+                  setRefHigh(e.target.value);
+                }}
                 placeholder="Optional"
               />
             </div>
@@ -478,7 +512,9 @@ function BiomarkerForm({
               <Input
                 id="bio-lab"
                 value={labName}
-                onChange={(e) => { setLabName(e.target.value); }}
+                onChange={(e) => {
+                  setLabName(e.target.value);
+                }}
                 placeholder="Optional"
               />
             </div>
@@ -487,7 +523,9 @@ function BiomarkerForm({
               <Input
                 id="bio-notes"
                 value={notes}
-                onChange={(e) => { setNotes(e.target.value); }}
+                onChange={(e) => {
+                  setNotes(e.target.value);
+                }}
                 placeholder="Optional notes"
               />
             </div>
@@ -507,20 +545,22 @@ function BiomarkerForm({
 }
 
 function isOutOfRange(item: BloodBiomarkerData): boolean {
-  if (item.reference_range_low != null && item.value < item.reference_range_low)
-    {return true;}
+  if (
+    item.reference_range_low != null &&
+    item.value < item.reference_range_low
+  ) {
+    return true;
+  }
   if (
     item.reference_range_high != null &&
     item.value > item.reference_range_high
-  )
-    {return true;}
+  ) {
+    return true;
+  }
   return false;
 }
 
-function formatRange(
-  low: number | null,
-  high: number | null,
-): string | null {
+function formatRange(low: number | null, high: number | null): string | null {
   if (low != null && high != null) return `${String(low)} – ${String(high)}`;
   if (low != null) return `>= ${String(low)}`;
   if (high != null) return `<= ${String(high)}`;
@@ -562,7 +602,9 @@ function LabResultsTab() {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => { setShowForm(!showForm); }}
+          onClick={() => {
+            setShowForm(!showForm);
+          }}
         >
           <Plus className="h-4 w-4 mr-1" />
           Add
@@ -570,7 +612,11 @@ function LabResultsTab() {
       </div>
 
       {showForm && (
-        <BiomarkerForm onClose={() => { setShowForm(false); }} />
+        <BiomarkerForm
+          onClose={() => {
+            setShowForm(false);
+          }}
+        />
       )}
 
       {items.length === 0 ? (
@@ -630,11 +676,11 @@ function LabResultsTab() {
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7 hover:text-destructive shrink-0"
-                          onClick={() =>
-                            { handleDelete(item.id, item.marker_name); }
-                          }
+                          onClick={() => {
+                            handleDelete(item.id, item.marker_name);
+                          }}
                           disabled={remove.isPending}
-                          title="Delete"
+                          aria-label={`Delete ${item.marker_name}`}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
@@ -667,7 +713,9 @@ export function HealthLogPage() {
         <Button
           variant={tab === "medications" ? "default" : "ghost"}
           size="sm"
-          onClick={() => { setTab("medications"); }}
+          onClick={() => {
+            setTab("medications");
+          }}
           className="gap-1.5"
         >
           <Pill className="h-4 w-4" />
@@ -676,7 +724,9 @@ export function HealthLogPage() {
         <Button
           variant={tab === "labs" ? "default" : "ghost"}
           size="sm"
-          onClick={() => { setTab("labs"); }}
+          onClick={() => {
+            setTab("labs");
+          }}
           className="gap-1.5"
         >
           <FlaskConical className="h-4 w-4" />
