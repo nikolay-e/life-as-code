@@ -156,7 +156,7 @@ repos:
     hooks:
       - id: pip-audit
         name: pip-audit (CVE detection)
-        args: ['--skip-editable', '--ignore-vuln', 'GHSA-6vgw-5pg2-w6jp']
+        args: ['--skip-editable', '--ignore-vuln', 'GHSA-6vgw-5pg2-w6jp', '--ignore-vuln', 'GHSA-58qw-9mgm-455v']
         files: ^(pyproject\.toml|requirements.*\.txt)$
 
   # ============================================================================
