@@ -78,6 +78,17 @@
 
 - Login page must use `<main>` landmark to satisfy axe `region` rule
 - Crawler `button-name` violations can be intermittent (timing-dependent dynamic rendering) — run crawler twice if critical appears
+- `nested-interactive`: Radix `Button asChild` + `<a>` triggers this — use styled `<a>` directly instead
+- `heading-order`: `CardTitle` renders `<h2>` (was `<h3>`) — page heading is `<h1>`, then card titles `<h2>`, then subsection `<h3>`
+- `color-contrast` on chart SVG text (Recharts) — library-generated, not actionable; focus on non-chart violations
+- `/whoop/authorize` is an OAuth redirect to external domain — exclude from crawler via `crawler-exclude-urls`
+
+## Authenticated Crawler
+
+- QA test user `qa-autoqa@test.com` exists in prod for crawler login
+- GH secrets `QA_USERNAME` and `QA_PASSWORD` configured for CI post-deploy-qa job
+- Crawler uses form login: `CRAWL_USERNAME`, `CRAWL_PASSWORD`, `CRAWL_LOGIN_URL=/login`
+- Without auth, crawler only visits login page (1 page); with auth, all 6 dashboard pages crawled
 
 ## Research Environment
 
