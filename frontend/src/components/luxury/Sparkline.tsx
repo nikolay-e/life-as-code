@@ -56,7 +56,8 @@ export function Sparkline({
         height - padY - ((v - lo) / range) * (height - padY * 2),
       ] as const,
   );
-  const last = pts[pts.length - 1];
+  const last = pts.at(-1);
+  if (!last) return null;
   return (
     <svg
       viewBox={`0 0 ${String(width)} ${String(height)}`}

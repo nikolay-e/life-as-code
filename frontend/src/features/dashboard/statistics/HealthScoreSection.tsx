@@ -23,6 +23,7 @@ import { cn } from "../../../lib/utils";
 import { ZCard } from "../../../components/luxury/ZCard";
 import { SectionHead, SerifEm } from "../../../components/luxury/SectionHead";
 import { getConfidenceColor, signPrefix, formatDaysLabel } from "./stat-utils";
+import { splitValueUnit } from "../../../lib/formatters";
 
 function getQualityBadgeAppearance(confidence: number): {
   color: string;
@@ -118,9 +119,7 @@ function MetricCard({
   })();
 
   const formatted = formatValue(baseline.current_value);
-  const match = /^(.+?)\s*([a-zA-Z%/]+(?:\/[a-zA-Z]+)?)$/.exec(formatted);
-  const numStr = match ? match[1] : formatted;
-  const unitStr = match ? match[2] : undefined;
+  const { value: numStr, unit: unitStr } = splitValueUnit(formatted);
 
   const coveragePercent = Math.round(baseline.quality_coverage * 100);
   const confidencePercent = Math.round(baseline.quality_confidence * 100);

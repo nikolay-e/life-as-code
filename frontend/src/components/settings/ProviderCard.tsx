@@ -7,8 +7,6 @@ import type { BackoffSourceStatus, SyncResponse } from "../../types/api";
 
 interface ProviderCardProps {
   readonly name: string;
-  readonly shortName: string;
-  readonly colorClass: string;
   readonly isConfigured: boolean;
   readonly isConnected?: boolean;
   readonly isTokenExpired?: boolean;
@@ -166,8 +164,6 @@ function ServiceRow({
 
 interface ReadOnlyProviderCardProps {
   readonly name: string;
-  readonly shortName: string;
-  readonly colorClass: string;
   readonly hasData?: boolean;
   readonly statusText?: string;
   readonly lastSyncDate?: string | null;

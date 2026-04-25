@@ -1,3 +1,24 @@
+export interface ValueUnit {
+  readonly value: string;
+  readonly unit: string | undefined;
+}
+
+const UNIT_CHARS = new Set(
+  "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ%/".split(""),
+);
+
+export function splitValueUnit(formatted: string): ValueUnit {
+  if (formatted.length === 0) return { value: formatted, unit: undefined };
+  let i = formatted.length;
+  while (i > 0 && UNIT_CHARS.has(formatted[i - 1])) i--;
+  if (i === formatted.length) return { value: formatted, unit: undefined };
+  const unit = formatted.slice(i);
+  const valueRaw = formatted.slice(0, i);
+  const value = valueRaw.replace(/[ \t]+$/, "");
+  if (value.length === 0) return { value: formatted, unit: undefined };
+  return { value, unit };
+}
+
 export function formatDuration(seconds: number): string {
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);

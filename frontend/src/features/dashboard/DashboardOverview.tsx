@@ -49,6 +49,7 @@ import { Masthead } from "../../components/luxury/Masthead";
 import { SectionHead, SerifEm } from "../../components/luxury/SectionHead";
 import { Vital } from "../../components/luxury/Vital";
 import { RingChart } from "../../components/luxury/RingChart";
+import { splitValueUnit } from "../../lib/formatters";
 
 const DASHBOARD_KEYS = new Set<string>(DASHBOARD_METRIC_KEYS);
 
@@ -100,11 +101,22 @@ function recoveryVerdict(score: number): {
   return { headline: "Depleted.", emphasis: "Recover today.", subline: "rest" };
 }
 
+function deltaSign(value: number): string {
+  if (value > 0) return "+";
+  if (value < 0) return "";
+  return "±";
+}
+
+function deltaArrow(value: number): string {
+  if (value > 0) return "↑";
+  if (value < 0) return "↓";
+  return "→";
+}
+
 function fmtDelta(value: number | null, unit = ""): string {
   if (value == null || !Number.isFinite(value)) return "—";
-  const sign = value > 0 ? "+" : value < 0 ? "" : "±";
-  const arrow = value > 0 ? "↑" : value < 0 ? "↓" : "→";
-  return `${arrow} ${sign}${value.toFixed(value >= 10 ? 0 : 1)}${unit}`;
+  const digits = value >= 10 ? 0 : 1;
+  return `${deltaArrow(value)} ${deltaSign(value)}${value.toFixed(digits)}${unit}`;
 }
 
 function deltaTone(
@@ -495,11 +507,8 @@ export function DashboardOverview() {
                         ? stepsSpark
                         : [];
               const formatted = def.format(current);
-              const match = /^(.+?)\s*([a-zA-Z%/]+(?:\/[a-zA-Z]+)?)$/.exec(
-                formatted,
-              );
-              const numStr = match ? match[1] : formatted;
-              const unitStr = match ? match[2] : undefined;
+              const { value: numStr, unit: unitStr } =
+                splitValueUnit(formatted);
               return (
                 <Vital
                   key={def.key}

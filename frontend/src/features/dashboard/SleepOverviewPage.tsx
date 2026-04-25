@@ -12,6 +12,7 @@ import { TemperatureChart } from "../../components/charts/TemperatureChart";
 import { SleepLatencyChart } from "../../components/charts/SleepLatencyChart";
 import { TREND_MODES, MODE_ORDER, type TrendMode } from "../../lib/metrics";
 import { formatSleepMinutes } from "../../lib/metrics/registry";
+import { splitValueUnit } from "../../lib/formatters";
 import { format, subDays } from "date-fns";
 import { Moon, Loader2, Thermometer, Clock, Brain } from "lucide-react";
 import { Masthead } from "../../components/luxury/Masthead";
@@ -295,23 +296,24 @@ export function SleepOverviewPage() {
             delta={fmtDelta(sleepScoreDelta)}
             deltaTone={deltaTone(sleepScoreDelta, "up")}
           />
-          <Vital
-            name="duration"
-            value={
-              avgSleepShort === null
-                ? "—"
-                : formatSleepMinutes(avgSleepShort).replace(/\s*[a-zA-Z]+$/, "")
-            }
-            unit={
-              avgSleepShort === null
-                ? undefined
-                : (/[a-zA-Z]+$/.exec(formatSleepMinutes(avgSleepShort))?.[0] ??
-                  undefined)
-            }
-            delta={fmtDelta(sleepDurationDelta, "h")}
-            deltaTone={deltaTone(sleepDurationDelta, "up")}
-            spark={sleepDurationSpark}
-          />
+          {(() => {
+            const sleepFormatted =
+              avgSleepShort === null ? null : formatSleepMinutes(avgSleepShort);
+            const sleepSplit =
+              sleepFormatted === null
+                ? { value: "—", unit: undefined as string | undefined }
+                : splitValueUnit(sleepFormatted);
+            return (
+              <Vital
+                name="duration"
+                value={sleepSplit.value}
+                unit={sleepSplit.unit}
+                delta={fmtDelta(sleepDurationDelta, "h")}
+                deltaTone={deltaTone(sleepDurationDelta, "up")}
+                spark={sleepDurationSpark}
+              />
+            );
+          })()}
           <Vital
             name="deep sleep"
             value={formatPct(sleepQuality?.deep_sleep_pct)}

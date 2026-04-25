@@ -72,8 +72,8 @@ const queryClient = new QueryClient({
 
 if (
   import.meta.env.DEV &&
-  typeof window !== "undefined" &&
-  new URLSearchParams(window.location.search).has("demo")
+  typeof globalThis.window !== "undefined" &&
+  new URLSearchParams(globalThis.location.search).has("demo")
 ) {
   await import("./lib/demo-mode").then((m) => {
     m.installDemoMode();

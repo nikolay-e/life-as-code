@@ -160,8 +160,6 @@ export function SettingsPage() {
             <div>
               <ProviderCard
                 name="Garmin Connect"
-                shortName="G"
-                colorClass="bg-blue-100 dark:bg-blue-900/30"
                 isConfigured={credentials?.garmin_configured ?? false}
                 syncMutation={syncGarmin}
                 onSync={() => handleSync("garmin", syncGarmin)}
@@ -239,8 +237,6 @@ export function SettingsPage() {
               />
               <ProviderCard
                 name="Hevy"
-                shortName="H"
-                colorClass="bg-purple-100 dark:bg-purple-900/30"
                 isConfigured={credentials?.hevy_configured ?? false}
                 syncMutation={syncHevy}
                 onSync={() => handleSync("hevy", syncHevy)}
@@ -318,8 +314,6 @@ export function SettingsPage() {
               />
               <ProviderCard
                 name="Whoop"
-                shortName="W"
-                colorClass="bg-orange-100 dark:bg-orange-900/30"
                 isConfigured={credentials?.whoop_configured ?? false}
                 isConnected={credentials?.whoop_configured}
                 isTokenExpired={credentials?.whoop_token_expired ?? false}
@@ -331,8 +325,6 @@ export function SettingsPage() {
               />
               <ProviderCard
                 name="Eight Sleep"
-                shortName="8S"
-                colorClass="bg-indigo-100 dark:bg-indigo-900/30"
                 isConfigured={credentials?.eight_sleep_configured ?? false}
                 syncMutation={syncEightSleep}
                 onSync={() => handleSync("eight_sleep", syncEightSleep)}
@@ -423,15 +415,11 @@ export function SettingsPage() {
             <div>
               <ReadOnlyProviderCard
                 name="Google Fit"
-                shortName="GF"
-                colorClass="bg-green-100 dark:bg-green-900/30"
                 hasData={true}
                 statusText="Manually imported"
               />
               <ReadOnlyProviderCard
                 name="Apple Health"
-                shortName="AH"
-                colorClass="bg-red-100 dark:bg-red-900/30"
                 hasData={true}
                 statusText="Manually imported"
                 isLastItem

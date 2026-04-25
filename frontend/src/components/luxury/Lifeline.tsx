@@ -6,22 +6,22 @@ const FIRST_VISIT_KEY = "vita.firstVisit";
 const MS_PER_YEAR = 1000 * 60 * 60 * 24 * 365.2425;
 
 function readBirth(): Date | null {
-  if (typeof window === "undefined") return null;
-  const raw = window.localStorage.getItem(BIRTH_KEY);
+  if (typeof globalThis.window === "undefined") return null;
+  const raw = globalThis.localStorage.getItem(BIRTH_KEY);
   if (!raw) return null;
   const d = new Date(raw);
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
 function ensureFirstVisit(): Date {
-  if (typeof window === "undefined") return new Date();
-  const raw = window.localStorage.getItem(FIRST_VISIT_KEY);
+  if (typeof globalThis.window === "undefined") return new Date();
+  const raw = globalThis.localStorage.getItem(FIRST_VISIT_KEY);
   if (raw) {
     const d = new Date(raw);
     if (!Number.isNaN(d.getTime())) return d;
   }
   const now = new Date();
-  window.localStorage.setItem(FIRST_VISIT_KEY, now.toISOString());
+  globalThis.localStorage.setItem(FIRST_VISIT_KEY, now.toISOString());
   return now;
 }
 
