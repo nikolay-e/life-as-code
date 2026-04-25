@@ -60,7 +60,13 @@ class EightSleepAPIClient:
             },
             timeout=REQUEST_TIMEOUT,
         )
-        response.raise_for_status()
+        if not response.ok:
+            logger.error(
+                "eight_sleep_auth_failed",
+                status=response.status_code,
+                body=response.text[:500],
+            )
+            response.raise_for_status()
         data = response.json()
 
         self._access_token = data["access_token"]
