@@ -14,7 +14,7 @@ export function splitValueUnit(formatted: string): ValueUnit {
   if (i === formatted.length) return { value: formatted, unit: undefined };
   const unit = formatted.slice(i);
   const valueRaw = formatted.slice(0, i);
-  const value = valueRaw.replace(/[ \t]+$/, "");
+  const value = valueRaw.trimEnd();
   if (value.length === 0) return { value: formatted, unit: undefined };
   return { value, unit };
 }
