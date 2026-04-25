@@ -360,5 +360,9 @@ jobs:
       - uses: nikolay-e/autoqa@6f4d18ff49e08876825f9bc9c41fa3f9ec212676 # main
         with:
           url: https://life-as-code.com
-          crawler-seed-pages: '/,/dashboard,/dashboard/sleep,/dashboard/statistics,/dashboard/trainings,/dashboard/data-status,/dashboard/settings'
+          crawler-username: ${{ secrets.QA_USERNAME }}
+          crawler-password: ${{ secrets.QA_PASSWORD }}
+          crawler-login-url: /login
+          crawler-seed-pages: '/dashboard,/dashboard/sleep,/dashboard/statistics,/dashboard/trainings,/dashboard/data-status,/dashboard/settings'
           crawler-max-pages: '20'
+          crawler-exclude-urls: '/whoop/authorize'
