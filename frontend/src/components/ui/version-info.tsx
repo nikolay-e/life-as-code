@@ -9,18 +9,20 @@ const version: string =
   (import.meta.env.VITE_APP_VERSION as string | undefined) ?? "dev";
 
 const envStyles: Record<Environment, string> = {
-  production: "bg-green-600 text-white",
-  staging: "bg-amber-500 text-black",
-  development: "bg-muted text-muted-foreground",
+  production: "bg-moss text-background",
+  staging: "bg-brass-deep text-background",
+  development: "bg-foreground text-background",
 };
 
 export function VersionInfo() {
   return (
-    <div className="flex items-center justify-center gap-2 py-2 font-mono text-xs opacity-60 transition-opacity hover:opacity-100">
-      <span className={cn("rounded px-2 py-0.5", envStyles[environment])}>
+    <div className="flex items-center justify-center gap-2 type-mono-label">
+      <span
+        className={cn("px-2 py-0.5 tracking-[0.18em]", envStyles[environment])}
+      >
         {environment}
       </span>
-      <span className="rounded bg-primary px-2 py-0.5 text-primary-foreground">
+      <span className="px-2 py-0.5 tracking-[0.18em] border border-foreground text-foreground">
         v{version}
       </span>
     </div>

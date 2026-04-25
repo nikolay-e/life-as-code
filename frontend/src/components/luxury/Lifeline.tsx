@@ -109,8 +109,11 @@ function LifelineFrame({ title, meta, pct, ticks }: LifelineFrameProps) {
           }}
         />
         <div
-          className="absolute -top-8 -translate-x-1/2 flex flex-col items-center text-brass type-mono-label whitespace-nowrap"
-          style={{ left: `${pct.toFixed(2)}%` }}
+          className="absolute -top-8 flex flex-col items-center text-brass type-mono-label whitespace-nowrap"
+          style={{
+            left: `${pct.toFixed(2)}%`,
+            transform: `translateX(-${pct.toFixed(2)}%)`,
+          }}
         >
           you are here
           <span className="block w-px h-7 bg-brass mt-0.5" aria-hidden />
