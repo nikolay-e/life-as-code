@@ -36,6 +36,8 @@
 - Auth response may not include userId — the `/users/me` endpoint must be used as fallback
 - Empty user ID in URL (double slash like `/users//trends`) means the user ID extraction failed
 - API response structure may nest user data under a `"user"` key
+- Stored access tokens expire silently — `_ensure_authenticated()` must receive `token_expires_at` from DB, and all API calls must use `_request_with_reauth()` for automatic 401→re-authenticate→retry
+- Unlike Whoop (OAuth refresh token), Eight Sleep uses email/password — re-authentication always possible without user intervention
 - Eight Sleep data (HRV, HR, sleep duration, deep/REM/light, respiratory rate, score, bed/room temp) feeds into the fusion layer alongside Garmin and Whoop
 - New data sources must be added to: `RawHealthData` fields, `load_raw_health_data` queries, `SOURCE_PRIORITY`, fusion functions, `FusedMetric`/`FusedHealthData`, frontend `METRIC_REGISTRY`, `TRENDS_METRIC_KEYS`, AND all `MultiProviderLineChart` consumers (HRVChart, HeartRateChart, SleepChart, etc. + DashboardOverview props)
 - `MultiProviderLineChart` supports optional third source via `eightSleepLabel`/`eightSleepValue` — bar only renders when data exists (`hasEightSleep` check)
