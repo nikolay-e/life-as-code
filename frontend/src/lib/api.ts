@@ -226,7 +226,7 @@ export const api = {
 
     createIntervention: (data: {
       name: string;
-      category: string;
+      category: InterventionData["category"];
       start_date: string;
       end_date?: string | null;
       dosage?: string | null;
@@ -242,7 +242,7 @@ export const api = {
       id: number,
       data: Partial<{
         name: string;
-        category: string;
+        category: InterventionData["category"];
         end_date: string | null;
         dosage: string | null;
         frequency: string | null;

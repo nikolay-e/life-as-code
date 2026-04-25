@@ -1,5 +1,4 @@
 import { useState, type FormEvent } from "react";
-import { format } from "date-fns";
 import { toast } from "sonner";
 import {
   Pill,
@@ -31,17 +30,19 @@ import {
 import { LoadingState } from "../../components/ui/loading-state";
 import { ErrorCard } from "../../components/ui/error-card";
 import { cn } from "../../lib/utils";
+import { getLocalDateString, getLocalToday } from "../../lib/health";
 import type { InterventionData, BloodBiomarkerData } from "../../types/api";
 
 type Tab = "medications" | "labs";
+type Category = InterventionData["category"];
 
-const CATEGORIES = [
+const CATEGORIES: { value: Category; label: string }[] = [
   { value: "medication", label: "Medication" },
   { value: "supplement", label: "Supplement" },
   { value: "protocol", label: "Protocol" },
   { value: "lifestyle", label: "Lifestyle" },
   { value: "diet", label: "Diet" },
-] as const;
+];
 
 const BIOMARKER_PRESETS: { name: string; unit: string }[] = [
   { name: "TSH", unit: "mIU/L" },
@@ -71,7 +72,7 @@ const BIOMARKER_PRESETS: { name: string; unit: string }[] = [
   { name: "Cortisol", unit: "ug/dL" },
 ];
 
-const todayStr = () => format(new Date(), "yyyy-MM-dd");
+const todayStr = () => getLocalDateString(getLocalToday());
 
 function InterventionForm({
   onClose,
@@ -80,7 +81,7 @@ function InterventionForm({
 }>) {
   const create = useCreateIntervention();
   const [name, setName] = useState("");
-  const [category, setCategory] = useState("supplement");
+  const [category, setCategory] = useState<Category>("supplement");
   const [dosage, setDosage] = useState("");
   const [frequency, setFrequency] = useState("");
   const [startDate, setStartDate] = useState(todayStr());
@@ -132,7 +133,7 @@ function InterventionForm({
                 id="med-category"
                 value={category}
                 onChange={(e) => {
-                  setCategory(e.target.value);
+                  setCategory(e.target.value as Category);
                 }}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
@@ -230,7 +231,7 @@ function InterventionCard({
     });
   };
 
-  const isActive = Boolean(item.active);
+  const isActive = item.active;
 
   return (
     <div
@@ -294,7 +295,7 @@ function MedicationsTab() {
   if (isLoading) return <LoadingState message="Loading medications..." />;
   if (error) return <ErrorCard message="Failed to load medications" />;
 
-  const active = (interventions ?? []).filter((i) => Boolean(i.active));
+  const active = (interventions ?? []).filter((i) => i.active);
   const inactive = (interventions ?? []).filter((i) => !i.active);
 
   return (
