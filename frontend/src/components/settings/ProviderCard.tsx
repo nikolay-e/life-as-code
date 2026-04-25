@@ -179,12 +179,14 @@ export function ProviderCard({
   const renderActionButtons = () => {
     if (isTokenExpired && authUrl) {
       return (
-        <Button variant="outline" size="sm" asChild>
-          <a href={authUrl} aria-label={`Reconnect ${name} account`}>
-            <ExternalLink className="h-4 w-4 mr-2" aria-hidden="true" />
-            Reconnect
-          </a>
-        </Button>
+        <a
+          href={authUrl}
+          aria-label={`Reconnect ${name} account`}
+          className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium border border-input bg-background shadow-xs hover:bg-accent hover:text-accent-foreground h-8 px-3"
+        >
+          <ExternalLink className="h-4 w-4 mr-2" aria-hidden="true" />
+          Reconnect
+        </a>
       );
     }
 
@@ -230,12 +232,14 @@ export function ProviderCard({
 
     if (authUrl) {
       return (
-        <Button variant="outline" size="sm" asChild>
-          <a href={authUrl} aria-label={`Connect ${name} account`}>
-            <ExternalLink className="h-4 w-4 mr-2" aria-hidden="true" />
-            Connect Account
-          </a>
-        </Button>
+        <a
+          href={authUrl}
+          aria-label={`Connect ${name} account`}
+          className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium border border-input bg-background shadow-xs hover:bg-accent hover:text-accent-foreground h-8 px-3"
+        >
+          <ExternalLink className="h-4 w-4 mr-2" aria-hidden="true" />
+          Connect Account
+        </a>
       );
     }
 
