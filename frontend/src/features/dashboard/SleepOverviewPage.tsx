@@ -53,7 +53,7 @@ function ModeSelector({
             className="min-w-[90px] flex flex-col h-auto py-1.5"
           >
             <span className="font-medium">{cfg.label}</span>
-            <span className="text-[10px] opacity-90">{cfg.description}</span>
+            <span className="text-[10px]">{cfg.description}</span>
           </Button>
         );
       })}

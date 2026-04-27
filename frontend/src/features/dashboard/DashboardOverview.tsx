@@ -182,7 +182,7 @@ export function DashboardOverview() {
               className="min-w-[60px] flex flex-col h-auto py-1.5"
             >
               <span className="font-medium">Today</span>
-              <span className="text-[10px] opacity-90">Latest</span>
+              <span className="text-[10px]">Latest</span>
             </Button>
             {MODE_ORDER.map((m) => {
               const cfg = TREND_MODES[m];
@@ -197,9 +197,7 @@ export function DashboardOverview() {
                   className="min-w-[60px] flex flex-col h-auto py-1.5"
                 >
                   <span className="font-medium">{cfg.label}</span>
-                  <span className="text-[10px] opacity-90">
-                    {cfg.description}
-                  </span>
+                  <span className="text-[10px]">{cfg.description}</span>
                 </Button>
               );
             })}
@@ -212,7 +210,7 @@ export function DashboardOverview() {
               className="min-w-[60px] flex flex-col h-auto py-1.5"
             >
               <span className="font-medium">Custom</span>
-              <span className="text-[10px] opacity-90">Range</span>
+              <span className="text-[10px]">Range</span>
             </Button>
           </div>
           {isCustom && (

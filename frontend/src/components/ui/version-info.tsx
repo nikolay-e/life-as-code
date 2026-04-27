@@ -16,7 +16,7 @@ const envStyles: Record<Environment, string> = {
 
 export function VersionInfo() {
   return (
-    <div className="flex items-center justify-center gap-2 py-2 font-mono text-xs opacity-60 transition-opacity hover:opacity-100">
+    <div className="flex items-center justify-center gap-2 py-2 font-mono text-xs">
       <span className={cn("rounded px-2 py-0.5", envStyles[environment])}>
         {environment}
       </span>
