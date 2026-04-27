@@ -19,10 +19,10 @@ export const PERIOD_OPTIONS: { days: PeriodDays; label: string }[] = [
 ];
 
 export const ACTIVITY_COLORS = {
-  strength: "text-blue-500",
+  strength: "text-blue-700",
   strengthBorder: "border-blue-500/30",
-  cardio: "text-orange-500",
+  cardio: "text-orange-700",
   cardioBorder: "border-orange-500/30",
-  activity: "text-green-500",
+  activity: "text-green-700",
   activityBorder: "border-green-500/30",
 } as const;
