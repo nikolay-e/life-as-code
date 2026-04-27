@@ -11,10 +11,10 @@ from sqlalchemy import create_engine, text
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 
-PG_HOST = "localhost"
-PG_PORT = 5434
-PG_USER = "life_as_code_user"
-PG_PASS = "testpass"  # pragma: allowlist secret
+PG_HOST = os.environ.get("POSTGRES_HOST", "localhost")
+PG_PORT = int(os.environ.get("POSTGRES_PORT", "5434"))
+PG_USER = os.environ.get("POSTGRES_USER", "life_as_code_user")
+PG_PASS = os.environ.get("POSTGRES_PASSWORD", "testpass")  # noqa: S105 pragma: allowlist secret
 
 
 @pytest.fixture

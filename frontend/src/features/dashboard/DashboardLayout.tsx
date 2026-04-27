@@ -4,11 +4,25 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAuthStore } from "../auth/store";
 import { api } from "../../lib/api";
-import { Copy, Check, Loader2, LogOut } from "lucide-react";
+import { Button } from "../../components/ui/button";
+import {
+  Heart,
+  Activity,
+  LayoutDashboard,
+  Settings,
+  LogOut,
+  Database,
+  TrendingUp,
+  Copy,
+  Check,
+  Loader2,
+  Dumbbell,
+  Moon,
+  Pill,
+} from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Spinner } from "../../components/ui/spinner";
 import { VersionInfo } from "../../components/ui/version-info";
-import { Lifeline } from "../../components/luxury/Lifeline";
 import { formatCombinedReport } from "../../lib/report-formatter";
 import type { AnalyticsResponse } from "../../types/api";
 import { MAX_BASELINE_DAYS } from "../../lib/metrics";
@@ -16,13 +30,33 @@ import { healthKeys } from "../../lib/query-keys";
 import { format, subDays } from "date-fns";
 
 const navItems = [
-  { to: "/dashboard", label: "Today", end: true },
-  { to: "/dashboard/sleep", label: "Sleep", end: false },
-  { to: "/dashboard/statistics", label: "Trends", end: false },
-  { to: "/dashboard/trainings", label: "Training", end: false },
-  { to: "/dashboard/health-log", label: "Log", end: false },
-  { to: "/dashboard/data-status", label: "Data", end: false },
-  { to: "/dashboard/settings", label: "Settings", end: false },
+  { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard", end: true },
+  { to: "/dashboard/sleep", icon: Moon, label: "Sleep", end: false },
+  {
+    to: "/dashboard/statistics",
+    icon: TrendingUp,
+    label: "Statistics",
+    end: false,
+  },
+  {
+    to: "/dashboard/trainings",
+    icon: Dumbbell,
+    label: "Trainings",
+    end: false,
+  },
+  {
+    to: "/dashboard/health-log",
+    icon: Pill,
+    label: "Health Log",
+    end: false,
+  },
+  {
+    to: "/dashboard/data-status",
+    icon: Database,
+    label: "Data Status",
+    end: false,
+  },
+  { to: "/dashboard/settings", icon: Settings, label: "Settings", end: false },
 ];
 
 const COPY_FEEDBACK_MS = 2000;
@@ -43,10 +77,12 @@ export function DashboardLayout() {
 
   const handleLogout = async () => {
     queryClient.clear();
+
     if ("caches" in globalThis) {
       const cacheNames = await caches.keys();
       await Promise.all(cacheNames.map((name) => caches.delete(name)));
     }
+
     await logout();
   };
 
@@ -115,55 +151,40 @@ export function DashboardLayout() {
   }, [queryClient]);
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* ───────── Topbar ───────── */}
+    <div className="min-h-screen bg-muted/30">
       <header
-        className="sticky top-0 z-50 w-full border-b border-border backdrop-blur-md"
-        style={{
-          paddingTop: "env(safe-area-inset-top)",
-          backgroundColor: "hsl(var(--background) / 0.86)",
-        }}
+        className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-lg supports-[backdrop-filter]:bg-background/60"
+        style={{ paddingTop: "env(safe-area-inset-top)" }}
       >
-        <div className="mx-auto flex h-16 max-w-[1480px] items-center gap-4 px-5 sm:px-8 lg:px-14">
-          {/* Brand */}
-          <div className="flex items-center gap-3 mr-4 sm:mr-8 shrink-0">
-            <div className="flex items-baseline gap-2 select-none">
-              <span
-                className="font-serif text-[26px] leading-none tracking-[-0.02em]"
-                style={{
-                  fontVariationSettings: '"opsz" 144, "SOFT" 100',
-                  fontWeight: 400,
-                }}
-              >
-                vita<span className="text-brass">.</span>
-              </span>
-              <span className="hidden md:inline type-mono-label text-muted-foreground pb-0.5">
-                longevity intelligence
-              </span>
+        <div className="container flex h-16 items-center px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-3 mr-8">
+            <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-primary/10">
+              <Heart className="h-5 w-5 text-primary" />
+              <Activity className="h-5 w-5 text-primary" />
             </div>
-            <button
-              type="button"
+            <span className="font-semibold text-lg hidden sm:inline-block tracking-tight">
+              Life-as-Code
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={handleCopyAll}
               disabled={copyState === "loading"}
               aria-label="Copy full health report"
               title="Copy full health report"
-              className="h-7 w-7 grid place-items-center text-muted-foreground hover:text-foreground transition-colors"
+              className="h-8 w-8"
             >
               {copyState === "loading" && (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
               )}
               {copyState === "copied" && (
-                <Check className="h-3.5 w-3.5 text-moss" />
+                <Check className="h-4 w-4 text-green-500" />
               )}
-              {copyState === "idle" && <Copy className="h-3.5 w-3.5" />}
-            </button>
+              {copyState === "idle" && <Copy className="h-4 w-4" />}
+            </Button>
           </div>
 
-          {/* Nav */}
-          <nav
-            className="flex flex-1 items-center gap-x-3 sm:gap-x-6 lg:gap-x-9 overflow-x-auto justify-start md:justify-center"
-            style={{ scrollbarWidth: "none" }}
-          >
+          <nav className="flex items-center gap-1 flex-1">
             {navItems.map((item) => (
               <NavLink
                 key={item.to}
@@ -171,45 +192,38 @@ export function DashboardLayout() {
                 end={item.end}
                 className={({ isActive }) =>
                   cn(
-                    "relative whitespace-nowrap font-mono text-[11px] tracking-[0.20em] uppercase py-2 transition-colors duration-300",
-                    "after:content-[''] after:absolute after:left-0 after:bottom-1 after:h-px after:bg-foreground after:transition-[right] after:duration-500",
+                    "flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200",
                     isActive
-                      ? "text-foreground after:right-0"
-                      : "text-muted-foreground hover:text-foreground after:right-full hover:after:right-0",
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted",
                   )
                 }
               >
-                {item.label}
+                <item.icon className="h-4 w-4" />
+                <span className="hidden md:inline">{item.label}</span>
               </NavLink>
             ))}
           </nav>
 
-          {/* Account */}
-          <div className="flex items-center gap-3 shrink-0">
-            <span className="hidden lg:inline type-mono-label text-muted-foreground">
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground hidden sm:inline font-medium">
               {user?.username}
             </span>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={handleLogout}
               aria-label="Logout"
               title="Logout"
-              className="h-8 w-8 grid place-items-center border border-border rounded-full font-serif italic text-[13px] text-foreground hover:border-foreground hover:text-brass transition-colors"
-              style={{
-                fontVariationSettings: '"opsz" 144, "SOFT" 100',
-                fontWeight: 400,
-              }}
+              className="hover:bg-destructive/10 hover:text-destructive"
             >
-              {user?.username[0]?.toUpperCase() ?? (
-                <LogOut className="h-3.5 w-3.5" />
-              )}
-            </button>
+              <LogOut className="h-4 w-4" />
+            </Button>
           </div>
         </div>
       </header>
 
-      {/* ───────── Main ───────── */}
-      <main className="mx-auto max-w-[1480px] px-5 sm:px-8 lg:px-14 pt-6 pb-20">
+      <main className="container py-8 px-4 sm:px-6 lg:px-8">
         <Suspense
           fallback={
             <div className="flex items-center justify-center h-96">
@@ -221,17 +235,11 @@ export function DashboardLayout() {
         </Suspense>
       </main>
 
-      {/* ───────── Lifeline footer ───────── */}
       <footer
-        className="border-t border-foreground"
+        className="border-t bg-background/50"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
-        <div className="mx-auto max-w-[1480px] px-5 sm:px-8 lg:px-14 pt-7 pb-9">
-          <Lifeline />
-        </div>
-        <div className="mx-auto max-w-[1480px] flex flex-wrap justify-between gap-4 px-5 sm:px-8 lg:px-14 pt-3 pb-6 border-t border-border type-mono-label text-muted-foreground">
-          <span>vita. — longevity intelligence</span>
-          <span>self-hosted · privacy by design</span>
+        <div className="container flex h-12 items-center justify-center px-4 sm:px-6 lg:px-8">
           <VersionInfo />
         </div>
       </footer>

@@ -2,9 +2,22 @@ import { useState, useMemo } from "react";
 import { useDetailedWorkouts } from "../../hooks/useDetailedWorkouts";
 import { useHealthData } from "../../hooks/useHealthData";
 import { Button } from "../../components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "../../components/ui/card";
 import { LoadingState } from "../../components/ui/loading-state";
 import { ErrorCard } from "../../components/ui/error-card";
-import { Loader2 } from "lucide-react";
+import {
+  Dumbbell,
+  Calendar,
+  Flame,
+  Activity,
+  Heart,
+  Loader2,
+} from "lucide-react";
 import { format, parseISO } from "date-fns";
 import type {
   WorkoutExerciseDetail,
@@ -21,10 +34,9 @@ import {
   PERIOD_OPTIONS,
   WHOOP_MAX_STRAIN,
   DEFAULT_ACTIVITY_NAME,
+  ACTIVITY_COLORS,
   type PeriodDays,
 } from "../../lib/constants";
-import { Masthead } from "../../components/luxury/Masthead";
-import { SectionHead, SerifEm } from "../../components/luxury/SectionHead";
 
 type TrainingItem =
   | { type: "strength"; data: WorkoutExerciseDetail[]; sortKey: string }
@@ -100,493 +112,353 @@ function groupAllTrainingsByDate(
     .sort((a, b) => b.date.localeCompare(a.date));
 }
 
-function isToday(dateStr: string): boolean {
-  return dateStr === format(new Date(), "yyyy-MM-dd");
+function formatWorkoutDate(dateStr: string): string {
+  return format(parseISO(dateStr), "EEEE, MMMM d, yyyy");
 }
 
-function formatLedgerDate(dateStr: string): string {
-  const d = parseISO(dateStr);
-  return `${format(d, "d MMM").toLowerCase()} · ${format(d, "EEE").toLowerCase()}`;
+interface StrengthWorkoutInlineProps {
+  readonly exercises: WorkoutExerciseDetail[];
 }
 
-function whoopDurationSec(workout: WhoopWorkoutData): number | null {
-  if (!workout.start_time || !workout.end_time) return null;
-  const sec = Math.round(
-    (new Date(workout.end_time).getTime() -
-      new Date(workout.start_time).getTime()) /
-      1000,
-  );
-  return sec > 0 ? sec : null;
-}
-
-interface LedgerEntry {
-  readonly key: string;
-  readonly dateStr: string;
-  readonly name: string;
-  readonly source: string;
-  readonly strain: string | null;
-  readonly duration: string | null;
-}
-
-function strengthEntry(
-  date: string,
-  exercises: WorkoutExerciseDetail[],
-): LedgerEntry {
-  const totalSets = exercises.reduce((sum, ex) => sum + ex.total_sets, 0);
+function StrengthWorkoutInline({ exercises }: StrengthWorkoutInlineProps) {
   const totalVolume = exercises.reduce((sum, ex) => sum + ex.total_volume, 0);
-  return {
-    key: `strength-${date}`,
-    dateStr: date,
-    name: `Strength · ${String(exercises.length)} lifts · ${String(totalSets)} sets`,
-    source: "Hevy",
-    strain: formatVolume(totalVolume),
-    duration: null,
-  };
+  const totalSets = exercises.reduce((sum, ex) => sum + ex.total_sets, 0);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <Dumbbell className={`h-5 w-5 ${ACTIVITY_COLORS.strength}`} />
+        <span className="font-semibold">Strength Training (Hevy)</span>
+        <span className="text-sm text-muted-foreground">
+          {String(exercises.length)} exercises · {String(totalSets)} sets ·{" "}
+          {formatVolume(totalVolume)}
+        </span>
+      </div>
+
+      {exercises.map((exercise) => (
+        <div
+          key={`${exercise.date}-${exercise.exercise}`}
+          className={`border-l-2 ${ACTIVITY_COLORS.strengthBorder} pl-4`}
+        >
+          <p className="font-semibold text-base">{exercise.exercise}</p>
+          <p className="text-xs text-muted-foreground mb-2">
+            {String(exercise.total_sets)} sets ·{" "}
+            {formatVolume(exercise.total_volume)} volume
+            {exercise.avg_rpe !== null &&
+              ` · avg RPE ${exercise.avg_rpe.toFixed(1)}`}
+          </p>
+
+          <div className="space-y-1 text-sm">
+            {exercise.sets.map((set) => {
+              const setLabel =
+                set.set_type && set.set_type !== "normal"
+                  ? `Set ${String(set.set_index + 1)} (${set.set_type})`
+                  : `Set ${String(set.set_index + 1)}`;
+
+              const weightStr =
+                set.weight_kg === null
+                  ? "bodyweight"
+                  : `${String(set.weight_kg)}kg`;
+
+              const parts: string[] = [setLabel, weightStr];
+
+              if (set.reps !== null) {
+                parts.push(`× ${String(set.reps)} reps`);
+              }
+
+              if (set.rpe !== null) {
+                parts.push(`@ RPE ${String(set.rpe)}`);
+              }
+
+              return (
+                <p
+                  key={`${exercise.exercise}-set-${String(set.set_index)}`}
+                  className="text-muted-foreground"
+                >
+                  {parts.join(" ")}
+                </p>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
-function garminEntry(activity: GarminActivityData): LedgerEntry {
+const WHOOP_ZONE_COLORS = [
+  "bg-gray-400",
+  "bg-blue-400",
+  "bg-green-400",
+  "bg-yellow-400",
+  "bg-orange-400",
+  "bg-red-500",
+] as const;
+
+const GARMIN_ZONE_COLORS = [
+  "bg-blue-400",
+  "bg-green-400",
+  "bg-yellow-400",
+  "bg-orange-400",
+  "bg-red-500",
+] as const;
+
+interface HRZoneEntry {
+  readonly label: string;
+  readonly seconds: number;
+  readonly color: string;
+}
+
+interface HRZoneBarProps {
+  readonly zones: HRZoneEntry[];
+}
+
+function HRZoneBar({ zones }: HRZoneBarProps) {
+  const nonZero = zones.filter((z) => z.seconds > 0);
+  if (nonZero.length === 0) return null;
+
+  const totalSeconds = nonZero.reduce((sum, z) => sum + z.seconds, 0);
+  if (totalSeconds === 0) return null;
+
+  return (
+    <div className="mt-2 space-y-1">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Heart className="h-3 w-3" />
+        <span>HR Zones</span>
+      </div>
+      <div className="flex h-3 rounded-full overflow-hidden">
+        {nonZero.map((z) => {
+          const pct = (z.seconds / totalSeconds) * 100;
+          if (pct < 0.5) return null;
+          return (
+            <div
+              key={z.label}
+              className={`${z.color} transition-all`}
+              style={{ width: `${String(pct)}%` }}
+              title={`${z.label}: ${String(Math.round(z.seconds / 60))}m (${pct.toFixed(0)}%)`}
+            />
+          );
+        })}
+      </div>
+      <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+        {nonZero.map((z) => (
+          <span key={z.label} className="flex items-center gap-1">
+            <span className={`inline-block w-2 h-2 rounded-full ${z.color}`} />
+            {z.label}: {String(Math.round(z.seconds / 60))}m
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function buildWhoopZones(workout: WhoopWorkoutData): HRZoneEntry[] {
+  const millis = [
+    workout.zone_zero_millis,
+    workout.zone_one_millis,
+    workout.zone_two_millis,
+    workout.zone_three_millis,
+    workout.zone_four_millis,
+    workout.zone_five_millis,
+  ];
+  return millis.map((m, i) => ({
+    label: `Zone ${String(i)}`,
+    seconds: (m ?? 0) / 1000,
+    color: WHOOP_ZONE_COLORS[i],
+  }));
+}
+
+function buildGarminZones(activity: GarminActivityData): HRZoneEntry[] {
+  const secs = [
+    activity.hr_zone_one_seconds,
+    activity.hr_zone_two_seconds,
+    activity.hr_zone_three_seconds,
+    activity.hr_zone_four_seconds,
+    activity.hr_zone_five_seconds,
+  ];
+  return secs.map((s, i) => ({
+    label: `Zone ${String(i + 1)}`,
+    seconds: s ?? 0,
+    color: GARMIN_ZONE_COLORS[i],
+  }));
+}
+
+interface WhoopWorkoutInlineProps {
+  readonly workout: WhoopWorkoutData;
+}
+
+function WhoopWorkoutInline({ workout }: WhoopWorkoutInlineProps) {
+  const startTime = workout.start_time
+    ? format(parseISO(workout.start_time), "h:mm a")
+    : null;
+  const calories =
+    workout.kilojoules === null ? null : Math.round(workout.kilojoules / 4.184);
+  const distanceKm =
+    workout.distance_meters === null
+      ? null
+      : (workout.distance_meters / 1000).toFixed(2);
+
+  let durationStr: string | null = null;
+  if (workout.start_time && workout.end_time) {
+    const durationSec = Math.round(
+      (new Date(workout.end_time).getTime() -
+        new Date(workout.start_time).getTime()) /
+        1000,
+    );
+    if (durationSec > 0) {
+      durationStr = formatDuration(durationSec);
+    }
+  }
+
+  const details: string[] = [];
+
+  if (durationStr !== null) {
+    details.push(durationStr);
+  }
+  if (workout.strain !== null) {
+    details.push(
+      `Strain ${workout.strain.toFixed(1)}/${String(WHOOP_MAX_STRAIN)}`,
+    );
+  }
+  if (calories !== null) {
+    details.push(`${String(calories)} kcal`);
+  }
+  if (workout.avg_heart_rate !== null) {
+    details.push(`Avg HR ${String(workout.avg_heart_rate)}`);
+  }
+  if (distanceKm !== null) {
+    details.push(`${distanceKm} km`);
+  }
+  if (workout.percent_recorded !== null && workout.percent_recorded < 100) {
+    details.push(`${workout.percent_recorded.toFixed(0)}% recorded`);
+  }
+
+  return (
+    <div className={`border-l-2 ${ACTIVITY_COLORS.cardioBorder} pl-4`}>
+      <div className="flex items-center gap-2">
+        <Flame className={`h-4 w-4 ${ACTIVITY_COLORS.cardio}`} />
+        <span className="font-semibold">
+          {workout.sport_name ?? DEFAULT_ACTIVITY_NAME}
+        </span>
+        <span className="text-xs text-muted-foreground">Whoop</span>
+        {startTime && (
+          <span className="text-xs text-muted-foreground">at {startTime}</span>
+        )}
+      </div>
+      <p className="text-sm text-muted-foreground mt-1">
+        {details.join(" · ")}
+      </p>
+      <HRZoneBar zones={buildWhoopZones(workout)} />
+    </div>
+  );
+}
+
+interface GarminActivityInlineProps {
+  readonly activity: GarminActivityData;
+}
+
+function GarminActivityInline({ activity }: GarminActivityInlineProps) {
+  const startTime = activity.start_time
+    ? format(parseISO(activity.start_time), "h:mm a")
+    : null;
+
   const distanceKm =
     activity.distance_meters === null
       ? null
       : (activity.distance_meters / 1000).toFixed(2);
-  const baseName =
-    activity.activity_name ?? activity.activity_type ?? DEFAULT_ACTIVITY_NAME;
-  const name =
-    distanceKm !== null ? `${baseName} · ${distanceKm} km` : baseName;
-  return {
-    key: `garmin-${activity.activity_id}`,
-    dateStr: activity.date,
-    name,
-    source: "Garmin",
-    strain:
-      activity.calories !== null ? `${String(activity.calories)} kcal` : null,
-    duration:
-      activity.duration_seconds !== null
-        ? formatDuration(activity.duration_seconds)
-        : null,
-  };
-}
 
-function whoopEntry(workout: WhoopWorkoutData): LedgerEntry {
-  const durSec = whoopDurationSec(workout);
-  return {
-    key: `whoop-${workout.date}-${workout.start_time ?? "n"}`,
-    dateStr: workout.date,
-    name: workout.sport_name ?? DEFAULT_ACTIVITY_NAME,
-    source: "Whoop",
-    strain:
-      workout.strain !== null
-        ? `${workout.strain.toFixed(1)}/${String(WHOOP_MAX_STRAIN)}`
-        : null,
-    duration: durSec !== null ? formatDuration(durSec) : null,
-  };
-}
+  const pace =
+    shouldShowPace(activity.avg_speed_mps, activity.distance_meters) &&
+    activity.avg_speed_mps !== null
+      ? formatPace(activity.avg_speed_mps)
+      : null;
 
-function toLedgerEntries(days: DailyTrainings[]): LedgerEntry[] {
-  const out: LedgerEntry[] = [];
-  for (const day of days) {
-    for (const item of day.items) {
-      if (item.type === "strength") {
-        out.push(strengthEntry(day.date, item.data));
-      } else if (item.type === "garmin") {
-        out.push(garminEntry(item.data));
-      } else {
-        out.push(whoopEntry(item.data));
-      }
-    }
+  const details: string[] = [];
+
+  if (activity.duration_seconds !== null) {
+    details.push(formatDuration(activity.duration_seconds));
   }
-  return out;
+  if (distanceKm !== null) {
+    details.push(`${distanceKm} km`);
+  }
+  if (pace !== null) {
+    details.push(pace);
+  }
+  if (activity.avg_heart_rate !== null) {
+    details.push(`Avg HR ${String(activity.avg_heart_rate)}`);
+  }
+  if (activity.calories !== null) {
+    details.push(`${String(activity.calories)} kcal`);
+  }
+  if (
+    activity.elevation_gain_meters !== null &&
+    activity.elevation_gain_meters > 0
+  ) {
+    details.push(`↑${String(Math.round(activity.elevation_gain_meters))}m`);
+  }
+
+  return (
+    <div className={`border-l-2 ${ACTIVITY_COLORS.activityBorder} pl-4`}>
+      <div className="flex items-center gap-2">
+        <Activity className={`h-4 w-4 ${ACTIVITY_COLORS.activity}`} />
+        <span className="font-semibold">
+          {activity.activity_name ??
+            activity.activity_type ??
+            DEFAULT_ACTIVITY_NAME}
+        </span>
+        <span className="text-xs text-muted-foreground">Garmin</span>
+        {startTime && (
+          <span className="text-xs text-muted-foreground">at {startTime}</span>
+        )}
+      </div>
+      <p className="text-sm text-muted-foreground mt-1">
+        {details.join(" · ")}
+      </p>
+      <HRZoneBar zones={buildGarminZones(activity)} />
+    </div>
+  );
 }
 
-interface SessionCardProps {
+interface DailyTrainingCardProps {
   readonly day: DailyTrainings;
 }
 
-function strengthSummary(exercises: WorkoutExerciseDetail[]): {
-  totalSets: number;
-  totalVolume: number;
-  avgRpe: number | null;
-} {
-  const totalSets = exercises.reduce((sum, ex) => sum + ex.total_sets, 0);
-  const totalVolume = exercises.reduce((sum, ex) => sum + ex.total_volume, 0);
-  const rpes = exercises
-    .map((ex) => ex.avg_rpe)
-    .filter((r): r is number => r !== null);
-  const avgRpe =
-    rpes.length > 0 ? rpes.reduce((a, b) => a + b, 0) / rpes.length : null;
-  return { totalSets, totalVolume, avgRpe };
-}
-
-function StrengthSessionCard({
-  exercises,
-}: {
-  readonly exercises: WorkoutExerciseDetail[];
-}) {
-  const { totalSets, totalVolume, avgRpe } = strengthSummary(exercises);
+function DailyTrainingCard({ day }: DailyTrainingCardProps) {
   return (
-    <article className="border border-foreground p-7 lg:p-9 bg-background">
-      <header className="flex items-baseline justify-between border-b border-border pb-4 mb-6">
-        <span className="type-mono-eyebrow text-foreground/80">
-          strength session
-        </span>
-        <span className="type-mono-label text-muted-foreground">Hevy</span>
-      </header>
-
-      <div className="grid grid-cols-3 gap-6 mb-7">
-        <SessionStat label="working sets" value={String(totalSets)} />
-        <SessionStat label="tonnage" value={formatVolume(totalVolume)} />
-        <SessionStat
-          label="avg rpe"
-          value={avgRpe !== null ? avgRpe.toFixed(1) : "—"}
-        />
-      </div>
-
-      <ul className="divide-y divide-border">
-        {exercises.map((exercise, idx) => {
-          const setSummary = exercise.sets[0];
-          const weight =
-            setSummary.weight_kg !== null
-              ? `${String(setSummary.weight_kg)} kg`
-              : "bodyweight";
-          const reps =
-            setSummary.reps !== null ? ` × ${String(setSummary.reps)}` : "";
-          const load = `${String(exercise.total_sets)} ×${reps} · ${weight}`;
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-lg flex items-center gap-2">
+          <Calendar className="h-5 w-5 text-muted-foreground" />
+          {formatWorkoutDate(day.date)}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {day.items.map((item, idx) => {
+          if (item.type === "strength") {
+            return (
+              <StrengthWorkoutInline
+                key={`strength-${day.date}`}
+                exercises={item.data}
+              />
+            );
+          }
+          if (item.type === "garmin") {
+            return (
+              <GarminActivityInline
+                key={`garmin-${item.data.activity_id}`}
+                activity={item.data}
+              />
+            );
+          }
           return (
-            <li
-              key={`${exercise.date}-${exercise.exercise}`}
-              className="grid grid-cols-[auto_1fr_auto] gap-4 items-baseline py-3.5"
-            >
-              <span className="type-mono-label text-muted-foreground w-7">
-                {String(idx + 1).padStart(2, "0")}
-              </span>
-              <span
-                className="font-serif italic text-[17px] text-foreground"
-                style={{
-                  fontVariationSettings: '"opsz" 144, "SOFT" 100',
-                  fontWeight: 400,
-                }}
-              >
-                {exercise.exercise}
-              </span>
-              <span
-                className="font-mono text-[12px] text-foreground tracking-wide text-right"
-                style={{ fontFeatureSettings: '"lnum","tnum"' }}
-              >
-                {load}
-              </span>
-            </li>
+            <WhoopWorkoutInline
+              key={`whoop-${item.data.date}-${item.data.start_time ?? String(idx)}`}
+              workout={item.data}
+            />
           );
         })}
-      </ul>
-    </article>
-  );
-}
-
-function CardioSessionCard({
-  item,
-}: {
-  readonly item:
-    | { type: "garmin"; data: GarminActivityData }
-    | { type: "whoop"; data: WhoopWorkoutData };
-}) {
-  let name: string;
-  let source: string;
-  let durationSec: number | null;
-  let strain: string | null;
-  let calories: number | null;
-  let avgHr: number | null;
-  let distanceKm: string | null;
-  let pace: string | null;
-
-  if (item.type === "garmin") {
-    const a = item.data;
-    name = a.activity_name ?? a.activity_type ?? DEFAULT_ACTIVITY_NAME;
-    source = "Garmin";
-    durationSec = a.duration_seconds;
-    strain = null;
-    calories = a.calories;
-    avgHr = a.avg_heart_rate;
-    distanceKm =
-      a.distance_meters !== null ? (a.distance_meters / 1000).toFixed(2) : null;
-    pace =
-      shouldShowPace(a.avg_speed_mps, a.distance_meters) &&
-      a.avg_speed_mps !== null
-        ? formatPace(a.avg_speed_mps)
-        : null;
-  } else {
-    const w = item.data;
-    name = w.sport_name ?? DEFAULT_ACTIVITY_NAME;
-    source = "Whoop";
-    durationSec = whoopDurationSec(w);
-    strain =
-      w.strain !== null
-        ? `${w.strain.toFixed(1)}/${String(WHOOP_MAX_STRAIN)}`
-        : null;
-    calories = w.kilojoules === null ? null : Math.round(w.kilojoules / 4.184);
-    avgHr = w.avg_heart_rate;
-    distanceKm =
-      w.distance_meters !== null ? (w.distance_meters / 1000).toFixed(2) : null;
-    pace = null;
-  }
-
-  return (
-    <article className="border border-foreground p-7 lg:p-9 bg-background">
-      <header className="flex items-baseline justify-between border-b border-border pb-4 mb-6">
-        <span className="type-mono-eyebrow text-foreground/80">
-          conditioning
-        </span>
-        <span className="type-mono-label text-muted-foreground">{source}</span>
-      </header>
-
-      <h3
-        className="font-serif italic text-[clamp(22px,2.4vw,30px)] leading-tight text-foreground mb-6"
-        style={{
-          fontVariationSettings: '"opsz" 144, "SOFT" 100',
-          fontWeight: 400,
-        }}
-      >
-        {name}
-      </h3>
-
-      <ul className="grid grid-cols-2 gap-x-6 gap-y-4">
-        {durationSec !== null && (
-          <SessionStat label="duration" value={formatDuration(durationSec)} />
-        )}
-        {strain !== null && (
-          <SessionStat
-            label={`strain · ${String(WHOOP_MAX_STRAIN)}`}
-            value={strain.split("/")[0]}
-          />
-        )}
-        {distanceKm !== null && (
-          <SessionStat label="distance" value={`${distanceKm} km`} />
-        )}
-        {pace !== null && <SessionStat label="pace" value={pace} />}
-        {avgHr !== null && (
-          <SessionStat label="avg hr" value={`${String(avgHr)} bpm`} />
-        )}
-        {calories !== null && (
-          <SessionStat label="calories" value={`${String(calories)} kcal`} />
-        )}
-      </ul>
-    </article>
-  );
-}
-
-function SessionCard({ day }: SessionCardProps) {
-  const primary = day.items[0];
-  if (primary.type === "strength") {
-    return <StrengthSessionCard exercises={primary.data} />;
-  }
-  return <CardioSessionCard item={primary} />;
-}
-
-function SessionStat({
-  label,
-  value,
-}: {
-  readonly label: string;
-  readonly value: string;
-}) {
-  return (
-    <li className="flex flex-col gap-1.5">
-      <span className="type-mono-label text-muted-foreground">{label}</span>
-      <span
-        className="font-serif text-[26px] leading-none tracking-[-0.02em] text-foreground"
-        style={{
-          fontVariationSettings: '"opsz" 144, "SOFT" 60',
-          fontWeight: 350,
-          fontFeatureSettings: '"lnum","tnum"',
-        }}
-      >
-        {value}
-      </span>
-    </li>
-  );
-}
-
-interface TodayHeroProps {
-  readonly day: DailyTrainings;
-}
-
-function TodayHero({ day }: TodayHeroProps) {
-  const primary = day.items[0];
-  let verdictLead: string;
-  let verdictEm: string;
-  let brief: string;
-
-  if (primary.type === "strength") {
-    const { totalSets, totalVolume } = strengthSummary(primary.data);
-    verdictLead = "Lifted.";
-    verdictEm = "Heavy work logged.";
-    brief = `${String(primary.data.length)} lifts across ${String(
-      totalSets,
-    )} working sets — total tonnage ${formatVolume(totalVolume)}. Posterior chain and compounds tracked, ready for the next block.`;
-  } else if (primary.type === "garmin") {
-    const a = primary.data;
-    const baseName =
-      a.activity_name ?? a.activity_type ?? DEFAULT_ACTIVITY_NAME;
-    verdictLead = `${baseName}.`;
-    verdictEm = "Aerobic deposit.";
-    const dur =
-      a.duration_seconds !== null ? formatDuration(a.duration_seconds) : "—";
-    const km =
-      a.distance_meters !== null
-        ? `${(a.distance_meters / 1000).toFixed(1)} km`
-        : "";
-    brief = `Today's session ran ${dur}${km ? ` · ${km}` : ""}. Heart-rate zones logged via Garmin and folded into the day's load total.`;
-  } else {
-    const w = primary.data;
-    const sport = w.sport_name ?? DEFAULT_ACTIVITY_NAME;
-    verdictLead = `${sport}.`;
-    verdictEm = "Strain banked.";
-    brief = `Whoop captured ${
-      w.strain !== null
-        ? `strain ${w.strain.toFixed(1)}/${String(WHOOP_MAX_STRAIN)}`
-        : "the session"
-    }. Recovery debit accounted for in tomorrow's window.`;
-  }
-
-  const sessionCount = String(day.items.length);
-  const sessionLabel = day.items.length === 1 ? "session" : "sessions";
-
-  return (
-    <section className="grid grid-cols-1 lg:grid-cols-[1.05fr_0.95fr] gap-10 lg:gap-16 items-start py-14 lg:py-20 border-b border-border">
-      <div>
-        <span className="type-mono-eyebrow text-muted-foreground block mb-5">
-          Today's prescription
-        </span>
-        <h1
-          className="font-serif leading-[0.88] tracking-[-0.045em] text-[clamp(44px,8.2vw,104px)]"
-          style={{
-            fontVariationSettings: '"opsz" 144, "SOFT" 100',
-            fontWeight: 350,
-          }}
-        >
-          {verdictLead} <SerifEm>{verdictEm}</SerifEm>
-        </h1>
-        <p
-          className="mt-7 font-serif text-[clamp(16px,1.45vw,19px)] leading-[1.55] text-muted-foreground max-w-[48ch]"
-          style={{
-            fontVariationSettings: '"opsz" 14, "SOFT" 30',
-            fontWeight: 380,
-          }}
-        >
-          {brief}
-        </p>
-        <div className="mt-7 flex items-center gap-2.5">
-          <span className="type-mono-label text-muted-foreground">logged</span>
-          <span
-            className="font-serif italic text-[17px]"
-            style={{
-              fontVariationSettings: '"opsz" 144, "SOFT" 100',
-              fontWeight: 400,
-            }}
-          >
-            {sessionCount} {sessionLabel} ·{" "}
-            {format(parseISO(day.date), "EEEE d LLLL")}
-          </span>
-        </div>
-      </div>
-
-      <SessionCard day={day} />
-    </section>
-  );
-}
-
-interface LedgerProps {
-  readonly entries: LedgerEntry[];
-}
-
-function Ledger({ entries }: LedgerProps) {
-  return (
-    <div className="border-t border-border">
-      {entries.map((entry) => (
-        <div
-          key={entry.key}
-          className="grid grid-cols-[120px_1fr_auto_auto] gap-4 sm:gap-6 items-baseline py-5 border-b border-border"
-        >
-          <span
-            className="font-mono text-[12px] text-muted-foreground tracking-wide uppercase"
-            style={{ fontFeatureSettings: '"lnum","tnum"' }}
-          >
-            {formatLedgerDate(entry.dateStr)}
-          </span>
-          <span
-            className="font-serif italic text-[17px] text-foreground"
-            style={{
-              fontVariationSettings: '"opsz" 144, "SOFT" 100',
-              fontWeight: 400,
-            }}
-          >
-            {entry.name}
-            <span className="ml-3 type-mono-label text-muted-foreground not-italic">
-              {entry.source}
-            </span>
-          </span>
-          <span
-            className="font-serif text-[26px] leading-none tracking-[-0.02em] text-foreground text-right min-w-[90px]"
-            style={{
-              fontVariationSettings: '"opsz" 144, "SOFT" 60',
-              fontWeight: 350,
-              fontFeatureSettings: '"lnum","tnum"',
-            }}
-          >
-            {entry.strain ?? "—"}
-          </span>
-          <span
-            className="font-mono text-[12px] text-foreground tracking-wide text-right min-w-[64px]"
-            style={{ fontFeatureSettings: '"lnum","tnum"' }}
-          >
-            {entry.duration ?? "—"}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function EmptyLedger() {
-  return (
-    <div className="border-t border-b border-border py-20 text-center">
-      <p
-        className="font-serif italic text-[clamp(22px,2.4vw,30px)] text-muted-foreground"
-        style={{
-          fontVariationSettings: '"opsz" 144, "SOFT" 100',
-          fontWeight: 400,
-        }}
-      >
-        No sessions on the books.
-      </p>
-      <p className="type-mono-label text-muted-foreground mt-4">
-        sync hevy · garmin · whoop in settings to populate the ledger
-      </p>
-    </div>
-  );
-}
-
-interface PeriodSelectorProps {
-  readonly period: PeriodDays;
-  readonly setPeriod: (p: PeriodDays) => void;
-}
-
-function PeriodSelector({ period, setPeriod }: PeriodSelectorProps) {
-  return (
-    <div className="flex flex-wrap gap-0">
-      {PERIOD_OPTIONS.map((opt, idx) => (
-        <Button
-          key={opt.days}
-          variant={period === opt.days ? "default" : "outline"}
-          size="sm"
-          onClick={() => {
-            setPeriod(opt.days);
-          }}
-          className={idx === 0 ? "" : "-ml-px"}
-        >
-          {opt.label}
-        </Button>
-      ))}
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -616,89 +488,87 @@ export function TrainingsPage() {
     );
   }
 
-  const todayDate = new Date();
-  const dateLine = format(todayDate, "d LLLL yyyy");
-  const weekday = format(todayDate, "EEEE");
-
   if (isLoading) {
     return (
-      <div className="space-y-0">
-        <Masthead
-          leftLine={`№ ${format(todayDate, "DDD")} · ${weekday}`}
-          title={
-            <>
-              The <SerifEm>training ledger</SerifEm>
-            </>
-          }
-          rightLine={dateLine}
-        />
-        <div className="py-20">
-          <LoadingState message="Loading workouts..." />
+      <div className="space-y-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Trainings</h1>
+            <p className="text-muted-foreground mt-1">
+              Detailed workout log from Hevy, Garmin, and Whoop
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <PeriodSelector period={periodDays} setPeriod={setPeriodDays} />
+          </div>
         </div>
+        <LoadingState message="Loading workouts..." />
       </div>
     );
   }
 
-  const todayDay = dailyTrainings.find((d) => isToday(d.date));
-  const ledgerDays = todayDay
-    ? dailyTrainings.filter((d) => d.date !== todayDay.date)
-    : dailyTrainings;
-  const ledgerEntries = toLedgerEntries(ledgerDays);
-
   return (
-    <div className="space-y-0">
-      <Masthead
-        leftLine="Section III · Movement"
-        title={
-          <>
-            The <SerifEm>training ledger</SerifEm>
-          </>
-        }
-        rightLine={
-          <>
-            {dateLine}
-            <br />
-            sources · hevy · garmin · whoop
-          </>
-        }
-      />
-
-      {todayDay && <TodayHero day={todayDay} />}
-
-      <section className="pt-12">
-        <SectionHead
-          title={
-            <>
-              Recent <SerifEm>work</SerifEm>
-            </>
-          }
-          meta={
-            <>
-              {ledgerEntries.length} sessions · {periodDays}-day window
-              <br />
-              via hevy + garmin + whoop
-            </>
-          }
-        />
-
-        <div className="flex items-center justify-between gap-4 pb-5">
-          <span className="type-mono-eyebrow text-muted-foreground">
-            window
-          </span>
-          <div className="flex items-center gap-3">
-            {(isFetching || healthFetching) && (
-              <Loader2 className="h-3 w-3 animate-spin text-brass" />
-            )}
-            <PeriodSelector period={periodDays} setPeriod={setPeriodDays} />
-          </div>
+    <div className="space-y-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Trainings</h1>
+          <p className="text-muted-foreground mt-1">
+            Detailed workout log from Hevy, Garmin, and Whoop
+          </p>
         </div>
+        <div className="flex items-center gap-3">
+          {(isFetching || healthFetching) && (
+            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+          )}
+          <PeriodSelector period={periodDays} setPeriod={setPeriodDays} />
+        </div>
+      </div>
 
-        {ledgerEntries.length > 0 ? (
-          <Ledger entries={ledgerEntries} />
-        ) : (
-          <EmptyLedger />
-        )}
-      </section>
+      {dailyTrainings.length > 0 ? (
+        <div className="space-y-4">
+          {dailyTrainings.map((day) => (
+            <DailyTrainingCard key={day.date} day={day} />
+          ))}
+        </div>
+      ) : (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center py-8">
+              <Dumbbell className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <h2 className="text-lg font-medium mb-2">No workouts found</h2>
+              <p className="text-muted-foreground">
+                No workout data available for the selected period. Sync your
+                Hevy, Garmin, or Whoop account to see your training history.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+interface PeriodSelectorProps {
+  readonly period: PeriodDays;
+  readonly setPeriod: (p: PeriodDays) => void;
+}
+
+function PeriodSelector({ period, setPeriod }: PeriodSelectorProps) {
+  return (
+    <div className="flex items-center gap-2 p-1 bg-muted/50 rounded-lg">
+      <Calendar className="h-4 w-4 text-muted-foreground ml-2" />
+      {PERIOD_OPTIONS.map((opt) => (
+        <Button
+          key={opt.days}
+          variant={period === opt.days ? "default" : "ghost"}
+          size="sm"
+          onClick={() => {
+            setPeriod(opt.days);
+          }}
+        >
+          {opt.label}
+        </Button>
+      ))}
     </div>
   );
 }

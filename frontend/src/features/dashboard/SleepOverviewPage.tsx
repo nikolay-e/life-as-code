@@ -2,6 +2,12 @@ import { useState, useMemo } from "react";
 import { useAnalytics } from "../../hooks/useAnalytics";
 import { useHealthDataRange } from "../../hooks/useHealthData";
 import { useToday } from "../../hooks/useToday";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { LoadingState } from "../../components/ui/loading-state";
 import { ErrorCard } from "../../components/ui/error-card";
@@ -12,32 +18,42 @@ import { TemperatureChart } from "../../components/charts/TemperatureChart";
 import { SleepLatencyChart } from "../../components/charts/SleepLatencyChart";
 import { TREND_MODES, MODE_ORDER, type TrendMode } from "../../lib/metrics";
 import { formatSleepMinutes } from "../../lib/metrics/registry";
-import { splitValueUnit } from "../../lib/formatters";
 import { format, subDays } from "date-fns";
-import { Moon, Loader2, Thermometer, Clock, Brain } from "lucide-react";
-import { Masthead } from "../../components/luxury/Masthead";
-import { SectionHead, SerifEm } from "../../components/luxury/SectionHead";
-import { Vital } from "../../components/luxury/Vital";
+import {
+  Moon,
+  Calendar,
+  Loader2,
+  Thermometer,
+  Clock,
+  Award,
+  RotateCcw,
+  Sparkles,
+  Star,
+  Hash,
+  Brain,
+} from "lucide-react";
 
 function ModeSelector({
   mode,
   setMode,
 }: Readonly<{ mode: TrendMode; setMode: (m: TrendMode) => void }>) {
   return (
-    <div className="flex flex-wrap gap-0">
+    <div className="flex items-center gap-2 p-1 bg-muted/50 rounded-lg">
+      <Calendar className="h-4 w-4 text-muted-foreground ml-2" />
       {MODE_ORDER.map((m) => {
         const cfg = TREND_MODES[m];
         return (
           <Button
             key={m}
-            variant={mode === m ? "default" : "outline"}
+            variant={mode === m ? "default" : "ghost"}
             size="sm"
             onClick={() => {
               setMode(m);
             }}
-            className="-ml-px first:ml-0"
+            className="min-w-[90px] flex flex-col h-auto py-1.5"
           >
-            {cfg.label} · {cfg.description}
+            <span className="font-medium">{cfg.label}</span>
+            <span className="text-[10px] opacity-70">{cfg.description}</span>
           </Button>
         );
       })}
@@ -45,53 +61,75 @@ function ModeSelector({
   );
 }
 
-function correlationTone(value: number): "up" | "down" | "flat" {
-  if (Math.abs(value) < 0.4) return "flat";
-  return value > 0 ? "up" : "down";
+function SummaryCard({
+  title,
+  value,
+  subtitle,
+  icon: Icon,
+}: Readonly<{
+  title: string;
+  value: string;
+  subtitle?: string;
+  icon: React.ElementType;
+}>) {
+  return (
+    <Card>
+      <CardContent className="pt-4 pb-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-muted-foreground">{title}</p>
+            <p className="text-2xl font-bold mt-1">{value}</p>
+            {subtitle && (
+              <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
+            )}
+          </div>
+          <div className="p-2 rounded-full bg-sleep-muted">
+            <Icon className="h-5 w-5 text-sleep" />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 
-const toneClass = {
-  up: "text-moss",
-  down: "text-rust",
-  flat: "text-muted-foreground",
-};
+function correlationColor(value: number): string {
+  if (Math.abs(value) < 0.4) return "text-muted-foreground";
+  return value > 0 ? "text-green-500" : "text-red-500";
+}
 
-function CorrelationRow({
+function CorrelationValue({
   label,
   value,
 }: Readonly<{ label: string; value: number | null | undefined }>) {
   if (value === null || value === undefined) return null;
-  const tone = correlationTone(value);
+  const color = correlationColor(value);
   return (
-    <div className="flex justify-between items-baseline py-2.5 border-b border-border last:border-b-0">
-      <span className="type-mono-label text-muted-foreground">{label}</span>
-      <span
-        className={`font-mono text-[13px] ${toneClass[tone]}`}
-        style={{ fontFeatureSettings: '"lnum","tnum"' }}
-      >
-        {value.toFixed(2)}
-      </span>
+    <div className="flex justify-between text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={color}>{value.toFixed(2)}</span>
     </div>
   );
 }
 
-function MetricRow({
+function MetricValue({
   label,
   value,
   unit,
+  good,
 }: Readonly<{
   label: string;
   value: number | null | undefined;
   unit?: string;
+  good?: boolean;
 }>) {
   if (value === null || value === undefined) return null;
+  let color = "";
+  if (good === true) color = "text-green-500";
+  else if (good === false) color = "text-yellow-500";
   return (
-    <div className="flex justify-between items-baseline py-2.5 border-b border-border last:border-b-0">
-      <span className="type-mono-label text-muted-foreground">{label}</span>
-      <span
-        className="font-mono text-[13px] text-foreground"
-        style={{ fontFeatureSettings: '"lnum","tnum"' }}
-      >
+    <div className="flex justify-between text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={`font-medium ${color}`}>
         {typeof value === "number" ? value.toFixed(1) : value}
         {unit ? ` ${unit}` : ""}
       </span>
@@ -101,34 +139,38 @@ function MetricRow({
 
 function formatScore(v: number | null | undefined): string {
   if (v === null || v === undefined) return "—";
-  return String(Math.round(v));
+  return `${String(Math.round(v))}/100`;
+}
+
+function formatScoreSubtitle(v: number | null | undefined): string | undefined {
+  if (v === null || v === undefined) return undefined;
+  return `avg: ${String(Math.round(v))}/100`;
 }
 
 function formatPct(v: number | null | undefined): string {
   if (v === null || v === undefined) return "—";
-  return v.toFixed(0);
+  return `${v.toFixed(0)}%`;
 }
 
-function formatLatencyValue(v: number | null | undefined): string {
+function deepSleepSubtitle(v: number | null | undefined): string | undefined {
+  if (v === null || v === undefined) return undefined;
+  return v >= 15 ? "On target (15%+)" : "Below target";
+}
+
+function formatLatency(v: number | null | undefined): string {
   if (v === null || v === undefined) return "—";
-  return String(Math.round(v));
+  return `${String(Math.round(v))} min`;
 }
 
-function fmtDelta(value: number | null, unit = ""): string {
-  if (value == null || !Number.isFinite(value)) return "—";
-  const sign = value > 0 ? "+" : value < 0 ? "" : "±";
-  const arrow = value > 0 ? "↑" : value < 0 ? "↓" : "→";
-  return `${arrow} ${sign}${value.toFixed(value >= 10 ? 0 : 1)}${unit}`;
+function latencySubtitle(v: number | null | undefined): string | undefined {
+  if (v === null || v === undefined) return undefined;
+  return v <= 20 ? "Good (<20 min)" : "Elevated";
 }
 
-function deltaTone(
-  value: number | null,
-  goodDirection: "up" | "down",
-): "up" | "down" | "flat" {
-  if (value == null || !Number.isFinite(value)) return "flat";
-  if (Math.abs(value) < 0.5) return "flat";
-  if (value > 0) return goodDirection === "up" ? "up" : "down";
-  return goodDirection === "down" ? "up" : "down";
+function zScoreColor(z: number): string {
+  if (z >= 0.5) return "text-green-500";
+  if (z <= -0.5) return "text-red-500";
+  return "";
 }
 
 export function SleepOverviewPage() {
@@ -156,10 +198,6 @@ export function SleepOverviewPage() {
     [startDate, endDate],
   );
 
-  const todayDate = new Date();
-  const dateLine = format(todayDate, "d LLLL yyyy");
-  const weekday = format(todayDate, "EEEE");
-
   if (analyticsError) {
     return (
       <ErrorCard
@@ -170,24 +208,18 @@ export function SleepOverviewPage() {
 
   if (analyticsLoading || healthLoading || !analyticsData) {
     return (
-      <div className="space-y-0">
-        <Masthead
-          leftLine={`№ ${format(todayDate, "DDD")} · ${weekday}`}
-          title={
-            <>
-              Of <SerifEm>sleep</SerifEm>
-            </>
-          }
-          rightLine={dateLine}
-        />
-        <section className="py-7">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-5 pb-4 border-b border-border">
-            <span className="type-mono-eyebrow text-muted-foreground">
-              window
-            </span>
-            <ModeSelector mode={mode} setMode={setMode} />
+      <div className="space-y-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">
+              Sleep Analytics
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              Deep dive into your sleep data
+            </p>
           </div>
-        </section>
+          <ModeSelector mode={mode} setMode={setMode} />
+        </div>
         <LoadingState message="Analyzing sleep data..." />
       </div>
     );
@@ -196,6 +228,7 @@ export function SleepOverviewPage() {
   const { sleep_metrics: sleepMetrics, advanced_insights: advancedInsights } =
     analyticsData;
   const baselines = analyticsData.metric_baselines;
+  const rawSeries = analyticsData.raw_series;
   const sleepQuality = advancedInsights?.sleep_quality;
   const sleepTemp = advancedInsights?.sleep_temperature;
 
@@ -205,8 +238,6 @@ export function SleepOverviewPage() {
   const sleepScoreMean = baselines.sleep_score?.mean ?? null;
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   const sleepLatencyCurrent = baselines.sleep_latency?.current_value ?? null;
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  const sleepLatencyMean = baselines.sleep_latency?.mean ?? null;
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   const tossCurrent = baselines.toss_and_turn?.current_value ?? null;
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
@@ -218,499 +249,372 @@ export function SleepOverviewPage() {
 
   const eightSleepData = healthData?.eight_sleep_sessions ?? [];
 
-  const sleepDurationSpark = (healthData?.sleep ?? [])
-    .slice(-30)
-    .map((p) => (p.total_sleep_minutes ?? 0) / 60)
-    .filter((v) => v > 0);
-
-  const avgSleepShort = sleepMetrics.avg_sleep_short;
-  const targetSleep = sleepMetrics.target_sleep;
-  const sleepDurationDelta =
-    avgSleepShort != null ? (avgSleepShort - targetSleep) / 60 : null;
-
-  const sleepScoreDelta =
-    sleepScoreCurrent != null && sleepScoreMean != null
-      ? sleepScoreCurrent - sleepScoreMean
-      : null;
-
-  const latencyDelta =
-    sleepLatencyCurrent != null && sleepLatencyMean != null
-      ? sleepLatencyCurrent - sleepLatencyMean
-      : null;
-
-  const deepSleepDelta =
-    sleepQuality?.deep_sleep_pct != null
-      ? sleepQuality.deep_sleep_pct - 15
-      : null;
-
   return (
-    <div className="space-y-0">
-      <Masthead
-        leftLine={`№ ${format(todayDate, "DDD")} · ${weekday}`}
-        title={
-          <>
-            Of <SerifEm>sleep</SerifEm>
-          </>
-        }
-        rightLine={dateLine}
-      />
-
-      <section className="py-7">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-5 pb-4 border-b border-border">
-          <span className="type-mono-eyebrow text-muted-foreground">
-            window
-          </span>
+    <div className="space-y-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Sleep Analytics</h1>
+          <p className="text-muted-foreground mt-1">
+            Deep dive into your sleep data
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {isFetching && (
+            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+          )}
           <ModeSelector mode={mode} setMode={setMode} />
         </div>
-        <div className="mt-3 flex items-center gap-2 type-mono-label text-muted-foreground">
-          {isFetching && (
-            <>
-              <Loader2 className="h-3 w-3 animate-spin text-brass" />
-              <span>fetching…</span>
-            </>
-          )}
-        </div>
-      </section>
+      </div>
 
-      <section className="pt-10">
-        <SectionHead
-          title={
-            <>
-              Vital <SerifEm>signs</SerifEm>
-            </>
-          }
-          meta={
-            <>
-              4 indices · {cfg.label.toLowerCase()} window
-              <br />
-              vs {cfg.description}
-            </>
-          }
+      {/* Summary Cards */}
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        <SummaryCard
+          title="Sleep Score"
+          value={formatScore(sleepScoreCurrent)}
+          subtitle={formatScoreSubtitle(sleepScoreMean)}
+          icon={Star}
         />
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y divide-border sm:divide-y-0 sm:divide-x sm:[&>*:nth-child(3)]:border-l-0 sm:[&>*:nth-child(3)]:border-t lg:[&>*:nth-child(3)]:border-l lg:[&>*:nth-child(3)]:border-t-0">
-          <Vital
-            name="sleep score"
-            value={formatScore(sleepScoreCurrent)}
-            unit="/100"
-            delta={fmtDelta(sleepScoreDelta)}
-            deltaTone={deltaTone(sleepScoreDelta, "up")}
-          />
-          {(() => {
-            const sleepFormatted =
-              avgSleepShort === null ? null : formatSleepMinutes(avgSleepShort);
-            const sleepSplit =
-              sleepFormatted === null
-                ? { value: "—", unit: undefined as string | undefined }
-                : splitValueUnit(sleepFormatted);
-            return (
-              <Vital
-                name="duration"
-                value={sleepSplit.value}
-                unit={sleepSplit.unit}
-                delta={fmtDelta(sleepDurationDelta, "h")}
-                deltaTone={deltaTone(sleepDurationDelta, "up")}
-                spark={sleepDurationSpark}
-              />
-            );
-          })()}
-          <Vital
-            name="deep sleep"
-            value={formatPct(sleepQuality?.deep_sleep_pct)}
-            unit="%"
-            delta={fmtDelta(deepSleepDelta, "pp")}
-            deltaTone={deltaTone(deepSleepDelta, "up")}
-          />
-          <Vital
-            name="latency"
-            value={formatLatencyValue(sleepLatencyCurrent)}
-            unit="min"
-            delta={fmtDelta(latencyDelta)}
-            deltaTone={deltaTone(latencyDelta, "down")}
-          />
-        </div>
-      </section>
-
-      <section className="pt-14">
-        <SectionHead
-          title={
-            <>
-              Stage <SerifEm>distribution</SerifEm>
-            </>
+        <SummaryCard
+          title="Sleep Duration"
+          value={
+            sleepMetrics.avg_sleep_short === null
+              ? "—"
+              : formatSleepMinutes(sleepMetrics.avg_sleep_short)
           }
-          meta={
-            <>
-              duration & breakdown
-              <br />
-              {rangeDays}d view
-            </>
-          }
+          subtitle={`target: ${formatSleepMinutes(sleepMetrics.target_sleep)}`}
+          icon={Moon}
         />
-        <div className="grid gap-6 lg:grid-cols-2">
-          <ChartCard
-            title="Duration"
-            icon={Moon}
-            iconColorClass="text-foreground"
-            iconBgClass="border border-border"
-          >
-            <ChartErrorBoundary>
-              <SleepChart
-                data={healthData?.sleep ?? []}
-                showTrends
-                dateRange={dateRange}
-              />
-            </ChartErrorBoundary>
-          </ChartCard>
-
-          <ChartCard
-            title="Stage Breakdown"
-            icon={Moon}
-            iconColorClass="text-foreground"
-            iconBgClass="border border-border"
-          >
-            <ChartErrorBoundary>
-              <SleepChart
-                data={healthData?.sleep ?? []}
-                showBreakdown
-                dateRange={dateRange}
-              />
-            </ChartErrorBoundary>
-          </ChartCard>
-        </div>
-      </section>
-
-      <section className="pt-14">
-        <SectionHead
-          title={
-            <>
-              Thermal <SerifEm>environment</SerifEm>
-            </>
-          }
-          meta={
-            sleepTemp ? (
-              <>
-                {sleepTemp.sample_size} nights observed
-                <br />
-                bed & room correlations
-              </>
-            ) : undefined
-          }
+        <SummaryCard
+          title="Deep Sleep"
+          value={formatPct(sleepQuality?.deep_sleep_pct)}
+          subtitle={deepSleepSubtitle(sleepQuality?.deep_sleep_pct)}
+          icon={Brain}
         />
-        <div className="grid gap-6 lg:grid-cols-2">
+        <SummaryCard
+          title="Sleep Latency"
+          value={formatLatency(sleepLatencyCurrent)}
+          subtitle={latencySubtitle(sleepLatencyCurrent)}
+          icon={Clock}
+        />
+      </div>
+
+      {/* Sleep Duration Chart */}
+      <ChartErrorBoundary>
+        <ChartCard
+          title="Sleep Duration"
+          icon={Moon}
+          iconColorClass="text-sleep"
+          iconBgClass="bg-sleep-muted"
+        >
+          <SleepChart
+            data={healthData?.sleep ?? []}
+            showTrends
+            dateRange={dateRange}
+          />
+        </ChartCard>
+      </ChartErrorBoundary>
+
+      {/* Sleep Stages Breakdown */}
+      <ChartErrorBoundary>
+        <ChartCard
+          title="Sleep Stage Breakdown"
+          icon={Moon}
+          iconColorClass="text-sleep"
+          iconBgClass="bg-sleep-muted"
+        >
+          <SleepChart
+            data={healthData?.sleep ?? []}
+            showBreakdown
+            dateRange={dateRange}
+          />
+        </ChartCard>
+      </ChartErrorBoundary>
+
+      {/* Temperature Environment */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <ChartErrorBoundary>
           <ChartCard
-            title="Temperature"
+            title="Temperature Environment"
             icon={Thermometer}
-            iconColorClass="text-foreground"
-            iconBgClass="border border-border"
+            iconColorClass="text-orange-500"
+            iconBgClass="bg-orange-100 dark:bg-orange-900/30"
           >
-            <ChartErrorBoundary>
-              <TemperatureChart data={eightSleepData} dateRange={dateRange} />
-            </ChartErrorBoundary>
+            <TemperatureChart data={eightSleepData} dateRange={dateRange} />
           </ChartCard>
+        </ChartErrorBoundary>
 
-          {sleepTemp && (
-            <article className="border border-border p-7">
-              <header className="flex items-baseline justify-between pb-4 mb-4 border-b border-border">
-                <span className="type-mono-eyebrow text-foreground/80">
-                  Temperature & Sleep
-                </span>
-                <span className="type-mono-label text-muted-foreground">
-                  n = {sleepTemp.sample_size}
-                </span>
-              </header>
-              <div className="space-y-0">
-                <CorrelationRow
-                  label="Bed Temp → Sleep Score"
-                  value={sleepTemp.bed_temp_sleep_score_r}
-                />
-                <CorrelationRow
-                  label="Bed Temp → Deep Sleep %"
-                  value={sleepTemp.bed_temp_deep_pct_r}
-                />
-                <CorrelationRow
-                  label="Room Temp → Sleep Score"
-                  value={sleepTemp.room_temp_sleep_score_r}
-                />
-                <MetricRow
-                  label="Optimal Bed Temp"
-                  value={sleepTemp.optimal_bed_temp}
-                  unit="°C"
-                />
-                <MetricRow
-                  label="Optimal Room Temp"
-                  value={sleepTemp.optimal_room_temp}
-                  unit="°C"
-                />
-              </div>
-            </article>
-          )}
-        </div>
-      </section>
+        {sleepTemp && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Thermometer className="h-5 w-5 text-orange-500" />
+                Temperature & Sleep
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <CorrelationValue
+                label="Bed Temp → Sleep Score"
+                value={sleepTemp.bed_temp_sleep_score_r}
+              />
+              <CorrelationValue
+                label="Bed Temp → Deep Sleep %"
+                value={sleepTemp.bed_temp_deep_pct_r}
+              />
+              <CorrelationValue
+                label="Room Temp → Sleep Score"
+                value={sleepTemp.room_temp_sleep_score_r}
+              />
+              <hr className="my-2 border-border/50" />
+              <MetricValue
+                label="Optimal Bed Temp"
+                value={sleepTemp.optimal_bed_temp}
+                unit="°C"
+              />
+              <MetricValue
+                label="Optimal Room Temp"
+                value={sleepTemp.optimal_room_temp}
+                unit="°C"
+              />
+              <p className="text-xs text-muted-foreground mt-2">
+                Based on {sleepTemp.sample_size} nights
+              </p>
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
+      {/* Eight Sleep Scores */}
       {eightSleepData.length > 0 && (
-        <section className="pt-14">
-          <SectionHead
-            title={
-              <>
-                Eight Sleep <SerifEm>indices</SerifEm>
-              </>
-            }
-            meta={<>fitness · routine · quality</>}
+        <div className="grid gap-4 md:grid-cols-3">
+          <ScoreCard
+            title="Sleep Fitness"
+            icon={Award}
+            baseline={baselines.sleep_fitness}
+            series={rawSeries.sleep_fitness}
           />
-          <div className="grid grid-cols-1 sm:grid-cols-3 divide-y divide-border sm:divide-y-0 sm:divide-x">
-            <SleepIndexTile
-              name="Sleep Fitness"
-              baseline={baselines.sleep_fitness}
-            />
-            <SleepIndexTile
-              name="Sleep Routine"
-              baseline={baselines.sleep_routine}
-            />
-            <SleepIndexTile
-              name="Sleep Quality"
-              baseline={baselines.sleep_quality_es}
-            />
-          </div>
-        </section>
+          <ScoreCard
+            title="Sleep Routine"
+            icon={RotateCcw}
+            baseline={baselines.sleep_routine}
+            series={rawSeries.sleep_routine}
+          />
+          <ScoreCard
+            title="Sleep Quality"
+            icon={Sparkles}
+            baseline={baselines.sleep_quality_es}
+            series={rawSeries.sleep_quality_es}
+          />
+        </div>
       )}
 
+      {/* Sleep Quality Analytics */}
       {sleepQuality && (
-        <section className="pt-14">
-          <SectionHead
-            title={
-              <>
-                Quality <SerifEm>analytics</SerifEm>
-              </>
-            }
-            meta={<>architecture & responsiveness</>}
-          />
-          <div className="grid gap-0 md:grid-cols-3 border-t border-border">
-            <div className="p-7 border-b md:border-b-0 md:border-r border-border">
-              <span className="type-mono-eyebrow text-muted-foreground block mb-4">
-                stages
-              </span>
-              <div className="space-y-0">
-                <MetricRow
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Brain className="h-5 w-5 text-sleep" />
+              Sleep Quality Analytics
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <div className="space-y-2">
+                <MetricValue
                   label="Deep Sleep"
                   value={sleepQuality.deep_sleep_pct}
                   unit="%"
+                  good={
+                    sleepQuality.deep_sleep_pct === null
+                      ? undefined
+                      : sleepQuality.deep_sleep_pct >= 15
+                  }
                 />
-                <MetricRow
+                <MetricValue
                   label="REM Sleep"
                   value={sleepQuality.rem_sleep_pct}
                   unit="%"
+                  good={
+                    sleepQuality.rem_sleep_pct === null
+                      ? undefined
+                      : sleepQuality.rem_sleep_pct >= 20
+                  }
                 />
               </div>
-            </div>
-            <div className="p-7 border-b md:border-b-0 md:border-r border-border">
-              <span className="type-mono-eyebrow text-muted-foreground block mb-4">
-                consistency
-              </span>
-              <div className="space-y-0">
-                <MetricRow
+              <div className="space-y-2">
+                <MetricValue
                   label="Efficiency"
                   value={sleepQuality.efficiency}
                   unit="%"
+                  good={
+                    sleepQuality.efficiency === null
+                      ? undefined
+                      : sleepQuality.efficiency >= 85
+                  }
                 />
-                <MetricRow
+                <MetricValue
                   label="Consistency"
                   value={sleepQuality.consistency_score}
                   unit="/100"
                 />
               </div>
-            </div>
-            <div className="p-7">
-              <span className="type-mono-eyebrow text-muted-foreground block mb-4">
-                disturbance
-              </span>
-              <div className="space-y-0">
-                <MetricRow
+              <div className="space-y-2">
+                <MetricValue
                   label="Fragmentation"
                   value={sleepQuality.fragmentation_index}
                   unit="/hr"
                 />
-                <MetricRow
+                <MetricValue
                   label="Sleep→HRV Response"
                   value={sleepQuality.sleep_hrv_responsiveness}
+                  unit=""
                 />
               </div>
             </div>
-          </div>
-        </section>
+          </CardContent>
+        </Card>
       )}
 
-      <section className="pt-14">
-        <SectionHead
-          title={
-            <>
-              Debt & <SerifEm>targets</SerifEm>
-            </>
-          }
-          meta={<>balance against {cfg.description}</>}
-        />
-        <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-border border-y border-border">
-          <DebtTile
-            label="target"
-            value={formatSleepMinutes(sleepMetrics.target_sleep)}
-          />
-          <DebtTile
-            label="consistency cv"
-            value={`${(sleepMetrics.sleep_cv * 100).toFixed(0)}%`}
-          />
-          <DebtTile
-            label="debt"
-            value={
-              sleepMetrics.sleep_debt_short > 0
-                ? `−${formatSleepMinutes(sleepMetrics.sleep_debt_short)}`
-                : "—"
-            }
-            tone={sleepMetrics.sleep_debt_short > 0 ? "down" : "flat"}
-          />
-          <DebtTile
-            label="surplus"
-            value={
-              sleepMetrics.sleep_surplus_short > 0
-                ? `+${formatSleepMinutes(sleepMetrics.sleep_surplus_short)}`
-                : "—"
-            }
-            tone={sleepMetrics.sleep_surplus_short > 0 ? "up" : "flat"}
-          />
-        </div>
-      </section>
+      {/* Sleep Debt & Targets */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Moon className="h-5 w-5 text-sleep" />
+            Sleep Debt & Targets
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground">Target</p>
+              <p className="text-xl font-bold">
+                {formatSleepMinutes(sleepMetrics.target_sleep)}
+              </p>
+            </div>
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground">Consistency (CV)</p>
+              <p className="text-xl font-bold">
+                {(sleepMetrics.sleep_cv * 100).toFixed(0)}%
+              </p>
+            </div>
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground">Sleep Debt</p>
+              <p className="text-xl font-bold text-red-500">
+                {sleepMetrics.sleep_debt_short > 0
+                  ? `-${formatSleepMinutes(sleepMetrics.sleep_debt_short)}`
+                  : "—"}
+              </p>
+            </div>
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground">Sleep Surplus</p>
+              <p className="text-xl font-bold text-green-500">
+                {sleepMetrics.sleep_surplus_short > 0
+                  ? `+${formatSleepMinutes(sleepMetrics.sleep_surplus_short)}`
+                  : "—"}
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-      <section className="pt-14">
-        <SectionHead
-          title={
-            <>
-              Onset & <SerifEm>movement</SerifEm>
-            </>
-          }
-          meta={<>latency · toss & turn · respiration</>}
-        />
-        <div className="grid gap-6 lg:grid-cols-2">
+      {/* Sleep Latency & Toss and Turn */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <ChartErrorBoundary>
           <ChartCard
             title="Sleep Latency"
             icon={Clock}
-            iconColorClass="text-foreground"
-            iconBgClass="border border-border"
+            iconColorClass="text-sleep"
+            iconBgClass="bg-sleep-muted"
           >
-            <ChartErrorBoundary>
-              <SleepLatencyChart data={eightSleepData} dateRange={dateRange} />
-            </ChartErrorBoundary>
+            <SleepLatencyChart data={eightSleepData} dateRange={dateRange} />
           </ChartCard>
+        </ChartErrorBoundary>
 
-          <article className="border border-border p-7">
-            <header className="flex items-baseline justify-between pb-4 mb-4 border-b border-border">
-              <span className="type-mono-eyebrow text-foreground/80">
-                Toss & Turn
-              </span>
-              <Brain className="h-3.5 w-3.5 text-muted-foreground" />
-            </header>
-            <div className="space-y-0">
-              <MetricRow label="Current" value={tossCurrent} unit="times" />
-              <MetricRow label="Average" value={tossMean} unit="times" />
-              <MetricRow
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Hash className="h-5 w-5 text-stress" />
+              Toss & Turn
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <MetricValue label="Current" value={tossCurrent} unit="times" />
+              <MetricValue label="Average" value={tossMean} unit="times" />
+              <MetricValue
                 label="Respiratory Rate"
                 value={respCurrent}
                 unit="br/min"
               />
-              <MetricRow
+              <MetricValue
                 label="Resp. Rate Avg"
                 value={respMean}
                 unit="br/min"
               />
             </div>
-          </article>
-        </div>
-      </section>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
 
-function SleepIndexTile({
-  name,
+function ScoreCard({
+  title,
+  icon: Icon,
   baseline,
+  series,
 }: Readonly<{
-  name: string;
+  title: string;
+  icon: React.ElementType;
   baseline?: {
     current_value: number | null;
     mean: number | null;
     z_score: number | null;
   };
+  series?: { date: string; value: number | null }[];
 }>) {
   const current = baseline?.current_value;
   const mean = baseline?.mean;
   const zScore = baseline?.z_score;
-  const delta = current != null && mean != null ? current - mean : null;
-
-  let zToneClass = "text-muted-foreground";
-  if (zScore != null) {
-    if (zScore >= 0.5) zToneClass = "text-moss";
-    else if (zScore <= -0.5) zToneClass = "text-rust";
-  }
 
   return (
-    <article className="relative flex flex-col gap-3.5 px-5 py-7">
-      <header className="flex items-baseline justify-between gap-3">
-        <span className="type-mono-eyebrow text-foreground/80">{name}</span>
-        <span className="type-mono-label text-muted-foreground">
-          avg{" "}
-          {mean === null || mean === undefined ? "—" : String(Math.round(mean))}
-        </span>
-      </header>
-      <div
-        className="font-serif text-[clamp(46px,5.5vw,68px)] leading-[0.9] tracking-[-0.04em] flex items-baseline gap-2"
-        style={{
-          fontVariationSettings: '"opsz" 144, "SOFT" 60',
-          fontWeight: 350,
-        }}
-      >
-        <span style={{ fontFeatureSettings: '"lnum","tnum"' }}>
-          {formatScore(current)}
-        </span>
-        <span className="font-mono text-[12px] text-muted-foreground tracking-wide font-normal">
-          /100
-        </span>
-      </div>
-      <div className="flex items-center justify-between gap-3 mt-auto pt-2">
-        <span className="font-mono text-[11px] text-muted-foreground">
-          {fmtDelta(delta)}
-        </span>
-        {zScore !== null && zScore !== undefined && (
-          <span
-            className={`font-mono text-[11px] ${zToneClass}`}
-            style={{ fontFeatureSettings: '"lnum","tnum"' }}
-          >
-            {`${(zScore >= 0 ? "+" : "") + zScore.toFixed(1)}σ`}
+    <Card>
+      <CardContent className="pt-4 pb-3">
+        <div className="flex items-center gap-2 mb-2">
+          <Icon className="h-4 w-4 text-sleep" />
+          <span className="text-sm font-medium">{title}</span>
+        </div>
+        <p className="text-2xl font-bold">{formatScore(current)}</p>
+        <div className="flex justify-between text-xs text-muted-foreground mt-1">
+          <span>
+            avg:{" "}
+            {mean === null || mean === undefined
+              ? "—"
+              : String(Math.round(mean))}
           </span>
+          {zScore !== null && zScore !== undefined && (
+            <span className={zScoreColor(zScore)}>
+              {`${(zScore >= 0 ? "+" : "") + zScore.toFixed(1)}σ`}
+            </span>
+          )}
+        </div>
+        {series && series.length > 0 && (
+          <div className="flex gap-[2px] mt-2 h-8 items-end">
+            {series.slice(-14).map((point) => {
+              const v = point.value;
+              if (v === null) return null;
+              const height = Math.max(4, (v / 100) * 32);
+              return (
+                <div
+                  key={point.date}
+                  className="flex-1 rounded-sm bg-sleep/60"
+                  style={{ height: `${String(height)}px` }}
+                />
+              );
+            })}
+          </div>
         )}
-      </div>
-    </article>
-  );
-}
-
-function DebtTile({
-  label,
-  value,
-  tone = "flat",
-}: Readonly<{
-  label: string;
-  value: string;
-  tone?: "up" | "down" | "flat";
-}>) {
-  return (
-    <div className="px-5 py-7 flex flex-col gap-3">
-      <span className="type-mono-eyebrow text-muted-foreground">{label}</span>
-      <div
-        className={`font-serif text-[clamp(28px,3.6vw,42px)] leading-[0.95] tracking-[-0.03em] ${toneClass[tone]}`}
-        style={{
-          fontVariationSettings: '"opsz" 144, "SOFT" 60',
-          fontWeight: 350,
-          fontFeatureSettings: '"lnum","tnum"',
-        }}
-      >
-        {value}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }

@@ -70,20 +70,10 @@ const queryClient = new QueryClient({
   },
 });
 
-if (
-  import.meta.env.DEV &&
-  typeof globalThis.window !== "undefined" &&
-  new URLSearchParams(globalThis.location.search).has("demo")
-) {
-  await import("./lib/demo-mode").then((m) => {
-    m.installDemoMode();
-  });
-} else {
-  await useAuthStore
-    .getState()
-    .checkAuth()
-    .catch(() => {});
-}
+await useAuthStore
+  .getState()
+  .checkAuth()
+  .catch(() => {});
 
 const rootElement = document.getElementById("root");
 if (!rootElement) throw new Error("Root element not found");

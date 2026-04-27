@@ -1,5 +1,12 @@
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "../../../components/ui/card";
 import { formatSleepMinutes } from "../../../lib/metrics";
 import type { SleepMetrics } from "../../../types/api";
+import { Moon } from "lucide-react";
 import { formatDaysLabel } from "./stat-utils";
 
 export interface SleepSectionProps {
@@ -8,81 +15,71 @@ export interface SleepSectionProps {
   readonly baselineDays: number;
 }
 
-interface CellProps {
-  readonly label: string;
-  readonly value: string;
-  readonly tone?: "default" | "good" | "bad";
-}
-
-function Cell({ label, value, tone = "default" }: CellProps) {
-  const toneClass =
-    tone === "good"
-      ? "text-moss"
-      : tone === "bad"
-        ? "text-rust"
-        : "text-foreground";
-  return (
-    <div className="flex flex-col gap-1.5 px-6 py-7">
-      <span className="type-mono-label text-muted-foreground">{label}</span>
-      <span
-        className={`font-serif text-[clamp(28px,3.2vw,40px)] leading-none tracking-[-0.03em] ${toneClass}`}
-        style={{
-          fontVariationSettings: '"opsz" 144, "SOFT" 60',
-          fontWeight: 350,
-          fontFeatureSettings: '"lnum","tnum"',
-        }}
-      >
-        {value}
-      </span>
-    </div>
-  );
-}
-
 export function SleepSection({
   sleepMetrics,
   shortTermDays,
   baselineDays,
 }: SleepSectionProps) {
   return (
-    <div className="border-t border-border">
-      <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-border">
-        <Cell
-          label="Target / night"
-          value={formatSleepMinutes(sleepMetrics.target_sleep)}
-        />
-        <Cell
-          label="Consistency · CV"
-          value={`${(sleepMetrics.sleep_cv * 100).toFixed(1)}%`}
-        />
-        <Cell
-          label={`${formatDaysLabel(shortTermDays)} average`}
-          value={
-            sleepMetrics.avg_sleep_short == null
-              ? "—"
-              : formatSleepMinutes(sleepMetrics.avg_sleep_short)
-          }
-        />
-        <Cell
-          label={`${formatDaysLabel(baselineDays)} average`}
-          value={
-            sleepMetrics.avg_sleep_long == null
-              ? "—"
-              : formatSleepMinutes(sleepMetrics.avg_sleep_long)
-          }
-        />
-      </div>
-      <div className="grid grid-cols-2 divide-x divide-border border-t border-border">
-        <Cell
-          label="Debt"
-          value={formatSleepMinutes(sleepMetrics.sleep_debt_short)}
-          tone="bad"
-        />
-        <Cell
-          label="Surplus"
-          value={formatSleepMinutes(sleepMetrics.sleep_surplus_short)}
-          tone="good"
-        />
-      </div>
-    </div>
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Moon className="h-4 w-4" />
+          Sleep Analysis
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p className="text-xs text-muted-foreground">Target</p>
+            <p className="font-medium">
+              {formatSleepMinutes(sleepMetrics.target_sleep)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Consistency (CV)</p>
+            <p className="font-medium">
+              {(sleepMetrics.sleep_cv * 100).toFixed(1)}%
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">
+              {formatDaysLabel(shortTermDays)} Average
+            </p>
+            <p className="font-medium">
+              {sleepMetrics.avg_sleep_short == null
+                ? "—"
+                : formatSleepMinutes(sleepMetrics.avg_sleep_short)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">
+              {formatDaysLabel(baselineDays)} Average
+            </p>
+            <p className="font-medium">
+              {sleepMetrics.avg_sleep_long == null
+                ? "—"
+                : formatSleepMinutes(sleepMetrics.avg_sleep_long)}
+            </p>
+          </div>
+        </div>
+        <div className="pt-2 border-t">
+          <div className="flex justify-between text-sm">
+            <span>
+              Debt:{" "}
+              <span className="font-medium text-red-500">
+                {formatSleepMinutes(sleepMetrics.sleep_debt_short)}
+              </span>
+            </span>
+            <span>
+              Surplus:{" "}
+              <span className="font-medium text-green-500">
+                {formatSleepMinutes(sleepMetrics.sleep_surplus_short)}
+              </span>
+            </span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

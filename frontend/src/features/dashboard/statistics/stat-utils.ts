@@ -24,6 +24,42 @@ const CONFIDENCE: ColorConfig = {
   defaultColor: "text-green-500",
 };
 
+const HRV_RHR: ColorConfig = {
+  nullColor: "text-muted-foreground",
+  rules: [
+    [">", 1, "text-red-500"],
+    ["<", -1, "text-green-500"],
+  ],
+  defaultColor: "text-blue-500",
+};
+
+const SLEEP_DEBT: ColorConfig = {
+  nullColor: "",
+  rules: [
+    [">", 120, "text-red-500"],
+    [">", 60, "text-yellow-500"],
+  ],
+  defaultColor: "text-green-500",
+};
+
+const ACWR: ColorConfig = {
+  nullColor: "text-muted-foreground",
+  rules: [
+    [">", 1.5, "text-red-500"],
+    ["<", 0.8, "text-yellow-500"],
+  ],
+  defaultColor: "text-green-500",
+};
+
+const STEPS_CHANGE: ColorConfig = {
+  nullColor: "text-muted-foreground",
+  rules: [
+    ["<", -1000, "text-red-500"],
+    [">", 1000, "text-green-500"],
+  ],
+  defaultColor: "text-blue-500",
+};
+
 const WEIGHT_CHANGE: ColorConfig = {
   nullColor: "",
   rules: [
@@ -89,6 +125,18 @@ const CROSS_CORRELATION: ColorConfig = {
 
 export const getConfidenceColor = (value: number): string =>
   colorByThresholds(value, CONFIDENCE);
+
+export const getHrvRhrColor = (value: number | null): string =>
+  colorByThresholds(value, HRV_RHR);
+
+export const getSleepDebtColor = (value: number): string =>
+  colorByThresholds(value, SLEEP_DEBT);
+
+export const getAcwrColor = (value: number | null): string =>
+  colorByThresholds(value, ACWR);
+
+export const getStepsChangeColor = (value: number | null): string =>
+  colorByThresholds(value, STEPS_CHANGE);
 
 export const getWeightChangeColor = (value: number | null): string =>
   colorByThresholds(value, WEIGHT_CHANGE);

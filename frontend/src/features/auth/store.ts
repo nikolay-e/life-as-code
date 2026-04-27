@@ -81,8 +81,3 @@ export const useIsAuthenticated = () => useAuthStore((s) => s.user !== null);
 export const useIsLoading = () => useAuthStore((s) => s.isLoading);
 export const useIsInitialized = () => useAuthStore((s) => s.isInitialized);
 export const useAuthError = () => useAuthStore((s) => s.error);
-
-if (import.meta.env.DEV) {
-  (globalThis as unknown as { __authStore: typeof useAuthStore }).__authStore =
-    useAuthStore;
-}

@@ -82,7 +82,7 @@ export const TemperatureChart = memo(
             labelFormatter={(ts: number) => new Date(ts).toLocaleDateString()}
             formatter={(value, name) => {
               const v = Number(value ?? 0);
-              return [`${v.toFixed(1)}°C`, name === "bedTemp" ? "Bed" : "Room"];
+              return [v.toFixed(1) + "°C", name === "bedTemp" ? "Bed" : "Room"];
             }}
           />
           <Area

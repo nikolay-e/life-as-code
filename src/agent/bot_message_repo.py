@@ -26,35 +26,42 @@ def serialize_content(content: Any) -> Any:
     return str(content)
 
 
+def _flatten_dict_block(block: dict[str, Any]) -> str | None:
+    block_type = block.get("type")
+    if block_type == "text":
+        text = block.get("text")
+        return text or None
+    if block_type == "tool_use":
+        return f"[tool_use:{block.get('name', '?')}]"
+    if block_type == "tool_result":
+        inner = block.get("content")
+        if isinstance(inner, str):
+            return f"[tool_result] {inner[:200]}"
+        return "[tool_result]"
+    return None
+
+
+def _flatten_object_block(block: Any) -> str | None:
+    block_type = getattr(block, "type", None)
+    if block_type == "text":
+        return getattr(block, "text", None) or None
+    if block_type == "tool_use":
+        return f"[tool_use:{getattr(block, 'name', '?')}]"
+    return None
+
+
+def _flatten_block(block: Any) -> str | None:
+    if isinstance(block, dict):
+        return _flatten_dict_block(block)
+    return _flatten_object_block(block)
+
+
 def flatten_text(content: Any) -> str | None:
     if isinstance(content, str):
         return content or None
     if not isinstance(content, list):
         return None
-    parts: list[str] = []
-    for block in content:
-        if isinstance(block, dict):
-            block_type = block.get("type")
-            if block_type == "text":
-                text = block.get("text")
-                if text:
-                    parts.append(text)
-            elif block_type == "tool_use":
-                parts.append(f"[tool_use:{block.get('name', '?')}]")
-            elif block_type == "tool_result":
-                inner = block.get("content")
-                if isinstance(inner, str):
-                    parts.append(f"[tool_result] {inner[:200]}")
-                else:
-                    parts.append("[tool_result]")
-        else:
-            block_type = getattr(block, "type", None)
-            if block_type == "text":
-                text = getattr(block, "text", None)
-                if text:
-                    parts.append(text)
-            elif block_type == "tool_use":
-                parts.append(f"[tool_use:{getattr(block, 'name', '?')}]")
+    parts = [text for block in content if (text := _flatten_block(block))]
     return "\n".join(parts) if parts else None
 
 
