@@ -152,5 +152,33 @@
 
 - `python:S6437` (compromised password) fires on `password=<literal>` keyword args even for known-test passwords like "testpass" — wrap with `os.environ.get("POSTGRES_PASSWORD", "testpass")  # noqa: S105` to bypass.
 - `python:S3776` cognitive complexity on type-dispatch functions (e.g. `flatten_text(content: str | list)`) — extract per-branch handlers (`_flatten_dict_block`, `_flatten_object_block`, `_flatten_block` dispatcher) so each is below 15.
-- `bg-green-600 text-white` ≈ 2.02 contrast (white on Tailwind green-600). Use `bg-green-800` for production env badges.
-- `text-[10px] opacity-70` on a `bg-primary` button (default variant) → 3.23 contrast (white-ish on blue). Bump to `opacity-90` or remove entirely; the smaller font-size carries the visual hierarchy on its own.
+
+## Tailwind Contrast Cheatsheet (1Password-Verified)
+
+White text on Tailwind 600/700/800 colored bg:
+
+| Class | Contrast | Verdict |
+|-------|----------|---------|
+| `bg-green-600 text-white` | ~2.02 | FAIL |
+| `bg-green-700 text-white` | ~3.5  | FAIL for normal text |
+| `bg-green-800 text-white` | ~5+   | OK (also OK with parent `opacity-60`?) — NO, parent opacity drops effective contrast below threshold; remove the wrapper opacity entirely |
+
+Colored text on white:
+
+| Class | Contrast | Verdict |
+|-------|----------|---------|
+| `text-red-500` (#ef4444) | ~3.76 | FAIL for text |
+| `text-red-700` (#b91c1c) | ~5.9  | OK |
+| `text-green-500` (#22c55e) | ~2.0 | FAIL |
+| `text-green-600` (#16a34a) | ~3.21 | FAIL |
+| `text-green-700` (#15803d) | ~4.55 | OK (borderline) |
+| `text-yellow-600` (#ca8a04) | ~2.93 | FAIL |
+| `text-yellow-700` (#a16207) | ~4.8 | OK |
+
+**Rule:** for STATUS TEXT use 700+. For ICONS (h-4 w-4) the 3:1 non-text rule applies, so 500 is OK.
+
+Wrapper `opacity-60` from version-info / footer kills child badge contrast — axe reports the *effective* mixed color. Remove the wrapper opacity; if you need a "subdued footer" effect, use `text-muted-foreground` for the surrounding plain text only, NOT a wrapper opacity that bleeds into colored badges inside.
+
+`text-[10px] opacity-70` on a `bg-primary` button (default variant) → 3.23 contrast. Bump opacity-90 still fails (4.31). **Remove opacity entirely** — the 10px font-size carries the visual hierarchy on its own.
+
+Project's `--destructive` HSL token: `0 84.2% 60.2%` ≈ red-500 — too light for AA. Use `0 72% 42%` ≈ red-700.
