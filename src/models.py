@@ -1,6 +1,7 @@
 from typing import Any
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     Column,
@@ -14,7 +15,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import JSON
+from sqlalchemy.dialects.postgresql import JSON, JSONB
 from sqlalchemy.orm import declarative_base, relationship, validates
 
 from date_utils import utcnow
@@ -127,6 +128,9 @@ class User(Base):
     )
     eight_sleep_sessions = relationship(
         "EightSleepSession", back_populates="user", cascade=CASCADE_ALL_DELETE
+    )
+    bot_messages = relationship(
+        "BotMessage", back_populates="user", cascade=CASCADE_ALL_DELETE
     )
 
     def __repr__(self):
@@ -1393,3 +1397,47 @@ class EightSleepSession(Base):
 
     def __repr__(self):
         return f"<EightSleepSession(user_id={self.user_id}, date={self.date}, score={self.score})>"
+
+
+class BotMessage(Base):
+    __tablename__ = "bot_messages"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
+    chat_id = Column(BigInteger, nullable=False, index=True)
+    role = Column(String(20), nullable=False)
+    content = Column(JSONB, nullable=False)
+    text_preview = Column(Text)
+    source = Column(String(50), nullable=False, default="chat")
+    telegram_message_id = Column(BigInteger)
+    model = Column(String(100))
+    input_tokens = Column(Integer)
+    output_tokens = Column(Integer)
+    cache_creation_input_tokens = Column(Integer)
+    cache_read_input_tokens = Column(Integer)
+    stop_reason = Column(String(50))
+    request_id = Column(String(100))
+    cleared_at = Column(DateTime)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+
+    user = relationship("User", back_populates="bot_messages")
+
+    __table_args__ = (
+        Index(
+            "idx_bot_message_user_chat_created",
+            "user_id",
+            "chat_id",
+            "created_at",
+            postgresql_ops={"created_at": "DESC"},
+        ),
+        CheckConstraint(
+            "role IN ('user', 'assistant', 'system')",
+            name="valid_bot_message_role",
+        ),
+    )
+
+    def __repr__(self):
+        return (
+            f"<BotMessage(user_id={self.user_id}, chat_id={self.chat_id}, "
+            f"role={self.role}, source={self.source}, created_at={self.created_at})>"
+        )

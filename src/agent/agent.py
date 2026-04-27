@@ -108,7 +108,7 @@ class HealthAgent:
         *,
         max_tokens: int | None = None,
         on_tool_exchange: (
-            Callable[[list, list[dict[str, Any]] | None], None] | None
+            Callable[[list, list[dict[str, Any]] | None, dict[str, Any]], None] | None
         ) = None,
     ) -> str:
         effective_max_tokens = max_tokens or self.config.max_tokens
@@ -121,9 +121,12 @@ class HealthAgent:
                 tools=TOOLS,
                 messages=messages,
             )
+            meta = self._extract_response_meta(response)
 
             if response.stop_reason == "end_turn":
-                return self._extract_final_text(response.content, on_tool_exchange)
+                return self._extract_final_text(
+                    response.content, on_tool_exchange, meta
+                )
 
             assistant_content = response.content
             messages.append({"role": "assistant", "content": assistant_content})
@@ -131,22 +134,42 @@ class HealthAgent:
             tool_results = self._execute_tool_calls(user_id, response.content)
 
             if not tool_results:
-                return self._extract_final_text(response.content, on_tool_exchange)
+                return self._extract_final_text(
+                    response.content, on_tool_exchange, meta
+                )
 
             messages.append({"role": "user", "content": tool_results})
             if on_tool_exchange is not None:
-                on_tool_exchange(assistant_content, tool_results)
+                on_tool_exchange(assistant_content, tool_results, meta)
 
         return "Не удалось получить ответ — превышен лимит вызовов инструментов."
 
     @staticmethod
+    def _extract_response_meta(response: Any) -> dict[str, Any]:
+        usage = getattr(response, "usage", None)
+        return {
+            "model": getattr(response, "model", None),
+            "stop_reason": getattr(response, "stop_reason", None),
+            "request_id": getattr(response, "id", None),
+            "input_tokens": getattr(usage, "input_tokens", None),
+            "output_tokens": getattr(usage, "output_tokens", None),
+            "cache_creation_input_tokens": getattr(
+                usage, "cache_creation_input_tokens", None
+            ),
+            "cache_read_input_tokens": getattr(usage, "cache_read_input_tokens", None),
+        }
+
+    @staticmethod
     def _extract_final_text(
         content: list,
-        on_tool_exchange: Callable[[list, list[dict[str, Any]] | None], None] | None,
+        on_tool_exchange: (
+            Callable[[list, list[dict[str, Any]] | None, dict[str, Any]], None] | None
+        ),
+        meta: dict[str, Any],
     ) -> str:
         text_blocks = [b.text for b in content if b.type == "text"]
         if on_tool_exchange is not None:
-            on_tool_exchange(content, None)
+            on_tool_exchange(content, None, meta)
         return "\n".join(text_blocks)
 
     @staticmethod
@@ -194,12 +217,14 @@ class HealthAgent:
         messages = conversation.get_messages()
 
         def _track_exchange(
-            content: Any, tool_results: list[dict[str, Any]] | None
+            content: Any,
+            tool_results: list[dict[str, Any]] | None,
+            meta: dict[str, Any],
         ) -> None:
             if tool_results is not None:
-                conversation.add_tool_exchange(content, tool_results)
+                conversation.add_tool_exchange(content, tool_results, meta=meta)
             else:
-                conversation.add_assistant_message(content)
+                conversation.add_assistant_message(content, meta=meta)
 
         return self._run_tool_loop(
             user_id,

@@ -39,6 +39,18 @@ session_factory = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 SessionLocal = scoped_session(session_factory)
 
 
+def _stamp_alembic_head() -> None:
+    import os
+
+    from alembic import command
+    from alembic.config import Config
+
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    cfg = Config(os.path.join(project_root, "alembic.ini"))
+    cfg.set_main_option("sqlalchemy.url", str(engine.url))
+    command.stamp(cfg, "head")
+
+
 def init_db() -> None:
     try:
         from models import Base
@@ -59,9 +71,14 @@ def init_db() -> None:
             logger.info("Alembic migrations detected - skipping create_all()")
             return
 
-        # Only use create_all for fresh databases without Alembic
+        # Fresh database: bootstrap with create_all() then stamp alembic_version
+        # at head. Without the stamp, the next `alembic upgrade head` fails on
+        # migrations that ALTER tables that create_all already shaped.
         Base.metadata.create_all(bind=engine)
-        logger.info("Database tables created via create_all()")
+        _stamp_alembic_head()
+        logger.info(
+            "Database tables created via create_all() and stamped at alembic head"
+        )
     except Exception as e:
         logger.error("database_init_failed", error=str(e))
         raise

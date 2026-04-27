@@ -3,6 +3,7 @@ from datetime import date
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from agent.bot_message_repo import save_message
 from agent.conversation import ConversationStore
 from bot.config import BotConfig
 from bot.formatters import (
@@ -38,12 +39,40 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+def _log_command(
+    user_id: int,
+    chat_id: int,
+    command: str,
+    telegram_message_id: int | None,
+) -> None:
+    save_message(
+        user_id,
+        chat_id,
+        "user",
+        command,
+        source=command.lstrip("/") + "_command",
+        telegram_message_id=telegram_message_id,
+    )
+
+
+def _log_bot_reply(
+    user_id: int,
+    chat_id: int,
+    text: str,
+    source: str,
+) -> None:
+    save_message(user_id, chat_id, "assistant", text, source=source)
+
+
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     config: BotConfig = context.bot_data["config"]
+    chat_id = update.effective_chat.id
+    _log_command(config.db_user_id, chat_id, "/status", update.message.message_id)
     await update.message.reply_chat_action("typing")
     try:
         agent = _get_agent()
         briefing = agent.daily_briefing(config.db_user_id)
+        _log_bot_reply(config.db_user_id, chat_id, briefing, "daily_briefing")
         await send_markdown_safe(
             update.message.reply_text, truncate_for_telegram(briefing)
         )
@@ -56,10 +85,13 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_week(update: Update, context: ContextTypes.DEFAULT_TYPE):
     config: BotConfig = context.bot_data["config"]
+    chat_id = update.effective_chat.id
+    _log_command(config.db_user_id, chat_id, "/week", update.message.message_id)
     await update.message.reply_chat_action("typing")
     try:
         agent = _get_agent()
         report = agent.weekly_report(config.db_user_id)
+        _log_bot_reply(config.db_user_id, chat_id, report, "weekly_report")
         await send_markdown_safe(
             update.message.reply_text, truncate_for_telegram(report)
         )
@@ -70,6 +102,8 @@ async def cmd_week(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_forecast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     config: BotConfig = context.bot_data["config"]
+    chat_id = update.effective_chat.id
+    _log_command(config.db_user_id, chat_id, "/forecast", update.message.message_id)
 
     with get_db_session_context() as db:
         rows = (
@@ -90,17 +124,20 @@ async def cmd_forecast(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     if not rows:
-        await update.message.reply_text(
-            "Нет активных прогнозов. ML pipeline ещё не запускался."
-        )
+        msg = "Нет активных прогнозов. ML pipeline ещё не запускался."
+        _log_bot_reply(config.db_user_id, chat_id, msg, "forecast")
+        await update.message.reply_text(msg)
         return
 
     text = format_forecast_table(rows)
+    _log_bot_reply(config.db_user_id, chat_id, text, "forecast")
     await send_markdown_safe(update.message.reply_text, text)
 
 
 async def cmd_anomalies(update: Update, context: ContextTypes.DEFAULT_TYPE):
     config: BotConfig = context.bot_data["config"]
+    chat_id = update.effective_chat.id
+    _log_command(config.db_user_id, chat_id, "/anomalies", update.message.message_id)
 
     with get_db_session_context() as db:
         rows = (
@@ -112,7 +149,9 @@ async def cmd_anomalies(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     if not rows:
-        await update.message.reply_text("Аномалий не обнаружено")
+        msg = "Аномалий не обнаружено"
+        _log_bot_reply(config.db_user_id, chat_id, msg, "anomalies")
+        await update.message.reply_text(msg)
         return
 
     top = {
@@ -140,12 +179,16 @@ async def cmd_anomalies(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += f"{emoji} {r.date}: score {r.anomaly_score:.2f}\n"
 
     text += f"\n*Разбор последней:*\n{explanation}"
+    _log_bot_reply(config.db_user_id, chat_id, text, "anomalies")
     await send_markdown_safe(update.message.reply_text, truncate_for_telegram(text))
 
 
 async def cmd_clear(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    config: BotConfig = context.bot_data["config"]
     store: ConversationStore = context.bot_data["conversations"]
-    store.clear(update.effective_chat.id)
+    chat_id = update.effective_chat.id
+    store.get(chat_id, user_id=config.db_user_id)
+    store.clear(chat_id)
     await update.message.reply_text("История диалога очищена.")
 
 
@@ -157,7 +200,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_chat_action("typing")
     try:
         agent = _get_agent()
-        conversation = store.get(chat_id)
+        conversation = store.get(chat_id, user_id=config.db_user_id)
         answer = agent.chat(config.db_user_id, update.message.text, conversation)
         await send_markdown_safe(
             update.message.reply_text, truncate_for_telegram(answer)

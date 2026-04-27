@@ -1,8 +1,10 @@
+import asyncio
 from datetime import time, timedelta
 from functools import partial
 
 from telegram.ext import Application
 
+from agent.bot_message_repo import save_message
 from bot.config import BotConfig
 from bot.formatters import send_markdown_safe
 from database import get_db_session_context
@@ -18,6 +20,22 @@ def _get_agent():
     return HealthAgent()
 
 
+def _sync_user_data_blocking(user_id: int) -> None:
+    from scheduler import _get_sync_funcs, _sync_and_recompute
+
+    sync_funcs = _get_sync_funcs()
+    _sync_and_recompute(user_id, sync_funcs)
+
+
+async def _presync_for_report(user_id: int, report_name: str) -> None:
+    logger.info("bot_presync_starting", report=report_name, user_id=user_id)
+    try:
+        await asyncio.to_thread(_sync_user_data_blocking, user_id)
+        logger.info("bot_presync_completed", report=report_name, user_id=user_id)
+    except Exception:
+        logger.exception("bot_presync_failed", report=report_name, user_id=user_id)
+
+
 def schedule_push_notifications(app: Application, config: BotConfig):
     job_queue = app.job_queue
 
@@ -29,7 +47,7 @@ def schedule_push_notifications(app: Application, config: BotConfig):
 
     job_queue.run_daily(
         _push_daily_briefing,
-        time=time(hour=12, minute=0, tzinfo=tz),
+        time=time(hour=14, minute=0, tzinfo=tz),
         data={"chat_id": chat_id, "user_id": config.db_user_id},
         name="daily_briefing",
     )
@@ -43,7 +61,7 @@ def schedule_push_notifications(app: Application, config: BotConfig):
 
     job_queue.run_daily(
         _push_weekly_report,
-        time=time(hour=9, minute=0, tzinfo=tz),
+        time=time(hour=16, minute=0, tzinfo=tz),
         days=(0,),
         data={"chat_id": chat_id, "user_id": config.db_user_id},
         name="weekly_report",
@@ -52,9 +70,17 @@ def schedule_push_notifications(app: Application, config: BotConfig):
 
 async def _push_daily_briefing(context):
     data = context.job.data
+    await _presync_for_report(data["user_id"], "daily_briefing")
     try:
         agent = _get_agent()
         briefing = agent.daily_briefing(data["user_id"])
+        save_message(
+            data["user_id"],
+            data["chat_id"],
+            "assistant",
+            briefing,
+            source="daily_briefing_push",
+        )
         send = partial(context.bot.send_message, chat_id=data["chat_id"])
         await send_markdown_safe(send, briefing)
     except Exception:
@@ -63,6 +89,7 @@ async def _push_daily_briefing(context):
 
 async def _push_anomaly_alert(context):
     data = context.job.data
+    await _presync_for_report(data["user_id"], "anomaly_alert")
     try:
         from models import ClinicalAlertEvent
 
@@ -89,6 +116,13 @@ async def _push_anomaly_alert(context):
                 send = partial(context.bot.send_message, chat_id=data["chat_id"])
                 for alert in resolved:
                     text = f"\u2705 *{alert.alert_type}* resolved"
+                    save_message(
+                        data["user_id"],
+                        data["chat_id"],
+                        "assistant",
+                        text,
+                        source="alert_resolved_push",
+                    )
                     await send_markdown_safe(send, text)
                 return
 
@@ -117,6 +151,13 @@ async def _push_anomaly_alert(context):
                     f"{severity_emoji} *{alert.alert_type}*"
                     f" ({alert.severity})\n\n{explanation}"
                 )
+                save_message(
+                    data["user_id"],
+                    data["chat_id"],
+                    "assistant",
+                    text,
+                    source="anomaly_alert_push",
+                )
                 await send_markdown_safe(send, text)
 
             cutoff = utcnow() - timedelta(hours=24)
@@ -128,6 +169,13 @@ async def _push_anomaly_alert(context):
             )
             for alert in resolved:
                 text = f"\u2705 *{alert.alert_type}* resolved"
+                save_message(
+                    data["user_id"],
+                    data["chat_id"],
+                    "assistant",
+                    text,
+                    source="alert_resolved_push",
+                )
                 await send_markdown_safe(send, text)
 
     except Exception:
@@ -136,9 +184,17 @@ async def _push_anomaly_alert(context):
 
 async def _push_weekly_report(context):
     data = context.job.data
+    await _presync_for_report(data["user_id"], "weekly_report")
     try:
         agent = _get_agent()
         report = agent.weekly_report(data["user_id"])
+        save_message(
+            data["user_id"],
+            data["chat_id"],
+            "assistant",
+            report,
+            source="weekly_report_push",
+        )
         send = partial(context.bot.send_message, chat_id=data["chat_id"])
         await send_markdown_safe(send, report)
     except Exception:
