@@ -125,3 +125,32 @@
 - Swapping the design system (palette, typography, hairlines) is safe IF: (a) base color tokens get redefined in `index.css` with same names so all `text-foo`/`bg-foo` keep working, (b) shared atoms (Card, Button) update CVA classes but keep variant prop names so callsites don't break.
 - Health metric color tokens (`--hrv`, `--sleep`, etc.) can be collapsed to a luxury palette (ink+brass+moss+rust) by overriding their HSL values; Recharts auto-picks up the new colors via `hsl(var(--xxx))` references.
 - Window-exposed Zustand store via `import.meta.env.DEV` guard is safe and tree-shakes out of prod.
+- When reverting a redesign, knip flags orphaned files in `src/components/<theme>/` AND the now-used files in knip.json ignore list — delete unused tsx in the same commit AND remove now-used files from `knip.json#ignore[]`.
+
+## Pre-commit Recovery
+
+- Pre-commit stashes unstaged changes to `~/.cache/pre-commit/patch<timestamp>-<pid>` before running hooks; if a commit attempt is interrupted by the user, the stash is restored — but if the stash gets stuck, manually `git apply ~/.cache/pre-commit/patch...` to recover working-tree changes.
+
+## Bootstrap Pattern (Critical)
+
+- `src/database.py:init_db()` MUST stamp `alembic_version` to head after `create_all()` for fresh databases — otherwise the next `alembic upgrade head` fails on migrations that ALTER tables created by `create_all()` (no initial schema migration exists in this project).
+- Verified by `tests/test_db_bootstrap.py`: fresh DB → init_db → `alembic current` shows head → `alembic upgrade head` is no-op.
+
+## Bot Persistence
+
+- Telegram bot conversation history is persisted to `bot_messages` table (JSONB content blocks for Anthropic tool-use replay; soft-delete via `cleared_at` for /clear); chat_id is BigInteger (Telegram supergroup IDs exceed 32-bit signed).
+- Hydration filters tool_use/tool_result blocks — replaying them through Anthropic API requires strict pairing, so only plain text user/assistant messages are restored to the in-memory window.
+- Bot pre-sync calls `scheduler._sync_and_recompute` via `asyncio.to_thread()` — the bot pod's Dockerfile copies all `src/` (including `pull_*.py`) and base deps include `garminconnect`/`requests`, so the import works in the bot container.
+
+## Type Checker Discrepancies
+
+- Pyright + SQLAlchemy stubs flag `column == value` comparisons in asserts as "Invalid conditional operand of type ColumnElement[bool]" — false positive at runtime (ORM instances return Python primitives). Project CI uses mypy with sqlalchemy plugin, not pyright; suppress per-file via `# pyright: reportGeneralTypeIssues=false` in test files.
+- ESLint `@typescript-eslint/no-unnecessary-condition` vs Sonar `typescript:S7741`: both fire on `globalThis.window === undefined` (TS sees Window as always defined). For Vite SPA (no SSR), remove the SSR-safety guard entirely instead of either typeof check or `=== undefined`.
+- mypy `strict` flags `cast(int, msg.id)` as "Returning Any" because SQLAlchemy 2.0 ORM `id` access on flushed instances returns int but stubs declare `Mapped[int]`. Use a typed local `rowcount: int = ...` for `.update()` returns; for ORM `.id` access, just `return msg.id  # type: ignore[no-any-return]` is cleanest if mypy still complains.
+
+## SonarCloud Patterns (additional)
+
+- `python:S6437` (compromised password) fires on `password=<literal>` keyword args even for known-test passwords like "testpass" — wrap with `os.environ.get("POSTGRES_PASSWORD", "testpass")  # noqa: S105` to bypass.
+- `python:S3776` cognitive complexity on type-dispatch functions (e.g. `flatten_text(content: str | list)`) — extract per-branch handlers (`_flatten_dict_block`, `_flatten_object_block`, `_flatten_block` dispatcher) so each is below 15.
+- `bg-green-600 text-white` ≈ 2.02 contrast (white on Tailwind green-600). Use `bg-green-800` for production env badges.
+- `text-[10px] opacity-70` on a `bg-primary` button (default variant) → 3.23 contrast (white-ish on blue). Bump to `opacity-90` or remove entirely; the smaller font-size carries the visual hierarchy on its own.
