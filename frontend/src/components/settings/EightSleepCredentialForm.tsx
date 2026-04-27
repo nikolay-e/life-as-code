@@ -68,7 +68,7 @@ export function EightSleepCredentialForm({
 
       {testResult && (
         <div
-          className={`text-sm ${testResult.success ? "text-green-600" : "text-red-600"}`}
+          className={`text-sm ${testResult.success ? "text-green-700" : "text-red-700"}`}
         >
           {testResult.success ? (
             <span className="flex items-center gap-1">

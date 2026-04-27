@@ -36,12 +36,12 @@ function getQualityBadgeAppearance(confidence: number): {
   Icon: typeof CheckCircle;
 } {
   if (confidence < 0.6) {
-    return { color: "text-red-600 dark:text-red-400", Icon: AlertTriangle };
+    return { color: "text-red-700 dark:text-red-400", Icon: AlertTriangle };
   }
   if (confidence < 0.8) {
-    return { color: "text-yellow-600 dark:text-yellow-400", Icon: Clock };
+    return { color: "text-yellow-700 dark:text-yellow-400", Icon: Clock };
   }
-  return { color: "text-green-600 dark:text-green-400", Icon: CheckCircle };
+  return { color: "text-green-700 dark:text-green-400", Icon: CheckCircle };
 }
 
 function DataQualityBadge({

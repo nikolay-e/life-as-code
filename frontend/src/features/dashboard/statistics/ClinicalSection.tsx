@@ -22,7 +22,7 @@ export function ClinicalSection({ clinicalAlerts }: ClinicalSectionProps) {
             <ShieldAlert className="h-6 w-6 text-red-500" />
           </div>
           <div>
-            <CardTitle className="text-red-600 dark:text-red-400">
+            <CardTitle className="text-red-700 dark:text-red-400">
               Clinical Alerts
             </CardTitle>
             <CardDescription>
@@ -37,7 +37,7 @@ export function ClinicalSection({ clinicalAlerts }: ClinicalSectionProps) {
             <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
               <div className="flex items-center gap-2 mb-1">
                 <Heart className="h-4 w-4 text-red-500" />
-                <span className="text-sm font-medium text-red-600 dark:text-red-400">
+                <span className="text-sm font-medium text-red-700 dark:text-red-400">
                   Elevated RHR
                 </span>
               </div>
@@ -51,7 +51,7 @@ export function ClinicalSection({ clinicalAlerts }: ClinicalSectionProps) {
             <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
               <div className="flex items-center gap-2 mb-1">
                 <TrendingDown className="h-4 w-4 text-red-500" />
-                <span className="text-sm font-medium text-red-600 dark:text-red-400">
+                <span className="text-sm font-medium text-red-700 dark:text-red-400">
                   Acute HRV Drop
                 </span>
               </div>
@@ -67,7 +67,7 @@ export function ClinicalSection({ clinicalAlerts }: ClinicalSectionProps) {
             <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
               <div className="flex items-center gap-2 mb-1">
                 <Scale className="h-4 w-4 text-yellow-500" />
-                <span className="text-sm font-medium text-yellow-600 dark:text-yellow-400">
+                <span className="text-sm font-medium text-yellow-700 dark:text-yellow-400">
                   Weight Loss
                 </span>
               </div>
@@ -83,7 +83,7 @@ export function ClinicalSection({ clinicalAlerts }: ClinicalSectionProps) {
             <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
               <div className="flex items-center gap-2 mb-1">
                 <Flame className="h-4 w-4 text-red-500" />
-                <span className="text-sm font-medium text-red-600 dark:text-red-400">
+                <span className="text-sm font-medium text-red-700 dark:text-red-400">
                   Overtraining Risk
                 </span>
               </div>

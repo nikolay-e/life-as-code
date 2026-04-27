@@ -305,7 +305,7 @@ export function ProviderCard({
                     className="h-4 w-4 text-red-500"
                     aria-hidden="true"
                   />
-                  <span className="text-red-600 dark:text-red-400">
+                  <span className="text-red-700 dark:text-red-400">
                     {statusText}
                   </span>
                 </>
@@ -341,7 +341,7 @@ export function ProviderCard({
                       className="h-4 w-4 text-green-500"
                       aria-hidden="true"
                     />
-                    <span className="text-green-600 dark:text-green-400">
+                    <span className="text-green-700 dark:text-green-400">
                       {statusText}
                     </span>
                   </>

@@ -653,7 +653,7 @@ function LabResultsTab() {
                               className={cn(
                                 "text-sm font-mono",
                                 outOfRange
-                                  ? "text-red-600 dark:text-red-400 font-semibold"
+                                  ? "text-red-700 dark:text-red-400 font-semibold"
                                   : "text-foreground",
                               )}
                             >

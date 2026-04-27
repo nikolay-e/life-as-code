@@ -76,13 +76,13 @@ function OverreachingCard({
               className={cn(
                 "text-sm font-medium px-2 py-0.5 rounded-full",
                 overreaching.risk_level === "low" &&
-                  "bg-green-500/10 text-green-600",
+                  "bg-green-500/10 text-green-700",
                 overreaching.risk_level === "moderate" &&
-                  "bg-yellow-500/10 text-yellow-600",
+                  "bg-yellow-500/10 text-yellow-700",
                 overreaching.risk_level === "high" &&
                   "bg-orange-500/10 text-orange-600",
                 overreaching.risk_level === "critical" &&
-                  "bg-red-500/10 text-red-600",
+                  "bg-red-500/10 text-red-700",
               )}
             >
               {overreaching.risk_level}
@@ -312,11 +312,11 @@ function AnomaliesCard({ anomalies }: Readonly<{ anomalies: AnomalyMetrics }>) {
                   className={cn(
                     "text-xs px-1.5 py-0.5 rounded",
                     anomaly.severity === "critical" &&
-                      "bg-red-500/20 text-red-600",
+                      "bg-red-500/20 text-red-700",
                     anomaly.severity === "alert" &&
                       "bg-orange-500/20 text-orange-600",
                     anomaly.severity === "warning" &&
-                      "bg-yellow-500/20 text-yellow-600",
+                      "bg-yellow-500/20 text-yellow-700",
                   )}
                 >
                   {anomaly.severity}
@@ -427,11 +427,11 @@ function IllnessRiskCard({
               className={cn(
                 "text-xs px-1.5 py-0.5 rounded ml-auto",
                 illnessRisk.risk_level === "high" &&
-                  "bg-red-500/20 text-red-600",
+                  "bg-red-500/20 text-red-700",
                 illnessRisk.risk_level === "moderate" &&
-                  "bg-yellow-500/20 text-yellow-600",
+                  "bg-yellow-500/20 text-yellow-700",
                 illnessRisk.risk_level === "low" &&
-                  "bg-green-500/20 text-green-600",
+                  "bg-green-500/20 text-green-700",
               )}
             >
               {illnessRisk.risk_level}

@@ -12,7 +12,7 @@ import { signPrefix, formatMetricLabel } from "./stat-utils";
 
 function getLongevityScoreColor(score: number | null): string {
   if (score === null) return "text-muted-foreground";
-  if (score >= 80) return "text-green-600 dark:text-green-400";
+  if (score >= 80) return "text-green-700 dark:text-green-400";
   if (score >= 60) return "text-green-700";
   if (score >= 40) return "text-yellow-700";
   if (score >= 20) return "text-orange-500";
@@ -21,7 +21,7 @@ function getLongevityScoreColor(score: number | null): string {
 
 function getAgeDeltaColor(delta: number | null): string {
   if (delta === null) return "text-muted-foreground";
-  if (delta <= -5) return "text-green-600 dark:text-green-400";
+  if (delta <= -5) return "text-green-700 dark:text-green-400";
   if (delta <= -2) return "text-green-700";
   if (delta <= 2) return "text-blue-500";
   if (delta <= 5) return "text-orange-500";
