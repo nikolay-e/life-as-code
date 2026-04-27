@@ -13,19 +13,19 @@ import { signPrefix, formatMetricLabel } from "./stat-utils";
 function getLongevityScoreColor(score: number | null): string {
   if (score === null) return "text-muted-foreground";
   if (score >= 80) return "text-green-600 dark:text-green-400";
-  if (score >= 60) return "text-green-500";
-  if (score >= 40) return "text-yellow-500";
+  if (score >= 60) return "text-green-700";
+  if (score >= 40) return "text-yellow-700";
   if (score >= 20) return "text-orange-500";
-  return "text-red-500";
+  return "text-red-700";
 }
 
 function getAgeDeltaColor(delta: number | null): string {
   if (delta === null) return "text-muted-foreground";
   if (delta <= -5) return "text-green-600 dark:text-green-400";
-  if (delta <= -2) return "text-green-500";
+  if (delta <= -2) return "text-green-700";
   if (delta <= 2) return "text-blue-500";
   if (delta <= 5) return "text-orange-500";
-  return "text-red-500";
+  return "text-red-700";
 }
 
 export interface LongevitySectionProps {
@@ -65,10 +65,10 @@ export function LongevitySection({ longevityInsights }: LongevitySectionProps) {
               {longevity_score.trend != null && (
                 <div className="flex items-center justify-center gap-1 mt-1">
                   {longevity_score.trend > 0 && (
-                    <TrendingUp className="h-3 w-3 text-green-500" />
+                    <TrendingUp className="h-3 w-3 text-green-700" />
                   )}
                   {longevity_score.trend < 0 && (
-                    <TrendingDown className="h-3 w-3 text-red-500" />
+                    <TrendingDown className="h-3 w-3 text-red-700" />
                   )}
                   {longevity_score.trend === 0 && (
                     <Minus className="h-3 w-3 text-muted-foreground" />
@@ -158,8 +158,8 @@ export function LongevitySection({ longevityInsights }: LongevitySectionProps) {
                   className={cn(
                     "font-medium",
                     biological_age.pace_of_aging < 1
-                      ? "text-green-500"
-                      : "text-red-500",
+                      ? "text-green-700"
+                      : "text-red-700",
                   )}
                 >
                   {biological_age.pace_of_aging.toFixed(2)} yr/yr
@@ -228,8 +228,8 @@ export function LongevitySection({ longevityInsights }: LongevitySectionProps) {
                     className={cn(
                       "text-xs mt-1",
                       training_zones.zone2_target_met
-                        ? "text-green-500"
-                        : "text-yellow-500",
+                        ? "text-green-700"
+                        : "text-yellow-700",
                     )}
                   >
                     {training_zones.zone2_target_met
@@ -265,8 +265,8 @@ export function LongevitySection({ longevityInsights }: LongevitySectionProps) {
                     className={cn(
                       "text-xs mt-1",
                       training_zones.zone5_target_met
-                        ? "text-green-500"
-                        : "text-yellow-500",
+                        ? "text-green-700"
+                        : "text-yellow-700",
                     )}
                   >
                     {training_zones.zone5_target_met

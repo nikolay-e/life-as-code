@@ -18,17 +18,17 @@ function colorByThresholds(value: number | null, config: ColorConfig): string {
 const CONFIDENCE: ColorConfig = {
   nullColor: "",
   rules: [
-    ["<", 0.6, "text-red-500"],
-    ["<", 0.8, "text-yellow-500"],
+    ["<", 0.6, "text-red-700"],
+    ["<", 0.8, "text-yellow-700"],
   ],
-  defaultColor: "text-green-500",
+  defaultColor: "text-green-700",
 };
 
 const HRV_RHR: ColorConfig = {
   nullColor: "text-muted-foreground",
   rules: [
-    [">", 1, "text-red-500"],
-    ["<", -1, "text-green-500"],
+    [">", 1, "text-red-700"],
+    ["<", -1, "text-green-700"],
   ],
   defaultColor: "text-blue-500",
 };
@@ -36,26 +36,26 @@ const HRV_RHR: ColorConfig = {
 const SLEEP_DEBT: ColorConfig = {
   nullColor: "",
   rules: [
-    [">", 120, "text-red-500"],
-    [">", 60, "text-yellow-500"],
+    [">", 120, "text-red-700"],
+    [">", 60, "text-yellow-700"],
   ],
-  defaultColor: "text-green-500",
+  defaultColor: "text-green-700",
 };
 
 const ACWR: ColorConfig = {
   nullColor: "text-muted-foreground",
   rules: [
-    [">", 1.5, "text-red-500"],
-    ["<", 0.8, "text-yellow-500"],
+    [">", 1.5, "text-red-700"],
+    ["<", 0.8, "text-yellow-700"],
   ],
-  defaultColor: "text-green-500",
+  defaultColor: "text-green-700",
 };
 
 const STEPS_CHANGE: ColorConfig = {
   nullColor: "text-muted-foreground",
   rules: [
-    ["<", -1000, "text-red-500"],
-    [">", 1000, "text-green-500"],
+    ["<", -1000, "text-red-700"],
+    [">", 1000, "text-green-700"],
   ],
   defaultColor: "text-blue-500",
 };
@@ -63,8 +63,8 @@ const STEPS_CHANGE: ColorConfig = {
 const WEIGHT_CHANGE: ColorConfig = {
   nullColor: "",
   rules: [
-    [">", 0.5, "text-red-500"],
-    ["<", -0.5, "text-green-500"],
+    [">", 0.5, "text-red-700"],
+    ["<", -0.5, "text-green-700"],
   ],
   defaultColor: "text-blue-500",
 };
@@ -72,8 +72,8 @@ const WEIGHT_CHANGE: ColorConfig = {
 const STRESS_TREND: ColorConfig = {
   nullColor: "",
   rules: [
-    [">", 5, "text-red-500"],
-    ["<", -5, "text-green-500"],
+    [">", 5, "text-red-700"],
+    ["<", -5, "text-green-700"],
   ],
   defaultColor: "text-blue-500",
 };
@@ -81,8 +81,8 @@ const STRESS_TREND: ColorConfig = {
 const CORRELATION: ColorConfig = {
   nullColor: "text-muted-foreground",
   rules: [
-    ["<", -0.3, "text-green-500"],
-    [">", 0, "text-red-500"],
+    ["<", -0.3, "text-green-700"],
+    [">", 0, "text-red-700"],
   ],
   defaultColor: "text-muted-foreground",
 };
@@ -90,8 +90,8 @@ const CORRELATION: ColorConfig = {
 const HRV_SD: ColorConfig = {
   nullColor: "",
   rules: [
-    ["<", 0.1, "text-green-500"],
-    [">", 0.15, "text-red-500"],
+    ["<", 0.1, "text-green-700"],
+    [">", 0.15, "text-red-700"],
   ],
   defaultColor: "",
 };
@@ -99,26 +99,26 @@ const HRV_SD: ColorConfig = {
 const TSB: ColorConfig = {
   nullColor: "",
   rules: [
-    [">", 0, "text-green-500"],
-    ["<", -10, "text-red-500"],
+    [">", 0, "text-green-700"],
+    ["<", -10, "text-red-700"],
   ],
   defaultColor: "",
 };
 
 const ALLOSTATIC_SCORE: ColorConfig = {
-  nullColor: "text-yellow-500",
+  nullColor: "text-yellow-700",
   rules: [
-    ["<", 20, "text-green-500"],
-    [">", 40, "text-red-500"],
+    ["<", 20, "text-green-700"],
+    [">", 40, "text-red-700"],
   ],
-  defaultColor: "text-yellow-500",
+  defaultColor: "text-yellow-700",
 };
 
 const CROSS_CORRELATION: ColorConfig = {
   nullColor: "",
   rules: [
-    [">", 0.3, "text-green-500"],
-    ["<", -0.3, "text-red-500"],
+    [">", 0.3, "text-green-700"],
+    ["<", -0.3, "text-red-700"],
   ],
   defaultColor: "",
 };

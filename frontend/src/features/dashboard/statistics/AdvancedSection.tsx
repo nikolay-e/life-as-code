@@ -63,10 +63,10 @@ function OverreachingCard({
           <span
             className={cn(
               "text-3xl font-bold",
-              overreaching.risk_level === "low" && "text-green-500",
-              overreaching.risk_level === "moderate" && "text-yellow-500",
+              overreaching.risk_level === "low" && "text-green-700",
+              overreaching.risk_level === "moderate" && "text-yellow-700",
               overreaching.risk_level === "high" && "text-orange-500",
-              overreaching.risk_level === "critical" && "text-red-500",
+              overreaching.risk_level === "critical" && "text-red-700",
             )}
           >
             {overreaching.score == null ? "—" : overreaching.score.toFixed(2)}
@@ -108,7 +108,7 @@ function OverreachingCard({
                 </span>
               )}
               {(overreaching.components.hrv_component ?? null) !== null && (
-                <span className="text-red-500">
+                <span className="text-red-700">
                   H:
                   {(overreaching.components.hrv_component as number).toFixed(1)}
                 </span>
@@ -156,7 +156,7 @@ function CorrelationsCard({
                 "font-mono text-sm",
                 correlations.sleep_hrv_lag_correlation != null &&
                   correlations.sleep_hrv_lag_correlation > 0.3
-                  ? "text-green-500"
+                  ? "text-green-700"
                   : "text-muted-foreground",
               )}
             >
@@ -174,7 +174,7 @@ function CorrelationsCard({
                 "font-mono text-sm",
                 correlations.strain_recovery_correlation != null &&
                   correlations.strain_recovery_correlation < -0.2
-                  ? "text-green-500"
+                  ? "text-green-700"
                   : "text-muted-foreground",
               )}
             >
@@ -241,10 +241,10 @@ function VelocityCard({ velocity }: Readonly<{ velocity: VelocityMetrics }>) {
                   <span
                     className={cn(
                       "text-xs",
-                      status === "improving" && "text-green-500",
-                      status === "declining" && "text-red-500",
+                      status === "improving" && "text-green-700",
+                      status === "declining" && "text-red-700",
                       status === "stable" && "text-muted-foreground",
-                      status === "gaining" && "text-yellow-500",
+                      status === "gaining" && "text-yellow-700",
                       status === "losing" && "text-blue-500",
                     )}
                   >
@@ -346,7 +346,7 @@ function RecoveryCapacityCard({
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2">
-          <RefreshCw className="h-4 w-4 text-green-500" />
+          <RefreshCw className="h-4 w-4 text-green-700" />
           <CardTitle className="text-base">Recovery Capacity</CardTitle>
         </div>
         <CardDescription>
@@ -415,9 +415,9 @@ function IllnessRiskCard({
           <Thermometer
             className={cn(
               "h-4 w-4",
-              illnessRisk.risk_level === "high" && "text-red-500",
-              illnessRisk.risk_level === "moderate" && "text-yellow-500",
-              illnessRisk.risk_level === "low" && "text-green-500",
+              illnessRisk.risk_level === "high" && "text-red-700",
+              illnessRisk.risk_level === "moderate" && "text-yellow-700",
+              illnessRisk.risk_level === "low" && "text-green-700",
               illnessRisk.risk_level === null && "text-muted-foreground",
             )}
           />
@@ -632,8 +632,8 @@ function SleepQualityCard({
               className={cn(
                 "font-mono text-sm",
                 sq.deep_sleep_pct != null && sq.deep_sleep_pct >= 15
-                  ? "text-green-500"
-                  : "text-yellow-500",
+                  ? "text-green-700"
+                  : "text-yellow-700",
               )}
             >
               {sq.deep_sleep_pct?.toFixed(1) ?? "—"}%
@@ -645,8 +645,8 @@ function SleepQualityCard({
               className={cn(
                 "font-mono text-sm",
                 sq.rem_sleep_pct != null && sq.rem_sleep_pct >= 20
-                  ? "text-green-500"
-                  : "text-yellow-500",
+                  ? "text-green-700"
+                  : "text-yellow-700",
               )}
             >
               {sq.rem_sleep_pct?.toFixed(1) ?? "—"}%
@@ -665,7 +665,7 @@ function SleepQualityCard({
                 r {sq.sleep_hrv_responsiveness?.toFixed(2) ?? "—"}
                 {sq.sleep_hrv_p_value != null &&
                   sq.sleep_hrv_p_value < 0.05 && (
-                    <span className="text-green-500 ml-1">*</span>
+                    <span className="text-green-700 ml-1">*</span>
                   )}
               </span>
             </div>
@@ -701,8 +701,8 @@ function FitnessCard({ insights }: Readonly<{ insights: AdvancedInsights }>) {
                 "font-mono text-sm",
                 f.days_since_last_workout != null &&
                   f.days_since_last_workout > 7
-                  ? "text-red-500"
-                  : "text-green-500",
+                  ? "text-red-700"
+                  : "text-green-700",
               )}
             >
               {f.days_since_last_workout == null
@@ -775,8 +775,8 @@ function AllostaticLoadCard({
                 <span
                   className={cn(
                     "font-mono",
-                    rate > 0.3 && "text-red-500",
-                    rate > 0.15 && rate <= 0.3 && "text-yellow-500",
+                    rate > 0.3 && "text-red-700",
+                    rate > 0.15 && rate <= 0.3 && "text-yellow-700",
                   )}
                 >
                   {(rate * 100).toFixed(0)}%

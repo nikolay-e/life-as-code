@@ -67,13 +67,13 @@ export function SleepSection({
           <div className="flex justify-between text-sm">
             <span>
               Debt:{" "}
-              <span className="font-medium text-red-500">
+              <span className="font-medium text-red-700">
                 {formatSleepMinutes(sleepMetrics.sleep_debt_short)}
               </span>
             </span>
             <span>
               Surplus:{" "}
-              <span className="font-medium text-green-500">
+              <span className="font-medium text-green-700">
                 {formatSleepMinutes(sleepMetrics.sleep_surplus_short)}
               </span>
             </span>

@@ -94,7 +94,7 @@ function SummaryCard({
 
 function correlationColor(value: number): string {
   if (Math.abs(value) < 0.4) return "text-muted-foreground";
-  return value > 0 ? "text-green-500" : "text-red-500";
+  return value > 0 ? "text-green-700" : "text-red-700";
 }
 
 function CorrelationValue({
@@ -124,8 +124,8 @@ function MetricValue({
 }>) {
   if (value === null || value === undefined) return null;
   let color = "";
-  if (good === true) color = "text-green-500";
-  else if (good === false) color = "text-yellow-500";
+  if (good === true) color = "text-green-700";
+  else if (good === false) color = "text-yellow-700";
   return (
     <div className="flex justify-between text-sm">
       <span className="text-muted-foreground">{label}</span>
@@ -168,8 +168,8 @@ function latencySubtitle(v: number | null | undefined): string | undefined {
 }
 
 function zScoreColor(z: number): string {
-  if (z >= 0.5) return "text-green-500";
-  if (z <= -0.5) return "text-red-500";
+  if (z >= 0.5) return "text-green-700";
+  if (z <= -0.5) return "text-red-700";
   return "";
 }
 
@@ -498,7 +498,7 @@ export function SleepOverviewPage() {
             </div>
             <div className="text-center">
               <p className="text-sm text-muted-foreground">Sleep Debt</p>
-              <p className="text-xl font-bold text-red-500">
+              <p className="text-xl font-bold text-red-700">
                 {sleepMetrics.sleep_debt_short > 0
                   ? `-${formatSleepMinutes(sleepMetrics.sleep_debt_short)}`
                   : "—"}
@@ -506,7 +506,7 @@ export function SleepOverviewPage() {
             </div>
             <div className="text-center">
               <p className="text-sm text-muted-foreground">Sleep Surplus</p>
-              <p className="text-xl font-bold text-green-500">
+              <p className="text-xl font-bold text-green-700">
                 {sleepMetrics.sleep_surplus_short > 0
                   ? `+${formatSleepMinutes(sleepMetrics.sleep_surplus_short)}`
                   : "—"}

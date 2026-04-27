@@ -107,9 +107,9 @@ function MetricCard({
       return <Minus className="h-4 w-4 text-muted-foreground" />;
     }
     if (baseline.trend_slope > 0) {
-      return <TrendingUp className="h-4 w-4 text-green-500" />;
+      return <TrendingUp className="h-4 w-4 text-green-700" />;
     }
-    return <TrendingDown className="h-4 w-4 text-red-500" />;
+    return <TrendingDown className="h-4 w-4 text-red-700" />;
   })();
 
   return (
@@ -328,7 +328,7 @@ export function HealthScoreSection({
               <p className="text-xs text-muted-foreground">
                 Day {Math.round(dayCompleteness * 100)}% complete
                 {!stepsUsesToday && (
-                  <span className="text-yellow-500 ml-1">
+                  <span className="text-yellow-700 ml-1">
                     · Steps using yesterday
                   </span>
                 )}

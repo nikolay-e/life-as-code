@@ -38,7 +38,7 @@ export function RecoverySection({
       <Card>
         <CardContent className="pt-4">
           <div className="flex items-center gap-2 mb-2">
-            <Heart className="h-4 w-4 text-red-500" />
+            <Heart className="h-4 w-4 text-red-700" />
             <span className="text-sm font-medium">HRV-RHR Imbalance</span>
           </div>
           <p
