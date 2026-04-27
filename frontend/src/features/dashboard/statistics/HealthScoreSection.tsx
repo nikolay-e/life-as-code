@@ -356,7 +356,7 @@ export function HealthScoreSection({
                   >
                     {formatZScore(c.goodness_z_score)}
                   </p>
-                  <p className="text-[10px] text-muted-foreground/70">
+                  <p className="text-[10px] text-muted-foreground">
                     raw: {formatZScore(c.raw_z_score)}
                   </p>
                   <p
@@ -368,7 +368,7 @@ export function HealthScoreSection({
                     conf: {(c.confidence * 100).toFixed(0)}%
                   </p>
                   {c.long_term_percentile != null && (
-                    <p className="text-[10px] text-muted-foreground/50">
+                    <p className="text-[10px] text-muted-foreground">
                       P{c.long_term_percentile.toFixed(0)} all-time
                     </p>
                   )}
@@ -376,7 +376,7 @@ export function HealthScoreSection({
                     <p className="text-[10px] text-red-400">{c.gate_reason}</p>
                   )}
                   {!c.is_gated && c.gate_reason && (
-                    <p className="text-[10px] text-muted-foreground/60">
+                    <p className="text-[10px] text-muted-foreground">
                       {c.gate_reason}
                     </p>
                   )}
@@ -415,7 +415,7 @@ export function HealthScoreSection({
                         </span>
                       )}
                     </p>
-                    <p className="text-muted-foreground/70">
+                    <p className="text-muted-foreground">
                       conf: {(s.avg_confidence * 100).toFixed(0)}%
                     </p>
                   </div>
