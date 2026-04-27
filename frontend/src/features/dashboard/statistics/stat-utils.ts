@@ -30,7 +30,7 @@ const HRV_RHR: ColorConfig = {
     [">", 1, "text-red-700"],
     ["<", -1, "text-green-700"],
   ],
-  defaultColor: "text-blue-500",
+  defaultColor: "text-blue-700",
 };
 
 const SLEEP_DEBT: ColorConfig = {
@@ -57,7 +57,7 @@ const STEPS_CHANGE: ColorConfig = {
     ["<", -1000, "text-red-700"],
     [">", 1000, "text-green-700"],
   ],
-  defaultColor: "text-blue-500",
+  defaultColor: "text-blue-700",
 };
 
 const WEIGHT_CHANGE: ColorConfig = {
@@ -66,7 +66,7 @@ const WEIGHT_CHANGE: ColorConfig = {
     [">", 0.5, "text-red-700"],
     ["<", -0.5, "text-green-700"],
   ],
-  defaultColor: "text-blue-500",
+  defaultColor: "text-blue-700",
 };
 
 const STRESS_TREND: ColorConfig = {
@@ -75,7 +75,7 @@ const STRESS_TREND: ColorConfig = {
     [">", 5, "text-red-700"],
     ["<", -5, "text-green-700"],
   ],
-  defaultColor: "text-blue-500",
+  defaultColor: "text-blue-700",
 };
 
 const CORRELATION: ColorConfig = {

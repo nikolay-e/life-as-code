@@ -23,7 +23,7 @@ function getAgeDeltaColor(delta: number | null): string {
   if (delta === null) return "text-muted-foreground";
   if (delta <= -5) return "text-green-700 dark:text-green-400";
   if (delta <= -2) return "text-green-700";
-  if (delta <= 2) return "text-blue-500";
+  if (delta <= 2) return "text-blue-700";
   if (delta <= 5) return "text-orange-500";
   return "text-red-700";
 }

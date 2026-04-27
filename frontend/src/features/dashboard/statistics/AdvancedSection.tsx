@@ -197,7 +197,7 @@ function VelocityCard({ velocity }: Readonly<{ velocity: VelocityMetrics }>) {
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2">
-          <TrendingUp className="h-4 w-4 text-blue-500" />
+          <TrendingUp className="h-4 w-4 text-blue-700" />
           <CardTitle className="text-base">Trends (Velocity)</CardTitle>
         </div>
       </CardHeader>
@@ -245,7 +245,7 @@ function VelocityCard({ velocity }: Readonly<{ velocity: VelocityMetrics }>) {
                       status === "declining" && "text-red-700",
                       status === "stable" && "text-muted-foreground",
                       status === "gaining" && "text-yellow-700",
-                      status === "losing" && "text-blue-500",
+                      status === "losing" && "text-blue-700",
                     )}
                   >
                     {status === "improving" && (
@@ -688,7 +688,7 @@ function FitnessCard({ insights }: Readonly<{ insights: AdvancedInsights }>) {
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2">
-          <Dumbbell className="h-4 w-4 text-blue-500" />
+          <Dumbbell className="h-4 w-4 text-blue-700" />
           <CardTitle className="text-base">Fitness & Training</CardTitle>
         </div>
       </CardHeader>
