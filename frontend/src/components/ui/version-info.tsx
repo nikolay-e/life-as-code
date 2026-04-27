@@ -9,7 +9,7 @@ const version: string =
   (import.meta.env.VITE_APP_VERSION as string | undefined) ?? "dev";
 
 const envStyles: Record<Environment, string> = {
-  production: "bg-green-600 text-white",
+  production: "bg-green-800 text-white",
   staging: "bg-amber-500 text-black",
   development: "bg-muted text-muted-foreground",
 };
