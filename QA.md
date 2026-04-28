@@ -153,6 +153,49 @@
 - `python:S6437` (compromised password) fires on `password=<literal>` keyword args even for known-test passwords like "testpass" — wrap with `os.environ.get("POSTGRES_PASSWORD", "testpass")  # noqa: S105` to bypass.
 - `python:S3776` cognitive complexity on type-dispatch functions (e.g. `flatten_text(content: str | list)`) — extract per-branch handlers (`_flatten_dict_block`, `_flatten_object_block`, `_flatten_block` dispatcher) so each is below 15.
 
+## Range / Mode Switching — Data Reactivity Check (MANDATORY)
+
+Pages with a Today/6W/6M/2Y/5Y/Custom (or recent/quarter/annual/lifetime) range selector MUST display different data when the user switches ranges. A bug where charts update but KPI/metric cards stay frozen is **invisible to the eye** unless verified — it usually means a hook is hardcoded to `"recent"` regardless of `selectedRange`.
+
+**Reproduction script (Playwright MCP):**
+
+```js
+async (page) => {
+  const ranges = ["Today", "6W", "6M", "2Y", "5Y"];
+  const snapshots = {};
+  for (const range of ranges) {
+    const btnIdx = await page.evaluate((r) => {
+      const all = Array.from(document.querySelectorAll('button'));
+      return all.findIndex(b => b.textContent?.startsWith(r));
+    }, range);
+    await page.evaluate((i) => Array.from(document.querySelectorAll('button'))[i].click(), btnIdx);
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(2500);
+    snapshots[range] = await page.evaluate(() => {
+      const out = {};
+      // Big metric numbers — top-of-page KPI cards
+      document.querySelectorAll('.text-3xl, .text-2xl').forEach(el => {
+        const card = el.closest('[class*="rounded"]') || el.parentElement?.parentElement;
+        const title = card?.querySelector('p, span, h3, h4')?.textContent?.trim().slice(0, 40) || '';
+        out[title || `v${Object.keys(out).length}`] = el.textContent?.trim().slice(0, 40);
+      });
+      // Chart axis (proves chart-side wiring is correct)
+      out.__x = Array.from(document.querySelectorAll('.recharts-cartesian-axis-tick tspan')).slice(0, 6).map(e => e.textContent).join(' | ');
+      return out;
+    });
+  }
+  return JSON.stringify(snapshots, null, 2);
+}
+```
+
+**Failure signature:** `Today`, `6W`, `6M`, `2Y`, `5Y` snapshots produce **identical KPI values** (e.g. `HRV: 35 ms` everywhere) while `__x` (chart X-axis dates) changes between ranges. → bug in the metric card data path, not the chart path.
+
+**Common root cause:** `useAnalytics("recent")` hardcoded — should be `useAnalytics(modeMappedFromSelectedRange)`. ViewMode `"today"`/`"custom"` don't map cleanly to TrendMode; fall back to `"recent"` for those.
+
+**Companion fix:** when range !== Today, the metric card's `value` should read `baseline.short_term_mean` (or `mean`), NOT `baseline.current_value` — `current_value` is the latest reading and identical on all ranges that include today.
+
+Add this Playwright check to any QA pass that touches `/dashboard`, `/dashboard/sleep`, or `/dashboard/statistics`.
+
 ## Tailwind Contrast Cheatsheet (1Password-Verified)
 
 White text on Tailwind 600/700/800 colored bg:
