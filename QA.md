@@ -194,6 +194,8 @@ async (page) => {
 
 **Companion fix:** when range !== Today, the metric card's `value` should read `baseline.short_term_mean` (or `mean`), NOT `baseline.current_value` — `current_value` is the latest reading and identical on all ranges that include today.
 
+**Test timing pitfall:** non-default modes (quarter/year/all) hit a cold backend cache and take longer than `recent`. A flat `waitForTimeout(3000)` after click can SHOW IDENTICAL VALUES across modes due to React Query's `placeholderData: keepPreviousData` masking the in-flight fetch — looks like a bug when it isn't, OR hides a real bug when it is. ALWAYS use `page.waitForResponse(r => r.url().includes('mode=<expected>'))` before sampling the DOM, not a flat sleep.
+
 Add this Playwright check to any QA pass that touches `/dashboard`, `/dashboard/sleep`, or `/dashboard/statistics`.
 
 ## Tailwind Contrast Cheatsheet (1Password-Verified)
