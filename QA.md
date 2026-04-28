@@ -153,6 +153,75 @@
 - `python:S6437` (compromised password) fires on `password=<literal>` keyword args even for known-test passwords like "testpass" — wrap with `os.environ.get("POSTGRES_PASSWORD", "testpass")  # noqa: S105` to bypass.
 - `python:S3776` cognitive complexity on type-dispatch functions (e.g. `flatten_text(content: str | list)`) — extract per-branch handlers (`_flatten_dict_block`, `_flatten_object_block`, `_flatten_block` dispatcher) so each is below 15.
 
+## Dash / "—" Placeholder Audit (MANDATORY)
+
+When user data should populate but doesn't, the UI shows `—` / `–` / `N/A`. The cause is almost always one of three:
+
+1. **Schema drift**: frontend reads a key the backend never returns (or stopped returning). React's optional chaining swallows the missing key silently.
+2. **Backend data dict skip**: `_compute_metric_baselines` (and similar dict-builders) iterate an input dict and `if not data: continue` — if a key wasn't put into the input dict at all, the baseline is missing entirely (different from "computed but null").
+3. **Upstream sync produces NULLs**: provider API renamed the field, our parser still looks at the old path → DB column always NULL → frontend correctly shows `—`.
+
+**Reproduction script (Playwright MCP):**
+
+```js
+async (page) => {
+  // Walk all pages and report any cell whose text is exactly the dash glyph or N/A
+  const pages = ['/dashboard', '/dashboard/sleep', '/dashboard/statistics', '/dashboard/trainings', '/dashboard/data-status', '/dashboard/settings', '/dashboard/health-log'];
+  const out = {};
+  for (const url of pages) {
+    await page.goto(`https://life-as-code.com${url}`, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(2500);
+    out[url] = await page.evaluate(() => {
+      const dashes = [];
+      const all = Array.from(document.querySelectorAll('span, p, td, dd, h2, h3, h4, [class*="text-2xl"], [class*="text-3xl"]'));
+      for (const el of all) {
+        const t = (el.textContent || '').trim();
+        if (t === '—' || t === '–' || t === 'N/A' || t === 'n/a') {
+          const label = el.parentElement?.querySelector('p, span, h3, h4')?.textContent?.trim().slice(0, 50)
+            || el.previousElementSibling?.textContent?.trim().slice(0, 50)
+            || (el.parentElement?.textContent || '').trim().slice(0, 80);
+          dashes.push({ value: t, label });
+        }
+      }
+      return dashes.slice(0, 30);
+    });
+  }
+  return JSON.stringify(out, null, 2);
+}
+```
+
+**RCA procedure:**
+
+1. List the labels reporting `—` (e.g. `Sleep Score`, `Sleep Fitness`, `Cardio`, `Zone 2 (7d)`).
+2. Locate the frontend reads:
+
+   ```bash
+   grep -rn '<label-key-or-related>' frontend/src/
+   ```
+
+3. For each, hit the API directly from the authenticated session and inspect the actual response shape:
+
+   ```js
+   const r = await fetch('/api/analytics?mode=recent', { credentials: 'include' });
+   const d = await r.json();
+   d.metric_baselines?.sleep_score   // → undefined? null? present?
+   d.longevity_insights?.longevity_score?.cardiorespiratory  // → null?
+   ```
+
+4. **Classify the cause:**
+   - `undefined` (key missing from response) → backend dict-builder bug (e.g., not added to `_compute_metric_baselines`). **Code fix.**
+   - `null` (key present, value null) → either (a) data really missing for the user, or (b) upstream sync extracts the wrong field. Run a DB query for the underlying column; if the column is always NULL, it's a sync parser bug.
+   - Has value but UI shows `—` → frontend formatter has wrong null check (e.g., `value === undefined` instead of `value == null`).
+5. **Test setting up:**
+   - DB-column-always-NULL: investigate the provider sync extractor (`src/eight_sleep_schemas.py`, `src/pull_garmin_data.py`, etc.) — provider API field paths may have changed.
+   - Backend dict-builder skip: add the missing key to the input dict alongside the corresponding raw data series.
+
+**Known live drift cases (life-as-code, as of QA pass 2026-04-28):**
+
+- `metric_baselines.sleep_score` was missing — backend `service.py` `_compute_metric_baselines` input dict didn't include `"sleep_score": raw.sleep_score_eight_sleep`. **Fixed.**
+- `eight_sleep_sessions.sleep_fitness_score` column always NULL despite API providing it — `_to_session()` reads `day["health"]["sleepFitnessScore"]`, but Eight Sleep API may have moved the field. Worth re-validating against current upstream payload.
+- `longevity_score.cardiorespiratory` and `training_zones.{zone2,zone5}_minutes_7d` are null when the user doesn't have recent cardio data. Genuine "no data" — not a code bug. Consider rendering an explicit "no recent data" message instead of `—` so it's distinguishable from schema drift.
+
 ## Range / Mode Switching — Data Reactivity Check (MANDATORY)
 
 Pages with a Today/6W/6M/2Y/5Y/Custom (or recent/quarter/annual/lifetime) range selector MUST display different data when the user switches ranges. A bug where charts update but KPI/metric cards stay frozen is **invisible to the eye** unless verified — it usually means a hook is hardcoded to `"recent"` regardless of `selectedRange`.

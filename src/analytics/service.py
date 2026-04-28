@@ -517,6 +517,7 @@ def _compute_health_analysis_impl(
             "strain": adjusted_strain,
             "calories": adjusted_calories,
             "respiratory_rate": respiratory_rate_data,
+            "sleep_score": raw.sleep_score_eight_sleep,
             "sleep_deep": sleep_deep,
             "sleep_rem": sleep_rem,
             "sleep_latency": raw.sleep_latency,
