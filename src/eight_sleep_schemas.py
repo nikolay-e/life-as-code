@@ -65,6 +65,8 @@ class EightSleepSessionData(BaseModel):
             return None
         return round(sum(values) / len(values), 2)
 
+    _logged_shape: bool = False
+
     @classmethod
     def from_api_response(cls, day: dict) -> "EightSleepSessionData | None":
         try:
@@ -72,6 +74,27 @@ class EightSleepSessionData(BaseModel):
             if not day_str:
                 return None
             session_date = parse_iso_date(day_str)
+
+            if not cls._logged_shape:
+                cls._logged_shape = True
+                fitness_field = day.get("sleepFitnessScore")
+                health_field = day.get("health")
+                logger.info(
+                    "eight_sleep_payload_shape",
+                    day_keys=sorted(day.keys()),
+                    fitness_type=type(fitness_field).__name__,
+                    fitness_keys=(
+                        sorted(fitness_field.keys())
+                        if isinstance(fitness_field, dict)
+                        else None
+                    ),
+                    health_type=type(health_field).__name__,
+                    health_keys=(
+                        sorted(health_field.keys())
+                        if isinstance(health_field, dict)
+                        else None
+                    ),
+                )
 
             quality = day.get("sleepQualityScore") or {}
             routine = day.get("sleepRoutineScore") or {}
@@ -92,8 +115,22 @@ class EightSleepSessionData(BaseModel):
             latency_asleep = cls._nested_current(routine, "latencyAsleepSeconds")
             latency_out = cls._nested_current(routine, "latencyOutSeconds")
 
-            health = day.get("health") or {}
-            fitness_score = cls._safe_int(health.get("sleepFitnessScore"))
+            # Eight Sleep returns sleepFitnessScore in one of three shapes:
+            #   1. day["sleepFitnessScore"]["total"]  — current API, mirroring
+            #      sleepRoutineScore / sleepQualityScore structure.
+            #   2. day["sleepFitnessScore"]           — flat scalar.
+            #   3. day["health"]["sleepFitnessScore"] — legacy nesting we used
+            #      to read exclusively (always NULL on current API).
+            # Try them in that order so we capture the value regardless of which
+            # shape the upstream is currently emitting.
+            fitness_raw = day.get("sleepFitnessScore")
+            if isinstance(fitness_raw, dict):
+                fitness_score = cls._safe_int(fitness_raw.get("total"))
+            else:
+                fitness_score = cls._safe_int(fitness_raw)
+            if fitness_score is None:
+                health = day.get("health") or {}
+                fitness_score = cls._safe_int(health.get("sleepFitnessScore"))
 
             return cls(
                 date=session_date,
