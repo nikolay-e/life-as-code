@@ -133,7 +133,11 @@ export function DashboardOverview() {
   );
   const { data: syncStatus } = useSyncStatus();
   const { isSyncing } = useAutoSync();
-  const { data: analyticsData } = useAnalytics("recent");
+  const analyticsMode =
+    selectedRange === "today" || selectedRange === "custom"
+      ? "recent"
+      : selectedRange;
+  const { data: analyticsData } = useAnalytics(analyticsMode);
 
   const stepsFloor = useMemo(() => {
     const steps = data?.steps;
@@ -271,12 +275,33 @@ export function DashboardOverview() {
             const baseline = analyticsData?.metric_baselines[def.key];
             const currentVal = baseline?.current_value ?? null;
             const shortAvg = baseline?.short_term_mean ?? null;
+            const longAvg = baseline?.mean ?? null;
             const latencyDays = baseline?.latency_days ?? null;
             const staleThreshold = def.key === "weight" ? 3 : 2;
             const isStale =
               latencyDays !== null && latencyDays > staleThreshold;
-            const freshSubtitle =
-              shortAvg === null ? "Current" : `7d avg: ${def.format(shortAvg)}`;
+            const showCurrent =
+              selectedRange === "today" || selectedRange === "custom";
+            const displayValue = showCurrent
+              ? currentVal
+              : (shortAvg ?? currentVal);
+            const shortLabel = modeConfig
+              ? `${String(modeConfig.shortTerm)}d avg`
+              : "7d avg";
+            const baselineLabel = modeConfig
+              ? `${String(modeConfig.baseline)}d baseline`
+              : null;
+            const freshSubtitle = (() => {
+              if (showCurrent) {
+                return shortAvg === null
+                  ? "Current"
+                  : `7d avg: ${def.format(shortAvg)}`;
+              }
+              if (longAvg !== null) {
+                return `${shortLabel} · ${baselineLabel ?? "baseline"}: ${def.format(longAvg)}`;
+              }
+              return shortLabel;
+            })();
             const subtitle = isStale
               ? `${String(latencyDays)}d ago`
               : freshSubtitle;
@@ -284,7 +309,7 @@ export function DashboardOverview() {
               <MetricCard
                 key={def.key}
                 title={def.title}
-                value={def.format(currentVal)}
+                value={def.format(displayValue)}
                 subtitle={subtitle}
                 icon={def.icon}
                 colorClass={isStale ? "text-warning" : def.iconColorClass}
