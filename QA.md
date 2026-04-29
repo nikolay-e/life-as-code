@@ -152,6 +152,29 @@
 
 - `python:S6437` (compromised password) fires on `password=<literal>` keyword args even for known-test passwords like "testpass" — wrap with `os.environ.get("POSTGRES_PASSWORD", "testpass")  # noqa: S105` to bypass.
 - `python:S3776` cognitive complexity on type-dispatch functions (e.g. `flatten_text(content: str | list)`) — extract per-branch handlers (`_flatten_dict_block`, `_flatten_object_block`, `_flatten_block` dispatcher) so each is below 15.
+- `python:S3776` on long parsers (e.g. `EightSleepSessionData.from_api_response`): extract one-shot side effects (`_log_payload_shape_once`) and multi-shape field probes (`_extract_fitness_score`) into separate classmethods. Each branch returning `score` early eliminates a nested `if` increment.
+- `python:S1854` (dead store) on test fixtures with two consecutive `bad = SleepIndexInputs(...)` blocks — flatten to a single inline `compute_sleep_index(SleepIndexInputs(...))` call and capture the result. Do NOT keep the first one as "documentation".
+- `typescript:S6819` (dialog role on div): for transient popovers without focus-trap/aria-modal, just remove `role="dialog"` — don't migrate to `<dialog>` element since that requires `showModal()` and changes default styling/behavior. The trigger button's `aria-expanded` carries enough semantics for a popover.
+
+## Crawler EXCLUDE_URLS Bug (autoqa pre-0781377)
+
+- Older `nikolay-e/autoqa` releases only checked `CRAWL_EXCLUDE_URLS` for response status codes (4xx/5xx filtering), NOT for navigation. So OAuth redirect paths like `/whoop/authorize` were still visited (and timed out at 30s) even when listed in `crawler-exclude-urls`. The fix gates both `crawlPage()` entry AND `extractLinks` enqueue with `isExcluded()`. When seeing `ERR /<oauth-path> | timeout` in the post-deploy-qa job, check the autoqa SHA pinned in `.github/workflows/ci.yml` and bump if needed.
+
+## Sonar / Pyright Diagnostic Spam During QA
+
+- After editing files in `src/`, the editor's Pyright LSP fires reportAttributeAccessIssue on every SQLAlchemy `Column[T]` assignment in the file — these are NOT actionable findings, project CI uses mypy with sqlalchemy plugin. Run `.venv/bin/mypy <file>` to confirm "Success: no issues found" before treating the file as broken. The pyright stream looks scary but is mostly noise.
+
+## Range/Mode Switching — Timing Reproduction
+
+- The `Today/6W/6M/2Y/5Y` reactivity check from earlier in this doc DOES require ~8s wait per range click, NOT 3.5s. With 3.5s, all of `6M/2Y/5Y` show identical KPIs because React Query's `keepPreviousData` keeps the stale data on screen while the cold-cache query is in flight. This is a TEST ARTEFACT, not a bug — verified by hitting `/api/analytics?mode=quarter|year|all` directly: each returns different `short_term_mean` values. Always wait long enough OR use `page.waitForResponse(r => r.url().includes('mode=<expected>'))`.
+
+## Pre-commit Reformats Twice
+
+- `pre-commit` (black/ruff/prettier) may reformat staged Python/TS files on FIRST commit — the commit succeeds but leaves a fresh dirty working tree. Re-stage and re-commit (no need to amend). This produces two adjacent commits where the second only contains formatter cleanups. Fine to leave both on `main`; squashing isn't worth the rebase risk.
+
+## ArgoCD Image Updater — Per-Image Rollout
+
+- Image Updater detects new tags PER IMAGE (backend, frontend, ml, bot are separate streams). After a single push to main, all four images build in parallel but Image Updater picks them up at slightly different times — expect ~2-5 min of mixed-version state where, e.g., `bot:main-afa12e8` is live but `backend:main-721cce1` lingers. The deployments are independent (no cross-image protocol versioning), so this is safe; just don't read CD as "stuck" when only some images updated.
 
 ## Dash / "—" Placeholder Audit (MANDATORY)
 
