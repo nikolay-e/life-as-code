@@ -70,6 +70,53 @@ class EightSleepSessionData(BaseModel):
         return round(sum(values) / len(values), 2)
 
     @classmethod
+    def _log_payload_shape_once(cls, day: dict) -> None:
+        global _payload_shape_logged
+        if _payload_shape_logged:
+            return
+        _payload_shape_logged = True
+        fitness_field = day.get("sleepFitnessScore")
+        health_field = day.get("health")
+        # WARNING level so it appears in production logs even when
+        # LOG_LEVEL=WARNING (default in life-as-code prod) drops INFO.
+        # This is a one-shot diagnostic per pod restart.
+        logger.warning(
+            "eight_sleep_payload_shape",
+            day_keys=sorted(day.keys()),
+            fitness_type=type(fitness_field).__name__,
+            fitness_keys=(
+                sorted(fitness_field.keys())
+                if isinstance(fitness_field, dict)
+                else None
+            ),
+            fitness_value_preview=(
+                str(fitness_field)[:200] if fitness_field is not None else None
+            ),
+            health_type=type(health_field).__name__,
+            health_keys=(
+                sorted(health_field.keys()) if isinstance(health_field, dict) else None
+            ),
+        )
+
+    @classmethod
+    def _extract_fitness_score(cls, day: dict) -> int | None:
+        # Eight Sleep returns sleepFitnessScore in one of three shapes:
+        #   1. day["sleepFitnessScore"]["total"]  — current API, mirroring
+        #      sleepRoutineScore / sleepQualityScore structure.
+        #   2. day["sleepFitnessScore"]           — flat scalar.
+        #   3. day["health"]["sleepFitnessScore"] — legacy nesting we used
+        #      to read exclusively (always NULL on current API).
+        fitness_raw = day.get("sleepFitnessScore")
+        if isinstance(fitness_raw, dict):
+            score = cls._safe_int(fitness_raw.get("total"))
+        else:
+            score = cls._safe_int(fitness_raw)
+        if score is not None:
+            return score
+        health = day.get("health") or {}
+        return cls._safe_int(health.get("sleepFitnessScore"))
+
+    @classmethod
     def from_api_response(cls, day: dict) -> "EightSleepSessionData | None":
         try:
             day_str = day.get("day")
@@ -77,33 +124,7 @@ class EightSleepSessionData(BaseModel):
                 return None
             session_date = parse_iso_date(day_str)
 
-            global _payload_shape_logged
-            if not _payload_shape_logged:
-                _payload_shape_logged = True
-                fitness_field = day.get("sleepFitnessScore")
-                health_field = day.get("health")
-                # WARNING level so it appears in production logs even when
-                # LOG_LEVEL=WARNING (default in life-as-code prod) drops INFO.
-                # This is a one-shot diagnostic per pod restart.
-                logger.warning(
-                    "eight_sleep_payload_shape",
-                    day_keys=sorted(day.keys()),
-                    fitness_type=type(fitness_field).__name__,
-                    fitness_keys=(
-                        sorted(fitness_field.keys())
-                        if isinstance(fitness_field, dict)
-                        else None
-                    ),
-                    fitness_value_preview=(
-                        str(fitness_field)[:200] if fitness_field is not None else None
-                    ),
-                    health_type=type(health_field).__name__,
-                    health_keys=(
-                        sorted(health_field.keys())
-                        if isinstance(health_field, dict)
-                        else None
-                    ),
-                )
+            cls._log_payload_shape_once(day)
 
             quality = day.get("sleepQualityScore") or {}
             routine = day.get("sleepRoutineScore") or {}
@@ -124,23 +145,6 @@ class EightSleepSessionData(BaseModel):
             latency_asleep = cls._nested_current(routine, "latencyAsleepSeconds")
             latency_out = cls._nested_current(routine, "latencyOutSeconds")
 
-            # Eight Sleep returns sleepFitnessScore in one of three shapes:
-            #   1. day["sleepFitnessScore"]["total"]  — current API, mirroring
-            #      sleepRoutineScore / sleepQualityScore structure.
-            #   2. day["sleepFitnessScore"]           — flat scalar.
-            #   3. day["health"]["sleepFitnessScore"] — legacy nesting we used
-            #      to read exclusively (always NULL on current API).
-            # Try them in that order so we capture the value regardless of which
-            # shape the upstream is currently emitting.
-            fitness_raw = day.get("sleepFitnessScore")
-            if isinstance(fitness_raw, dict):
-                fitness_score = cls._safe_int(fitness_raw.get("total"))
-            else:
-                fitness_score = cls._safe_int(fitness_raw)
-            if fitness_score is None:
-                health = day.get("health") or {}
-                fitness_score = cls._safe_int(health.get("sleepFitnessScore"))
-
             return cls(
                 date=session_date,
                 score=cls._safe_int(day.get("score")),
@@ -156,7 +160,7 @@ class EightSleepSessionData(BaseModel):
                 latency_out_seconds=cls._safe_int(latency_out),
                 bed_temp_celsius=bed_temp,
                 room_temp_celsius=room_temp,
-                sleep_fitness_score=fitness_score,
+                sleep_fitness_score=cls._extract_fitness_score(day),
                 sleep_routine_score=cls._safe_int(routine.get("total")),
                 sleep_quality_score=cls._safe_int(quality.get("total")),
             )

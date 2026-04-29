@@ -87,7 +87,6 @@ export function Popover({
       {triggerEl}
       {open && (
         <div
-          role="dialog"
           className={cn(
             "absolute z-50 min-w-[8rem] rounded-md border bg-popover p-2 text-popover-foreground shadow-md outline-none animate-in fade-in-0",
             side === "bottom" ? "top-full mt-2" : "bottom-full mb-2",

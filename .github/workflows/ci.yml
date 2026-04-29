@@ -357,7 +357,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: nikolay-e/autoqa@6f4d18ff49e08876825f9bc9c41fa3f9ec212676 # main
+      - uses: nikolay-e/autoqa@0781377b2314a6381b2a3d56cc36fea132228e5e # main
         with:
           url: https://life-as-code.com
           crawler-username: ${{ secrets.QA_USERNAME }}

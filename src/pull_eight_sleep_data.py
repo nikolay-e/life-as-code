@@ -223,6 +223,20 @@ class EightSleepAPIClient:
         logger.info("eight_sleep_fetch_complete", total_nights=len(all_trends))
         return all_trends
 
+    @staticmethod
+    def _parse_metrics_day(day: dict) -> tuple[str, dict[str, str]] | None:
+        date_iso = day.get("date")
+        metrics_list = day.get("metrics")
+        if not date_iso or not isinstance(metrics_list, list):
+            return None
+        metrics_map: dict[str, str] = {}
+        for entry in metrics_list:
+            if isinstance(entry, dict) and "name" in entry and "value" in entry:
+                metrics_map[str(entry["name"])] = str(entry["value"])
+        if not metrics_map:
+            return None
+        return str(date_iso), metrics_map
+
     def get_metrics_summary(
         self,
         start_date: datetime.date,
@@ -273,16 +287,11 @@ class EightSleepAPIClient:
         for day in days:
             if not isinstance(day, dict):
                 continue
-            date_iso = day.get("date")
-            metrics_list = day.get("metrics")
-            if not date_iso or not isinstance(metrics_list, list):
+            parsed = self._parse_metrics_day(day)
+            if parsed is None:
                 continue
-            metrics_map = {}
-            for entry in metrics_list:
-                if isinstance(entry, dict) and "name" in entry and "value" in entry:
-                    metrics_map[str(entry["name"])] = str(entry["value"])
-            if metrics_map:
-                out[date_iso] = metrics_map
+            date_iso, metrics_map = parsed
+            out[date_iso] = metrics_map
 
         logger.info("eight_sleep_metrics_summary_fetched", days=len(out))
         return out
@@ -355,6 +364,17 @@ def _safe_int_score(value: str | None) -> int | None:
         return None
 
 
+def _apply_scores_to_row(
+    row: EightSleepSession, sfs: int | None, sqs: int | None, srs: int | None
+) -> None:
+    if sfs is not None:
+        row.sleep_fitness_score = sfs
+    if sqs is not None:
+        row.sleep_quality_score = sqs
+    if srs is not None:
+        row.sleep_routine_score = srs
+
+
 def _apply_metrics_summary_to_sessions(
     user_id: int, metrics_by_date: dict[str, dict[str, str]]
 ) -> None:
@@ -365,10 +385,6 @@ def _apply_metrics_summary_to_sessions(
     Only writes when the row exists (so trends sync remains the source of truth
     for non-score columns) and only when the new value is non-null.
     """
-    from sqlalchemy import select
-
-    from models import EightSleepSession
-
     if not metrics_by_date:
         return
 
@@ -383,8 +399,7 @@ def _apply_metrics_summary_to_sessions(
             sfs = _safe_int_score(metrics.get("sfs"))
             sqs = _safe_int_score(metrics.get("sqs"))
             srs = _safe_int_score(metrics.get("srs"))
-            sds = _safe_int_score(metrics.get("sds"))
-            if sfs is None and sqs is None and srs is None and sds is None:
+            if sfs is None and sqs is None and srs is None:
                 continue
 
             row = db.scalars(
@@ -396,16 +411,7 @@ def _apply_metrics_summary_to_sessions(
             if row is None:
                 continue
 
-            if sfs is not None:
-                row.sleep_fitness_score = sfs
-            if sqs is not None:
-                row.sleep_quality_score = sqs
-            if srs is not None:
-                row.sleep_routine_score = srs
-            if sds is not None and (row.score is None or row.score == 0):
-                # `sds` is "Sleep Duration Score" — keep the existing top-level
-                # `score` (overall) untouched if already populated by /trends.
-                pass
+            _apply_scores_to_row(row, sfs, sqs, srs)
             updated += 1
 
     logger.info(

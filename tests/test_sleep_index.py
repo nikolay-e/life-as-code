@@ -35,9 +35,6 @@ class TestSleepIndex:
 
     def test_short_sleep_drags_down(self):
         bad = SleepIndexInputs(
-            **{**_good_night().__dict__, "total_sleep_minutes": 240},
-        )
-        bad = SleepIndexInputs(
             routine_score=95,
             quality_score=90,
             total_sleep_minutes=240,  # 4h
