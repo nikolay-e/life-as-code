@@ -34,19 +34,20 @@ class TestSleepIndex:
         assert score >= 90
 
     def test_short_sleep_drags_down(self):
-        bad = SleepIndexInputs(
-            routine_score=95,
-            quality_score=90,
-            total_sleep_minutes=240,  # 4h
-            time_in_bed_minutes=270,
-            deep_minutes=43,
-            rem_minutes=53,
-            latency_asleep_minutes=10,
-            hrv_overnight_ms=55,
-            hrv_baseline_mean_ms=55,
-            hrv_baseline_std_ms=8,
+        score = compute_sleep_index(
+            SleepIndexInputs(
+                routine_score=95,
+                quality_score=90,
+                total_sleep_minutes=240,  # 4h
+                time_in_bed_minutes=270,
+                deep_minutes=43,
+                rem_minutes=53,
+                latency_asleep_minutes=10,
+                hrv_overnight_ms=55,
+                hrv_baseline_mean_ms=55,
+                hrv_baseline_std_ms=8,
+            )
         )
-        score = compute_sleep_index(bad)
         good_score = compute_sleep_index(_good_night())
         assert score is not None
         assert good_score is not None

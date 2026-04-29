@@ -117,6 +117,28 @@ class EightSleepSessionData(BaseModel):
         return cls._safe_int(health.get("sleepFitnessScore"))
 
     @classmethod
+    def _extract_heart_metrics(
+        cls, quality: dict, sessions: list
+    ) -> tuple[float | None, float | None, float | None]:
+        hr = cls._nested_current(quality, "heartRate")
+        hrv = cls._nested_current(quality, "hrv")
+        resp = cls._nested_current(quality, "respiratoryRate")
+        if hr is None and sessions:
+            hr = cls._avg_timeseries(sessions, "heartRate")
+        if resp is None and sessions:
+            resp = cls._avg_timeseries(sessions, "respiratoryRate")
+        return hr, hrv, resp
+
+    @classmethod
+    def _extract_temps(cls, sessions: list) -> tuple[float | None, float | None]:
+        if not sessions:
+            return None, None
+        return (
+            cls._avg_timeseries(sessions, "tempBedC"),
+            cls._avg_timeseries(sessions, "tempRoomC"),
+        )
+
+    @classmethod
     def from_api_response(cls, day: dict) -> "EightSleepSessionData | None":
         try:
             day_str = day.get("day")
@@ -130,18 +152,8 @@ class EightSleepSessionData(BaseModel):
             routine = day.get("sleepRoutineScore") or {}
             sessions = day.get("sessions") or []
 
-            hr = cls._nested_current(quality, "heartRate")
-            hrv = cls._nested_current(quality, "hrv")
-            resp = cls._nested_current(quality, "respiratoryRate")
-
-            if hr is None and sessions:
-                hr = cls._avg_timeseries(sessions, "heartRate")
-            if resp is None and sessions:
-                resp = cls._avg_timeseries(sessions, "respiratoryRate")
-
-            bed_temp = cls._avg_timeseries(sessions, "tempBedC") if sessions else None
-            room_temp = cls._avg_timeseries(sessions, "tempRoomC") if sessions else None
-
+            hr, hrv, resp = cls._extract_heart_metrics(quality, sessions)
+            bed_temp, room_temp = cls._extract_temps(sessions)
             latency_asleep = cls._nested_current(routine, "latencyAsleepSeconds")
             latency_out = cls._nested_current(routine, "latencyOutSeconds")
 

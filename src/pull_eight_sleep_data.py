@@ -237,6 +237,36 @@ class EightSleepAPIClient:
             return None
         return str(date_iso), metrics_map
 
+    def _request_metrics_summary(
+        self,
+        eight_sleep_user_id: str,
+        start_date: datetime.date,
+        end_date: datetime.date,
+    ) -> dict | None:
+        try:
+            response = self._request_with_reauth(
+                "GET",
+                f"{METRICS_BASE_URL}/users/{eight_sleep_user_id}/metrics/summary",
+                params={
+                    "from": start_date.isoformat(),
+                    "to": end_date.isoformat(),
+                    "metrics": "all",
+                    "tz": "UTC",
+                },
+                timeout=REQUEST_TIMEOUT,
+            )
+        except requests.exceptions.HTTPError as exc:
+            status = exc.response.status_code if exc.response is not None else None
+            detail = exc.response.text[:200] if exc.response is not None else None
+            logger.warning(
+                "eight_sleep_metrics_summary_failed",
+                status=status,
+                detail=detail,
+            )
+            return None
+        data = response.json()
+        return data if isinstance(data, dict) else None
+
     def get_metrics_summary(
         self,
         start_date: datetime.date,
@@ -257,43 +287,27 @@ class EightSleepAPIClient:
         back to whatever /trends provided).
         """
         eight_sleep_user_id = self._get_user_id()
-        try:
-            response = self._request_with_reauth(
-                "GET",
-                f"{METRICS_BASE_URL}/users/{eight_sleep_user_id}/metrics/summary",
-                params={
-                    "from": start_date.isoformat(),
-                    "to": end_date.isoformat(),
-                    "metrics": "all",
-                    "tz": "UTC",
-                },
-                timeout=REQUEST_TIMEOUT,
-            )
-        except requests.exceptions.HTTPError as exc:
-            status = exc.response.status_code if exc.response is not None else None
-            logger.warning(
-                "eight_sleep_metrics_summary_failed",
-                status=status,
-                detail=(exc.response.text[:200] if exc.response is not None else None),
-            )
+        data = self._request_metrics_summary(eight_sleep_user_id, start_date, end_date)
+        if data is None:
             return {}
-
-        data = response.json()
-        days = data.get("days") if isinstance(data, dict) else None
+        days = data.get("days")
         if not isinstance(days, list):
             return {}
+        out = self._collect_metrics_days(days)
+        logger.info("eight_sleep_metrics_summary_fetched", days=len(out))
+        return out
 
+    @classmethod
+    def _collect_metrics_days(cls, days: list) -> dict[str, dict[str, str]]:
         out: dict[str, dict[str, str]] = {}
         for day in days:
             if not isinstance(day, dict):
                 continue
-            parsed = self._parse_metrics_day(day)
+            parsed = cls._parse_metrics_day(day)
             if parsed is None:
                 continue
             date_iso, metrics_map = parsed
             out[date_iso] = metrics_map
-
-        logger.info("eight_sleep_metrics_summary_fetched", days=len(out))
         return out
 
     def close(self) -> None:
@@ -375,6 +389,31 @@ def _apply_scores_to_row(
         row.sleep_routine_score = srs
 
 
+def _apply_day_scores(db, user_id: int, date_iso: str, metrics: dict[str, str]) -> bool:
+    try:
+        session_date = parse_iso_date(date_iso)
+    except (ValueError, TypeError):
+        return False
+
+    sfs = _safe_int_score(metrics.get("sfs"))
+    sqs = _safe_int_score(metrics.get("sqs"))
+    srs = _safe_int_score(metrics.get("srs"))
+    if sfs is None and sqs is None and srs is None:
+        return False
+
+    row = db.scalars(
+        select(EightSleepSession).where(
+            EightSleepSession.user_id == user_id,
+            EightSleepSession.date == session_date,
+        )
+    ).first()
+    if row is None:
+        return False
+
+    _apply_scores_to_row(row, sfs, sqs, srs)
+    return True
+
+
 def _apply_metrics_summary_to_sessions(
     user_id: int, metrics_by_date: dict[str, dict[str, str]]
 ) -> None:
@@ -391,28 +430,8 @@ def _apply_metrics_summary_to_sessions(
     updated = 0
     with get_db_session_context() as db:
         for date_iso, metrics in metrics_by_date.items():
-            try:
-                session_date = parse_iso_date(date_iso)
-            except (ValueError, TypeError):
-                continue
-
-            sfs = _safe_int_score(metrics.get("sfs"))
-            sqs = _safe_int_score(metrics.get("sqs"))
-            srs = _safe_int_score(metrics.get("srs"))
-            if sfs is None and sqs is None and srs is None:
-                continue
-
-            row = db.scalars(
-                select(EightSleepSession).where(
-                    EightSleepSession.user_id == user_id,
-                    EightSleepSession.date == session_date,
-                )
-            ).first()
-            if row is None:
-                continue
-
-            _apply_scores_to_row(row, sfs, sqs, srs)
-            updated += 1
+            if _apply_day_scores(db, user_id, date_iso, metrics):
+                updated += 1
 
     logger.info(
         "eight_sleep_metrics_summary_applied", user_id=user_id, sessions_updated=updated
