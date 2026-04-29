@@ -43,7 +43,7 @@ class HealthAgent:
         response = create_with_retry(
             self.client,
             model=self.config.model,
-            max_tokens=self.config.max_tokens,
+            max_tokens=256,
             system=SYSTEM_PROMPT,
             messages=[
                 {
@@ -62,7 +62,7 @@ class HealthAgent:
         response = create_with_retry(
             self.client,
             model=self.config.model,
-            max_tokens=self.config.max_tokens * 2,
+            max_tokens=384,
             system=SYSTEM_PROMPT,
             messages=[
                 {
@@ -81,7 +81,7 @@ class HealthAgent:
         response = create_with_retry(
             self.client,
             model=self.config.model,
-            max_tokens=512,
+            max_tokens=128,
             system=SYSTEM_PROMPT,
             messages=[
                 {
