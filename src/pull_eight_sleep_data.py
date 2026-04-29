@@ -5,7 +5,7 @@ import requests
 from sqlalchemy import select
 
 from database import get_db_session_context
-from date_utils import utcnow
+from date_utils import parse_iso_date, utcnow
 from eight_sleep_schemas import EightSleepSessionData
 from enums import DataSource, DataType
 from errors import CredentialsDecryptionError, CredentialsNotFoundError
@@ -23,6 +23,11 @@ logger = get_logger(__name__)
 
 AUTH_URL = "https://auth-api.8slp.net/v1/tokens"
 API_BASE_URL = "https://client-api.8slp.net/v1"
+# Sleep Fitness / Quality / Routine scores live on a different host than /trends.
+# Verified live 2026-04-29: GET app-api.8slp.net/v1/users/{id}/metrics/summary?metrics=all
+# returns {"days": [{"date": "...", "metrics": [{"name": "sfs", "value": "93"}, ...]}]}.
+# Also confirmed by mikeg0/eightctl audit (2026-03-15).
+METRICS_BASE_URL = "https://app-api.8slp.net/v1"
 CLIENT_ID = "0894c7f33bb94800a03f1f4df13a4f38"
 CLIENT_SECRET = "f0954a3ed5763ba3d06834c73731a32f15f168f47d4f164751275def86db0c76"  # pragma: allowlist secret
 REQUEST_TIMEOUT = 30
@@ -218,6 +223,70 @@ class EightSleepAPIClient:
         logger.info("eight_sleep_fetch_complete", total_nights=len(all_trends))
         return all_trends
 
+    def get_metrics_summary(
+        self,
+        start_date: datetime.date,
+        end_date: datetime.date,
+    ) -> dict[str, dict[str, str]]:
+        """Fetch daily Sleep Fitness / Quality / Routine scores from app-api.
+
+        Eight Sleep's /trends endpoint on client-api does NOT carry sleepFitnessScore.
+        The mobile app reads it from app-api.8slp.net/v1/users/<id>/metrics/summary,
+        which returns {"days": [{"date": "YYYY-MM-DD", "metrics": [
+            {"name": "sfs",   "value": "93"},
+            {"name": "sqs",   "value": "90"},
+            {"name": "srs",   "value": "96"},
+            ... ]}]}.
+
+        Returns: {date_iso: {metric_name: str_value}} keyed by ISO date.
+        Empty dict on auth/permission failure (logged, non-fatal — caller falls
+        back to whatever /trends provided).
+        """
+        eight_sleep_user_id = self._get_user_id()
+        try:
+            response = self._request_with_reauth(
+                "GET",
+                f"{METRICS_BASE_URL}/users/{eight_sleep_user_id}/metrics/summary",
+                params={
+                    "from": start_date.isoformat(),
+                    "to": end_date.isoformat(),
+                    "metrics": "all",
+                    "tz": "UTC",
+                },
+                timeout=REQUEST_TIMEOUT,
+            )
+        except requests.exceptions.HTTPError as exc:
+            status = exc.response.status_code if exc.response is not None else None
+            logger.warning(
+                "eight_sleep_metrics_summary_failed",
+                status=status,
+                detail=(exc.response.text[:200] if exc.response is not None else None),
+            )
+            return {}
+
+        data = response.json()
+        days = data.get("days") if isinstance(data, dict) else None
+        if not isinstance(days, list):
+            return {}
+
+        out: dict[str, dict[str, str]] = {}
+        for day in days:
+            if not isinstance(day, dict):
+                continue
+            date_iso = day.get("date")
+            metrics_list = day.get("metrics")
+            if not date_iso or not isinstance(metrics_list, list):
+                continue
+            metrics_map = {}
+            for entry in metrics_list:
+                if isinstance(entry, dict) and "name" in entry and "value" in entry:
+                    metrics_map[str(entry["name"])] = str(entry["value"])
+            if metrics_map:
+                out[date_iso] = metrics_map
+
+        logger.info("eight_sleep_metrics_summary_fetched", days=len(out))
+        return out
+
     def close(self) -> None:
         self._session.close()
 
@@ -277,6 +346,73 @@ def _write_eight_sleep_normalized(
         logger.info("eight_sleep_normalized_write_complete", user_id=user_id)
 
 
+def _safe_int_score(value: str | None) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        return int(round(float(value)))
+    except (TypeError, ValueError):
+        return None
+
+
+def _apply_metrics_summary_to_sessions(
+    user_id: int, metrics_by_date: dict[str, dict[str, str]]
+) -> None:
+    """Backfill sleep_fitness_score / sleep_routine_score / sleep_quality_score
+    on existing eight_sleep_sessions rows from the metrics/summary endpoint.
+
+    metrics_by_date keys are ISO date strings; values are {"sfs": "93", ...}.
+    Only writes when the row exists (so trends sync remains the source of truth
+    for non-score columns) and only when the new value is non-null.
+    """
+    from sqlalchemy import select
+
+    from models import EightSleepSession
+
+    if not metrics_by_date:
+        return
+
+    updated = 0
+    with get_db_session_context() as db:
+        for date_iso, metrics in metrics_by_date.items():
+            try:
+                session_date = parse_iso_date(date_iso)
+            except (ValueError, TypeError):
+                continue
+
+            sfs = _safe_int_score(metrics.get("sfs"))
+            sqs = _safe_int_score(metrics.get("sqs"))
+            srs = _safe_int_score(metrics.get("srs"))
+            sds = _safe_int_score(metrics.get("sds"))
+            if sfs is None and sqs is None and srs is None and sds is None:
+                continue
+
+            row = db.scalars(
+                select(EightSleepSession).where(
+                    EightSleepSession.user_id == user_id,
+                    EightSleepSession.date == session_date,
+                )
+            ).first()
+            if row is None:
+                continue
+
+            if sfs is not None:
+                row.sleep_fitness_score = sfs
+            if sqs is not None:
+                row.sleep_quality_score = sqs
+            if srs is not None:
+                row.sleep_routine_score = srs
+            if sds is not None and (row.score is None or row.score == 0):
+                # `sds` is "Sleep Duration Score" — keep the existing top-level
+                # `score` (overall) untouched if already populated by /trends.
+                pass
+            updated += 1
+
+    logger.info(
+        "eight_sleep_metrics_summary_applied", user_id=user_id, sessions_updated=updated
+    )
+
+
 def sync_eight_sleep_data_for_user(
     user_id: int, days: int = 90, full_sync: bool = False
 ) -> dict:
@@ -323,6 +459,23 @@ def sync_eight_sleep_data_for_user(
             source=DataSource.EIGHT_SLEEP,
             data_type=DataType.SLEEP,
         )
+
+        # Backfill the score columns from the metrics/summary endpoint, which
+        # is the only place sfs/sqs/srs are exposed (see METRICS_BASE_URL note).
+        # Non-fatal: if the endpoint fails or returns empty, the trends sync
+        # above still landed everything else.
+        if sync_result.success:
+            try:
+                metrics_by_date = api_client.get_metrics_summary(
+                    start_date=date_range.start_date,
+                    end_date=date_range.end_date,
+                )
+                if metrics_by_date:
+                    _apply_metrics_summary_to_sessions(user_id, metrics_by_date)
+            except Exception:
+                logger.exception(
+                    "eight_sleep_metrics_summary_apply_failed", user_id=user_id
+                )
 
         summary = {
             "user_id": user_id,
