@@ -49,6 +49,12 @@ class EightSleepAPIClient:
         self._session = requests.Session()
 
     def authenticate(self) -> None:
+        # Eight Sleep's /v1/tokens rejects requests that carry BOTH a Bearer
+        # token and client credentials in the body with HTTP 400
+        # "duplicate client credentials". When re-authenticating after token
+        # expiry or 401, the stale Authorization header is still on the
+        # session — drop it before sending fresh credentials.
+        self._session.headers.pop("Authorization", None)
         response = self._session.post(
             AUTH_URL,
             data={
