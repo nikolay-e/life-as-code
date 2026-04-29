@@ -104,14 +104,29 @@ export function LongevitySection({ longevityInsights }: LongevitySectionProps) {
                 },
               ].map(({ label, value }) => (
                 <div key={label} className="flex justify-between">
-                  <span className="text-xs text-muted-foreground">{label}</span>
+                  <span
+                    className="text-xs text-muted-foreground"
+                    title={
+                      value == null && label === "Cardio"
+                        ? "Requires VO2max from a Garmin watch model that exposes it (Forerunner / Fenix / Venu) — log a recent run on a compatible device."
+                        : undefined
+                    }
+                  >
+                    {label}
+                  </span>
                   <span
                     className={cn(
                       "font-mono text-xs",
                       getLongevityScoreColor(value),
                     )}
                   >
-                    {value == null ? "—" : value.toFixed(0)}
+                    {value == null ? (
+                      <span className="italic text-muted-foreground">
+                        no data
+                      </span>
+                    ) : (
+                      value.toFixed(0)
+                    )}
                   </span>
                 </div>
               ))}
@@ -205,9 +220,13 @@ export function LongevitySection({ longevityInsights }: LongevitySectionProps) {
                 <div className="flex justify-between text-sm mb-1">
                   <span className="text-muted-foreground">Zone 2 (7d)</span>
                   <span className="font-mono">
-                    {training_zones.zone2_minutes_7d == null
-                      ? "—"
-                      : `${String(Math.round(training_zones.zone2_minutes_7d))} min`}
+                    {training_zones.zone2_minutes_7d == null ? (
+                      <span className="text-xs text-muted-foreground italic">
+                        no zone-2 cardio this week
+                      </span>
+                    ) : (
+                      `${String(Math.round(training_zones.zone2_minutes_7d))} min`
+                    )}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
@@ -242,9 +261,13 @@ export function LongevitySection({ longevityInsights }: LongevitySectionProps) {
                 <div className="flex justify-between text-sm mb-1">
                   <span className="text-muted-foreground">Zone 5 (7d)</span>
                   <span className="font-mono">
-                    {training_zones.zone5_minutes_7d == null
-                      ? "—"
-                      : `${String(Math.round(training_zones.zone5_minutes_7d))} min`}
+                    {training_zones.zone5_minutes_7d == null ? (
+                      <span className="text-xs text-muted-foreground italic">
+                        no zone-5 cardio this week
+                      </span>
+                    ) : (
+                      `${String(Math.round(training_zones.zone5_minutes_7d))} min`
+                    )}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
