@@ -331,7 +331,7 @@ export function SleepOverviewPage() {
       </ChartErrorBoundary>
 
       {/* Temperature Environment */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-2">
         <ChartErrorBoundary>
           <ChartCard
             title="Temperature Environment"
@@ -517,7 +517,7 @@ export function SleepOverviewPage() {
       </Card>
 
       {/* Sleep Latency & Toss and Turn */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-2">
         <ChartErrorBoundary>
           <ChartCard
             title="Sleep Latency"

@@ -436,11 +436,13 @@ function formatHealthScore(analytics: AnalyticsResponse): string[] {
       (a, b) => (b.goodness_z_score ?? 0) - (a.goodness_z_score ?? 0),
     );
     const top = sorted[0];
-    const worst = sorted.at(-1)!;
-    const topStr = `Top: ${top.name} z=${n(top.goodness_z_score, 1)} ${(top.confidence * 100).toFixed(0)}%`;
-    const gatedSuffix = worst.is_gated ? " [GATED]" : "";
-    const worstStr = `Worst: ${worst.name} z=${n(worst.goodness_z_score, 1)} ${(worst.confidence * 100).toFixed(0)}%${gatedSuffix}`;
-    lines.push(`${topStr} | ${worstStr}`);
+    const worst = sorted.at(-1);
+    if (worst) {
+      const topStr = `Top: ${top.name} z=${n(top.goodness_z_score, 1)} ${(top.confidence * 100).toFixed(0)}%`;
+      const gatedSuffix = worst.is_gated ? " [GATED]" : "";
+      const worstStr = `Worst: ${worst.name} z=${n(worst.goodness_z_score, 1)} ${(worst.confidence * 100).toFixed(0)}%${gatedSuffix}`;
+      lines.push(`${topStr} | ${worstStr}`);
+    }
   }
 
   return lines;

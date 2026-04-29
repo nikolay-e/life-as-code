@@ -21,6 +21,7 @@ import {
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
+import { DateInputPicker } from "../../components/ui/date-range-picker";
 import {
   Card,
   CardContent,
@@ -166,16 +167,12 @@ function InterventionForm({
                 placeholder="e.g. 2x daily"
               />
             </div>
-            <div>
+            <div className="flex flex-col gap-1.5">
               <Label htmlFor="med-start">Start Date</Label>
-              <Input
-                id="med-start"
-                type="date"
+              <DateInputPicker
                 value={startDate}
-                onChange={(e) => {
-                  setStartDate(e.target.value);
-                }}
-                required
+                onChange={setStartDate}
+                className="w-full justify-start"
               />
             </div>
             <div>
@@ -421,16 +418,12 @@ function BiomarkerForm({
       <CardContent className="pt-4">
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            <div>
+            <div className="flex flex-col gap-1.5">
               <Label htmlFor="bio-date">Date *</Label>
-              <Input
-                id="bio-date"
-                type="date"
+              <DateInputPicker
                 value={date}
-                onChange={(e) => {
-                  setDate(e.target.value);
-                }}
-                required
+                onChange={setDate}
+                className="w-full justify-start"
               />
             </div>
             <div>

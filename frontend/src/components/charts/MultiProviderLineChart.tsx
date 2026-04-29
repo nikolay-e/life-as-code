@@ -8,6 +8,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   ReferenceLine,
+  ReferenceArea,
   Legend,
 } from "recharts";
 import { format } from "date-fns";
@@ -23,6 +24,7 @@ import {
   LOESS_BANDWIDTH_SHORT,
   LOESS_BANDWIDTH_LONG,
 } from "../../lib/constants";
+import { type ChartAnnotation, CATEGORY_COLOR } from "./annotations";
 
 interface MultiProviderLineChartProps {
   readonly data: MultiProviderDataPoint[];
@@ -43,6 +45,9 @@ interface MultiProviderLineChartProps {
   readonly showTrends?: boolean;
   readonly bandwidthShort?: number;
   readonly bandwidthLong?: number;
+  readonly annotations?: readonly ChartAnnotation[];
+  readonly baselineMean?: number | null;
+  readonly baselineStd?: number | null;
   dateRange?: { start: string; end: string };
 }
 
@@ -62,6 +67,9 @@ export const MultiProviderLineChart = memo(
     showTrends = false,
     bandwidthShort = LOESS_BANDWIDTH_SHORT,
     bandwidthLong = LOESS_BANDWIDTH_LONG,
+    annotations,
+    baselineMean,
+    baselineStd,
     dateRange,
   }: MultiProviderLineChartProps) => {
     const hasEightSleep =
@@ -119,6 +127,34 @@ export const MultiProviderLineChart = memo(
       return undefined;
     }, [dateRange]);
 
+    const visibleAnnotations = useMemo(() => {
+      if (!annotations?.length || !xDomain) return [];
+      const [domainStart, domainEnd] = xDomain;
+      return annotations
+        .map((a) => ({
+          ...a,
+          startTs: dateToTimestamp(a.startDate),
+          endTs: a.endDate ? dateToTimestamp(a.endDate) : null,
+        }))
+        .filter((a) => a.startTs >= domainStart && a.startTs <= domainEnd);
+    }, [annotations, xDomain]);
+
+    const zScoreBand1 = useMemo(() => {
+      if (
+        baselineMean == null ||
+        baselineStd == null ||
+        !Number.isFinite(baselineMean) ||
+        !Number.isFinite(baselineStd) ||
+        baselineStd <= 0
+      ) {
+        return null;
+      }
+      return {
+        y1: baselineMean - baselineStd,
+        y2: baselineMean + baselineStd,
+      };
+    }, [baselineMean, baselineStd]);
+
     if (!hasData) {
       return <EmptyChartMessage message={emptyMessage} />;
     }
@@ -168,6 +204,16 @@ export const MultiProviderLineChart = memo(
             contentStyle={chartTooltipStyle}
           />
 
+          {zScoreBand1 && (
+            <ReferenceArea
+              y1={zScoreBand1.y1}
+              y2={zScoreBand1.y2}
+              fill="hsl(var(--success))"
+              fillOpacity={0.06}
+              ifOverflow="extendDomain"
+            />
+          )}
+
           <Bar
             dataKey="garminValue"
             fill={config.garminColor}
@@ -204,6 +250,40 @@ export const MultiProviderLineChart = memo(
               }}
             />
           )}
+
+          {visibleAnnotations.map((a) => {
+            const color = CATEGORY_COLOR[a.category];
+            if (a.endTs && a.endTs > a.startTs) {
+              return (
+                <ReferenceArea
+                  key={`ann-${String(a.id)}`}
+                  x1={a.startTs}
+                  x2={a.endTs}
+                  fill={color}
+                  fillOpacity={0.08}
+                  stroke={color}
+                  strokeOpacity={0.35}
+                  strokeDasharray="2 2"
+                  ifOverflow="extendDomain"
+                />
+              );
+            }
+            return (
+              <ReferenceLine
+                key={`ann-${String(a.id)}`}
+                x={a.startTs}
+                stroke={color}
+                strokeOpacity={0.55}
+                strokeDasharray="2 3"
+                label={{
+                  value: a.label,
+                  position: "top",
+                  fill: color,
+                  fontSize: 10,
+                }}
+              />
+            );
+          })}
 
           {showTrends && (
             <Legend

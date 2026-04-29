@@ -354,7 +354,7 @@ export function DataStatusPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-6 sm:grid-cols-5">
+          <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-5">
             <SyncStatusItem
               label="Last Sync"
               date={getLatestSyncDate(syncStatus)}

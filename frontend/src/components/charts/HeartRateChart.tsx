@@ -3,6 +3,7 @@ import type { HeartRateData } from "../../types/api";
 import { MULTI_PROVIDER_CONFIGS } from "./chart-config";
 import { MultiProviderLineChart } from "./MultiProviderLineChart";
 import { splitBySource } from "../../lib/chart-utils";
+import type { ChartAnnotation } from "./annotations";
 import {
   LOESS_BANDWIDTH_SHORT,
   LOESS_BANDWIDTH_LONG,
@@ -14,6 +15,9 @@ interface HeartRateChartProps {
   readonly bandwidthShort?: number;
   readonly bandwidthLong?: number;
   readonly dateRange?: { start: string; end: string };
+  readonly annotations?: readonly ChartAnnotation[];
+  readonly baselineMean?: number | null;
+  readonly baselineStd?: number | null;
 }
 
 export const HeartRateChart = memo(
@@ -23,6 +27,9 @@ export const HeartRateChart = memo(
     bandwidthShort = LOESS_BANDWIDTH_SHORT,
     bandwidthLong = LOESS_BANDWIDTH_LONG,
     dateRange,
+    annotations,
+    baselineMean,
+    baselineStd,
   }: HeartRateChartProps) => {
     const config = MULTI_PROVIDER_CONFIGS.restingHr;
 
@@ -42,6 +49,9 @@ export const HeartRateChart = memo(
         bandwidthShort={bandwidthShort}
         bandwidthLong={bandwidthLong}
         dateRange={dateRange}
+        annotations={annotations}
+        baselineMean={baselineMean}
+        baselineStd={baselineStd}
       />
     );
   },

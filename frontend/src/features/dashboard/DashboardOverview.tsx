@@ -6,9 +6,10 @@ import {
 } from "../../hooks/useHealthData";
 import { Card, CardContent } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
-import { Input } from "../../components/ui/input";
+import { DateRangePicker } from "../../components/ui/date-range-picker";
 import { LoadingState } from "../../components/ui/loading-state";
 import { ErrorCard } from "../../components/ui/error-card";
+import { InterventionQuickAdd } from "./InterventionQuickAdd";
 import { HRVChart } from "../../components/charts/HRVChart";
 import { SleepChart } from "../../components/charts/SleepChart";
 import { WeightChart } from "../../components/charts/WeightChart";
@@ -43,6 +44,8 @@ import { DASHBOARD_METRIC_KEYS } from "../../lib/metrics/keys";
 import { toTimeMs } from "../../lib/health";
 import { getLatestSyncDate } from "../../lib/sync-utils";
 import { useAnalytics } from "../../hooks/useAnalytics";
+import { useInterventions } from "../../hooks/useHealthLog";
+import { interventionsToAnnotations } from "../../components/charts/annotations";
 import { useToday } from "../../hooks/useToday";
 import {
   LOESS_BANDWIDTH_SHORT,
@@ -138,6 +141,13 @@ export function DashboardOverview() {
       ? "recent"
       : selectedRange;
   const { data: analyticsData } = useAnalytics(analyticsMode);
+  const { data: interventionsData } = useInterventions();
+  const annotations = useMemo(
+    () => interventionsToAnnotations(interventionsData),
+    [interventionsData],
+  );
+  const hrvBaseline = analyticsData?.metric_baselines.hrv;
+  const rhrBaseline = analyticsData?.metric_baselines.rhr;
 
   const stepsFloor = useMemo(() => {
     const steps = data?.steps;
@@ -175,72 +185,66 @@ export function DashboardOverview() {
               Track your daily health metrics
             </p>
           </div>
-          <div className="flex items-center gap-1.5 p-1 bg-muted/50 rounded-lg flex-wrap">
-            <Calendar className="h-4 w-4 text-muted-foreground ml-2" />
-            <Button
-              variant={selectedRange === "today" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => {
-                setSelectedRange("today");
-              }}
-              className="min-w-[60px] flex flex-col h-auto py-1.5"
-            >
-              <span className="font-medium">Today</span>
-              <span className="text-[10px]">Latest</span>
-            </Button>
-            {MODE_ORDER.map((m) => {
-              const cfg = TREND_MODES[m];
-              return (
-                <Button
-                  key={m}
-                  variant={selectedRange === m ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => {
-                    setSelectedRange(m);
-                  }}
-                  className="min-w-[60px] flex flex-col h-auto py-1.5"
-                >
-                  <span className="font-medium">{cfg.label}</span>
-                  <span className="text-[10px]">{cfg.description}</span>
-                </Button>
-              );
-            })}
-            <Button
-              variant={selectedRange === "custom" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => {
-                setSelectedRange("custom");
-              }}
-              className="min-w-[60px] flex flex-col h-auto py-1.5"
-            >
-              <span className="font-medium">Custom</span>
-              <span className="text-[10px]">Range</span>
-            </Button>
-          </div>
-          {isCustom && (
-            <div className="flex items-center gap-2 mt-2">
-              <Input
-                type="date"
-                value={customStartDate}
-                onChange={(e) => {
-                  setCustomStartDate(e.target.value);
+          <div className="flex flex-col gap-2 sm:items-end">
+            <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-lg overflow-x-auto sm:flex-wrap sm:overflow-visible -mx-1 px-1">
+              <Calendar className="h-4 w-4 text-muted-foreground ml-2 shrink-0" />
+              <Button
+                variant={selectedRange === "today" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => {
+                  setSelectedRange("today");
                 }}
-                className="w-36"
-              />
-              <span className="text-muted-foreground">—</span>
-              <Input
-                type="date"
-                value={customEndDate}
-                onChange={(e) => {
-                  setCustomEndDate(e.target.value);
+                className="min-w-[60px] flex flex-col h-auto py-1.5 shrink-0"
+              >
+                <span className="font-medium">Today</span>
+                <span className="text-[10px]">Latest</span>
+              </Button>
+              {MODE_ORDER.map((m) => {
+                const cfg = TREND_MODES[m];
+                return (
+                  <Button
+                    key={m}
+                    variant={selectedRange === m ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => {
+                      setSelectedRange(m);
+                    }}
+                    className="min-w-[60px] flex flex-col h-auto py-1.5 shrink-0"
+                  >
+                    <span className="font-medium">{cfg.label}</span>
+                    <span className="text-[10px]">{cfg.description}</span>
+                  </Button>
+                );
+              })}
+              <Button
+                variant={selectedRange === "custom" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => {
+                  setSelectedRange("custom");
                 }}
-                className="w-36"
-              />
-              <span className="text-sm text-muted-foreground">
-                ({selectedDays} days)
-              </span>
+                className="min-w-[60px] flex flex-col h-auto py-1.5 shrink-0"
+              >
+                <span className="font-medium">Custom</span>
+                <span className="text-[10px]">Range</span>
+              </Button>
             </div>
-          )}
+            {isCustom && (
+              <div className="flex flex-wrap items-center gap-2">
+                <DateRangePicker
+                  start={customStartDate}
+                  end={customEndDate}
+                  onChange={({ start, end }) => {
+                    setCustomStartDate(start);
+                    setCustomEndDate(end);
+                  }}
+                  disabled={{ after: today }}
+                />
+                <span className="text-xs text-muted-foreground">
+                  ({selectedDays} days)
+                </span>
+              </div>
+            )}
+          </div>
         </div>
         {(() => {
           const lastSync = getLatestSyncDate(syncStatus);
@@ -268,6 +272,8 @@ export function DashboardOverview() {
           );
         })()}
       </div>
+
+      <InterventionQuickAdd />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {METRIC_REGISTRY.filter((def) => DASHBOARD_KEYS.has(def.key)).map(
@@ -320,7 +326,7 @@ export function DashboardOverview() {
         )}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-2">
         <ChartCard
           title="HRV"
           icon={Activity}
@@ -334,6 +340,9 @@ export function DashboardOverview() {
               bandwidthShort={bandwidthShort}
               bandwidthLong={bandwidthLong}
               dateRange={dateRange}
+              annotations={annotations}
+              baselineMean={hrvBaseline?.mean}
+              baselineStd={hrvBaseline?.std}
             />
           </ChartErrorBoundary>
         </ChartCard>
@@ -385,12 +394,15 @@ export function DashboardOverview() {
               bandwidthShort={bandwidthShort}
               bandwidthLong={bandwidthLong}
               dateRange={dateRange}
+              annotations={annotations}
+              baselineMean={rhrBaseline?.mean}
+              baselineStd={rhrBaseline?.std}
             />
           </ChartErrorBoundary>
         </ChartCard>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-2">
         <ChartCard
           title="Daily Steps"
           icon={Footprints}

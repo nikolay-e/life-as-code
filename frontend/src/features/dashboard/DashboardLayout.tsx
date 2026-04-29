@@ -23,6 +23,7 @@ import {
 import { cn } from "../../lib/utils";
 import { Spinner } from "../../components/ui/spinner";
 import { VersionInfo } from "../../components/ui/version-info";
+import { MobileBottomNav } from "./MobileBottomNav";
 import { formatCombinedReport } from "../../lib/report-formatter";
 import type { AnalyticsResponse } from "../../types/api";
 import { MAX_BASELINE_DAYS } from "../../lib/metrics";
@@ -184,7 +185,7 @@ export function DashboardLayout() {
             </Button>
           </div>
 
-          <nav className="flex items-center gap-1 flex-1">
+          <nav className="hidden md:flex items-center gap-1 flex-1">
             {navItems.map((item) => (
               <NavLink
                 key={item.to}
@@ -204,6 +205,7 @@ export function DashboardLayout() {
               </NavLink>
             ))}
           </nav>
+          <div className="flex-1 md:hidden" />
 
           <div className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground hidden sm:inline font-medium">
@@ -223,7 +225,7 @@ export function DashboardLayout() {
         </div>
       </header>
 
-      <main className="container py-8 px-4 sm:px-6 lg:px-8">
+      <main className="container py-6 sm:py-8 px-4 sm:px-6 lg:px-8 pb-24 md:pb-8">
         <Suspense
           fallback={
             <div className="flex items-center justify-center h-96">
@@ -236,13 +238,15 @@ export function DashboardLayout() {
       </main>
 
       <footer
-        className="border-t bg-background/50"
+        className="hidden md:block border-t bg-background/50"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <div className="container flex h-12 items-center justify-center px-4 sm:px-6 lg:px-8">
           <VersionInfo />
         </div>
       </footer>
+
+      <MobileBottomNav />
     </div>
   );
 }
