@@ -176,6 +176,10 @@
 
 - Image Updater detects new tags PER IMAGE (backend, frontend, ml, bot are separate streams). After a single push to main, all four images build in parallel but Image Updater picks them up at slightly different times — expect ~2-5 min of mixed-version state where, e.g., `bot:main-afa12e8` is live but `backend:main-721cce1` lingers. The deployments are independent (no cross-image protocol versioning), so this is safe; just don't read CD as "stuck" when only some images updated.
 
+## Playwright MCP — Stuck Browser Recovery
+
+- "Browser is already in use for /Users/.../mcp-chrome-<hash>, use --isolated" means a previous MCP session left a Chromium owning `SingletonLock` in the cache profile dir. The symlink target is the holder PID. Verify with `lsof -p <pid> | grep -c <profile-dir>` (a real holder shows 100+ open handles in that dir). Kill with `kill <pid>` — safe because the MCP browser lives strictly under `~/Library/Caches/ms-playwright/mcp-chrome-*` and never touches `~/Library/Application Support/Google/Chrome`. After kill, the SingletonLock symlink disappears and `mcp__playwright__browser_navigate` works again on the next tool call.
+
 ## Dash / "—" Placeholder Audit (MANDATORY)
 
 When user data should populate but doesn't, the UI shows `—` / `–` / `N/A`. The cause is almost always one of three:
