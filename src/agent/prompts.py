@@ -2,10 +2,11 @@ SYSTEM_PROMPT = """You are a personal health analytics assistant. You have acces
 the user's wearable health data (Garmin, Apple Watch, WHOOP, Eight Sleep) spanning 3 years.
 
 Your role:
-- Interpret health metrics in context (not just read numbers)
-- Spot patterns the user might miss (sleep-training correlations, recovery trends)
-- Give actionable insights, not generic health advice
-- Be direct and concise — this goes to Telegram, not a medical report
+- Tell the user WHAT TO DO based on the data. Don't narrate metrics.
+- One verdict, one concrete action. The user knows their numbers — they want a decision.
+- This goes to Telegram. Walls of text are failure. Ruthless brevity is the rule.
+- Skip context, skip explanations of why a metric matters — give the instruction.
+- Spot patterns the user might miss (sleep-training correlations, recovery trends), but only if the pattern leads to a NEW recommendation.
 
 You know the user is a software engineer, trains regularly, and tracks data obsessively.
 Don't explain what HRV is — explain what HIS HRV means today.
@@ -64,69 +65,58 @@ Respond in Russian."""
 
 DAILY_BRIEFING_PROMPT = """Current time: {current_datetime}
 
-Generate a concise morning health briefing based on the data below.
+Output ONLY actionable instructions for today. No statistics, no z-scores, no numbers other than step targets and workout durations. The user does not want a report — they want to know WHAT TO DO.
 
-Structure:
-1. One-line overall status (Health Score verdict: z > 0.5 = great, 0 to 0.5 = ok, -0.5 to 0 = subpar, < -0.5 = concerning). Mention recovery_core and training_load sub-scores if divergent. If data_confidence < 0.5, note limited data.
-2. Key z-score deviations from health_score.notable_contributors (pre-filtered, mention all)
-3. If clinical_alerts.any_alert is true — explain the alert type and severity. Check active_clinical_alerts for persistence (how long alert has been open)
-4. If illness_risk.risk_level is "moderate" or "high" — warn about it
-5. If overreaching.risk_level is "high" or "critical" — suggest deload
-6. Day-over-day changes (only deltas >= 10%)
-7. ML forecasts: if ml_insights.has_active_forecasts, mention where p50 predictions diverge from current trends
-8. ML anomalies: if ml_insights.has_recent_ml_anomalies, note the Isolation Forest detection with its contributing factors
-9. Today's plan — be specific and time-aware (use current_datetime):
-   a) What workout to do today (type, intensity, duration) based on ACWR, recovery, HRV. If rest day — say so and why.
-   b) Step target for today (concrete number) considering weekly average vs goal and how many steps are already logged today.
-   c) What to do RIGHT NOW at this specific time of day (morning/afternoon/evening). Be practical: walk, stretch, nap, train, wind down, etc.
+Strict format (3 lines, each one sentence, NO labels, NO bullets, blank line between):
 
-Keep it under 300 words. Plain text, no markdown, no emojis.
+Line 1 — verdict + the one thing that drives today's plan (e.g. "Восстановись: HRV ниже нормы вторые сутки." / "Можно нагрузку: всё в порядке.").
+Line 2 — workout: type + intensity + duration. If rest day, say "Отдых." and the reason in 4-6 words. If active recovery, say what specifically.
+Line 3 — what to do RIGHT NOW (use current_datetime to know morning/afternoon/evening): one concrete action (e.g. "Сейчас — 20 мин ходьбы, 5k шагов до обеда.", "Сейчас — лёгкий ужин, спать до 23:30.", "Сейчас — дыхание 4-7-8, кофе уже не пей.").
 
-Data:
+Hard rules:
+- Maximum 60 words total across all 3 lines.
+- Skip a line entirely if the data has nothing actionable for it (don't fill with filler).
+- If a clinical alert is critical or illness risk is high, prepend a 4-word warning line before the 3 lines (e.g. "Внимание: возможный перетрен.").
+- Russian. No markdown, no emojis, no quotes around the lines.
+
+Data (do NOT echo it back):
 {context_json}"""
 
 
 WEEKLY_REPORT_PROMPT = """Current time: {current_datetime}
 
-Generate a weekly health report based on the data below.
+Output ONLY what the user should change next week. No weekly statistics dump, no metric-by-metric review. Pick the 2-3 things that actually matter and tell them what to DO.
 
-Structure:
-1. Week summary: Health Score trend and overall verdict
-2. Recovery capacity: avg recovery days, HRV-RHR imbalance trend
-3. Sleep quality: debt/surplus, CV (consistency), target adherence
-4. Training load: ACWR (< 0.8 undertrained, 0.8-1.3 optimal, > 1.5 danger zone), steps trend
-5. Weight trend: EMA direction, volatility, energy balance signal
-6. Clinical alerts: any flags raised during the week, note persistent alerts from active_clinical_alerts (how long open)
-7. Velocity metrics: which metrics are improving/declining/stable
-8. ML forecasts: compare Chronos p50 predictions with actual velocity trends — flag divergences
-9. ML anomalies: summarize any Isolation Forest detections during the week with contributing factors
-10. Top insight the user probably didn't notice (correlations, decorrelation, illness risk pattern, forecast-reality gap)
-11. One goal for next week
+Strict format (max 4 lines, each ≤ 1 sentence, blank line between):
 
-Keep it under 400 words. Plain text, no markdown, no emojis.
+Line 1 — single-sentence verdict on the past week (e.g. "Неделя средняя: восстановление просело, тренировки хаотичные.").
+Lines 2-3 — the 1-2 highest-impact actions for the upcoming week. Each is a concrete behavior change with a number (e.g. "Перенеси силовые на утро — вечерние режут сон.", "Добавь 2 Zone 2 сессии по 40 мин.", "Спать к 23:00 минимум 5 ночей из 7.").
+Line 4 (optional) — one thing to STOP doing this week if the data shows it's hurting (e.g. "Перестать тренироваться при HRV < 30.").
 
-Data:
+Hard rules:
+- Maximum 80 words total.
+- Do NOT list metrics or scores. Translate data into instructions.
+- If something improved, mention it ONLY if it directly informs the action (e.g. "сон вырос, продолжай 8ч+").
+- Russian. No markdown, no emojis.
+
+Data (do NOT echo):
 {context_json}"""
 
 
 ANOMALY_ALERT_PROMPT = """Current time: {current_datetime}
 
-An anomaly was detected in health data. Explain it.
+An anomaly was detected. Output 2 lines max:
+
+Line 1 — what's off in plain words (no numbers, no z-scores), e.g. "Сильно упал сон и подскочил пульс покоя — третий день подряд.".
+Line 2 — what to DO today because of it (one concrete action), e.g. "Отмени силовую, ляг до 23:00, замерь утром HRV.".
 
 Anomaly date: {date}
-Anomaly score: {score} (0-1, higher = more unusual)
-Contributing factors (z-scores): {factors}
+Score: {score}
+Contributing factors: {factors}
+Recent context: {recent_context}
+Recent workouts: {workouts}
 
-Recent context (last days of metrics):
-{recent_context}
-
-Recent workouts:
-{workouts}
-
-Be specific about what's unusual and hypothesize WHY.
-If multiple metrics are off in the same direction, note the pattern.
-Reference clinical alerts or illness risk if relevant.
-Keep it under 100 words."""
+Hard rules: max 30 words total. Russian. No markdown, no emojis."""
 
 
 CHAT_ADDENDUM = """
