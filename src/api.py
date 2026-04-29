@@ -817,7 +817,7 @@ def _handle_sync_request(
     # Manual sync clears any backoff state so the user can retry after exhaustion
     from sync_backoff import SyncBackoffManager
 
-    SyncBackoffManager().record_success(user_id, source_name.lower())
+    SyncBackoffManager().record_success(user_id, source.value)
 
     days = request.args.get("days", type=int)
     full_sync = request.args.get("full", "").lower() == "true"
@@ -835,19 +835,19 @@ def _handle_sync_request(
             if full_sync:
                 result = normalize_sync_result(sync_func(user_id, full_sync=True))
                 _update_data_sync(
-                    user_id, source_name.lower(), result, result.get("success", False)
+                    user_id, source.value, result, result.get("success", False)
                 )
             elif days:
                 result = normalize_sync_result(sync_func(user_id, days=days))
                 _update_data_sync(
-                    user_id, source_name.lower(), result, result.get("success", False)
+                    user_id, source.value, result, result.get("success", False)
                 )
             else:
-                _run_two_phase_sync(user_id, sync_func, source_name.lower())
+                _run_two_phase_sync(user_id, sync_func, source.value)
         except Exception as e:
             _update_data_sync(
                 user_id,
-                source_name.lower(),
+                source.value,
                 {"success": False, "error": str(e)},
                 False,
             )

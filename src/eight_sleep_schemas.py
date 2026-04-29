@@ -7,6 +7,10 @@ from logging_config import get_logger
 
 logger = get_logger(__name__)
 
+# Module-level flag — Pydantic v2 reserves `_underscore_attrs` so it cannot live
+# as a regular class attribute on the BaseModel below.
+_payload_shape_logged: bool = False
+
 
 class EightSleepSessionData(BaseModel):
     date: datetime.date
@@ -65,8 +69,6 @@ class EightSleepSessionData(BaseModel):
             return None
         return round(sum(values) / len(values), 2)
 
-    _logged_shape: bool = False
-
     @classmethod
     def from_api_response(cls, day: dict) -> "EightSleepSessionData | None":
         try:
@@ -75,8 +77,9 @@ class EightSleepSessionData(BaseModel):
                 return None
             session_date = parse_iso_date(day_str)
 
-            if not cls._logged_shape:
-                cls._logged_shape = True
+            global _payload_shape_logged
+            if not _payload_shape_logged:
+                _payload_shape_logged = True
                 fitness_field = day.get("sleepFitnessScore")
                 health_field = day.get("health")
                 logger.info(
@@ -87,6 +90,9 @@ class EightSleepSessionData(BaseModel):
                         sorted(fitness_field.keys())
                         if isinstance(fitness_field, dict)
                         else None
+                    ),
+                    fitness_value_preview=(
+                        str(fitness_field)[:200] if fitness_field is not None else None
                     ),
                     health_type=type(health_field).__name__,
                     health_keys=(
