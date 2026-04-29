@@ -82,7 +82,10 @@ class EightSleepSessionData(BaseModel):
                 _payload_shape_logged = True
                 fitness_field = day.get("sleepFitnessScore")
                 health_field = day.get("health")
-                logger.info(
+                # WARNING level so it appears in production logs even when
+                # LOG_LEVEL=WARNING (default in life-as-code prod) drops INFO.
+                # This is a one-shot diagnostic per pod restart.
+                logger.warning(
                     "eight_sleep_payload_shape",
                     day_keys=sorted(day.keys()),
                     fitness_type=type(fitness_field).__name__,
