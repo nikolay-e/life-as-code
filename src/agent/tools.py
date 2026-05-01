@@ -1,21 +1,25 @@
 from datetime import date
 
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from analytics.date_utils import local_today
 from database import get_db_session_context
+from date_utils import parse_iso_date
 from models import (
     HRV,
     Energy,
     GarminActivity,
     HeartRate,
+    Intervention,
     Prediction,
     Sleep,
     Steps,
     Weight,
     WorkoutSet,
 )
+
+INTERVENTION_CATEGORIES = ["medication", "supplement", "protocol", "lifestyle", "diet"]
 
 TOOLS = [
     {
@@ -86,6 +90,76 @@ TOOLS = [
             ],
         },
     },
+    {
+        "name": "log_intervention",
+        "description": (
+            "Log a lifestyle event, medication, supplement, protocol, or diet that the "
+            "user mentions in the conversation. Use this proactively whenever the user "
+            "tells you they took a supplement/medication, drank alcohol, was sick, "
+            "fasted, did a sauna session, started a new diet, etc. The intervention "
+            "becomes a marker on health charts for correlation analysis. "
+            "If start_date is omitted, today is used."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": (
+                        "Short canonical name (e.g. 'Magnesium Glycinate', 'Alcohol', "
+                        "'Sauna', 'Illness — flu', 'Fasting 16h', 'Carnivore diet'). "
+                        "Prefer English even if user wrote in Russian."
+                    ),
+                },
+                "category": {
+                    "type": "string",
+                    "enum": INTERVENTION_CATEGORIES,
+                },
+                "start_date": {
+                    "type": "string",
+                    "description": "YYYY-MM-DD, defaults to today",
+                },
+                "end_date": {
+                    "type": "string",
+                    "description": "YYYY-MM-DD, optional (for one-day events like alcohol/sauna set same as start_date)",
+                },
+                "dosage": {
+                    "type": "string",
+                    "description": "e.g. '500mg', '2 capsules', '1 glass wine'. Optional.",
+                },
+                "frequency": {
+                    "type": "string",
+                    "description": "e.g. 'daily', 'twice daily', 'weekly'. Optional.",
+                },
+                "notes": {
+                    "type": "string",
+                    "description": "Brief context from the conversation. Optional.",
+                },
+            },
+            "required": ["name", "category"],
+        },
+    },
+    {
+        "name": "list_recent_interventions",
+        "description": (
+            "List the user's recent interventions (last N days). Use to check if "
+            "something is already logged before adding it, or to recall what the user "
+            "took recently."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "days": {
+                    "type": "integer",
+                    "description": "Lookback window in days (default 14)",
+                },
+                "active_only": {
+                    "type": "boolean",
+                    "description": "Only return active interventions (default false)",
+                },
+            },
+        },
+    },
 ]
 
 METRIC_MODEL_MAP = {
@@ -103,6 +177,8 @@ def execute_tool(user_id: int, tool_name: str, tool_input: dict) -> dict:
         "query_health_data": _handle_query_health_data,
         "get_predictions": _handle_get_predictions,
         "compare_periods": _handle_compare_periods,
+        "log_intervention": _handle_log_intervention,
+        "list_recent_interventions": _handle_list_recent_interventions,
     }
     handler = handlers.get(tool_name)
     if not handler:
@@ -282,3 +358,97 @@ def _handle_compare_periods(user_id: int, params: dict) -> dict:
         "period_b": {"start": str(b_start), "end": str(b_end), "avg": avg_b},
         "change_pct": change,
     }
+
+
+def _handle_log_intervention(user_id: int, params: dict) -> dict:
+    name = (params.get("name") or "").strip()
+    category = params.get("category")
+    if not name:
+        return {"error": "name is required"}
+    if category not in INTERVENTION_CATEGORIES:
+        return {"error": f"category must be one of {INTERVENTION_CATEGORIES}"}
+
+    start_date_str = params.get("start_date")
+    try:
+        start_date = parse_iso_date(start_date_str) if start_date_str else local_today()
+    except ValueError:
+        return {"error": f"invalid start_date: {start_date_str}"}
+
+    end_date = None
+    end_date_str = params.get("end_date")
+    if end_date_str:
+        try:
+            end_date = parse_iso_date(end_date_str)
+        except ValueError:
+            return {"error": f"invalid end_date: {end_date_str}"}
+
+    with get_db_session_context() as db:
+        existing = db.scalars(
+            select(Intervention).filter_by(
+                user_id=user_id,
+                name=name,
+                start_date=start_date,
+                category=category,
+            )
+        ).first()
+        if existing:
+            return {
+                "status": "already_logged",
+                "id": existing.id,
+                "name": existing.name,
+                "category": existing.category,
+                "start_date": str(existing.start_date),
+            }
+
+        intervention = Intervention(
+            user_id=user_id,
+            name=name,
+            category=category,
+            start_date=start_date,
+            end_date=end_date,
+            dosage=(params.get("dosage") or None),
+            frequency=(params.get("frequency") or None),
+            notes=(params.get("notes") or None),
+            active=True,
+        )
+        db.add(intervention)
+        db.flush()
+        return {
+            "status": "logged",
+            "id": intervention.id,
+            "name": intervention.name,
+            "category": intervention.category,
+            "start_date": str(intervention.start_date),
+            "end_date": str(intervention.end_date) if intervention.end_date else None,
+        }
+
+
+def _handle_list_recent_interventions(user_id: int, params: dict) -> dict:
+    days = int(params.get("days", 14))
+    active_only = bool(params.get("active_only", False))
+    cutoff = local_today() - __import__("datetime").timedelta(days=days)
+
+    with get_db_session_context() as db:
+        query = select(Intervention).filter(
+            Intervention.user_id == user_id,
+            Intervention.start_date >= cutoff,
+        )
+        if active_only:
+            query = query.filter(Intervention.active.is_(True))
+        rows = db.scalars(query.order_by(Intervention.start_date.desc())).all()
+
+        data = [
+            {
+                "id": r.id,
+                "name": r.name,
+                "category": r.category,
+                "start_date": str(r.start_date),
+                "end_date": str(r.end_date) if r.end_date else None,
+                "dosage": r.dosage,
+                "frequency": r.frequency,
+                "active": r.active,
+            }
+            for r in rows
+        ]
+
+    return {"interventions": data, "count": len(data), "lookback_days": days}
