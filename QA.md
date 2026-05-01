@@ -294,6 +294,51 @@ async (page) => {
 
 Add this Playwright check to any QA pass that touches `/dashboard`, `/dashboard/sleep`, or `/dashboard/statistics`.
 
+## ML Insights — Contributing Factors Shape
+
+- `analytics_response.ml_insights.ml_anomalies[].contributing_factors` is `Record<string, {value: number, z_score: number}>`, **not** `Record<string, number>`. Easy to misread as flat numbers — UI code that calls `value.toFixed(...)` will crash with `i.toFixed is not a function` and trip the React error boundary on the Statistics page.
+- Sample: `{"avg_stress": {"value": 20, "z_score": -2.92}, "weight": {"value": 99.6, "z_score": 3.16}}`. When sorting by importance, sort by `Math.abs(factor.z_score)`. When rendering chips, format `factor.z_score`, NOT the wrapper object.
+- The API endpoint `/api/ml/anomalies` and the inline `analytics_response.ml_insights.ml_anomalies` return the SAME shape — patch both consumers if you change the contract.
+
+## Garmin Sleep API — Top-Level vs dailySleepDTO
+
+- `garminconnect.get_sleep_data(date)` returns a structure where **most useful fields live at the TOP level**, not inside `dailySleepDTO`. dailySleepDTO contains stages (deep/light/rem/awake_minutes), totals, and sleep_score; everything else (body_battery_change, skin_temp_celsius, awake_count, sleep_quality_score, sleep_recovery_score, avgSpO2, lowestSpO2, averageRespiration) is at the response root.
+- Original parser fed only `sleep_data["dailySleepDTO"]` to the schema — silently dropped 7 fields, leaving DB columns NULL forever.
+- Fix: merge scalar top-level fields with dailySleepDTO before feeding the parser. Skip `dict`/`list` top-level subdocs (sleepLevels, sleepMovement, etc.) — those are time-series and not relevant to the daily summary.
+- Audit signal: `respiratory_rate` populated 54/85 but `body_battery_change`/`skin_temp_celsius`/`awake_count`/`spo2_avg`/`spo2_min`/`sleep_quality_score`/`sleep_recovery_score` all 0/85 across all historical syncs. The fact that respiration worked at all came from one of its aliases happening to also exist in dailySleepDTO.
+- Historical data does NOT backfill — the fix only populates new syncs. Run a full re-sync (`POST /api/sync/garmin?full=true`) to backfill.
+
+## treemapper --diff Caveats
+
+- `treemapper . --diff <from>..<to>` doesn't always honour the diff filter and may dump the entire tree (~300k tokens). For code review of a specific commit range, prefer `git diff <from>..<to> --stat` then targeted `git diff <from>..<to> -- <file>` instead. Faster, cheaper, safer for context.
+
+## SonarCloud Patterns (additional, batch from this pass)
+
+- `typescript:S6959` (BUG: reduce without initial value): `arr.reduce((a, c) => ...)` flagged as MAJOR/BUG — every reduce needs an explicit initial value. For "find best of array" patterns, do `arr.reduce<T>((best, cur) => ..., arr[0])` after an empty-check guard. This is a `new_reliability_rating` quality-gate failure (single BUG flips A→C).
+- `typescript:S4144` (identical functions): adding two `handleDelete = (id, name) => remove.mutate(...)` in same file across two unrelated tab components triggers this. Extract a top-level `makeDeleteHandler(remove)` factory — keeps both call sites clean and removes the dup.
+- `typescript:S3776` cognitive complexity: extracting per-field pickers (`pickGarminPace`, `pickElevationGain`, etc.) is the cleanest reduction. Each picker handles its own null guard and returns `string | null`; the assembler just pushes non-null. Beats inlining all conditions in one function.
+- `typescript:S3358` (nested ternary): inside JSX className/template literal interpolation: extract toneClass / arrowIcon / labelText helpers and call them inline. For "isPending ? 'Saving...' : initial ? 'Update' : 'Save'" extract a `submitLabel(isPending, initial)` helper.
+- `typescript:S7735` (negated condition): `value !== null ? expr : default` → `value === null ? default : expr`. Conjunctions with `&&` are NOT flagged. The `??` operator is preferred where it works (for null-defaulting strings).
+- `typescript:S4624` (nested template): `\`${qs ? \`?${qs}\` : ""}\`` flagged. Extract: `const path = qs ? \`/foo?${qs}\` : "/foo"; return request(path)`.
+- `@typescript-eslint/no-base-to-string`: `String(value)` on `unknown` triggers it. Wrap with explicit type narrowing: `typeof v === "string" || typeof v === "number" || typeof v === "boolean" ? String(v) : JSON.stringify(v)` — extract to a util function, otherwise S3358 will flag the nested ternary.
+
+## React Hooks — useState in useEffect
+
+- `react-hooks/set-state-in-effect`: ESLint v9+ flags syncing prop→state via `useEffect(() => setX(prop), [prop])`. Replace with the "edits overlay" pattern: keep `state = { editValue: string | null, ... }` initialized to `null`, derive displayed value as `editValue ?? initialValueFromProp`, mutate via `setState((p) => ({ ...p, editValue: v }))`. Avoids the cascading-render warning AND eliminates a stale-state bug class.
+
+## Pre-commit Reformat — Same File Twice
+
+- When pre-commit reformats files during a commit, the commit succeeds (exit 0) but the formatted files appear as unstaged in `git status` immediately after. The `MM` flag in status output is the tell. Re-stage with explicit paths and re-commit — DO NOT amend. Pushing both commits is fine.
+
+## Pyright vs mypy Discrepancy on api.py
+
+- After editing `src/api.py`, the editor's Pyright LSP fires 10+ `reportAttributeAccessIssue` warnings on every SQLAlchemy `Column[T]` read/write (e.g., `creds.garmin_email = body.email`). Project CI uses mypy with the sqlalchemy plugin which understands these as ORM columns. Always verify with `.venv/bin/mypy src/api.py` before treating as a real failure — the pyright noise is consistent and not actionable.
+
+## ArgoCD Image Updater — Force Refresh Pattern
+
+- Image Updater can lag 1-3 min after CI build completes. To accelerate during QA: `kubectl annotate application life-as-code-production -n argocd argocd.argoproj.io/refresh=hard --overwrite`. Then poll `kubectl get deployment .../backend -o jsonpath='{.spec.template.spec.containers[0].image}'` until tag changes.
+- Don't manually patch the deployment image — Image Updater will revert on next sync. Refresh is the only correct accelerator.
+
 ## Tailwind Contrast Cheatsheet (1Password-Verified)
 
 White text on Tailwind 600/700/800 colored bg:
