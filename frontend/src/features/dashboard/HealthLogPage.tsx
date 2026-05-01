@@ -265,6 +265,21 @@ function InterventionForm({
   );
 }
 
+type InterventionKind = "event" | "ongoing" | "completed";
+
+function classifyIntervention(
+  item: InterventionData,
+  todayIso: string,
+): InterventionKind {
+  if (item.end_date && item.start_date === item.end_date) {
+    return "event";
+  }
+  if (item.end_date && item.end_date < todayIso) {
+    return "completed";
+  }
+  return "ongoing";
+}
+
 function InterventionCard({
   item,
 }: Readonly<{
@@ -292,13 +307,15 @@ function InterventionCard({
     });
   };
 
-  const isActive = item.active;
+  const kind = classifyIntervention(item, todayStr());
+  const showStop = kind === "ongoing";
+  const dimmed = kind === "completed";
 
   return (
     <div
       className={cn(
         "flex items-center justify-between p-3 rounded-lg border",
-        isActive ? "bg-background" : "bg-muted/30 opacity-70",
+        dimmed ? "bg-muted/30 opacity-70" : "bg-background",
       )}
     >
       <div className="min-w-0 flex-1">
@@ -311,8 +328,14 @@ function InterventionCard({
         <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-0.5 text-xs text-muted-foreground">
           {item.dosage && <span>{item.dosage}</span>}
           {item.frequency && <span>{item.frequency}</span>}
-          <span>from {item.start_date}</span>
-          {item.end_date && <span>to {item.end_date}</span>}
+          {kind === "event" ? (
+            <span>{item.start_date}</span>
+          ) : (
+            <>
+              <span>from {item.start_date}</span>
+              {item.end_date && <span>to {item.end_date}</span>}
+            </>
+          )}
         </div>
         {item.notes && (
           <p className="text-xs text-muted-foreground mt-0.5 truncate">
@@ -321,14 +344,14 @@ function InterventionCard({
         )}
       </div>
       <div className="flex items-center gap-1 ml-2 shrink-0">
-        {isActive && (
+        {showStop && (
           <Button
             variant="ghost"
             size="icon"
             className="h-7 w-7"
             onClick={handleStop}
             disabled={update.isPending}
-            aria-label="Stop medication"
+            aria-label={`Stop ${item.name}`}
           >
             <Square className="h-3.5 w-3.5" />
           </Button>
@@ -356,13 +379,19 @@ function MedicationsTab() {
   if (isLoading) return <LoadingState message="Loading medications..." />;
   if (error) return <ErrorCard message="Failed to load medications" />;
 
-  const active = (interventions ?? []).filter((i) => i.active);
-  const inactive = (interventions ?? []).filter((i) => !i.active);
+  const today = todayStr();
+  const all = interventions ?? [];
+  const current = all.filter(
+    (i) => classifyIntervention(i, today) !== "completed" && i.active,
+  );
+  const past = all.filter(
+    (i) => classifyIntervention(i, today) === "completed" || !i.active,
+  );
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Active</h2>
+        <h2 className="text-lg font-semibold">Current</h2>
         <Button
           variant="outline"
           size="sm"
@@ -383,19 +412,19 @@ function MedicationsTab() {
         />
       )}
 
-      {active.length === 0 ? (
+      {current.length === 0 ? (
         <p className="text-sm text-muted-foreground py-4 text-center">
-          No active medications or supplements
+          No current entries
         </p>
       ) : (
         <div className="space-y-2">
-          {active.map((item) => (
+          {current.map((item) => (
             <InterventionCard key={item.id} item={item} />
           ))}
         </div>
       )}
 
-      {inactive.length > 0 && (
+      {past.length > 0 && (
         <div>
           <button
             type="button"
@@ -409,11 +438,11 @@ function MedicationsTab() {
             ) : (
               <ChevronRight className="h-4 w-4" />
             )}
-            History ({inactive.length})
+            History ({past.length})
           </button>
           {showHistory && (
             <div className="space-y-2 mt-2">
-              {inactive.map((item) => (
+              {past.map((item) => (
                 <InterventionCard key={item.id} item={item} />
               ))}
             </div>
