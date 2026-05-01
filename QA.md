@@ -356,6 +356,37 @@ These DB columns CANNOT be filled from Garmin's `get_sleep_data` API alone:
 - Image Updater can lag 1-3 min after CI build completes. To accelerate during QA: `kubectl annotate application life-as-code-production -n argocd argocd.argoproj.io/refresh=hard --overwrite`. Then poll `kubectl get deployment .../backend -o jsonpath='{.spec.template.spec.containers[0].image}'` until tag changes.
 - Don't manually patch the deployment image — Image Updater will revert on next sync. Refresh is the only correct accelerator.
 
+## SQLAlchemy `reset` Event + DISCARD ALL — Transaction Block Gotcha
+
+When wiring a `@event.listens_for(engine, "reset")` handler that runs `DISCARD ALL` to clean session state for pgbouncer compatibility (releases advisory locks, prepared statements, temp tables, SET vars), you MUST `dbapi_connection.rollback()` BEFORE the cursor.execute. Without it, every request triggers `psycopg2.errors.ActiveSqlTransaction: DISCARD ALL cannot run inside a transaction block` → connection gets invalidated → pool thrash. Backend stays "Running" but every API call burns a connection. Symptom: hundreds of `connection_invalidated` warnings per minute, DISCARD never runs, leaked locks (which DISCARD was meant to release) still accumulate. Fix:
+
+```python
+@event.listens_for(engine, "reset")
+def _reset(dbapi_conn, _record, _state):
+    dbapi_conn.rollback()  # MUST come first
+    cursor = dbapi_conn.cursor()
+    try:
+        cursor.execute("DISCARD ALL")
+    finally:
+        cursor.close()
+```
+
+## Sync Lock — Atomic UPSERT vs pg_advisory_lock
+
+`pg_try_advisory_lock` + pgbouncer transaction-pooling = guaranteed leak (see ANALYSIS.md). The session-level lock survives the pool reset because `pool_reset_on_return='rollback'` (the SQLAlchemy default) only issues `ROLLBACK`, not `DISCARD ALL` or `pg_advisory_unlock_all`. Replacement pattern: atomic UPSERT against `data_sync` table with a WHERE clause that checks for stale (>30 min) `last_sync_timestamp`. Fully pgbouncer-friendly because no session state is held; the "lock" lives in the row itself. See `_try_claim_sync_slot` in `src/sync_manager.py` for reference.
+
+## Alembic Migration Drop-Column Gotcha
+
+When dropping columns the app no longer references (e.g. confirmed-dead `sleep_quality_score`, `sleep_recovery_score` on `sleep` table that were intended for Eight Sleep but actually live in `eight_sleep_sessions`):
+
+1. Drop the column ref in `src/models.py` AND the Pydantic schema (`src/garmin_schemas.py` field + alias entries + any field_validator)
+2. Drop the column ref in `frontend/src/types/api.ts` SleepData interface
+3. Drop UI usage in any `*Page.tsx` that read it via `pickSleepLatestField(sleep, "sleep_quality_score")`
+4. Vulture will flag now-unused icon imports — clean those (`Heart`, `Sparkles` were used only for these fields)
+5. Pre-commit will fail until vulture passes — re-stage and recommit
+
+Order matters: schema/model BEFORE migration (otherwise mypy chokes on stale field refs at commit time). The migration itself is the LAST thing to write, so it reflects the final shape.
+
 ## Tailwind Contrast Cheatsheet (1Password-Verified)
 
 White text on Tailwind 600/700/800 colored bg:
