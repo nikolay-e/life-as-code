@@ -586,21 +586,35 @@ class GarminAPIWrapper:
     def _extract_acute_training_load_dto(
         self, training_status: dict
     ) -> dict[str, Any] | None:
-        """Extract acuteTrainingLoadDTO from nested training status response.
+        """Extract acuteTrainingLoadDTO from training status response.
 
-        Garmin API returns training load data in a deeply nested structure:
-        latestTrainingStatusData -> {device_id} -> acuteTrainingLoadDTO
+        Garmin API has returned training load data under multiple structures
+        across versions. Try, in order:
+        1. latestTrainingStatusData -> {device_id} -> acuteTrainingLoadDTO  (current nested form)
+        2. mostRecentTrainingStatus -> latestTrainingStatusData -> {device_id} -> acuteTrainingLoadDTO
+        3. top-level acuteTrainingLoadDTO  (older flat form)
         """
+        candidate_roots: list[dict] = []
         latest_data = training_status.get("latestTrainingStatusData")
-        if not latest_data or not isinstance(latest_data, dict):
-            return None
+        if isinstance(latest_data, dict):
+            candidate_roots.append(latest_data)
+        most_recent = training_status.get("mostRecentTrainingStatus")
+        if isinstance(most_recent, dict):
+            nested = most_recent.get("latestTrainingStatusData")
+            if isinstance(nested, dict):
+                candidate_roots.append(nested)
 
-        for _device_id, device_data in latest_data.items():
-            if not isinstance(device_data, dict):
-                continue
-            acute_dto = device_data.get("acuteTrainingLoadDTO")
-            if acute_dto and isinstance(acute_dto, dict):
-                return dict(acute_dto)
+        for root in candidate_roots:
+            for _device_id, device_data in root.items():
+                if not isinstance(device_data, dict):
+                    continue
+                acute_dto = device_data.get("acuteTrainingLoadDTO")
+                if acute_dto and isinstance(acute_dto, dict):
+                    return dict(acute_dto)
+
+        flat = training_status.get("acuteTrainingLoadDTO")
+        if isinstance(flat, dict):
+            return dict(flat)
 
         return None
 
@@ -788,23 +802,50 @@ class GarminAPIWrapper:
             if acute_load_dto:
                 combined_data["acuteTrainingLoad"] = acute_load_dto.get(
                     "dailyTrainingLoadAcute"
-                )
+                ) or acute_load_dto.get("acuteTrainingLoad")
                 combined_data["trainingLoad7Days"] = acute_load_dto.get(
                     "dailyTrainingLoadChronic"
-                )
-            else:
+                ) or acute_load_dto.get("trainingLoad7Days")
+            if not combined_data.get("acuteTrainingLoad"):
                 combined_data["acuteTrainingLoad"] = training_status.get(
                     "acuteTrainingLoad"
+                ) or training_status.get("dailyTrainingLoadAcute")
+            if not combined_data.get("trainingLoad7Days"):
+                combined_data["trainingLoad7Days"] = (
+                    training_status.get("trainingLoad7Days")
+                    or training_status.get("sevenDaysTrainingLoad")
+                    or training_status.get("dailyTrainingLoadChronic")
                 )
-                combined_data["trainingLoad7Days"] = training_status.get(
-                    "trainingLoad7Days"
-                ) or training_status.get("sevenDaysTrainingLoad")
+            if training_status.get("vo2MaxValue") is not None:
+                combined_data["vo2MaxValue"] = training_status.get("vo2MaxValue")
+            if training_status.get("vo2MaxPreciseValue") is not None:
+                combined_data["vo2MaxPreciseValue"] = training_status.get(
+                    "vo2MaxPreciseValue"
+                )
             combined_data["primaryTrainingEffect"] = training_status.get(
                 "primaryTrainingEffect"
             )
             combined_data["anaerobicTrainingEffect"] = training_status.get(
                 "anaerobicTrainingEffect"
             )
+            if (
+                combined_data.get("acuteTrainingLoad") is None
+                and combined_data.get("trainingLoad7Days") is None
+            ):
+                logger.warning(
+                    "garmin_training_load_extraction_failed",
+                    date=date_str,
+                    has_latest_data=isinstance(
+                        training_status.get("latestTrainingStatusData"), dict
+                    ),
+                    has_most_recent=isinstance(
+                        training_status.get("mostRecentTrainingStatus"), dict
+                    ),
+                    has_flat_dto=isinstance(
+                        training_status.get("acuteTrainingLoadDTO"), dict
+                    ),
+                    top_keys=list(training_status.keys())[:20],
+                )
         except (
             GarminConnectConnectionError,
             GarminConnectTooManyRequestsError,
@@ -945,8 +986,10 @@ class GarminAPIWrapper:
 
     _TRAINING_MEANINGFUL_KEYS = [
         "vo2MaxValue",
+        "vo2MaxPreciseValue",
         "fitnessAge",
         "trainingLoad7Days",
+        "acuteTrainingLoad",
         "totalKilocalories",
         "enduranceScore",
         "trainingReadinessScore",
