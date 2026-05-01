@@ -26,18 +26,12 @@ def snapshot_path(name: str | None = None) -> Path:
             return resolved
 
     dirs = sorted(
-        (
-            d
-            for d in SNAPSHOTS_DIR.iterdir()
-            if d.is_dir() and not d.name.startswith(".")
-        ),
+        (d for d in SNAPSHOTS_DIR.iterdir() if d.is_dir() and not d.name.startswith(".")),
         key=lambda d: d.name,
         reverse=True,
     )
     if not dirs:
-        raise FileNotFoundError(
-            f"No snapshots found in {SNAPSHOTS_DIR}. Run: uv run export-snapshot"
-        )
+        raise FileNotFoundError(f"No snapshots found in {SNAPSHOTS_DIR}. Run: uv run export-snapshot")
     _validate_manifest(dirs[0])
     return dirs[0]
 
@@ -85,9 +79,7 @@ def db(
         view_name = pq.stem
         if not _VALID_IDENTIFIER.match(view_name):
             continue
-        conn.execute(
-            f"CREATE VIEW \"{view_name}\" AS SELECT * FROM read_parquet('{pq}')"
-        )
+        conn.execute(f"CREATE VIEW \"{view_name}\" AS SELECT * FROM read_parquet('{pq}')")
     return conn
 
 
@@ -102,3 +94,19 @@ def manifest(snapshot: str | None = None) -> dict:
     if not manifest_path.exists():
         return {}
     return json.loads(manifest_path.read_text())
+
+
+def wide_daily(snapshot: str | None = None) -> pl.DataFrame:
+    base = snapshot_path(snapshot)
+    path = base / "processed" / "wide_daily.parquet"
+    if not path.exists():
+        raise FileNotFoundError(f"wide_daily not built for {base.name}. Run: uv run lac-preprocess")
+    return pl.read_parquet(path)
+
+
+def wide_daily_features(snapshot: str | None = None) -> pl.DataFrame:
+    base = snapshot_path(snapshot)
+    path = base / "processed" / "wide_daily_features.parquet"
+    if not path.exists():
+        raise FileNotFoundError(f"wide_daily_features not built for {base.name}. Run: uv run lac-features")
+    return pl.read_parquet(path)

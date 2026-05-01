@@ -10,3 +10,54 @@ __pycache__/
 *.egg-info/
 .ipynb_checkpoints/
 .env
+
+# === Personal data — DO NOT COMMIT to public repo ===
+# Default: ALL markdown docs in research/ are gitignored because they contain
+# personal specifics (snapshot dates, ACF values, n_eff numbers, ICC results,
+# epoch boundaries, lab counts, medical history). To publish a sanitized
+# version of any doc, use `git add -f docs/<name>.md` (place sanitized copies
+# in a `docs/` subdirectory or rename to `*_PUBLIC.md`).
+*.md
+!docs/**/*.md
+!*_PUBLIC.md
+
+# Explicit deny-list (already covered by *.md but listed for clarity / linter)
+RESULTS.md
+RESULTS_NOF1.md
+CLINICAL_GUARDRAILS.md
+THEORY_ANALYSIS.md
+HYPOTHESIS.md
+HYPOTHESIS_v1.2.md
+RESEARCH.md
+MEASUREMENT_MODEL.md
+MODELING_ROADMAP.md
+N_OF_1_PROTOCOL.md
+THEORY.md
+
+# Anything under processed/ is derived from real data
+processed/
+pre_registrations/
+
+# Local-only overrides for any doc (use *_PRIVATE.md or *.private.md for personal versions)
+*_PRIVATE.md
+*.private.md
+
+# Data formats that always contain personal content
+*.parquet
+!**/manifest.json.example
+*.json
+# (json under src/ for testing config still allowed if non-data; gitkeep this rule explicit when needed)
+
+# Lab / clinical data
+lab_data/
+labs/
+exports/
+*_labs.parquet
+
+# Manual logging extracts
+interventions_*.parquet
+interventions_*.csv
+nof1_schedules/
+
+# Generated render artifacts
+RESULTS_replications.md

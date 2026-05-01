@@ -7,16 +7,11 @@ dependencies = [
     "duckdb>=1.2",
     "pyarrow>=18.0",
     "connectorx>=0.4",
-    "jupyterlab>=4.5.7",
-    "jupytext>=1.16",
-    "plotly>=6.0",
-    "kaleido>=0.2",
     "scikit-learn>=1.5",
     "python-dotenv>=1.0",
     "tenacity>=9.0",
     "pandas>=2.3.3",
     "statsmodels>=0.14.6",
-    "ipywidgets>=8.1.8",
 ]
 
 [project.optional-dependencies]
@@ -25,12 +20,18 @@ tracking = ["mlflow>=2.19"]
 
 [project.scripts]
 export-snapshot = "src.export:main"
-
-[tool.jupytext]
-formats = "py:percent"
+lac-eda = "src.eda:main"
+lac-preprocess = "src.preprocess:main"
+lac-features = "src.features:main"
+lac-baseline = "src.baseline:main"
+lac-test = "src.test_engine:main"
+lac-render-results = "src.render_results:main"
+lac-correlations = "src.correlations:main"
+lac-anomaly = "src.anomaly_tuning:main"
+lac-forecast = "src.forecasting:main"
 
 [tool.ruff]
-line-length = 88
+line-length = 120
 target-version = "py312"
 
 [tool.ruff.lint]

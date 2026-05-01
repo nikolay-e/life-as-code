@@ -140,3 +140,42 @@ node_modules/
 yarn.lock
 
 .venv/
+
+# === Personal medical / biometric data — never commit to public repo ===
+# Research outputs with real biometric numbers
+research/RESULTS.md
+research/RESULTS_NOF1.md
+research/RESULTS_replications.md
+# Private medical context
+research/CLINICAL_GUARDRAILS.md
+# Tournament audit (analyses of personal results)
+research/THEORY_ANALYSIS.md
+# All processed analysis artifacts (parquet/json contain real data)
+research/processed/
+research/snapshots/2*/
+research/pre_registrations/
+research/lab_data/
+research/labs/
+research/exports/
+**/*_PRIVATE.md
+**/*.private.md
+**/interventions_*.parquet
+**/interventions_*.csv
+**/nof1_schedules/
+
+# QA / development screenshots that may contain UI with personal data
+qa-*.png
+qa[0-9]*-*.png
+vita-*.png
+data-status-page.png
+garmin-form.png
+trainings-page.png
+settings-page.png
+.playwright-mcp/
+dashboard.yml
+
+# Lab analyses (PDFs of personal medical reports)
+*_labs.pdf
+labs_*.pdf
+blood_panel_*.pdf
+lab_*.pdf
