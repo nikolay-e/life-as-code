@@ -98,6 +98,12 @@ function SummaryCard({
   );
 }
 
+function formatSkinTempDeviation(v: number | null): string {
+  if (v === null) return "—";
+  const sign = v >= 0 ? "+" : "";
+  return `${sign}${v.toFixed(2)} °C`;
+}
+
 function bodyBatteryArrowFor(v: number | null): string {
   if (v === null) return "";
   return v >= 0 ? "↑" : "↓";
@@ -657,11 +663,7 @@ export function SleepOverviewPage() {
                   />
                   <StatCard
                     title="Skin Temp Δ"
-                    value={
-                      skinTempDeviation === null
-                        ? "—"
-                        : `${skinTempDeviation >= 0 ? "+" : ""}${skinTempDeviation.toFixed(2)} °C`
-                    }
+                    value={formatSkinTempDeviation(skinTempDeviation)}
                     icon={Thermometer}
                   />
                   <StatCard
