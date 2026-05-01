@@ -295,6 +295,8 @@ SLEEP_METRICS = [
     "sleep_recovery_score",
     "body_battery_change",
     "awake_count",
+    "sleep_start_time",
+    "sleep_end_time",
 ]
 HRV_METRICS = ["hrv_avg", "baseline_low_ms", "baseline_high_ms"]
 HEART_RATE_METRICS = [
@@ -334,6 +336,8 @@ WHOOP_SLEEP_METRICS = [
     "sleep_need_strain_minutes",
     "sleep_cycle_count",
     "disturbance_count",
+    "sleep_start_time",
+    "sleep_end_time",
 ]
 WHOOP_RECOVERY_METRICS = [
     "recovery_score",
@@ -359,6 +363,8 @@ EIGHT_SLEEP_METRICS = [
     "sleep_fitness_score",
     "sleep_routine_score",
     "sleep_quality_score",
+    "sleep_start_time",
+    "sleep_end_time",
 ]
 TRAINING_STATUS_METRICS = [
     "vo2_max",

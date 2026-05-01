@@ -216,6 +216,8 @@ class Sleep(Base):
     spo2_avg = Column(Float)
     spo2_min = Column(Float)
     respiratory_rate = Column(Float)
+    sleep_start_time = Column(DateTime(timezone=True))
+    sleep_end_time = Column(DateTime(timezone=True))
     created_at = Column(DateTime, default=utcnow)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
@@ -265,6 +267,11 @@ class Sleep(Base):
             "(skin_temp_deviation_c >= -10 AND skin_temp_deviation_c <= 10) "
             "OR skin_temp_deviation_c IS NULL",
             name="valid_skin_temp_deviation_range",
+        ),
+        CheckConstraint(
+            "sleep_end_time IS NULL OR sleep_start_time IS NULL "
+            "OR sleep_end_time > sleep_start_time",
+            name="valid_sleep_sleep_window",
         ),
     )
 
@@ -740,6 +747,8 @@ class WhoopSleep(Base):
     sleep_cycle_count = Column(Integer)
     disturbance_count = Column(Integer)
     no_data_minutes = Column(Integer)
+    sleep_start_time = Column(DateTime(timezone=True))
+    sleep_end_time = Column(DateTime(timezone=True))
     created_at = Column(DateTime, default=utcnow)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
@@ -772,6 +781,11 @@ class WhoopSleep(Base):
         CheckConstraint(
             VALID_RESPIRATORY_RATE_CHECK,
             name="valid_whoop_respiratory_rate",
+        ),
+        CheckConstraint(
+            "sleep_end_time IS NULL OR sleep_start_time IS NULL "
+            "OR sleep_end_time > sleep_start_time",
+            name="valid_whoop_sleep_sleep_window",
         ),
     )
 
@@ -1350,6 +1364,8 @@ class EightSleepSession(Base):
     sleep_fitness_score = Column(Integer)
     sleep_routine_score = Column(Integer)
     sleep_quality_score = Column(Integer)
+    sleep_start_time = Column(DateTime(timezone=True))
+    sleep_end_time = Column(DateTime(timezone=True))
     created_at = Column(DateTime, default=utcnow)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
@@ -1396,6 +1412,11 @@ class EightSleepSession(Base):
         CheckConstraint(
             "(sleep_quality_score >= 0 AND sleep_quality_score <= 100) OR sleep_quality_score IS NULL",
             name="valid_eight_sleep_quality_score",
+        ),
+        CheckConstraint(
+            "sleep_end_time IS NULL OR sleep_start_time IS NULL "
+            "OR sleep_end_time > sleep_start_time",
+            name="valid_eight_sleep_sessions_sleep_window",
         ),
     )
 

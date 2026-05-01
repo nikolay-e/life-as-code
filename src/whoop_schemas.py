@@ -75,6 +75,12 @@ class WhoopSleepParser(BaseModel):
     sleep_cycle_count: int | None = Field(None)
     disturbance_count: int | None = Field(None)
     no_data_minutes: int | None = Field(None)
+    sleep_start_time: datetime.datetime | None = Field(
+        None, description="Sleep onset (UTC)"
+    )
+    sleep_end_time: datetime.datetime | None = Field(
+        None, description="Sleep wake (UTC)"
+    )
 
     @classmethod
     def from_whoop_response(
@@ -90,6 +96,11 @@ class WhoopSleepParser(BaseModel):
 
             def millis_to_minutes(millis):
                 return int(millis / 1000 / 60) if millis is not None else None
+
+            start_str = data.get("start")
+            end_str = data.get("end")
+            sleep_start_time = parse_iso_datetime(start_str) if start_str else None
+            sleep_end_time = parse_iso_datetime(end_str) if end_str else None
 
             return cls(
                 sleep_performance_percentage=score_data.get(
@@ -134,6 +145,8 @@ class WhoopSleepParser(BaseModel):
                 no_data_minutes=millis_to_minutes(
                     stage_summary.get("total_no_data_time_milli")
                 ),
+                sleep_start_time=sleep_start_time,
+                sleep_end_time=sleep_end_time,
             )
         except Exception as e:
             logger.error("whoop_sleep_parse_error", error=str(e))

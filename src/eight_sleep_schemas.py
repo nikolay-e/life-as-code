@@ -31,6 +31,8 @@ class EightSleepSessionData(BaseModel):
     sleep_fitness_score: int | None = None
     sleep_routine_score: int | None = None
     sleep_quality_score: int | None = None
+    sleep_start_time: datetime.datetime | None = None
+    sleep_end_time: datetime.datetime | None = None
 
     @classmethod
     def _safe_int(cls, value) -> int | None:
@@ -139,6 +141,64 @@ class EightSleepSessionData(BaseModel):
         )
 
     @classmethod
+    def _parse_iso_utc(cls, value) -> datetime.datetime | None:
+        if value is None:
+            return None
+        if isinstance(value, datetime.datetime):
+            if value.tzinfo is None:
+                return value.replace(tzinfo=datetime.UTC)
+            return value
+        if isinstance(value, (int, float)):
+            try:
+                return datetime.datetime.fromtimestamp(float(value), tz=datetime.UTC)
+            except (ValueError, OSError, OverflowError):
+                return None
+        if not isinstance(value, str):
+            return None
+        try:
+            cleaned = value.replace("Z", "+00:00")
+            parsed = datetime.datetime.fromisoformat(cleaned)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=datetime.UTC)
+            return parsed
+        except ValueError:
+            return None
+
+    @classmethod
+    def _extract_sleep_window(
+        cls, day: dict, sessions: list
+    ) -> tuple[datetime.datetime | None, datetime.datetime | None]:
+        # Day-level presenceStart/presenceEnd are the canonical bedtime fields
+        # (Eight Sleep aggregates per-side presence at the day level).
+        start = cls._parse_iso_utc(day.get("presenceStart"))
+        end = cls._parse_iso_utc(day.get("presenceEnd"))
+        if start is not None and end is not None:
+            return start, end
+
+        # Fallback: derive from earliest start / latest end across sessions.
+        session_starts: list[datetime.datetime] = []
+        session_ends: list[datetime.datetime] = []
+        for sess in sessions:
+            if not isinstance(sess, dict):
+                continue
+            for key in ("presenceStart", "tsStart", "startTime", "start"):
+                ts = cls._parse_iso_utc(sess.get(key))
+                if ts is not None:
+                    session_starts.append(ts)
+                    break
+            for key in ("presenceEnd", "tsEnd", "endTime", "end"):
+                ts = cls._parse_iso_utc(sess.get(key))
+                if ts is not None:
+                    session_ends.append(ts)
+                    break
+
+        if start is None and session_starts:
+            start = min(session_starts)
+        if end is None and session_ends:
+            end = max(session_ends)
+        return start, end
+
+    @classmethod
     def from_api_response(cls, day: dict) -> "EightSleepSessionData | None":
         try:
             day_str = day.get("day")
@@ -156,6 +216,7 @@ class EightSleepSessionData(BaseModel):
             bed_temp, room_temp = cls._extract_temps(sessions)
             latency_asleep = cls._nested_current(routine, "latencyAsleepSeconds")
             latency_out = cls._nested_current(routine, "latencyOutSeconds")
+            sleep_start, sleep_end = cls._extract_sleep_window(day, sessions)
 
             return cls(
                 date=session_date,
@@ -175,6 +236,8 @@ class EightSleepSessionData(BaseModel):
                 sleep_fitness_score=cls._extract_fitness_score(day),
                 sleep_routine_score=cls._safe_int(routine.get("total")),
                 sleep_quality_score=cls._safe_int(quality.get("total")),
+                sleep_start_time=sleep_start,
+                sleep_end_time=sleep_end,
             )
         except Exception as e:
             logger.warning("eight_sleep_session_parse_error", error=str(e))

@@ -83,6 +83,12 @@ class GarminSleepData(GarminBaseModel):
     spo2_avg: float | None = Field(None, description="Average SpO2 percentage")
     spo2_min: float | None = Field(None, description="Minimum SpO2 percentage")
     respiratory_rate: float | None = Field(None, description="Average respiratory rate")
+    sleep_start_time: datetime.datetime | None = Field(
+        None, description="Sleep onset (UTC)"
+    )
+    sleep_end_time: datetime.datetime | None = Field(
+        None, description="Sleep wake (UTC)"
+    )
 
     @classmethod
     def get_field_mappings(cls) -> dict[str, list[str]]:
@@ -163,6 +169,16 @@ class GarminSleepData(GarminBaseModel):
                 "respiratory_rate",
                 "respirationRate",
             ],
+            "sleep_start_time": [
+                "sleepStartTimestampGMT",
+                "sleep_start_timestamp_gmt",
+                "sleepStartTimestamp",
+            ],
+            "sleep_end_time": [
+                "sleepEndTimestampGMT",
+                "sleep_end_timestamp_gmt",
+                "sleepEndTimestamp",
+            ],
         }
 
     @field_validator(
@@ -217,6 +233,44 @@ class GarminSleepData(GarminBaseModel):
             return val
         except (ValueError, TypeError):
             return None
+
+    @field_validator("sleep_start_time", "sleep_end_time", mode="before")
+    @classmethod
+    def parse_sleep_timestamp(cls, v):
+        """Parse Garmin sleep timestamp.
+
+        Garmin returns sleepStartTimestampGMT/sleepEndTimestampGMT either as:
+          - ISO 8601 string without timezone marker (UTC implied), e.g.
+            "2019-08-04T20:28:00.0"
+          - epoch milliseconds (older API path), e.g. 1564950480000
+        Both are normalised to a tz-aware UTC datetime.
+        """
+        if v is None or isinstance(v, datetime.datetime):
+            return v
+        if isinstance(v, (int, float)):
+            try:
+                return datetime.datetime.fromtimestamp(
+                    float(v) / 1000.0, tz=datetime.UTC
+                )
+            except (ValueError, OSError, OverflowError):
+                return None
+        if isinstance(v, str):
+            try:
+                if v.endswith("Z"):
+                    parsed = datetime.datetime.fromisoformat(v.replace("Z", "+00:00"))
+                else:
+                    parsed = datetime.datetime.fromisoformat(v)
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=datetime.UTC)
+                return parsed
+            except ValueError:
+                try:
+                    return datetime.datetime.fromtimestamp(
+                        float(v) / 1000.0, tz=datetime.UTC
+                    )
+                except (ValueError, OSError, OverflowError):
+                    return None
+        return None
 
     @field_validator("sleep_score", mode="before")
     @classmethod
