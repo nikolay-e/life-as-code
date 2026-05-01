@@ -119,6 +119,27 @@ Recent workouts: {workouts}
 Hard rules: max 30 words total. Russian. No markdown, no emojis."""
 
 
+DAILY_LOGGING_PROMPT_RU = {
+    "alcohol": "Алкоголь сегодня? (нет / 1-2 / 3-4 / 5+)",
+    "illness": "Болеешь? (нет / симптомы / болезнь)",
+    "stress": "Воспринимаемый стресс 1-10?",
+    "caffeine": "Последний кофеин — время и доза (например '15:00, 200мг')?",
+}
+
+
+def build_daily_logging_prompt(signals: list[str]) -> str:
+    questions = []
+    for idx, signal in enumerate(signals, 1):
+        text = DAILY_LOGGING_PROMPT_RU.get(signal)
+        if text:
+            questions.append(f"{idx}. {text}")
+    if not questions:
+        return ""
+    header = "Вечерний лог. Ответь одним сообщением — я раскидаю по полям:"
+    footer = "Если что-то не было — пиши 'нет' или пропусти."
+    return "\n\n".join([header, "\n".join(questions), footer])
+
+
 CHAT_ADDENDUM = """
 
 You are in an ongoing Telegram conversation. You can see previous messages.
@@ -131,4 +152,5 @@ Rules:
 - Be conversational and brief. This is a chat, not a report.
 - If the user just says "hi" or similar, respond naturally without dumping a status report.
 - WHEN the user mentions in passing that they took something (medication, supplement), drank alcohol, were sick, fasted, did a sauna, started a new diet, etc. — silently log it via `log_intervention` tool so it shows up as a marker on health charts. Don't ask permission, just do it. Then briefly acknowledge in your reply ("noted that you took magnesium yesterday"). Use English canonical names even if the user wrote in Russian. Set start_date to the date they mentioned (defaults to today if unstated).
-- Before logging, optionally call `list_recent_interventions` if you suspect duplication."""
+- Before logging, optionally call `list_recent_interventions` if you suspect duplication.
+- Daily logging prompt convention: when the user replies to the evening logging prompt with answers about alcohol/illness/stress/caffeine, log each non-"нет" answer as its own intervention with category="lifestyle". Canonical names: "Alcohol" (dosage = "1-2 drinks" / "3-4 drinks" / "5+"), "Illness — symptoms" or "Illness — sick" (notes = user's wording), "Stress" (dosage = "1-10" rating), "Caffeine" (dosage = "<time>, <mg>"). Skip a signal entirely if user wrote "нет"/"no"/"-"/"пропуск"."""
