@@ -129,11 +129,18 @@ class GarminSleepData(GarminBaseModel):
                 "bbChange",
             ],
             "skin_temp_celsius": [
+                "avgSkinTempDeviationC",
                 "avgSkinTempCelsius",
                 "skin_temp_celsius",
                 "skinTemp",
             ],
-            "awake_count": ["awakeningsCount", "awake_count", "awakenings"],
+            "awake_count": [
+                "awakeCount",
+                "awakeningsCount",
+                "awake_count",
+                "awakenings",
+                "restlessMomentsCount",
+            ],
             "sleep_quality_score": [
                 "sleepQualityScore",
                 "sleep_quality_score",
@@ -144,9 +151,19 @@ class GarminSleepData(GarminBaseModel):
                 "sleep_recovery_score",
                 "recoveryScore",
             ],
-            "spo2_avg": ["avgSpO2", "spo2_avg", "oxygenSaturationAvg"],
-            "spo2_min": ["lowestSpO2", "spo2_min", "oxygenSaturationMin"],
+            "spo2_avg": [
+                "avgSpO2",
+                "averageSpO2",
+                "spo2_avg",
+                "oxygenSaturationAvg",
+            ],
+            "spo2_min": [
+                "lowestSpO2",
+                "spo2_min",
+                "oxygenSaturationMin",
+            ],
             "respiratory_rate": [
+                "averageRespirationValue",
                 "avgRespirationRate",
                 "respiratory_rate",
                 "respirationRate",
