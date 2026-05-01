@@ -15,6 +15,7 @@ import type {
   IllnessRiskSignal,
   DecorrelationAlert,
   AdvancedInsights,
+  MLAnomalyRecord,
 } from "../../../types/api";
 import {
   Moon,
@@ -880,6 +881,96 @@ function CrossDomainCard({
   );
 }
 
+function getMlAnomalyScoreColor(score: number): string {
+  if (score > 0.7) return "bg-red-500/20 text-red-700";
+  if (score >= 0.4) return "bg-orange-500/20 text-orange-600";
+  return "bg-yellow-500/20 text-yellow-700";
+}
+
+function getFactorChipColor(value: number): string {
+  if (value > 0) return "bg-red-500/10 text-red-700 border-red-500/30";
+  return "bg-orange-500/10 text-orange-600 border-orange-500/30";
+}
+
+function MlAnomalyDriversCard({
+  mlAnomalies,
+}: Readonly<{
+  mlAnomalies: MLAnomalyRecord[];
+}>) {
+  const recent = [...mlAnomalies]
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 5);
+  if (recent.length === 0) return null;
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center gap-2">
+          <Brain className="h-4 w-4 text-fuchsia-500" />
+          <CardTitle className="text-base">Recent ML Anomaly Drivers</CardTitle>
+        </div>
+        <CardDescription>
+          Top contributing factors per detected anomaly
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3">
+          {recent.map((anomaly) => {
+            const factors = anomaly.contributing_factors
+              ? Object.entries(anomaly.contributing_factors)
+                  .sort(([, a], [, b]) => Math.abs(b) - Math.abs(a))
+                  .slice(0, 5)
+              : [];
+            return (
+              <div
+                key={anomaly.date}
+                className="p-2 rounded-lg border border-border/50"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium">
+                    {new Date(anomaly.date).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </span>
+                  <span
+                    className={cn(
+                      "text-xs px-1.5 py-0.5 rounded font-mono",
+                      getMlAnomalyScoreColor(anomaly.anomaly_score),
+                    )}
+                  >
+                    {anomaly.anomaly_score.toFixed(2)}
+                  </span>
+                </div>
+                {factors.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {factors.map(([key, value]) => (
+                      <span
+                        key={key}
+                        className={cn(
+                          "text-xs px-1.5 py-0.5 rounded border font-mono",
+                          getFactorChipColor(value),
+                        )}
+                      >
+                        {formatMetricLabel(key)}: {signPrefix(value)}
+                        {value.toFixed(1)}σ
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    No contributing factors recorded
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export interface AdvancedSectionProps {
   readonly overreaching: OverreachingMetrics;
   readonly correlations: CorrelationMetrics;
@@ -889,6 +980,7 @@ export interface AdvancedSectionProps {
   readonly illnessRisk: IllnessRiskSignal;
   readonly decorrelation: DecorrelationAlert;
   readonly advancedInsights?: AdvancedInsights;
+  readonly mlAnomalies?: MLAnomalyRecord[];
   readonly baselineDays: number;
 }
 
@@ -901,6 +993,7 @@ export function AdvancedSection({
   illnessRisk,
   decorrelation,
   advancedInsights,
+  mlAnomalies,
   baselineDays,
 }: AdvancedSectionProps) {
   return (
@@ -912,6 +1005,10 @@ export function AdvancedSection({
       </div>
 
       <AnomaliesCard anomalies={anomalies} />
+
+      {mlAnomalies && mlAnomalies.length > 0 && (
+        <MlAnomalyDriversCard mlAnomalies={mlAnomalies} />
+      )}
 
       <RecoveryCapacityCard recoveryCapacity={recoveryCapacity} />
 

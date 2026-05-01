@@ -31,7 +31,14 @@ import {
   Star,
   Hash,
   Brain,
+  Battery,
+  Activity,
+  Wind,
+  Droplet,
+  Heart,
+  Bed,
 } from "lucide-react";
+import type { SleepData, WhoopSleepData } from "../../types/api";
 
 function ModeSelector({
   mode,
@@ -165,6 +172,93 @@ function formatLatency(v: number | null | undefined): string {
 function latencySubtitle(v: number | null | undefined): string | undefined {
   if (v === null || v === undefined) return undefined;
   return v <= 20 ? "Good (<20 min)" : "Elevated";
+}
+
+function pickLatest<T extends { date: string }>(
+  items: T[] | undefined,
+  field: keyof T,
+): T | null {
+  if (!items || items.length === 0) return null;
+  const filtered = items.filter((entry) => {
+    const value = entry[field];
+    return value !== null && value !== undefined;
+  });
+  if (filtered.length === 0) return null;
+  const sorted = [...filtered].sort((a, b) => b.date.localeCompare(a.date));
+  return sorted[0] ?? null;
+}
+
+function pickLatestWhoop(
+  items: WhoopSleepData[] | undefined,
+): WhoopSleepData | null {
+  if (!items || items.length === 0) return null;
+  const sorted = [...items].sort((a, b) => b.date.localeCompare(a.date));
+  return sorted[0] ?? null;
+}
+
+function formatHoursMinutes(minutes: number | null | undefined): string {
+  if (minutes === null || minutes === undefined) return "—";
+  const total = Math.max(0, Math.round(minutes));
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return `${String(h)}:${String(m).padStart(2, "0")}`;
+}
+
+function formatMinutesUnit(minutes: number | null | undefined): string {
+  if (minutes === null || minutes === undefined) return "—";
+  return `${String(Math.round(minutes))} min`;
+}
+
+function spo2Color(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "text-muted-foreground";
+  if (value >= 95) return "text-green-700";
+  if (value >= 90) return "text-yellow-700";
+  return "text-red-700";
+}
+
+function StatCard({
+  title,
+  value,
+  subtitle,
+  icon: Icon,
+  valueClass,
+}: Readonly<{
+  title: string;
+  value: string;
+  subtitle?: string;
+  icon: React.ElementType;
+  valueClass?: string;
+}>) {
+  return (
+    <Card>
+      <CardContent className="pt-4 pb-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-muted-foreground">{title}</p>
+            <p className={`text-2xl font-bold mt-1 ${valueClass ?? ""}`}>
+              {value}
+            </p>
+            {subtitle && (
+              <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
+            )}
+          </div>
+          <div className="p-2 rounded-full bg-sleep-muted">
+            <Icon className="h-5 w-5 text-sleep" />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function pickSleepLatestField(
+  sleep: SleepData[] | undefined,
+  field: keyof SleepData,
+): number | null {
+  const entry = pickLatest(sleep ?? [], field);
+  if (!entry) return null;
+  const value = entry[field];
+  return typeof value === "number" ? value : null;
 }
 
 function zScoreColor(z: number): string {
@@ -515,6 +609,202 @@ export function SleepOverviewPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Body & Recovery */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Battery className="h-5 w-5 text-sleep" />
+            Body & Recovery
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+            {(() => {
+              const sleep = healthData?.sleep ?? [];
+              const bodyBattery = pickSleepLatestField(
+                sleep,
+                "body_battery_change",
+              );
+              const skinTemp = pickSleepLatestField(sleep, "skin_temp_celsius");
+              const awakeCount = pickSleepLatestField(sleep, "awake_count");
+              const respRate = pickSleepLatestField(sleep, "respiratory_rate");
+              const bodyBatteryArrow =
+                bodyBattery === null ? "" : bodyBattery >= 0 ? "↑" : "↓";
+              const bodyBatteryColor =
+                bodyBattery === null
+                  ? ""
+                  : bodyBattery >= 0
+                    ? "text-green-700"
+                    : "text-red-700";
+              return (
+                <>
+                  <StatCard
+                    title="Body Battery Δ"
+                    value={
+                      bodyBattery === null
+                        ? "—"
+                        : `${bodyBatteryArrow} ${String(Math.round(bodyBattery))}`
+                    }
+                    icon={Battery}
+                    valueClass={bodyBatteryColor}
+                  />
+                  <StatCard
+                    title="Skin Temp"
+                    value={
+                      skinTemp === null ? "—" : `${skinTemp.toFixed(1)} °C`
+                    }
+                    icon={Thermometer}
+                  />
+                  <StatCard
+                    title="Awakenings"
+                    value={
+                      awakeCount === null ? "—" : String(Math.round(awakeCount))
+                    }
+                    icon={Activity}
+                  />
+                  <StatCard
+                    title="Respiratory Rate"
+                    value={
+                      respRate === null ? "—" : `${respRate.toFixed(1)} br/min`
+                    }
+                    icon={Wind}
+                  />
+                </>
+              );
+            })()}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* SpO2 & Sleep Quality (Garmin) */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Droplet className="h-5 w-5 text-sleep" />
+            SpO2 & Sleep Quality
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+            {(() => {
+              const sleep = healthData?.sleep ?? [];
+              const spo2Avg = pickSleepLatestField(sleep, "spo2_avg");
+              const spo2Min = pickSleepLatestField(sleep, "spo2_min");
+              const qualityScore = pickSleepLatestField(
+                sleep,
+                "sleep_quality_score",
+              );
+              const recoveryScore = pickSleepLatestField(
+                sleep,
+                "sleep_recovery_score",
+              );
+              return (
+                <>
+                  <StatCard
+                    title="SpO2 Avg"
+                    value={spo2Avg === null ? "—" : `${spo2Avg.toFixed(1)} %`}
+                    icon={Droplet}
+                    valueClass={spo2Color(spo2Avg)}
+                  />
+                  <StatCard
+                    title="SpO2 Min"
+                    value={spo2Min === null ? "—" : `${spo2Min.toFixed(1)} %`}
+                    icon={Droplet}
+                    valueClass={spo2Color(spo2Min)}
+                  />
+                  <StatCard
+                    title="Sleep Quality"
+                    value={formatScore(qualityScore)}
+                    icon={Sparkles}
+                  />
+                  <StatCard
+                    title="Sleep Recovery"
+                    value={formatScore(recoveryScore)}
+                    icon={Heart}
+                  />
+                </>
+              );
+            })()}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Whoop Sleep Need */}
+      {(() => {
+        const whoopSleep = healthData?.whoop_sleep ?? [];
+        if (whoopSleep.length === 0) return null;
+        const latest = pickLatestWhoop(whoopSleep);
+        if (!latest) return null;
+        const debt = latest.sleep_need_debt_minutes;
+        const debtColor = debt !== null && debt > 0 ? "text-red-700" : "";
+        const consistency = latest.sleep_consistency_percentage;
+        return (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Bed className="h-5 w-5 text-sleep" />
+                Whoop Sleep Need
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+                <StatCard
+                  title="Baseline need"
+                  value={formatHoursMinutes(latest.sleep_need_baseline_minutes)}
+                  icon={Moon}
+                />
+                <StatCard
+                  title="Sleep debt"
+                  value={formatHoursMinutes(debt)}
+                  icon={Clock}
+                  valueClass={debtColor}
+                />
+                <StatCard
+                  title="Strain need"
+                  value={formatHoursMinutes(latest.sleep_need_strain_minutes)}
+                  icon={Activity}
+                />
+                <StatCard
+                  title="Nap opportunity"
+                  value={formatHoursMinutes(latest.sleep_need_nap_minutes)}
+                  icon={Bed}
+                />
+                <StatCard
+                  title="Sleep cycles"
+                  value={
+                    latest.sleep_cycle_count === null
+                      ? "—"
+                      : String(Math.round(latest.sleep_cycle_count))
+                  }
+                  icon={RotateCcw}
+                />
+                <StatCard
+                  title="Disturbances"
+                  value={
+                    latest.disturbance_count === null
+                      ? "—"
+                      : String(Math.round(latest.disturbance_count))
+                  }
+                  icon={Hash}
+                />
+                <StatCard
+                  title="No-data minutes"
+                  value={formatMinutesUnit(latest.no_data_minutes)}
+                  icon={Wind}
+                />
+                <StatCard
+                  title="Consistency"
+                  value={
+                    consistency === null ? "—" : `${consistency.toFixed(0)}%`
+                  }
+                  icon={Sparkles}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* Sleep Latency & Toss and Turn */}
       <div className="grid gap-6 md:grid-cols-2">

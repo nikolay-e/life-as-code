@@ -44,6 +44,7 @@ import { DASHBOARD_METRIC_KEYS } from "../../lib/metrics/keys";
 import { toTimeMs } from "../../lib/health";
 import { getLatestSyncDate } from "../../lib/sync-utils";
 import { useAnalytics } from "../../hooks/useAnalytics";
+import { useProfile } from "../../hooks/useProfile";
 import { useInterventions } from "../../hooks/useHealthLog";
 import { interventionsToAnnotations } from "../../components/charts/annotations";
 import { useToday } from "../../hooks/useToday";
@@ -162,6 +163,188 @@ export function DashboardOverview() {
     const idx = Math.floor(sorted.length * 0.1);
     return Math.round(sorted[Math.min(idx, sorted.length - 1)]);
   }, [data, rangeDays]);
+
+  const garminInsights = useMemo(() => {
+    const list = data?.garmin_training_status ?? [];
+    const pickLatest = <K extends keyof (typeof list)[number]>(key: K) => {
+      for (let i = list.length - 1; i >= 0; i--) {
+        const v = list[i][key];
+        if (v != null) return v;
+      }
+      return null;
+    };
+    return {
+      fitness_age: pickLatest("fitness_age"),
+      training_status: pickLatest("training_status"),
+      training_status_description: pickLatest("training_status_description"),
+      training_readiness_score: pickLatest("training_readiness_score"),
+      endurance_score: pickLatest("endurance_score"),
+      primary_training_effect: pickLatest("primary_training_effect"),
+      anaerobic_training_effect: pickLatest("anaerobic_training_effect"),
+    };
+  }, [data]);
+
+  const recoverySensors = useMemo(() => {
+    const sleep = data?.sleep ?? [];
+    const hr = data?.heart_rate ?? [];
+    const pickLatestFrom = <T, K extends keyof T>(arr: T[], key: K) => {
+      for (let i = arr.length - 1; i >= 0; i--) {
+        const v = arr[i][key];
+        if (v !== null && v !== undefined) return v;
+      }
+      return null;
+    };
+    return {
+      sleep_spo2_avg: pickLatestFrom(sleep, "spo2_avg"),
+      sleep_spo2_min: pickLatestFrom(sleep, "spo2_min"),
+      day_spo2_avg: pickLatestFrom(hr, "spo2_avg"),
+      waking_respiratory_rate: pickLatestFrom(hr, "waking_respiratory_rate"),
+      lowest_respiratory_rate: pickLatestFrom(hr, "lowest_respiratory_rate"),
+      highest_respiratory_rate: pickLatestFrom(hr, "highest_respiratory_rate"),
+      max_hr: pickLatestFrom(hr, "max_hr"),
+      avg_hr: pickLatestFrom(hr, "avg_hr"),
+    };
+  }, [data]);
+
+  const whoopRecoveryDetails = useMemo(() => {
+    const recovery = data?.whoop_recovery ?? [];
+    const pickLatestFrom = <T, K extends keyof T>(
+      arr: ReadonlyArray<T>,
+      key: K,
+    ) => {
+      for (let i = arr.length - 1; i >= 0; i--) {
+        const v = arr[i][key];
+        if (v !== null && v !== undefined) return v;
+      }
+      return null;
+    };
+    let calibratingLatest: boolean = false;
+    for (let i = recovery.length - 1; i >= 0; i--) {
+      const v = recovery[i].user_calibrating;
+      if (v != null) {
+        calibratingLatest = Boolean(v);
+        break;
+      }
+    }
+    return {
+      skin_temp_celsius: pickLatestFrom(recovery, "skin_temp_celsius"),
+      spo2_percentage: pickLatestFrom(recovery, "spo2_percentage"),
+      hrv_rmssd: pickLatestFrom(recovery, "hrv_rmssd"),
+      resting_heart_rate: pickLatestFrom(recovery, "resting_heart_rate"),
+      user_calibrating: calibratingLatest,
+    };
+  }, [data]);
+
+  const { data: profile } = useProfile();
+
+  const bodyComposition = useMemo(() => {
+    const list = data?.weight ?? [];
+    for (let i = list.length - 1; i >= 0; i--) {
+      const entry = list[i];
+      if (
+        entry.bmi !== null ||
+        entry.body_fat_pct !== null ||
+        entry.muscle_mass_kg !== null ||
+        entry.bone_mass_kg !== null ||
+        entry.water_pct !== null
+      ) {
+        return entry;
+      }
+    }
+    return null;
+  }, [data]);
+
+  const hasBodyComposition: boolean =
+    bodyComposition != null &&
+    (bodyComposition.bmi !== null ||
+      bodyComposition.body_fat_pct !== null ||
+      bodyComposition.muscle_mass_kg !== null ||
+      bodyComposition.bone_mass_kg !== null ||
+      bodyComposition.water_pct !== null);
+
+  const bmiClassification = (
+    bmi: number,
+  ): { label: string; className: string } => {
+    if (bmi < 18.5) {
+      return { label: "Underweight", className: "bg-warning/15 text-warning" };
+    }
+    if (bmi < 25) {
+      return { label: "Normal", className: "bg-success/15 text-success" };
+    }
+    if (bmi < 30) {
+      return {
+        label: "Overweight",
+        className: "bg-orange-500/15 text-orange-500",
+      };
+    }
+    return { label: "Obese", className: "bg-destructive/15 text-destructive" };
+  };
+
+  const bodyFatClassification = (
+    pct: number,
+    gender: string | null,
+  ): { label: string; className: string } | null => {
+    const g = (gender ?? "").toLowerCase();
+    if (g !== "male" && g !== "female") return null;
+    const offset = g === "female" ? 5 : 0;
+    if (pct < 10 + offset) {
+      return { label: "Athletic", className: "bg-info/15 text-info" };
+    }
+    if (pct < 20 + offset) {
+      return { label: "Fit", className: "bg-success/15 text-success" };
+    }
+    if (pct < 25 + offset) {
+      return { label: "Average", className: "bg-warning/15 text-warning" };
+    }
+    return { label: "High", className: "bg-destructive/15 text-destructive" };
+  };
+
+  const trainingStatusColor = (status: string | null): string => {
+    const s = (status ?? "").toLowerCase();
+    if (s.includes("productive")) return "bg-success/15 text-success";
+    if (s.includes("maintaining")) return "bg-info/15 text-info";
+    if (s.includes("unproductive")) return "bg-warning/15 text-warning";
+    if (s.includes("overreaching")) return "bg-destructive/15 text-destructive";
+    return "bg-muted text-muted-foreground";
+  };
+
+  const readinessColor = (score: number | null): string => {
+    if (score === null) return "text-foreground";
+    if (score > 75) return "text-success";
+    if (score >= 50) return "text-warning";
+    return "text-destructive";
+  };
+
+  const hasGarminInsights =
+    garminInsights.fitness_age !== null ||
+    garminInsights.training_status !== null ||
+    garminInsights.training_readiness_score !== null ||
+    garminInsights.endurance_score !== null ||
+    garminInsights.primary_training_effect !== null ||
+    garminInsights.anaerobic_training_effect !== null;
+
+  const hasRecoverySensors =
+    recoverySensors.sleep_spo2_avg !== null ||
+    recoverySensors.sleep_spo2_min !== null ||
+    recoverySensors.day_spo2_avg !== null ||
+    recoverySensors.waking_respiratory_rate !== null ||
+    recoverySensors.lowest_respiratory_rate !== null ||
+    recoverySensors.highest_respiratory_rate !== null ||
+    recoverySensors.max_hr !== null ||
+    recoverySensors.avg_hr !== null;
+
+  const hasWhoopRecoveryDetails =
+    whoopRecoveryDetails.skin_temp_celsius !== null ||
+    whoopRecoveryDetails.spo2_percentage !== null ||
+    whoopRecoveryDetails.hrv_rmssd !== null ||
+    whoopRecoveryDetails.resting_heart_rate !== null;
+
+  const whoopSpo2ColorClass = (v: number | null): string => {
+    if (v === null) return "text-foreground";
+    if (v >= 95) return "text-success";
+    if (v >= 90) return "text-warning";
+    return "text-destructive";
+  };
 
   if (isLoading) {
     return <LoadingState message="Loading health data..." />;
@@ -326,6 +509,428 @@ export function DashboardOverview() {
         )}
       </div>
 
+      {hasGarminInsights && (
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold tracking-tight">
+            Garmin Insights
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {garminInsights.fitness_age !== null && (
+              <Card>
+                <CardContent className="p-5 space-y-2">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Fitness Age
+                  </p>
+                  <p className="text-3xl font-bold tracking-tight">
+                    {garminInsights.fitness_age} yrs
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    vs your chronological age
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+            {garminInsights.training_status !== null && (
+              <Card>
+                <CardContent className="p-5 space-y-2">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Training Status
+                  </p>
+                  <span
+                    className={`inline-flex px-2.5 py-1 rounded-md text-sm font-semibold capitalize ${trainingStatusColor(
+                      garminInsights.training_status,
+                    )}`}
+                  >
+                    {garminInsights.training_status}
+                  </span>
+                  {garminInsights.training_status_description && (
+                    <p className="text-xs text-muted-foreground">
+                      {garminInsights.training_status_description}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {garminInsights.training_readiness_score !== null && (
+              <Card>
+                <CardContent className="p-5 space-y-2">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Training Readiness
+                  </p>
+                  <p
+                    className={`text-3xl font-bold tracking-tight ${readinessColor(
+                      garminInsights.training_readiness_score,
+                    )}`}
+                  >
+                    {garminInsights.training_readiness_score}
+                    <span className="text-base font-medium text-muted-foreground">
+                      /100
+                    </span>
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Ready to train
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+            {garminInsights.endurance_score !== null && (
+              <Card>
+                <CardContent className="p-5 space-y-2">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Endurance Score
+                  </p>
+                  <p className="text-3xl font-bold tracking-tight">
+                    {garminInsights.endurance_score}
+                    <span className="text-base font-medium text-muted-foreground">
+                      /100
+                    </span>
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+            {garminInsights.primary_training_effect !== null && (
+              <Card>
+                <CardContent className="p-5 space-y-2">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Aerobic TE today
+                  </p>
+                  <p className="text-3xl font-bold tracking-tight">
+                    {garminInsights.primary_training_effect.toFixed(1)}
+                    <span className="text-base font-medium text-muted-foreground">
+                      /5
+                    </span>
+                  </p>
+                  <div className="h-1.5 w-full bg-muted rounded">
+                    <div
+                      className="h-1.5 bg-primary rounded"
+                      style={{
+                        width: `${String(Math.min(100, (garminInsights.primary_training_effect / 5) * 100))}%`,
+                      }}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            {garminInsights.anaerobic_training_effect !== null && (
+              <Card>
+                <CardContent className="p-5 space-y-2">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Anaerobic TE today
+                  </p>
+                  <p className="text-3xl font-bold tracking-tight">
+                    {garminInsights.anaerobic_training_effect.toFixed(1)}
+                    <span className="text-base font-medium text-muted-foreground">
+                      /5
+                    </span>
+                  </p>
+                  <div className="h-1.5 w-full bg-muted rounded">
+                    <div
+                      className="h-1.5 bg-primary rounded"
+                      style={{
+                        width: `${String(Math.min(100, (garminInsights.anaerobic_training_effect / 5) * 100))}%`,
+                      }}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </section>
+      )}
+
+      {hasRecoverySensors && (
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold tracking-tight">
+            Recovery Sensors
+          </h2>
+          <Card>
+            <CardContent className="p-5">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {recoverySensors.sleep_spo2_avg !== null && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      SpO2 Avg (Sleep)
+                    </p>
+                    <p className="text-2xl font-bold tracking-tight">
+                      {recoverySensors.sleep_spo2_avg.toFixed(0)}
+                      <span className="text-sm font-medium text-muted-foreground">
+                        %
+                      </span>
+                    </p>
+                  </div>
+                )}
+                {recoverySensors.sleep_spo2_min !== null && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      SpO2 Min (Sleep)
+                    </p>
+                    <p className="text-2xl font-bold tracking-tight">
+                      {recoverySensors.sleep_spo2_min.toFixed(0)}
+                      <span className="text-sm font-medium text-muted-foreground">
+                        %
+                      </span>
+                    </p>
+                  </div>
+                )}
+                {recoverySensors.day_spo2_avg !== null && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      SpO2 Avg (Day)
+                    </p>
+                    <p className="text-2xl font-bold tracking-tight">
+                      {recoverySensors.day_spo2_avg.toFixed(0)}
+                      <span className="text-sm font-medium text-muted-foreground">
+                        %
+                      </span>
+                    </p>
+                  </div>
+                )}
+                {recoverySensors.waking_respiratory_rate !== null && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Resp. Rate (Wake)
+                    </p>
+                    <p className="text-2xl font-bold tracking-tight">
+                      {recoverySensors.waking_respiratory_rate.toFixed(1)}
+                      <span className="text-sm font-medium text-muted-foreground">
+                        {" "}
+                        br/min
+                      </span>
+                    </p>
+                  </div>
+                )}
+                {(recoverySensors.lowest_respiratory_rate !== null ||
+                  recoverySensors.highest_respiratory_rate !== null) && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Resp. Rate Range
+                    </p>
+                    <p className="text-2xl font-bold tracking-tight">
+                      {recoverySensors.lowest_respiratory_rate !== null
+                        ? recoverySensors.lowest_respiratory_rate.toFixed(1)
+                        : "—"}
+                      <span className="text-sm font-medium text-muted-foreground">
+                        {" "}
+                        to{" "}
+                      </span>
+                      {recoverySensors.highest_respiratory_rate !== null
+                        ? recoverySensors.highest_respiratory_rate.toFixed(1)
+                        : "—"}
+                    </p>
+                  </div>
+                )}
+                {recoverySensors.max_hr !== null && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Max HR
+                    </p>
+                    <p className="text-2xl font-bold tracking-tight">
+                      {recoverySensors.max_hr}
+                      <span className="text-sm font-medium text-muted-foreground">
+                        {" "}
+                        bpm
+                      </span>
+                    </p>
+                  </div>
+                )}
+                {recoverySensors.avg_hr !== null && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Avg HR
+                    </p>
+                    <p className="text-2xl font-bold tracking-tight">
+                      {recoverySensors.avg_hr}
+                      <span className="text-sm font-medium text-muted-foreground">
+                        {" "}
+                        bpm
+                      </span>
+                    </p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+      )}
+
+      {hasBodyComposition && bodyComposition != null && (
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold tracking-tight">
+            Body Composition
+          </h2>
+          <Card>
+            <CardContent className="p-5">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {bodyComposition.bmi !== null &&
+                  (() => {
+                    const cls = bmiClassification(bodyComposition.bmi);
+                    return (
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-muted-foreground">
+                          BMI
+                        </p>
+                        <p className="text-2xl font-bold tracking-tight">
+                          {bodyComposition.bmi.toFixed(1)}
+                        </p>
+                        <span
+                          className={`inline-flex px-2 py-0.5 rounded-md text-xs font-semibold ${cls.className}`}
+                        >
+                          {cls.label}
+                        </span>
+                      </div>
+                    );
+                  })()}
+                {bodyComposition.body_fat_pct !== null &&
+                  (() => {
+                    const cls = bodyFatClassification(
+                      bodyComposition.body_fat_pct,
+                      profile?.gender ?? null,
+                    );
+                    return (
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-muted-foreground">
+                          Body Fat
+                        </p>
+                        <p className="text-2xl font-bold tracking-tight">
+                          {bodyComposition.body_fat_pct.toFixed(1)}
+                          <span className="text-sm font-medium text-muted-foreground">
+                            %
+                          </span>
+                        </p>
+                        {cls && (
+                          <span
+                            className={`inline-flex px-2 py-0.5 rounded-md text-xs font-semibold ${cls.className}`}
+                          >
+                            {cls.label}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
+                {bodyComposition.muscle_mass_kg !== null && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Muscle Mass
+                    </p>
+                    <p className="text-2xl font-bold tracking-tight">
+                      {bodyComposition.muscle_mass_kg.toFixed(1)}
+                      <span className="text-sm font-medium text-muted-foreground">
+                        {" "}
+                        kg
+                      </span>
+                    </p>
+                  </div>
+                )}
+                {bodyComposition.bone_mass_kg !== null && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Bone Mass
+                    </p>
+                    <p className="text-2xl font-bold tracking-tight">
+                      {bodyComposition.bone_mass_kg.toFixed(2)}
+                      <span className="text-sm font-medium text-muted-foreground">
+                        {" "}
+                        kg
+                      </span>
+                    </p>
+                  </div>
+                )}
+                {bodyComposition.water_pct !== null && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Body Water
+                    </p>
+                    <p className="text-2xl font-bold tracking-tight">
+                      {bodyComposition.water_pct.toFixed(1)}
+                      <span className="text-sm font-medium text-muted-foreground">
+                        %
+                      </span>
+                    </p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+      )}
+
+      {hasWhoopRecoveryDetails && (
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold tracking-tight">
+            Whoop Recovery Details
+          </h2>
+          <Card>
+            <CardContent className="p-5 space-y-4">
+              {whoopRecoveryDetails.user_calibrating && (
+                <div className="rounded-md bg-warning/10 text-warning px-3 py-2 text-xs font-medium">
+                  Calibrating — Whoop accuracy improves over the first 2-3 weeks
+                  of use
+                </div>
+              )}
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {whoopRecoveryDetails.skin_temp_celsius !== null && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Skin Temperature
+                    </p>
+                    <p className="text-2xl font-bold tracking-tight">
+                      {whoopRecoveryDetails.skin_temp_celsius.toFixed(1)}
+                      <span className="text-sm font-medium text-muted-foreground">
+                        {" "}
+                        °C
+                      </span>
+                    </p>
+                  </div>
+                )}
+                {whoopRecoveryDetails.spo2_percentage !== null && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      SpO2 (Whoop)
+                    </p>
+                    <p
+                      className={`text-2xl font-bold tracking-tight ${whoopSpo2ColorClass(whoopRecoveryDetails.spo2_percentage)}`}
+                    >
+                      {whoopRecoveryDetails.spo2_percentage.toFixed(1)}
+                      <span className="text-sm font-medium text-muted-foreground">
+                        %
+                      </span>
+                    </p>
+                  </div>
+                )}
+                {whoopRecoveryDetails.hrv_rmssd !== null && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      HRV RMSSD
+                    </p>
+                    <p className="text-2xl font-bold tracking-tight">
+                      {whoopRecoveryDetails.hrv_rmssd.toFixed(0)}
+                      <span className="text-sm font-medium text-muted-foreground">
+                        {" "}
+                        ms
+                      </span>
+                    </p>
+                  </div>
+                )}
+                {whoopRecoveryDetails.resting_heart_rate !== null && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Resting HR
+                    </p>
+                    <p className="text-2xl font-bold tracking-tight">
+                      {whoopRecoveryDetails.resting_heart_rate.toFixed(0)}
+                      <span className="text-sm font-medium text-muted-foreground">
+                        {" "}
+                        bpm
+                      </span>
+                    </p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+      )}
+
       <div className="grid gap-6 md:grid-cols-2">
         <ChartCard
           title="HRV"
@@ -473,6 +1078,124 @@ export function DashboardOverview() {
           </ChartErrorBoundary>
         </ChartCard>
       </div>
+
+      <StressBreakdownCard stress={data?.stress ?? []} />
     </div>
+  );
+}
+
+interface StressBreakdownCardProps {
+  readonly stress: ReadonlyArray<{
+    readonly date: string;
+    readonly avg_stress: number | null;
+    readonly max_stress: number | null;
+    readonly stress_level: string | null;
+    readonly rest_stress: number | null;
+    readonly activity_stress: number | null;
+  }>;
+}
+
+function getStressColorClass(value: number | null): string {
+  if (value === null) return "text-muted-foreground";
+  if (value < 30) return "text-success";
+  if (value <= 60) return "text-warning";
+  return "text-destructive";
+}
+
+function getStressLevelBadgeClass(level: string | null): string {
+  const normalized = (level ?? "").toLowerCase();
+  if (normalized === "low") return "bg-success/10 text-success";
+  if (normalized === "medium") return "bg-warning/10 text-warning";
+  if (normalized === "high") return "bg-destructive/10 text-destructive";
+  return "bg-muted text-muted-foreground";
+}
+
+function StressBreakdownCard({ stress }: StressBreakdownCardProps) {
+  const latest = useMemo(() => {
+    for (let i = stress.length - 1; i >= 0; i--) {
+      const entry = stress[i];
+      if (
+        entry.avg_stress !== null ||
+        entry.max_stress !== null ||
+        entry.rest_stress !== null ||
+        entry.activity_stress !== null ||
+        entry.stress_level !== null
+      ) {
+        return entry;
+      }
+    }
+    return null;
+  }, [stress]);
+
+  if (!latest) return null;
+
+  const formatNum = (v: number | null): string =>
+    v === null ? "—" : String(Math.round(v));
+
+  return (
+    <Card>
+      <CardContent className="p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold tracking-tight">
+            Stress Breakdown
+          </h3>
+          <span className="text-xs text-muted-foreground">{latest.date}</span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground">
+              Avg Stress
+            </p>
+            <p
+              className={`text-2xl font-bold tracking-tight ${getStressColorClass(latest.avg_stress)}`}
+            >
+              {formatNum(latest.avg_stress)}
+            </p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground">
+              Max Stress
+            </p>
+            <p
+              className={`text-2xl font-bold tracking-tight ${getStressColorClass(latest.max_stress)}`}
+            >
+              {formatNum(latest.max_stress)}
+            </p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground">
+              Rest Stress
+            </p>
+            <p
+              className={`text-2xl font-bold tracking-tight ${getStressColorClass(latest.rest_stress)}`}
+            >
+              {formatNum(latest.rest_stress)}
+            </p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground">
+              Activity Stress
+            </p>
+            <p
+              className={`text-2xl font-bold tracking-tight ${getStressColorClass(latest.activity_stress)}`}
+            >
+              {formatNum(latest.activity_stress)}
+            </p>
+          </div>
+        </div>
+        {latest.stress_level !== null && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-muted-foreground">
+              Stress Level:
+            </span>
+            <span
+              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${getStressLevelBadgeClass(latest.stress_level)}`}
+            >
+              {latest.stress_level}
+            </span>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

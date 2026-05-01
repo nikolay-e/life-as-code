@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useDetailedWorkouts } from "../../hooks/useDetailedWorkouts";
 import { useHealthData } from "../../hooks/useHealthData";
+import { useRacePredictions } from "../../hooks/useRacePredictions";
 import { Button } from "../../components/ui/button";
 import {
   Card,
@@ -17,12 +18,17 @@ import {
   Activity,
   Heart,
   Loader2,
+  Trophy,
+  Timer,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import type {
   WorkoutExerciseDetail,
   WhoopWorkoutData,
   GarminActivityData,
+  GarminRacePredictionData,
 } from "../../types/api";
 import {
   formatDuration,
@@ -291,6 +297,9 @@ function WhoopWorkoutInline({ workout }: WhoopWorkoutInlineProps) {
   const startTime = workout.start_time
     ? format(parseISO(workout.start_time), "h:mm a")
     : null;
+  const endTime = workout.end_time
+    ? format(parseISO(workout.end_time), "h:mm a")
+    : null;
   const calories =
     workout.kilojoules === null ? null : Math.round(workout.kilojoules / 4.184);
   const distanceKm =
@@ -329,6 +338,14 @@ function WhoopWorkoutInline({ workout }: WhoopWorkoutInlineProps) {
   if (distanceKm !== null) {
     details.push(`${distanceKm} km`);
   }
+  if (
+    workout.altitude_change_meters !== null &&
+    workout.altitude_change_meters !== 0
+  ) {
+    details.push(
+      `Net altitude: ${String(Math.round(workout.altitude_change_meters))} m`,
+    );
+  }
   if (workout.percent_recorded !== null && workout.percent_recorded < 100) {
     details.push(`${workout.percent_recorded.toFixed(0)}% recorded`);
   }
@@ -343,6 +360,11 @@ function WhoopWorkoutInline({ workout }: WhoopWorkoutInlineProps) {
         <span className="text-xs text-muted-foreground">Whoop</span>
         {startTime && (
           <span className="text-xs text-muted-foreground">at {startTime}</span>
+        )}
+        {endTime && (
+          <span className="text-xs text-muted-foreground">
+            ended at {endTime}
+          </span>
         )}
       </div>
       <p className="text-sm text-muted-foreground mt-1">
@@ -373,6 +395,17 @@ function GarminActivityInline({ activity }: GarminActivityInlineProps) {
       ? formatPace(activity.avg_speed_mps)
       : null;
 
+  const isRunningActivity =
+    activity.activity_type !== null &&
+    activity.activity_type.toLowerCase().includes("run");
+
+  const maxPace =
+    isRunningActivity &&
+    shouldShowPace(activity.max_speed_mps, activity.distance_meters) &&
+    activity.max_speed_mps !== null
+      ? formatPace(activity.max_speed_mps)
+      : null;
+
   const details: string[] = [];
 
   if (activity.duration_seconds !== null) {
@@ -383,6 +416,9 @@ function GarminActivityInline({ activity }: GarminActivityInlineProps) {
   }
   if (pace !== null) {
     details.push(pace);
+  }
+  if (maxPace !== null) {
+    details.push(`Max Pace: ${maxPace}`);
   }
   if (activity.avg_heart_rate !== null) {
     details.push(`Avg HR ${String(activity.avg_heart_rate)}`);
@@ -395,6 +431,41 @@ function GarminActivityInline({ activity }: GarminActivityInlineProps) {
     activity.elevation_gain_meters > 0
   ) {
     details.push(`↑${String(Math.round(activity.elevation_gain_meters))}m`);
+  }
+  if (
+    activity.elevation_loss_meters !== null &&
+    activity.elevation_loss_meters > 0
+  ) {
+    details.push(`↓${String(Math.round(activity.elevation_loss_meters))}m`);
+  }
+  if (activity.avg_power_watts !== null || activity.max_power_watts !== null) {
+    const powerParts: string[] = [];
+    if (activity.avg_power_watts !== null) {
+      powerParts.push(
+        `Avg Pwr ${String(Math.round(activity.avg_power_watts))} W`,
+      );
+    }
+    if (activity.max_power_watts !== null) {
+      powerParts.push(`Max ${String(Math.round(activity.max_power_watts))} W`);
+    }
+    details.push(powerParts.join(", "));
+  }
+  if (
+    activity.training_effect_aerobic !== null &&
+    activity.training_effect_anaerobic !== null
+  ) {
+    details.push(
+      `Aerobic TE: ${activity.training_effect_aerobic.toFixed(1)} | Anaerobic TE: ${activity.training_effect_anaerobic.toFixed(1)}`,
+    );
+  } else if (activity.training_effect_aerobic !== null) {
+    details.push(`Aerobic TE: ${activity.training_effect_aerobic.toFixed(1)}`);
+  } else if (activity.training_effect_anaerobic !== null) {
+    details.push(
+      `Anaerobic TE: ${activity.training_effect_anaerobic.toFixed(1)}`,
+    );
+  }
+  if (activity.vo2_max_value !== null) {
+    details.push(`VO2max from activity: ${activity.vo2_max_value.toFixed(1)}`);
   }
 
   return (
@@ -416,6 +487,193 @@ function GarminActivityInline({ activity }: GarminActivityInlineProps) {
       </p>
       <HRZoneBar zones={buildGarminZones(activity)} />
     </div>
+  );
+}
+
+function formatRaceTime(seconds: number): string {
+  const totalSec = Math.round(seconds);
+  const hours = Math.floor(totalSec / 3600);
+  const minutes = Math.floor((totalSec % 3600) / 60);
+  const secs = totalSec % 60;
+  if (hours > 0) {
+    return `${String(hours)}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  }
+  return `${String(minutes)}:${String(secs).padStart(2, "0")}`;
+}
+
+function classifyVo2Max(value: number): string {
+  if (value > 55) return "Excellent";
+  if (value >= 45) return "Good";
+  if (value >= 35) return "Fair";
+  return "Poor";
+}
+
+type RaceDistanceKey =
+  | "prediction_5k_seconds"
+  | "prediction_10k_seconds"
+  | "prediction_half_marathon_seconds"
+  | "prediction_marathon_seconds";
+
+interface RaceDistance {
+  readonly key: RaceDistanceKey;
+  readonly label: string;
+}
+
+const RACE_DISTANCES: readonly RaceDistance[] = [
+  { key: "prediction_5k_seconds", label: "5K" },
+  { key: "prediction_10k_seconds", label: "10K" },
+  { key: "prediction_half_marathon_seconds", label: "Half Marathon" },
+  { key: "prediction_marathon_seconds", label: "Marathon" },
+] as const;
+
+function findLatestNonNullRecord(
+  records: GarminRacePredictionData[],
+  field: keyof GarminRacePredictionData,
+): GarminRacePredictionData | null {
+  const sorted = [...records].sort((a, b) => b.date.localeCompare(a.date));
+  return sorted.find((r) => r[field] !== null) ?? null;
+}
+
+function findRecordNearDate(
+  records: GarminRacePredictionData[],
+  field: keyof GarminRacePredictionData,
+  targetIso: string,
+): GarminRacePredictionData | null {
+  const candidates = records.filter(
+    (r) => r[field] !== null && r.date <= targetIso,
+  );
+  if (candidates.length === 0) return null;
+  return candidates.reduce((best, cur) => (cur.date > best.date ? cur : best));
+}
+
+interface RaceCardProps {
+  readonly label: string;
+  readonly latestSeconds: number;
+  readonly priorSeconds: number | null;
+}
+
+function RaceCard({ label, latestSeconds, priorSeconds }: RaceCardProps) {
+  const deltaSec = priorSeconds === null ? null : latestSeconds - priorSeconds;
+  const improved = deltaSec !== null && deltaSec < 0;
+  const worsened = deltaSec !== null && deltaSec > 0;
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm flex items-center gap-2 text-muted-foreground">
+          <Timer className="h-4 w-4" />
+          {label}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold">
+          {formatRaceTime(latestSeconds)}
+        </div>
+        {deltaSec !== null && (
+          <div
+            className={`mt-1 flex items-center gap-1 text-xs ${
+              improved
+                ? "text-green-600"
+                : worsened
+                  ? "text-red-600"
+                  : "text-muted-foreground"
+            }`}
+          >
+            {improved ? (
+              <ArrowDown className="h-3 w-3" />
+            ) : worsened ? (
+              <ArrowUp className="h-3 w-3" />
+            ) : null}
+            <span>
+              {deltaSec === 0
+                ? "no change"
+                : `${improved ? "-" : "+"}${formatRaceTime(Math.abs(deltaSec))} vs 30d ago`}
+            </span>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+interface Vo2MaxCardProps {
+  readonly value: number;
+}
+
+function Vo2MaxCard({ value }: Vo2MaxCardProps) {
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm flex items-center gap-2 text-muted-foreground">
+          <Activity className="h-4 w-4" />
+          VO2max
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold">{value.toFixed(1)}</div>
+        <div className="text-xs text-muted-foreground mt-1">
+          ml/kg/min · {classifyVo2Max(value)}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+interface RacePredictionsSectionProps {
+  readonly predictions: GarminRacePredictionData[];
+}
+
+function RacePredictionsSection({ predictions }: RacePredictionsSectionProps) {
+  const cards = useMemo(() => {
+    const result: { label: string; latest: number; prior: number | null }[] =
+      [];
+    for (const dist of RACE_DISTANCES) {
+      const latest = findLatestNonNullRecord(predictions, dist.key);
+      if (latest === null) continue;
+      const value = latest[dist.key];
+      if (value === null) continue;
+      const latestDate = new Date(latest.date);
+      latestDate.setDate(latestDate.getDate() - 30);
+      const targetIso = latestDate.toISOString().slice(0, 10);
+      const prior = findRecordNearDate(predictions, dist.key, targetIso);
+      const priorValue = prior?.[dist.key] ?? null;
+      result.push({ label: dist.label, latest: value, prior: priorValue });
+    }
+    return result;
+  }, [predictions]);
+
+  const latestVo2 = useMemo(
+    () => findLatestNonNullRecord(predictions, "vo2_max_value"),
+    [predictions],
+  );
+
+  const vo2Value = latestVo2?.vo2_max_value ?? null;
+
+  if (cards.length === 0 && vo2Value === null) {
+    return null;
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-lg flex items-center gap-2">
+          <Trophy className="h-5 w-5 text-yellow-500" />
+          Race Predictions
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+          {cards.map((c) => (
+            <RaceCard
+              key={c.label}
+              label={c.label}
+              latestSeconds={c.latest}
+              priorSeconds={c.prior}
+            />
+          ))}
+          {vo2Value !== null && <Vo2MaxCard value={vo2Value} />}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -473,6 +731,7 @@ export function TrainingsPage() {
   } = useDetailedWorkouts(periodDays);
   const { data: healthData, isFetching: healthFetching } =
     useHealthData(periodDays);
+  const { data: racePredictions } = useRacePredictions(365);
 
   const dailyTrainings = useMemo(() => {
     return groupAllTrainingsByDate(
@@ -523,6 +782,10 @@ export function TrainingsPage() {
           <PeriodSelector period={periodDays} setPeriod={setPeriodDays} />
         </div>
       </div>
+
+      {racePredictions && racePredictions.length > 0 && (
+        <RacePredictionsSection predictions={racePredictions} />
+      )}
 
       {dailyTrainings.length > 0 ? (
         <div className="space-y-4">

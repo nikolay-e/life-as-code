@@ -10,8 +10,10 @@ import { RecoverySection } from "./statistics/RecoverySection";
 import { SleepSection } from "./statistics/SleepSection";
 import { ActivitySection } from "./statistics/ActivitySection";
 import { ClinicalSection } from "./statistics/ClinicalSection";
+import { ClinicalAlertsHistorySection } from "./statistics/ClinicalAlertsHistorySection";
 import { AdvancedSection } from "./statistics/AdvancedSection";
 import { LongevitySection } from "./statistics/LongevitySection";
+import { MLForecastsSection } from "./statistics/MLForecastsSection";
 
 function ModeSelector({
   mode,
@@ -93,6 +95,7 @@ export function StatisticsPage() {
     illness_risk: illnessRisk,
     decorrelation,
     advanced_insights: advancedInsights,
+    ml_insights: mlInsights,
     longevity_insights: longevityInsights,
     day_completeness: dayCompleteness,
     data_source_summary: dataSourceSummary,
@@ -159,6 +162,8 @@ export function StatisticsPage() {
 
       <ClinicalSection clinicalAlerts={clinicalAlerts} />
 
+      <ClinicalAlertsHistorySection />
+
       <AdvancedSection
         overreaching={overreaching}
         correlations={correlations}
@@ -168,12 +173,15 @@ export function StatisticsPage() {
         illnessRisk={illnessRisk}
         decorrelation={decorrelation}
         advancedInsights={advancedInsights}
+        mlAnomalies={mlInsights?.ml_anomalies}
         baselineDays={baselineDays}
       />
 
       {longevityInsights && (
         <LongevitySection longevityInsights={longevityInsights} />
       )}
+
+      <MLForecastsSection />
     </div>
   );
 }

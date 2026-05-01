@@ -180,3 +180,7 @@ class GoalUpdate(BaseModel):
     @classmethod
     def validate_finite(cls, v: float | None) -> float | None:
         return _check_finite(v)
+
+
+class ClinicalAlertStatusUpdate(BaseModel):
+    status: Literal["open", "acknowledged", "resolved"]

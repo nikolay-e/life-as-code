@@ -16,6 +16,7 @@ import {
   useTestHevyCredentials,
   useTestEightSleepCredentials,
 } from "../hooks/useSettings";
+import { useProfile, useUpdateProfile } from "../hooks/useProfile";
 import {
   Card,
   CardContent,
@@ -23,6 +24,11 @@ import {
   CardHeader,
   CardTitle,
 } from "../components/ui/card";
+import { Button } from "../components/ui/button";
+import { Label } from "../components/ui/label";
+import { DateInputPicker } from "../components/ui/date-range-picker";
+import { LoadingState } from "../components/ui/loading-state";
+import { ErrorCard } from "../components/ui/error-card";
 import { SkeletonCard } from "../components/ui/skeleton";
 import {
   ProviderCard,
@@ -31,9 +37,11 @@ import {
 import { GarminCredentialForm } from "../components/settings/GarminCredentialForm";
 import { HevyCredentialForm } from "../components/settings/HevyCredentialForm";
 import { EightSleepCredentialForm } from "../components/settings/EightSleepCredentialForm";
-import { Settings } from "lucide-react";
+import { Settings, User } from "lucide-react";
 import { useBackoffStatus } from "../hooks/useHealthData";
 import type { CredentialTestResult } from "../types/api";
+
+type GenderValue = "" | "male" | "female";
 
 export function SettingsPage() {
   const { data: credentials, isLoading: credentialsLoading } = useCredentials();
@@ -52,6 +60,13 @@ export function SettingsPage() {
   const testHevy = useTestHevyCredentials();
   const testEightSleep = useTestEightSleepCredentials();
 
+  const {
+    data: profile,
+    isLoading: profileLoading,
+    error: profileError,
+  } = useProfile();
+  const updateProfile = useUpdateProfile();
+
   const [editingProvider, setEditingProvider] = useState<string | null>(null);
   const [garminTestResult, setGarminTestResult] =
     useState<CredentialTestResult | null>(null);
@@ -59,6 +74,43 @@ export function SettingsPage() {
     useState<CredentialTestResult | null>(null);
   const [eightSleepTestResult, setEightSleepTestResult] =
     useState<CredentialTestResult | null>(null);
+
+  const initialBirthDate = profile?.birth_date ?? "";
+  const initialGender = (profile?.gender as GenderValue | null) ?? "";
+
+  const [profileEdits, setProfileEdits] = useState<{
+    birthDate: string | null;
+    gender: GenderValue | null;
+  }>({ birthDate: null, gender: null });
+
+  const birthDate = profileEdits.birthDate ?? initialBirthDate;
+  const gender = profileEdits.gender ?? initialGender;
+  const setBirthDate = (v: string) => {
+    setProfileEdits((p) => ({ ...p, birthDate: v }));
+  };
+  const setGender = (v: GenderValue) => {
+    setProfileEdits((p) => ({ ...p, gender: v }));
+  };
+  const isProfileDirty =
+    birthDate !== initialBirthDate || gender !== initialGender;
+
+  const handleSaveProfile = useCallback(() => {
+    updateProfile.mutate(
+      {
+        birth_date: birthDate === "" ? null : birthDate,
+        gender: gender === "" ? null : gender,
+      },
+      {
+        onSuccess: () => {
+          toast.success("Profile saved");
+        },
+        onError: (err) =>
+          toast.error(
+            err instanceof Error ? err.message : "Failed to save profile",
+          ),
+      },
+    );
+  }, [birthDate, gender, updateProfile]);
 
   const handleSync = useCallback(
     async (
@@ -111,6 +163,88 @@ export function SettingsPage() {
           Manage your data sources and sync configuration
         </p>
       </div>
+
+      <Card>
+        <CardHeader className="pb-4">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-lg bg-primary/10">
+              <User className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <CardTitle>Profile</CardTitle>
+              <CardDescription className="mt-1">
+                Used to calculate biological age and longevity insights
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {profileLoading ? (
+            <LoadingState message="Loading profile..." />
+          ) : profileError ? (
+            <ErrorCard
+              message={
+                profileError instanceof Error
+                  ? profileError.message
+                  : "Failed to load profile"
+              }
+            />
+          ) : (
+            <>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="profile-birth-date">Birth date</Label>
+                  <div className="flex items-center gap-2">
+                    <DateInputPicker
+                      value={birthDate}
+                      onChange={(next) => {
+                        setBirthDate(next);
+                      }}
+                      placeholder="Select birth date"
+                    />
+                    {birthDate ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setBirthDate("");
+                        }}
+                      >
+                        Clear
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="profile-gender">Gender</Label>
+                  <select
+                    id="profile-gender"
+                    value={gender}
+                    onChange={(e) => {
+                      setGender(e.target.value as GenderValue);
+                    }}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <option value="">Not specified</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  onClick={handleSaveProfile}
+                  disabled={!isProfileDirty || updateProfile.isPending}
+                >
+                  {updateProfile.isPending ? "Saving..." : "Save"}
+                </Button>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="pb-4">

@@ -17,6 +17,7 @@ from analytics import TrendMode
 from analytics.pipeline import get_or_compute_snapshot
 from api_schemas import (
     BiomarkerCreate,
+    ClinicalAlertStatusUpdate,
     EightSleepCredentialsRequest,
     FunctionalTestCreate,
     GarminCredentialsRequest,
@@ -51,8 +52,10 @@ from limiter import limiter
 from logging_config import get_logger
 from models import (
     BloodBiomarker,
+    ClinicalAlertEvent,
     DataSync,
     FunctionalTest,
+    GarminRacePrediction,
     Intervention,
     LongevityGoal,
     User,
@@ -1282,3 +1285,78 @@ def api_delete_goal(goal_id: int):
         db.delete(row)
         db.commit()
         return jsonify({"deleted": True})
+
+
+RACE_PREDICTION_FIELDS = [
+    "date",
+    "prediction_5k_seconds",
+    "prediction_10k_seconds",
+    "prediction_half_marathon_seconds",
+    "prediction_marathon_seconds",
+    "vo2_max_value",
+]
+
+
+@api.route("/data/race-predictions", methods=["GET"])
+@login_required
+def api_get_race_predictions():
+    start_date, end_date = _parse_date_range(
+        request.args.get("start_date"), request.args.get("end_date")
+    )
+    with get_db_session_context() as db:
+        rows = db.scalars(
+            select(GarminRacePrediction)
+            .filter(
+                GarminRacePrediction.user_id == current_user.id,
+                GarminRacePrediction.date >= start_date,
+                GarminRacePrediction.date <= end_date,
+            )
+            .order_by(GarminRacePrediction.date.desc())
+        ).all()
+        return jsonify([_serialize_model(r, RACE_PREDICTION_FIELDS) for r in rows])
+
+
+CLINICAL_ALERT_FIELDS = [
+    "id",
+    "alert_type",
+    "severity",
+    "status",
+    "details_json",
+    "first_detected_at",
+    "last_detected_at",
+    "acknowledged_at",
+    "resolved_at",
+]
+
+
+@api.route("/clinical-alerts", methods=["GET"])
+@login_required
+def api_get_clinical_alerts():
+    status_filter = request.args.get("status")
+    with get_db_session_context() as db:
+        query = select(ClinicalAlertEvent).filter_by(user_id=current_user.id)
+        if status_filter:
+            query = query.filter_by(status=status_filter)
+        query = query.order_by(ClinicalAlertEvent.last_detected_at.desc())
+        rows = db.scalars(query).all()
+        return jsonify([_serialize_model(r, CLINICAL_ALERT_FIELDS) for r in rows])
+
+
+@api.route("/clinical-alerts/<int:alert_id>/status", methods=["PUT"])
+@login_required
+def api_update_clinical_alert_status(alert_id: int):
+    body = _parse_body(ClinicalAlertStatusUpdate)
+    with get_db_session_context() as db:
+        row = db.scalars(
+            select(ClinicalAlertEvent).filter_by(id=alert_id, user_id=current_user.id)
+        ).first()
+        if not row:
+            raise NotFoundError("Clinical alert")
+        row.status = body.status
+        now = utcnow()
+        if body.status == "acknowledged" and row.acknowledged_at is None:
+            row.acknowledged_at = now
+        elif body.status == "resolved" and row.resolved_at is None:
+            row.resolved_at = now
+        db.commit()
+        return jsonify(_serialize_model(row, CLINICAL_ALERT_FIELDS))

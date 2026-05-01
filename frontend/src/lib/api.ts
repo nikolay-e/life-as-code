@@ -3,13 +3,19 @@ import type {
   AuthResponse,
   BackoffStatus,
   BloodBiomarkerData,
+  ClinicalAlertEvent,
   CredentialTestResult,
   CredentialsStatus,
+  FunctionalTestData,
   GarminActivityData,
+  GarminRacePredictionData,
   HealthData,
   InterventionData,
+  LongevityGoalData,
+  MLForecastMetric,
   SyncStatus,
   User,
+  UserProfile,
   UserThresholds,
   VersionInfo,
   WorkoutExerciseDetail,
@@ -105,6 +111,42 @@ export const api = {
       request(
         `/data/activities/garmin?start_date=${startDate}&end_date=${endDate}`,
       ),
+
+    getRacePredictions: (
+      startDate: string,
+      endDate: string,
+    ): Promise<GarminRacePredictionData[]> =>
+      request(
+        `/data/race-predictions?start_date=${startDate}&end_date=${endDate}`,
+      ),
+  },
+
+  ml: {
+    getForecasts: (
+      metric?: string,
+      horizon?: number,
+    ): Promise<{ forecasts: MLForecastMetric[]; has_active: boolean }> => {
+      const params = new URLSearchParams();
+      if (metric) params.set("metric", metric);
+      if (horizon) params.set("horizon", String(horizon));
+      const qs = params.toString();
+      return request(`/ml/forecasts${qs ? `?${qs}` : ""}`);
+    },
+  },
+
+  clinicalAlerts: {
+    list: (status?: string): Promise<ClinicalAlertEvent[]> => {
+      const qs = status ? `?status=${status}` : "";
+      return request(`/clinical-alerts${qs}`);
+    },
+    updateStatus: (
+      id: number,
+      status: "open" | "acknowledged" | "resolved",
+    ): Promise<ClinicalAlertEvent> =>
+      request(`/clinical-alerts/${String(id)}/status`, {
+        method: "PUT",
+        body: JSON.stringify({ status }),
+      }),
   },
 
   analytics: {
@@ -182,6 +224,14 @@ export const api = {
       request("/settings/credentials/eight_sleep/test", {
         method: "POST",
         body: JSON.stringify({ email, password }),
+      }),
+
+    getProfile: (): Promise<UserProfile> => request("/settings/profile"),
+
+    updateProfile: (data: Partial<UserProfile>): Promise<UserProfile> =>
+      request("/settings/profile", {
+        method: "PUT",
+        body: JSON.stringify(data),
       }),
   },
 
@@ -282,6 +332,62 @@ export const api = {
 
     deleteBiomarker: (id: number): Promise<{ deleted: boolean }> =>
       request(`/longevity/biomarkers/${String(id)}`, { method: "DELETE" }),
+
+    getFunctionalTests: (testName?: string): Promise<FunctionalTestData[]> => {
+      const qs = testName ? `?test_name=${encodeURIComponent(testName)}` : "";
+      return request(`/longevity/functional-tests${qs}`);
+    },
+
+    createFunctionalTest: (data: {
+      date: string;
+      test_name: string;
+      value: number;
+      unit: string;
+      notes?: string | null;
+    }): Promise<FunctionalTestData> =>
+      request("/longevity/functional-tests", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+
+    deleteFunctionalTest: (id: number): Promise<{ deleted: boolean }> =>
+      request(`/longevity/functional-tests/${String(id)}`, {
+        method: "DELETE",
+      }),
+
+    getGoals: (): Promise<LongevityGoalData[]> => request("/longevity/goals"),
+
+    createGoal: (data: {
+      category: string;
+      description: string;
+      target_value?: number | null;
+      current_value?: number | null;
+      unit?: string | null;
+      target_age?: number | null;
+    }): Promise<LongevityGoalData> =>
+      request("/longevity/goals", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+
+    updateGoal: (
+      id: number,
+      data: Partial<{
+        category: string;
+        description: string;
+        target_value: number | null;
+        current_value: number | null;
+        unit: string | null;
+        target_age: number | null;
+      }>,
+    ): Promise<LongevityGoalData> =>
+      request(`/longevity/goals/${String(id)}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+
+    deleteGoal: (id: number): Promise<{ deleted: boolean }> =>
+      request(`/longevity/goals/${String(id)}`, { method: "DELETE" }),
   },
 };
 

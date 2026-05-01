@@ -62,6 +62,7 @@ export interface SleepData {
   awake_minutes: number | null;
   total_sleep_minutes: number | null;
   sleep_score: number | null;
+  body_battery_change: number | null;
   skin_temp_celsius: number | null;
   awake_count: number | null;
   sleep_quality_score: number | null;
@@ -76,6 +77,9 @@ export interface HRVData {
   source?: string;
   hrv_avg: number | null;
   hrv_status: string | null;
+  baseline_low_ms: number | null;
+  baseline_high_ms: number | null;
+  feedback_phrase: string | null;
 }
 
 export interface WeightData {
@@ -804,4 +808,20 @@ export interface GarminRacePredictionData {
   prediction_half_marathon_seconds: number | null;
   prediction_marathon_seconds: number | null;
   vo2_max_value: number | null;
+}
+
+export type ClinicalAlertSeverity = "info" | "warning" | "alert" | "critical";
+
+export type ClinicalAlertStatus = "open" | "acknowledged" | "resolved";
+
+export interface ClinicalAlertEvent {
+  id: number;
+  alert_type: string;
+  severity: ClinicalAlertSeverity;
+  status: ClinicalAlertStatus;
+  details_json: Record<string, unknown> | null;
+  first_detected_at: string;
+  last_detected_at: string;
+  acknowledged_at: string | null;
+  resolved_at: string | null;
 }

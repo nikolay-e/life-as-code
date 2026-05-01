@@ -48,6 +48,9 @@ interface MultiProviderLineChartProps {
   readonly annotations?: readonly ChartAnnotation[];
   readonly baselineMean?: number | null;
   readonly baselineStd?: number | null;
+  readonly bandLow?: number | null;
+  readonly bandHigh?: number | null;
+  readonly bandLabel?: string;
   dateRange?: { start: string; end: string };
 }
 
@@ -70,6 +73,9 @@ export const MultiProviderLineChart = memo(
     annotations,
     baselineMean,
     baselineStd,
+    bandLow,
+    bandHigh,
+    bandLabel,
     dateRange,
   }: MultiProviderLineChartProps) => {
     const hasEightSleep =
@@ -213,6 +219,33 @@ export const MultiProviderLineChart = memo(
               ifOverflow="extendDomain"
             />
           )}
+
+          {bandLow != null &&
+            bandHigh != null &&
+            Number.isFinite(bandLow) &&
+            Number.isFinite(bandHigh) &&
+            bandHigh > bandLow && (
+              <ReferenceArea
+                y1={bandLow}
+                y2={bandHigh}
+                fill="hsl(var(--hrv, var(--success)))"
+                fillOpacity={0.12}
+                stroke="hsl(var(--hrv, var(--success)))"
+                strokeOpacity={0.3}
+                strokeDasharray="2 4"
+                ifOverflow="extendDomain"
+                label={
+                  bandLabel
+                    ? {
+                        value: bandLabel,
+                        position: "insideTopLeft",
+                        fill: "hsl(var(--muted-foreground))",
+                        fontSize: 10,
+                      }
+                    : undefined
+                }
+              />
+            )}
 
           <Bar
             dataKey="garminValue"
