@@ -466,6 +466,8 @@ def _write_whoop_normalized(
                     "rem_minutes": slp.rem_sleep_minutes,
                     "awake_minutes": slp.awake_minutes,
                     "respiratory_rate": slp.respiratory_rate,
+                    "sleep_start_time": slp.sleep_start_time,
+                    "sleep_end_time": slp.sleep_end_time,
                 },
                 ["date", "source"],
                 user_id,

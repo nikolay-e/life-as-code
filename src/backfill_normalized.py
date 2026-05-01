@@ -38,9 +38,11 @@ BACKFILL_QUERIES = [
         """
         INSERT INTO sleep (user_id, date, source, total_sleep_minutes, deep_minutes,
                           light_minutes, rem_minutes, awake_minutes, respiratory_rate,
+                          sleep_start_time, sleep_end_time,
                           created_at, updated_at)
         SELECT user_id, date, 'whoop', total_sleep_duration_minutes, deep_sleep_minutes,
                light_sleep_minutes, rem_sleep_minutes, awake_minutes, respiratory_rate,
+               sleep_start_time, sleep_end_time,
                created_at, NOW()
         FROM whoop_sleep
         WHERE total_sleep_duration_minutes IS NOT NULL
@@ -51,6 +53,8 @@ BACKFILL_QUERIES = [
             rem_minutes = EXCLUDED.rem_minutes,
             awake_minutes = EXCLUDED.awake_minutes,
             respiratory_rate = EXCLUDED.respiratory_rate,
+            sleep_start_time = EXCLUDED.sleep_start_time,
+            sleep_end_time = EXCLUDED.sleep_end_time,
             updated_at = NOW()
         """,
     ),
@@ -83,6 +87,7 @@ BACKFILL_QUERIES = [
         """
         INSERT INTO sleep (user_id, date, source, total_sleep_minutes, deep_minutes,
                           light_minutes, rem_minutes, respiratory_rate, sleep_score,
+                          sleep_start_time, sleep_end_time,
                           created_at, updated_at)
         SELECT user_id, date, 'eight_sleep',
                ROUND(sleep_duration_seconds / 60.0, 1),
@@ -91,6 +96,7 @@ BACKFILL_QUERIES = [
                ROUND(rem_duration_seconds / 60.0, 1),
                respiratory_rate,
                score,
+               sleep_start_time, sleep_end_time,
                created_at, NOW()
         FROM eight_sleep_sessions
         WHERE sleep_duration_seconds IS NOT NULL
@@ -101,6 +107,8 @@ BACKFILL_QUERIES = [
             rem_minutes = EXCLUDED.rem_minutes,
             respiratory_rate = EXCLUDED.respiratory_rate,
             sleep_score = EXCLUDED.sleep_score,
+            sleep_start_time = EXCLUDED.sleep_start_time,
+            sleep_end_time = EXCLUDED.sleep_end_time,
             updated_at = NOW()
         """,
     ),

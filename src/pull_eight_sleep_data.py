@@ -361,6 +361,8 @@ def _write_eight_sleep_normalized(
                 "rem_minutes": _sec_to_min(ses.rem_duration_seconds),
                 "respiratory_rate": ses.respiratory_rate,
                 "sleep_score": ses.score,
+                "sleep_start_time": ses.sleep_start_time,
+                "sleep_end_time": ses.sleep_end_time,
             }
             if sleep_data["total_sleep_minutes"] is not None:
                 upsert_data(db, Sleep, sleep_data, ["date", "source"], user_id)
