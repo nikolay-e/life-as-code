@@ -458,6 +458,25 @@ class GarminAPIWrapper:
             dto = sleep_data.get("dailySleepDTO")
             if isinstance(dto, dict):
                 merged.update(dto)
+
+            try:
+                time.sleep(GARMIN_API_RATE_LIMIT_DELAY)
+                spo2_data = self.api.get_spo2_data(date_str)
+                if spo2_data and isinstance(spo2_data, dict):
+                    if spo2_data.get("averageSpO2") is not None:
+                        merged["averageSpO2"] = spo2_data["averageSpO2"]
+                    if spo2_data.get("lowestSpO2") is not None:
+                        merged["lowestSpO2"] = spo2_data["lowestSpO2"]
+            except (
+                GarminConnectConnectionError,
+                GarminConnectTooManyRequestsError,
+                RequestException,
+                KeyError,
+                ValueError,
+                TypeError,
+            ) as e:
+                logger.debug("garmin_sleep_spo2_error", date=date_str, error=str(e))
+
             merged["date"] = current_date
             return merged
 

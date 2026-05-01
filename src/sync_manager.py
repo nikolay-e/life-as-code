@@ -459,6 +459,52 @@ def _apply_bulk_upsert(
         sync_result.records_updated = result.get("updated", 0)
 
 
+SYNC_STALE_MINUTES = 30
+
+
+def _try_claim_sync_slot(user_id: int, source: str, data_type: str) -> bool:
+    """Atomically claim a sync slot via UPSERT WHERE.
+
+    pgbouncer-friendly: uses a single short transaction with no session-level
+    locks. Returns True if the slot was claimed for this caller, False if
+    another sync is in progress (and not stale).
+    """
+    from sqlalchemy import or_
+    from sqlalchemy.dialects.postgresql import insert
+
+    now = utcnow()
+    stale_cutoff = now - datetime.timedelta(minutes=SYNC_STALE_MINUTES)
+    with get_db_session_context() as db:
+        stmt = (
+            insert(DataSync)
+            .values(
+                user_id=user_id,
+                source=source,
+                data_type=data_type,
+                status=SyncStatus.IN_PROGRESS,
+                last_sync_timestamp=now,
+                error_message=None,
+            )
+            .on_conflict_do_update(
+                index_elements=["user_id", "source", "data_type"],
+                set_={
+                    "status": SyncStatus.IN_PROGRESS,
+                    "last_sync_timestamp": now,
+                    "error_message": None,
+                },
+                where=or_(
+                    DataSync.status != SyncStatus.IN_PROGRESS,
+                    DataSync.last_sync_timestamp < stale_cutoff,
+                    DataSync.last_sync_timestamp.is_(None),
+                ),
+            )
+        )
+        result = db.execute(stmt)
+        db.commit()
+        rowcount: int = result.rowcount
+        return rowcount > 0
+
+
 def extract_and_parse(
     api_call_func,
     parser_class: type[BaseModel],
@@ -471,32 +517,19 @@ def extract_and_parse(
 ) -> SyncResult:
     sync_result = SyncResult(source, data_type, user_id)
 
-    with get_db_session_context() as lock_db:
-        lock_id = _sync_lock_id(user_id, source)
-        acquired = lock_db.execute(
-            text("SELECT pg_try_advisory_lock(:id)"), {"id": lock_id}
-        ).scalar()
-        if not acquired:
-            sync_result.add_error(f"Sync already in progress for {source}")
+    if not _try_claim_sync_slot(user_id, source, data_type):
+        sync_result.add_error(f"Sync already in progress for {source}")
+        sync_result.finish(False)
+        return sync_result
+
+    try:
+        logger.info("sync_started", source=source, data_type=data_type, user_id=user_id)
+        api_response = api_call_func(**api_kwargs)
+
+        if api_response is None:
+            sync_result.add_error("No data returned from API")
             sync_result.finish(False)
-            return sync_result
-
-        try:
-            _set_sync_in_progress(lock_db, user_id, source, data_type)
-            lock_db.commit()
-
-            logger.info(
-                "sync_started", source=source, data_type=data_type, user_id=user_id
-            )
-            api_response = api_call_func(**api_kwargs)
-
-            if api_response is None:
-                sync_result.add_error("No data returned from API")
-                sync_result.finish(False)
-                with get_db_session_context() as db:
-                    update_sync_status(db, user_id, source, data_type, sync_result)
-                return sync_result
-
+        else:
             if not isinstance(api_response, list):
                 api_response = [api_response]
 
@@ -506,29 +539,24 @@ def extract_and_parse(
             _apply_bulk_upsert(
                 all_records, model_class, unique_fields, user_id, source, sync_result
             )
-
-            with get_db_session_context() as db:
-                update_sync_status(db, user_id, source, data_type, sync_result)
-
             sync_result.finish(True)
 
-        except Exception as e:
-            sync_result.add_error(f"Fatal error in {source} {data_type} sync: {str(e)}")
-            sync_result.finish(False)
-            try:
-                with get_db_session_context() as db:
-                    update_sync_status(db, user_id, source, data_type, sync_result)
-            except Exception as update_err:
-                logger.error(
-                    "sync_status_update_after_fatal_error",
-                    user_id=user_id,
-                    source=source,
-                    data_type=data_type,
-                    error=str(update_err),
-                )
+    except Exception as e:
+        sync_result.add_error(f"Fatal error in {source} {data_type} sync: {str(e)}")
+        sync_result.finish(False)
 
-        finally:
-            lock_db.execute(text("SELECT pg_advisory_unlock(:id)"), {"id": lock_id})
+    finally:
+        try:
+            with get_db_session_context() as db:
+                update_sync_status(db, user_id, source, data_type, sync_result)
+        except Exception as update_err:
+            logger.error(
+                "sync_status_update_failed",
+                user_id=user_id,
+                source=source,
+                data_type=data_type,
+                error=str(update_err),
+            )
 
     return sync_result
 
