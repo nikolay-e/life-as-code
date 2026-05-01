@@ -129,7 +129,6 @@ class GarminSleepData(GarminBaseModel):
                 "bbChange",
             ],
             "skin_temp_celsius": [
-                "avgSkinTempDeviationC",
                 "avgSkinTempCelsius",
                 "skin_temp_celsius",
                 "skinTemp",
