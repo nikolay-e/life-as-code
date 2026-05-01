@@ -438,15 +438,10 @@ def render_all(snapshot: str | None) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Regenerate RESULTS.md from JSON artifacts")
     parser.add_argument("--snapshot", default=None)
-    parser.add_argument(
-        "--output",
-        default=None,
-        help="Override output path (default: research/RESULTS.md)",
-    )
     args = parser.parse_args()
 
     content = render_all(args.snapshot)
-    out_path = Path(args.output) if args.output else Path(__file__).parent.parent / "RESULTS.md"
+    out_path = Path(__file__).parent.parent / "RESULTS.md"
     out_path.write_text(content)
     print(f"Wrote {out_path} ({len(content.splitlines())} lines, {len(content)} chars)")
 

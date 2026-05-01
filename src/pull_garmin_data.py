@@ -761,18 +761,59 @@ class GarminAPIWrapper:
 
         return self._fetch_daily(date_range, "energy", fetch)
 
+    def _populate_training_load(
+        self,
+        training_status: dict,
+        acute_load_dto: dict | None,
+        combined_data: dict[str, Any],
+    ) -> None:
+        if acute_load_dto:
+            combined_data["acuteTrainingLoad"] = acute_load_dto.get(
+                "dailyTrainingLoadAcute"
+            ) or acute_load_dto.get("acuteTrainingLoad")
+            combined_data["trainingLoad7Days"] = acute_load_dto.get(
+                "dailyTrainingLoadChronic"
+            ) or acute_load_dto.get("trainingLoad7Days")
+        if not combined_data.get("acuteTrainingLoad"):
+            combined_data["acuteTrainingLoad"] = training_status.get(
+                "acuteTrainingLoad"
+            ) or training_status.get("dailyTrainingLoadAcute")
+        if not combined_data.get("trainingLoad7Days"):
+            combined_data["trainingLoad7Days"] = (
+                training_status.get("trainingLoad7Days")
+                or training_status.get("sevenDaysTrainingLoad")
+                or training_status.get("dailyTrainingLoadChronic")
+            )
+
+    @staticmethod
+    def _populate_vo2_from_training_status(
+        training_status: dict, combined_data: dict[str, Any]
+    ) -> None:
+        for key in ("vo2MaxValue", "vo2MaxPreciseValue"):
+            value = training_status.get(key)
+            if value is not None:
+                combined_data[key] = value
+
+    @staticmethod
+    def _log_extraction_failure(date_str: str, training_status: dict) -> None:
+        logger.warning(
+            "garmin_training_load_extraction_failed",
+            date=date_str,
+            has_latest_data=isinstance(
+                training_status.get("latestTrainingStatusData"), dict
+            ),
+            has_most_recent=isinstance(
+                training_status.get("mostRecentTrainingStatus"), dict
+            ),
+            has_flat_dto=isinstance(training_status.get("acuteTrainingLoadDTO"), dict),
+            top_keys=list(training_status.keys())[:20],
+        )
+
     def _fetch_training_status_fields(
         self, date_str: str, combined_data: dict[str, Any]
     ) -> None:
         try:
             training_status = self.api.get_training_status(date_str)
-            logger.debug(
-                "garmin_training_status_raw",
-                date=date_str,
-                response_type=type(training_status).__name__,
-                is_dict=isinstance(training_status, dict),
-                is_empty=not training_status,
-            )
             if not training_status or not isinstance(training_status, dict):
                 return
             acute_load_dto = self._extract_acute_training_load_dto(training_status)
@@ -781,16 +822,7 @@ class GarminAPIWrapper:
                 date=date_str,
                 vo2_max=training_status.get("vo2MaxValue"),
                 fitness_age=training_status.get("fitnessAge"),
-                daily_load_acute=(
-                    acute_load_dto.get("dailyTrainingLoadAcute")
-                    if acute_load_dto
-                    else None
-                ),
-                daily_load_chronic=(
-                    acute_load_dto.get("dailyTrainingLoadChronic")
-                    if acute_load_dto
-                    else None
-                ),
+                has_acute_dto=acute_load_dto is not None,
                 has_keys=list(training_status.keys())[:15],
             )
             combined_data["trainingStatusLabel"] = training_status.get(
@@ -799,29 +831,8 @@ class GarminAPIWrapper:
             combined_data["trainingStatusDescription"] = training_status.get(
                 "trainingStatusDescription"
             )
-            if acute_load_dto:
-                combined_data["acuteTrainingLoad"] = acute_load_dto.get(
-                    "dailyTrainingLoadAcute"
-                ) or acute_load_dto.get("acuteTrainingLoad")
-                combined_data["trainingLoad7Days"] = acute_load_dto.get(
-                    "dailyTrainingLoadChronic"
-                ) or acute_load_dto.get("trainingLoad7Days")
-            if not combined_data.get("acuteTrainingLoad"):
-                combined_data["acuteTrainingLoad"] = training_status.get(
-                    "acuteTrainingLoad"
-                ) or training_status.get("dailyTrainingLoadAcute")
-            if not combined_data.get("trainingLoad7Days"):
-                combined_data["trainingLoad7Days"] = (
-                    training_status.get("trainingLoad7Days")
-                    or training_status.get("sevenDaysTrainingLoad")
-                    or training_status.get("dailyTrainingLoadChronic")
-                )
-            if training_status.get("vo2MaxValue") is not None:
-                combined_data["vo2MaxValue"] = training_status.get("vo2MaxValue")
-            if training_status.get("vo2MaxPreciseValue") is not None:
-                combined_data["vo2MaxPreciseValue"] = training_status.get(
-                    "vo2MaxPreciseValue"
-                )
+            self._populate_training_load(training_status, acute_load_dto, combined_data)
+            self._populate_vo2_from_training_status(training_status, combined_data)
             combined_data["primaryTrainingEffect"] = training_status.get(
                 "primaryTrainingEffect"
             )
@@ -832,20 +843,7 @@ class GarminAPIWrapper:
                 combined_data.get("acuteTrainingLoad") is None
                 and combined_data.get("trainingLoad7Days") is None
             ):
-                logger.warning(
-                    "garmin_training_load_extraction_failed",
-                    date=date_str,
-                    has_latest_data=isinstance(
-                        training_status.get("latestTrainingStatusData"), dict
-                    ),
-                    has_most_recent=isinstance(
-                        training_status.get("mostRecentTrainingStatus"), dict
-                    ),
-                    has_flat_dto=isinstance(
-                        training_status.get("acuteTrainingLoadDTO"), dict
-                    ),
-                    top_keys=list(training_status.keys())[:20],
-                )
+                self._log_extraction_failure(date_str, training_status)
         except (
             GarminConnectConnectionError,
             GarminConnectTooManyRequestsError,

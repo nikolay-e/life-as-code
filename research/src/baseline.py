@@ -95,7 +95,7 @@ def _power_for_r(n_eff: int, r: float, alpha: float = 0.05) -> float:
     return float(np.clip(power, 0.0, 1.0))
 
 
-def _dow_month_anova(df: pl.DataFrame, metric: str, has_epoch: bool = True) -> dict:
+def _dow_month_anova(df: pl.DataFrame, metric: str) -> dict:
     if metric not in df.columns:
         return {}
     sub = df.select(["date", metric]).filter(pl.col(metric).is_not_null())
@@ -135,7 +135,7 @@ def analyze_metric(df: pl.DataFrame, metric: str, lags: int = 14) -> dict:
     values = sub[metric].to_numpy().astype(float)
     n = len(values)
 
-    a, p = _acf_pacf(values, lags)
+    a, _ = _acf_pacf(values, lags)
     rho1 = float(a[1]) if len(a) > 1 else 0.0
     rho7 = float(a[7]) if len(a) > 7 else 0.0
     n_eff = _effective_n(n, rho1)
@@ -195,7 +195,7 @@ def compute_residualized_acf(
     n = len(y)
 
     confounds: list[str] = []
-    X_parts: list[np.ndarray] = []
+    x_parts: list[np.ndarray] = []
 
     if include_month:
         m = work["date"].dt.month().to_numpy()
@@ -203,7 +203,7 @@ def compute_residualized_acf(
         for i, mi in enumerate(m):
             if mi > 1:
                 dummies[i, mi - 2] = 1
-        X_parts.append(dummies)
+        x_parts.append(dummies)
         confounds.append("month")
 
     if include_weekday:
@@ -212,7 +212,7 @@ def compute_residualized_acf(
         for i, wi in enumerate(wd):
             if wi > 1:
                 dummies[i, wi - 2] = 1
-        X_parts.append(dummies)
+        x_parts.append(dummies)
         confounds.append("weekday")
 
     if include_epoch and epoch_dates:
@@ -226,11 +226,11 @@ def compute_residualized_acf(
             for i, e in enumerate(epoch_ids):
                 if e > 0:
                     dummies[i, e - 1] = 1
-            X_parts.append(dummies)
+            x_parts.append(dummies)
             confounds.append("epoch")
 
-    if X_parts:
-        X = np.column_stack([np.ones(n)] + X_parts)
+    if x_parts:
+        X = np.column_stack([np.ones(n)] + x_parts)
         beta, *_ = np.linalg.lstsq(X, y, rcond=None)
         residuals = y - X @ beta
     else:

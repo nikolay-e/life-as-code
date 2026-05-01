@@ -514,8 +514,8 @@ def _icc21(x: np.ndarray, y: np.ndarray) -> float:
         return float("nan")
     matrix = np.column_stack([x, y])
     grand_mean = matrix.mean()
-    msr = np.var(matrix.mean(axis=1), ddof=1) * 2  # rows = subjects
-    msc = np.var(matrix.mean(axis=0), ddof=1) * n  # columns = raters
+    msr = np.var(matrix.mean(axis=1), ddof=1) * 2
+    msc = np.var(matrix.mean(axis=0), ddof=1) * n
     err = matrix - matrix.mean(axis=1, keepdims=True) - (matrix.mean(axis=0) - grand_mean)
     mse = (err**2).sum() / ((n - 1) * (2 - 1))
     icc = (msr - mse) / (msr + (2 - 1) * mse + 2 * (msc - mse) / n)
@@ -650,12 +650,12 @@ def run_quadrant_chi2(spec: HypothesisSpec, snapshot: str | None) -> dict:
                 )
                 # Take only B vs others for clarity
                 if "B" in contingency.columns:
-                    counts_B = contingency["B"].to_numpy()
+                    counts_b = contingency["B"].to_numpy()
                     n_per_tert = contingency.select(pl.exclude("tertile")).sum_horizontal().to_numpy()
-                    counts_other = n_per_tert - counts_B
+                    counts_other = n_per_tert - counts_b
                     tert_labels = contingency["tertile"].to_list()
-                    table = np.array([counts_B, counts_other])
-                    quadrant_B_by_tertile = {str(t): int(b) for t, b in zip(tert_labels, counts_B, strict=True)}
+                    table = np.array([counts_b, counts_other])
+                    quadrant_b_by_tertile = {str(t): int(b) for t, b in zip(tert_labels, counts_b, strict=True)}
                     n_by_tertile = {str(t): int(n) for t, n in zip(tert_labels, n_per_tert, strict=True)}
                     if table.sum() > 0 and (table >= 5).all():
                         chi2, p, dof, _ = chi2_contingency(table)
@@ -664,7 +664,7 @@ def run_quadrant_chi2(spec: HypothesisSpec, snapshot: str | None) -> dict:
                             "stat": round(float(chi2), 3),
                             "p_value": round(float(p), 5),
                             "dof": int(dof),
-                            "quadrant_B_by_tertile": quadrant_B_by_tertile,
+                            "quadrant_b_by_tertile": quadrant_b_by_tertile,
                             "n_by_tertile": n_by_tertile,
                         }
                     elif table.shape == (2, 3) or table.shape == (2, 2):
@@ -673,7 +673,7 @@ def run_quadrant_chi2(spec: HypothesisSpec, snapshot: str | None) -> dict:
                         if table.shape == (2, 3):
                             high_low = np.array(
                                 [
-                                    [counts_B[2], counts_B[0]],
+                                    [counts_b[2], counts_b[0]],
                                     [counts_other[2], counts_other[0]],
                                 ]
                             )
@@ -684,7 +684,7 @@ def run_quadrant_chi2(spec: HypothesisSpec, snapshot: str | None) -> dict:
                             "test": "fisher_exact_high_vs_low",
                             "stat": round(float(odds), 3),
                             "p_value": round(float(p), 5),
-                            "quadrant_B_by_tertile": quadrant_B_by_tertile,
+                            "quadrant_b_by_tertile": quadrant_b_by_tertile,
                             "n_by_tertile": n_by_tertile,
                             "note": (
                                 "expected count <5 in some cell; Fisher exact comparing high vs low strain tertile only"
@@ -693,7 +693,7 @@ def run_quadrant_chi2(spec: HypothesisSpec, snapshot: str | None) -> dict:
                     else:
                         chi2_result = {
                             "test": "skipped",
-                            "quadrant_B_by_tertile": quadrant_B_by_tertile,
+                            "quadrant_b_by_tertile": quadrant_b_by_tertile,
                             "n_by_tertile": n_by_tertile,
                             "note": "table shape unsupported",
                         }
@@ -713,10 +713,10 @@ def run_quadrant_chi2(spec: HypothesisSpec, snapshot: str | None) -> dict:
 # ── Method: Kruskal-Wallis (H10) ───────────────────────────────────────
 
 
-def _eta_squared_kw(H: float, n: int, k: int) -> float:
+def _eta_squared_kw(h_stat: float, n: int, k: int) -> float:
     if n - k <= 0:
         return 0.0
-    return max(0.0, (H - k + 1) / (n - k))
+    return max(0.0, (h_stat - k + 1) / (n - k))
 
 
 def run_kruskal_wallis(spec: HypothesisSpec, snapshot: str | None) -> dict:
@@ -740,27 +740,27 @@ def run_kruskal_wallis(spec: HypothesisSpec, snapshot: str | None) -> dict:
         groups_mo = [g for g in groups_mo if len(g) >= 5]
 
         if len(groups_wd) >= 2:
-            H_wd, p_wd = kruskal(*groups_wd)
+            h_wd, p_wd = kruskal(*groups_wd)
             n_wd = sum(len(g) for g in groups_wd)
-            eta_wd = _eta_squared_kw(float(H_wd), n_wd, len(groups_wd))
+            eta_wd = _eta_squared_kw(float(h_wd), n_wd, len(groups_wd))
         else:
-            H_wd, p_wd, eta_wd = float("nan"), float("nan"), float("nan")
+            h_wd, p_wd, eta_wd = float("nan"), float("nan"), float("nan")
 
         if len(groups_mo) >= 2:
-            H_mo, p_mo = kruskal(*groups_mo)
+            h_mo, p_mo = kruskal(*groups_mo)
             n_mo = sum(len(g) for g in groups_mo)
-            eta_mo = _eta_squared_kw(float(H_mo), n_mo, len(groups_mo))
+            eta_mo = _eta_squared_kw(float(h_mo), n_mo, len(groups_mo))
         else:
-            H_mo, p_mo, eta_mo = float("nan"), float("nan"), float("nan")
+            h_mo, p_mo, eta_mo = float("nan"), float("nan"), float("nan")
 
         rows.append(
             {
                 "metric": m_canon,
                 "n": df.height,
-                "kw_H_dow": round(float(H_wd), 2) if not math.isnan(H_wd) else None,
+                "kw_h_dow": round(float(h_wd), 2) if not math.isnan(h_wd) else None,
                 "p_dow": round(float(p_wd), 5) if not math.isnan(p_wd) else None,
                 "eta2_dow": round(float(eta_wd), 4) if not math.isnan(eta_wd) else None,
-                "kw_H_month": round(float(H_mo), 2) if not math.isnan(H_mo) else None,
+                "kw_h_month": round(float(h_mo), 2) if not math.isnan(h_mo) else None,
                 "p_month": round(float(p_mo), 5) if not math.isnan(p_mo) else None,
                 "eta2_month": round(float(eta_mo), 4) if not math.isnan(eta_mo) else None,
                 "dow_dummy_required": (eta_wd > 0.02) if not math.isnan(eta_wd) else False,

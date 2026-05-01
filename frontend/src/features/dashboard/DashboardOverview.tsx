@@ -1164,26 +1164,30 @@ function StressBreakdownCard({ stress }: StressBreakdownCardProps) {
               {formatNum(latest.max_stress)}
             </p>
           </div>
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground">
-              Rest Stress
-            </p>
-            <p
-              className={`text-2xl font-bold tracking-tight ${getStressColorClass(latest.rest_stress)}`}
-            >
-              {formatNum(latest.rest_stress)}
-            </p>
-          </div>
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground">
-              Activity Stress
-            </p>
-            <p
-              className={`text-2xl font-bold tracking-tight ${getStressColorClass(latest.activity_stress)}`}
-            >
-              {formatNum(latest.activity_stress)}
-            </p>
-          </div>
+          {latest.rest_stress !== null && (
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">
+                Rest Stress
+              </p>
+              <p
+                className={`text-2xl font-bold tracking-tight ${getStressColorClass(latest.rest_stress)}`}
+              >
+                {formatNum(latest.rest_stress)}
+              </p>
+            </div>
+          )}
+          {latest.activity_stress !== null && (
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">
+                Activity Stress
+              </p>
+              <p
+                className={`text-2xl font-bold tracking-tight ${getStressColorClass(latest.activity_stress)}`}
+              >
+                {formatNum(latest.activity_stress)}
+              </p>
+            </div>
+          )}
         </div>
         {latest.stress_level !== null && (
           <div className="flex items-center gap-2">
