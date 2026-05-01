@@ -31,14 +31,19 @@ def _reset_connection_state(dbapi_connection, _connection_record, _reset_state):
     # DISCARD ALL releases session-scoped state (advisory locks, prepared
     # statements, temp tables, SET vars). Required because pgbouncer in
     # transaction-pooling mode keeps physical connections alive across
-    # logical sessions. DISCARD ALL cannot run inside a transaction, so
-    # rollback any pending transaction first.
-    dbapi_connection.rollback()
-    cursor = dbapi_connection.cursor()
+    # logical sessions. DISCARD ALL cannot run inside a transaction; psycopg2
+    # opens an implicit transaction on cursor.execute, so we must flip the
+    # connection to autocommit before issuing it.
+    saved_autocommit = dbapi_connection.autocommit
+    dbapi_connection.autocommit = True
     try:
-        cursor.execute("DISCARD ALL")
+        cursor = dbapi_connection.cursor()
+        try:
+            cursor.execute("DISCARD ALL")
+        finally:
+            cursor.close()
     finally:
-        cursor.close()
+        dbapi_connection.autocommit = saved_autocommit
 
 
 # Create read-only engine with AUTOCOMMIT for pandas queries
