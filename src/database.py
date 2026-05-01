@@ -31,8 +31,9 @@ def _reset_connection_state(dbapi_connection, _connection_record, _reset_state):
     # DISCARD ALL releases session-scoped state (advisory locks, prepared
     # statements, temp tables, SET vars). Required because pgbouncer in
     # transaction-pooling mode keeps physical connections alive across
-    # logical sessions — without this, any leftover session state from
-    # one logical session bleeds into the next.
+    # logical sessions. DISCARD ALL cannot run inside a transaction, so
+    # rollback any pending transaction first.
+    dbapi_connection.rollback()
     cursor = dbapi_connection.cursor()
     try:
         cursor.execute("DISCARD ALL")
