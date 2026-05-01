@@ -293,13 +293,7 @@ interface WhoopWorkoutInlineProps {
   readonly workout: WhoopWorkoutData;
 }
 
-function WhoopWorkoutInline({ workout }: WhoopWorkoutInlineProps) {
-  const startTime = workout.start_time
-    ? format(parseISO(workout.start_time), "h:mm a")
-    : null;
-  const endTime = workout.end_time
-    ? format(parseISO(workout.end_time), "h:mm a")
-    : null;
+function buildWhoopDetails(workout: WhoopWorkoutData): string[] {
   const calories =
     workout.kilojoules === null ? null : Math.round(workout.kilojoules / 4.184);
   const distanceKm =
@@ -320,24 +314,17 @@ function WhoopWorkoutInline({ workout }: WhoopWorkoutInlineProps) {
   }
 
   const details: string[] = [];
-
-  if (durationStr !== null) {
-    details.push(durationStr);
-  }
+  if (durationStr !== null) details.push(durationStr);
   if (workout.strain !== null) {
     details.push(
       `Strain ${workout.strain.toFixed(1)}/${String(WHOOP_MAX_STRAIN)}`,
     );
   }
-  if (calories !== null) {
-    details.push(`${String(calories)} kcal`);
-  }
+  if (calories !== null) details.push(`${String(calories)} kcal`);
   if (workout.avg_heart_rate !== null) {
     details.push(`Avg HR ${String(workout.avg_heart_rate)}`);
   }
-  if (distanceKm !== null) {
-    details.push(`${distanceKm} km`);
-  }
+  if (distanceKm !== null) details.push(`${distanceKm} km`);
   if (
     workout.altitude_change_meters !== null &&
     workout.altitude_change_meters !== 0
@@ -349,6 +336,17 @@ function WhoopWorkoutInline({ workout }: WhoopWorkoutInlineProps) {
   if (workout.percent_recorded !== null && workout.percent_recorded < 100) {
     details.push(`${workout.percent_recorded.toFixed(0)}% recorded`);
   }
+  return details;
+}
+
+function WhoopWorkoutInline({ workout }: WhoopWorkoutInlineProps) {
+  const startTime = workout.start_time
+    ? format(parseISO(workout.start_time), "h:mm a")
+    : null;
+  const endTime = workout.end_time
+    ? format(parseISO(workout.end_time), "h:mm a")
+    : null;
+  const details = buildWhoopDetails(workout);
 
   return (
     <div className={`border-l-2 ${ACTIVITY_COLORS.cardioBorder} pl-4`}>
@@ -379,26 +377,45 @@ interface GarminActivityInlineProps {
   readonly activity: GarminActivityData;
 }
 
-function GarminActivityInline({ activity }: GarminActivityInlineProps) {
-  const startTime = activity.start_time
-    ? format(parseISO(activity.start_time), "h:mm a")
-    : null;
+function buildGarminPower(activity: GarminActivityData): string | null {
+  if (activity.avg_power_watts === null && activity.max_power_watts === null) {
+    return null;
+  }
+  const parts: string[] = [];
+  if (activity.avg_power_watts !== null) {
+    parts.push(`Avg Pwr ${String(Math.round(activity.avg_power_watts))} W`);
+  }
+  if (activity.max_power_watts !== null) {
+    parts.push(`Max ${String(Math.round(activity.max_power_watts))} W`);
+  }
+  return parts.join(", ");
+}
 
+function buildGarminTrainingEffect(
+  activity: GarminActivityData,
+): string | null {
+  const aerobic = activity.training_effect_aerobic;
+  const anaerobic = activity.training_effect_anaerobic;
+  if (aerobic !== null && anaerobic !== null) {
+    return `Aerobic TE: ${aerobic.toFixed(1)} | Anaerobic TE: ${anaerobic.toFixed(1)}`;
+  }
+  if (aerobic !== null) return `Aerobic TE: ${aerobic.toFixed(1)}`;
+  if (anaerobic !== null) return `Anaerobic TE: ${anaerobic.toFixed(1)}`;
+  return null;
+}
+
+function buildGarminDetails(activity: GarminActivityData): string[] {
   const distanceKm =
     activity.distance_meters === null
       ? null
       : (activity.distance_meters / 1000).toFixed(2);
-
   const pace =
     shouldShowPace(activity.avg_speed_mps, activity.distance_meters) &&
     activity.avg_speed_mps !== null
       ? formatPace(activity.avg_speed_mps)
       : null;
-
   const isRunningActivity =
-    activity.activity_type !== null &&
-    activity.activity_type.toLowerCase().includes("run");
-
+    activity.activity_type?.toLowerCase().includes("run") ?? false;
   const maxPace =
     isRunningActivity &&
     shouldShowPace(activity.max_speed_mps, activity.distance_meters) &&
@@ -407,19 +424,12 @@ function GarminActivityInline({ activity }: GarminActivityInlineProps) {
       : null;
 
   const details: string[] = [];
-
   if (activity.duration_seconds !== null) {
     details.push(formatDuration(activity.duration_seconds));
   }
-  if (distanceKm !== null) {
-    details.push(`${distanceKm} km`);
-  }
-  if (pace !== null) {
-    details.push(pace);
-  }
-  if (maxPace !== null) {
-    details.push(`Max Pace: ${maxPace}`);
-  }
+  if (distanceKm !== null) details.push(`${distanceKm} km`);
+  if (pace !== null) details.push(pace);
+  if (maxPace !== null) details.push(`Max Pace: ${maxPace}`);
   if (activity.avg_heart_rate !== null) {
     details.push(`Avg HR ${String(activity.avg_heart_rate)}`);
   }
@@ -438,35 +448,21 @@ function GarminActivityInline({ activity }: GarminActivityInlineProps) {
   ) {
     details.push(`↓${String(Math.round(activity.elevation_loss_meters))}m`);
   }
-  if (activity.avg_power_watts !== null || activity.max_power_watts !== null) {
-    const powerParts: string[] = [];
-    if (activity.avg_power_watts !== null) {
-      powerParts.push(
-        `Avg Pwr ${String(Math.round(activity.avg_power_watts))} W`,
-      );
-    }
-    if (activity.max_power_watts !== null) {
-      powerParts.push(`Max ${String(Math.round(activity.max_power_watts))} W`);
-    }
-    details.push(powerParts.join(", "));
-  }
-  if (
-    activity.training_effect_aerobic !== null &&
-    activity.training_effect_anaerobic !== null
-  ) {
-    details.push(
-      `Aerobic TE: ${activity.training_effect_aerobic.toFixed(1)} | Anaerobic TE: ${activity.training_effect_anaerobic.toFixed(1)}`,
-    );
-  } else if (activity.training_effect_aerobic !== null) {
-    details.push(`Aerobic TE: ${activity.training_effect_aerobic.toFixed(1)}`);
-  } else if (activity.training_effect_anaerobic !== null) {
-    details.push(
-      `Anaerobic TE: ${activity.training_effect_anaerobic.toFixed(1)}`,
-    );
-  }
+  const power = buildGarminPower(activity);
+  if (power !== null) details.push(power);
+  const te = buildGarminTrainingEffect(activity);
+  if (te !== null) details.push(te);
   if (activity.vo2_max_value !== null) {
     details.push(`VO2max from activity: ${activity.vo2_max_value.toFixed(1)}`);
   }
+  return details;
+}
+
+function GarminActivityInline({ activity }: GarminActivityInlineProps) {
+  const startTime = activity.start_time
+    ? format(parseISO(activity.start_time), "h:mm a")
+    : null;
+  const details = buildGarminDetails(activity);
 
   return (
     <div className={`border-l-2 ${ACTIVITY_COLORS.activityBorder} pl-4`}>
@@ -543,13 +539,34 @@ function findRecordNearDate(
     (r) => r[field] !== null && r.date <= targetIso,
   );
   if (candidates.length === 0) return null;
-  return candidates.reduce((best, cur) => (cur.date > best.date ? cur : best));
+  return candidates.reduce<GarminRacePredictionData>(
+    (best, cur) => (cur.date > best.date ? cur : best),
+    candidates[0],
+  );
 }
 
 interface RaceCardProps {
   readonly label: string;
   readonly latestSeconds: number;
   readonly priorSeconds: number | null;
+}
+
+function deltaToneClass(improved: boolean, worsened: boolean): string {
+  if (improved) return "text-green-600";
+  if (worsened) return "text-red-600";
+  return "text-muted-foreground";
+}
+
+function deltaArrowIcon(improved: boolean, worsened: boolean) {
+  if (improved) return <ArrowDown className="h-3 w-3" />;
+  if (worsened) return <ArrowUp className="h-3 w-3" />;
+  return null;
+}
+
+function deltaText(deltaSec: number, improved: boolean): string {
+  if (deltaSec === 0) return "no change";
+  const sign = improved ? "-" : "+";
+  return `${sign}${formatRaceTime(Math.abs(deltaSec))} vs 30d ago`;
 }
 
 function RaceCard({ label, latestSeconds, priorSeconds }: RaceCardProps) {
@@ -570,24 +587,10 @@ function RaceCard({ label, latestSeconds, priorSeconds }: RaceCardProps) {
         </div>
         {deltaSec !== null && (
           <div
-            className={`mt-1 flex items-center gap-1 text-xs ${
-              improved
-                ? "text-green-600"
-                : worsened
-                  ? "text-red-600"
-                  : "text-muted-foreground"
-            }`}
+            className={`mt-1 flex items-center gap-1 text-xs ${deltaToneClass(improved, worsened)}`}
           >
-            {improved ? (
-              <ArrowDown className="h-3 w-3" />
-            ) : worsened ? (
-              <ArrowUp className="h-3 w-3" />
-            ) : null}
-            <span>
-              {deltaSec === 0
-                ? "no change"
-                : `${improved ? "-" : "+"}${formatRaceTime(Math.abs(deltaSec))} vs 30d ago`}
-            </span>
+            {deltaArrowIcon(improved, worsened)}
+            <span>{deltaText(deltaSec, improved)}</span>
           </div>
         )}
       </CardContent>

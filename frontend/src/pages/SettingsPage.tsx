@@ -179,17 +179,20 @@ export function SettingsPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {profileLoading ? (
-            <LoadingState message="Loading profile..." />
-          ) : profileError ? (
-            <ErrorCard
-              message={
+          {(() => {
+            if (profileLoading) {
+              return <LoadingState message="Loading profile..." />;
+            }
+            if (profileError) {
+              const msg =
                 profileError instanceof Error
                   ? profileError.message
-                  : "Failed to load profile"
-              }
-            />
-          ) : (
+                  : "Failed to load profile";
+              return <ErrorCard message={msg} />;
+            }
+            return null;
+          })()}
+          {!profileLoading && !profileError && (
             <>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">

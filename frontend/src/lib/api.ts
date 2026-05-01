@@ -130,7 +130,8 @@ export const api = {
       if (metric) params.set("metric", metric);
       if (horizon) params.set("horizon", String(horizon));
       const qs = params.toString();
-      return request(`/ml/forecasts${qs ? `?${qs}` : ""}`);
+      const path = qs ? `/ml/forecasts?${qs}` : "/ml/forecasts";
+      return request(path);
     },
   },
 

@@ -99,6 +99,16 @@ function SummaryCard({
   );
 }
 
+function bodyBatteryArrowFor(v: number | null): string {
+  if (v === null) return "";
+  return v >= 0 ? "↑" : "↓";
+}
+
+function bodyBatteryColorFor(v: number | null): string {
+  if (v === null) return "";
+  return v >= 0 ? "text-green-700" : "text-red-700";
+}
+
 function correlationColor(value: number): string {
   if (Math.abs(value) < 0.4) return "text-muted-foreground";
   return value > 0 ? "text-green-700" : "text-red-700";
@@ -629,14 +639,8 @@ export function SleepOverviewPage() {
               const skinTemp = pickSleepLatestField(sleep, "skin_temp_celsius");
               const awakeCount = pickSleepLatestField(sleep, "awake_count");
               const respRate = pickSleepLatestField(sleep, "respiratory_rate");
-              const bodyBatteryArrow =
-                bodyBattery === null ? "" : bodyBattery >= 0 ? "↑" : "↓";
-              const bodyBatteryColor =
-                bodyBattery === null
-                  ? ""
-                  : bodyBattery >= 0
-                    ? "text-green-700"
-                    : "text-red-700";
+              const bodyBatteryArrow = bodyBatteryArrowFor(bodyBattery);
+              const bodyBatteryColor = bodyBatteryColorFor(bodyBattery);
               return (
                 <>
                   <StatCard

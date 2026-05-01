@@ -55,6 +55,17 @@ import {
 
 const DASHBOARD_KEYS = new Set<string>(DASHBOARD_METRIC_KEYS);
 
+function pickLatestNonNull<T, K extends keyof T>(
+  arr: ReadonlyArray<T>,
+  key: K,
+): T[K] | null {
+  for (let i = arr.length - 1; i >= 0; i--) {
+    const v = arr[i][key];
+    if (v != null) return v;
+  }
+  return null;
+}
+
 interface MetricCardProps {
   readonly title: string;
   readonly value: string;
@@ -166,58 +177,49 @@ export function DashboardOverview() {
 
   const garminInsights = useMemo(() => {
     const list = data?.garmin_training_status ?? [];
-    const pickLatest = <K extends keyof (typeof list)[number]>(key: K) => {
-      for (let i = list.length - 1; i >= 0; i--) {
-        const v = list[i][key];
-        if (v != null) return v;
-      }
-      return null;
-    };
     return {
-      fitness_age: pickLatest("fitness_age"),
-      training_status: pickLatest("training_status"),
-      training_status_description: pickLatest("training_status_description"),
-      training_readiness_score: pickLatest("training_readiness_score"),
-      endurance_score: pickLatest("endurance_score"),
-      primary_training_effect: pickLatest("primary_training_effect"),
-      anaerobic_training_effect: pickLatest("anaerobic_training_effect"),
+      fitness_age: pickLatestNonNull(list, "fitness_age"),
+      training_status: pickLatestNonNull(list, "training_status"),
+      training_status_description: pickLatestNonNull(
+        list,
+        "training_status_description",
+      ),
+      training_readiness_score: pickLatestNonNull(
+        list,
+        "training_readiness_score",
+      ),
+      endurance_score: pickLatestNonNull(list, "endurance_score"),
+      primary_training_effect: pickLatestNonNull(
+        list,
+        "primary_training_effect",
+      ),
+      anaerobic_training_effect: pickLatestNonNull(
+        list,
+        "anaerobic_training_effect",
+      ),
     };
   }, [data]);
 
   const recoverySensors = useMemo(() => {
     const sleep = data?.sleep ?? [];
     const hr = data?.heart_rate ?? [];
-    const pickLatestFrom = <T, K extends keyof T>(arr: T[], key: K) => {
-      for (let i = arr.length - 1; i >= 0; i--) {
-        const v = arr[i][key];
-        if (v !== null && v !== undefined) return v;
-      }
-      return null;
-    };
     return {
-      sleep_spo2_avg: pickLatestFrom(sleep, "spo2_avg"),
-      sleep_spo2_min: pickLatestFrom(sleep, "spo2_min"),
-      day_spo2_avg: pickLatestFrom(hr, "spo2_avg"),
-      waking_respiratory_rate: pickLatestFrom(hr, "waking_respiratory_rate"),
-      lowest_respiratory_rate: pickLatestFrom(hr, "lowest_respiratory_rate"),
-      highest_respiratory_rate: pickLatestFrom(hr, "highest_respiratory_rate"),
-      max_hr: pickLatestFrom(hr, "max_hr"),
-      avg_hr: pickLatestFrom(hr, "avg_hr"),
+      sleep_spo2_avg: pickLatestNonNull(sleep, "spo2_avg"),
+      sleep_spo2_min: pickLatestNonNull(sleep, "spo2_min"),
+      day_spo2_avg: pickLatestNonNull(hr, "spo2_avg"),
+      waking_respiratory_rate: pickLatestNonNull(hr, "waking_respiratory_rate"),
+      lowest_respiratory_rate: pickLatestNonNull(hr, "lowest_respiratory_rate"),
+      highest_respiratory_rate: pickLatestNonNull(
+        hr,
+        "highest_respiratory_rate",
+      ),
+      max_hr: pickLatestNonNull(hr, "max_hr"),
+      avg_hr: pickLatestNonNull(hr, "avg_hr"),
     };
   }, [data]);
 
   const whoopRecoveryDetails = useMemo(() => {
     const recovery = data?.whoop_recovery ?? [];
-    const pickLatestFrom = <T, K extends keyof T>(
-      arr: ReadonlyArray<T>,
-      key: K,
-    ) => {
-      for (let i = arr.length - 1; i >= 0; i--) {
-        const v = arr[i][key];
-        if (v !== null && v !== undefined) return v;
-      }
-      return null;
-    };
     let calibratingLatest: boolean = false;
     for (let i = recovery.length - 1; i >= 0; i--) {
       const v = recovery[i].user_calibrating;
@@ -227,10 +229,10 @@ export function DashboardOverview() {
       }
     }
     return {
-      skin_temp_celsius: pickLatestFrom(recovery, "skin_temp_celsius"),
-      spo2_percentage: pickLatestFrom(recovery, "spo2_percentage"),
-      hrv_rmssd: pickLatestFrom(recovery, "hrv_rmssd"),
-      resting_heart_rate: pickLatestFrom(recovery, "resting_heart_rate"),
+      skin_temp_celsius: pickLatestNonNull(recovery, "skin_temp_celsius"),
+      spo2_percentage: pickLatestNonNull(recovery, "spo2_percentage"),
+      hrv_rmssd: pickLatestNonNull(recovery, "hrv_rmssd"),
+      resting_heart_rate: pickLatestNonNull(recovery, "resting_heart_rate"),
       user_calibrating: calibratingLatest,
     };
   }, [data]);
@@ -706,16 +708,16 @@ export function DashboardOverview() {
                       Resp. Rate Range
                     </p>
                     <p className="text-2xl font-bold tracking-tight">
-                      {recoverySensors.lowest_respiratory_rate !== null
-                        ? recoverySensors.lowest_respiratory_rate.toFixed(1)
-                        : "—"}
+                      {recoverySensors.lowest_respiratory_rate === null
+                        ? "—"
+                        : recoverySensors.lowest_respiratory_rate.toFixed(1)}
                       <span className="text-sm font-medium text-muted-foreground">
                         {" "}
                         to{" "}
                       </span>
-                      {recoverySensors.highest_respiratory_rate !== null
-                        ? recoverySensors.highest_respiratory_rate.toFixed(1)
-                        : "—"}
+                      {recoverySensors.highest_respiratory_rate === null
+                        ? "—"
+                        : recoverySensors.highest_respiratory_rate.toFixed(1)}
                     </p>
                   </div>
                 )}

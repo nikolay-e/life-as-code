@@ -110,6 +110,35 @@ const TEST_PRESETS: { name: string; unit: string }[] = [
 
 const todayStr = () => getLocalDateString(getLocalToday());
 
+function makeDeleteHandler(remove: {
+  mutate: (
+    id: number,
+    options: {
+      onSuccess: () => void;
+      onError: (err: unknown) => void;
+    },
+  ) => void;
+}) {
+  return (id: number, name: string) => {
+    remove.mutate(id, {
+      onSuccess: () => {
+        toast.success(`Deleted ${name}`);
+      },
+      onError: (err) => {
+        toast.error(err instanceof Error ? err.message : "Failed");
+      },
+    });
+  };
+}
+
+function goalSubmitLabel(
+  isPending: boolean,
+  initial: { id: number } | null | undefined,
+): string {
+  if (isPending) return "Saving...";
+  return initial ? "Update" : "Save";
+}
+
 function InterventionForm({
   onClose,
 }: Readonly<{
@@ -616,13 +645,7 @@ function LabResultsTab() {
     }
   }
 
-  const handleDelete = (id: number, name: string) => {
-    remove.mutate(id, {
-      onSuccess: () => toast.success(`Deleted ${name}`),
-      onError: (err) =>
-        toast.error(err instanceof Error ? err.message : "Failed"),
-    });
-  };
+  const handleDelete = makeDeleteHandler(remove);
 
   return (
     <div className="space-y-4">
@@ -877,13 +900,7 @@ function FunctionalTestList({
     }
   }
 
-  const handleDelete = (id: number, name: string) => {
-    remove.mutate(id, {
-      onSuccess: () => toast.success(`Deleted ${name}`),
-      onError: (err) =>
-        toast.error(err instanceof Error ? err.message : "Failed"),
-    });
-  };
+  const handleDelete = makeDeleteHandler(remove);
 
   if (items.length === 0) {
     return (
@@ -992,14 +1009,14 @@ function GoalForm({
   const [category, setCategory] = useState(initial?.category ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [targetValue, setTargetValue] = useState(
-    initial?.target_value != null ? String(initial.target_value) : "",
+    initial?.target_value == null ? "" : String(initial.target_value),
   );
   const [currentValue, setCurrentValue] = useState(
-    initial?.current_value != null ? String(initial.current_value) : "",
+    initial?.current_value == null ? "" : String(initial.current_value),
   );
   const [unit, setUnit] = useState(initial?.unit ?? "");
   const [targetAge, setTargetAge] = useState(
-    initial?.target_age != null ? String(initial.target_age) : "",
+    initial?.target_age == null ? "" : String(initial.target_age),
   );
 
   const isPending = initial ? update.isPending : create.isPending;
@@ -1127,7 +1144,7 @@ function GoalForm({
               Cancel
             </Button>
             <Button type="submit" size="sm" disabled={isPending}>
-              {isPending ? "Saving..." : initial ? "Update" : "Save"}
+              {goalSubmitLabel(isPending, initial)}
             </Button>
           </div>
         </form>

@@ -98,6 +98,18 @@ function StatusBadge({ status }: { readonly status: ClinicalAlertStatus }) {
   );
 }
 
+function detailValueText(value: unknown): string {
+  if (typeof value === "object") return JSON.stringify(value);
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return String(value);
+  }
+  return JSON.stringify(value);
+}
+
 function DetailsChips({
   details,
 }: {
@@ -114,15 +126,7 @@ function DetailsChips({
           className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted text-xs font-mono"
         >
           <span className="text-muted-foreground">{key}:</span>
-          <span className="text-foreground">
-            {typeof value === "object"
-              ? JSON.stringify(value)
-              : typeof value === "string" ||
-                  typeof value === "number" ||
-                  typeof value === "boolean"
-                ? String(value)
-                : JSON.stringify(value)}
-          </span>
+          <span className="text-foreground">{detailValueText(value)}</span>
         </span>
       ))}
     </div>
