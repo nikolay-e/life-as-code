@@ -85,9 +85,7 @@ def _compute_schema_hash_connectorx(db_uri: str, table_names: list[str]) -> str:
     wait=wait_exponential(min=1, max=10),
     reraise=True,
 )
-def _export_table_connectorx(
-    db_uri: str, table_name: str, user_id: int, output_path: Path
-) -> dict:
+def _export_table_connectorx(db_uri: str, table_name: str, user_id: int, output_path: Path) -> dict:
     safe_table = _validate_identifier(table_name)
     safe_uid = int(user_id)
     query = f"SELECT * FROM {safe_table} WHERE user_id = {safe_uid}"
@@ -148,11 +146,7 @@ def _compute_schema_hash_kubectl(table_names: list[str]) -> str:
 def _export_table_kubectl(table_name: str, user_id: int, output_path: Path) -> dict:
     safe_table = _validate_identifier(table_name)
     safe_uid = int(user_id)
-    sql = (
-        f"COPY (SELECT * FROM {safe_table} "
-        f"WHERE user_id = {safe_uid}) "
-        f"TO STDOUT WITH (FORMAT csv, HEADER true)"
-    )
+    sql = f"COPY (SELECT * FROM {safe_table} WHERE user_id = {safe_uid}) TO STDOUT WITH (FORMAT csv, HEADER true)"
     csv_data = _kubectl_query(sql)
 
     if not csv_data.strip():
@@ -171,11 +165,7 @@ def _cleanup_old_snapshots(keep_last: int, exclude: Path | None = None) -> None:
     if keep_last <= 0:
         return
     dirs = sorted(
-        (
-            d
-            for d in SNAPSHOTS_DIR.iterdir()
-            if d.is_dir() and not d.name.startswith(".")
-        ),
+        (d for d in SNAPSHOTS_DIR.iterdir() if d.is_dir() and not d.name.startswith(".")),
         key=lambda d: d.name,
         reverse=True,
     )
