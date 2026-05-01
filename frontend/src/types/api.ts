@@ -625,10 +625,15 @@ export interface MLForecastMetric {
   forecasts: MLForecastPoint[];
 }
 
+export interface MLAnomalyFactor {
+  value: number;
+  z_score: number;
+}
+
 export interface MLAnomalyRecord {
   date: string;
   anomaly_score: number;
-  contributing_factors: Record<string, number> | null;
+  contributing_factors: Record<string, MLAnomalyFactor> | null;
 }
 
 export interface MLInsights {

@@ -917,7 +917,9 @@ function MlAnomalyDriversCard({
           {recent.map((anomaly) => {
             const factors = anomaly.contributing_factors
               ? Object.entries(anomaly.contributing_factors)
-                  .sort(([, a], [, b]) => Math.abs(b) - Math.abs(a))
+                  .sort(
+                    ([, a], [, b]) => Math.abs(b.z_score) - Math.abs(a.z_score),
+                  )
                   .slice(0, 5)
               : [];
             return (
@@ -944,16 +946,16 @@ function MlAnomalyDriversCard({
                 </div>
                 {factors.length > 0 ? (
                   <div className="flex flex-wrap gap-1.5">
-                    {factors.map(([key, value]) => (
+                    {factors.map(([key, factor]) => (
                       <span
                         key={key}
                         className={cn(
                           "text-xs px-1.5 py-0.5 rounded border font-mono",
-                          getFactorChipColor(value),
+                          getFactorChipColor(factor.z_score),
                         )}
                       >
-                        {formatMetricLabel(key)}: {signPrefix(value)}
-                        {value.toFixed(1)}σ
+                        {formatMetricLabel(key)}: {signPrefix(factor.z_score)}
+                        {factor.z_score.toFixed(1)}σ
                       </span>
                     ))}
                   </div>

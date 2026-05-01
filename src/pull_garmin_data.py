@@ -447,11 +447,19 @@ class GarminAPIWrapper:
 
         def fetch(date_str: str, current_date: datetime.date) -> dict | None:
             sleep_data = self.api.get_sleep_data(date_str)
-            if sleep_data:
-                sleep_dto = dict(sleep_data.get("dailySleepDTO", sleep_data))
-                sleep_dto["date"] = current_date
-                return sleep_dto
-            return None
+            if not sleep_data:
+                return None
+            merged: dict[str, Any] = {}
+            for key, value in sleep_data.items():
+                if key == "dailySleepDTO" and isinstance(value, dict):
+                    continue
+                if not isinstance(value, (list, dict)):
+                    merged[key] = value
+            dto = sleep_data.get("dailySleepDTO")
+            if isinstance(dto, dict):
+                merged.update(dto)
+            merged["date"] = current_date
+            return merged
 
         return self._fetch_daily(date_range, "sleep", fetch)
 
