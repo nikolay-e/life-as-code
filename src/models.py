@@ -211,9 +211,8 @@ class Sleep(Base):
     # New fields for enhanced sleep tracking
     body_battery_change = Column(Integer)
     skin_temp_celsius = Column(Float)
+    skin_temp_deviation_c = Column(Float)
     awake_count = Column(Integer)
-    sleep_quality_score = Column(Float)
-    sleep_recovery_score = Column(Float)
     spo2_avg = Column(Float)
     spo2_min = Column(Float)
     respiratory_rate = Column(Float)
@@ -261,6 +260,11 @@ class Sleep(Base):
         CheckConstraint(
             VALID_RESPIRATORY_RATE_CHECK,
             name="valid_respiratory_rate_range",
+        ),
+        CheckConstraint(
+            "(skin_temp_deviation_c >= -10 AND skin_temp_deviation_c <= 10) "
+            "OR skin_temp_deviation_c IS NULL",
+            name="valid_skin_temp_deviation_range",
         ),
     )
 

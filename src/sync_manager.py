@@ -256,13 +256,6 @@ def get_provider_credentials(user_id: int, provider: DataSource) -> ProviderCred
     )
 
 
-def _sync_lock_id(user_id: int, source: str) -> int:
-    import hashlib
-
-    digest = hashlib.sha256(f"sync:{user_id}:{source}".encode()).digest()
-    return int.from_bytes(digest[:8], "big") & 0x7FFFFFFFFFFFFFFF
-
-
 def is_sync_in_progress(user_id: int, source: str | DataSource) -> bool:
     source_str = source.value if isinstance(source, DataSource) else source
     return is_sync_recently_active(user_id, source_str)
@@ -559,34 +552,6 @@ def extract_and_parse(
             )
 
     return sync_result
-
-
-def _set_sync_in_progress(db: Session, user_id: int, source: str, data_type: str):
-    try:
-        existing_sync = db.scalars(
-            select(DataSync).where(
-                DataSync.user_id == user_id,
-                DataSync.source == source,
-                DataSync.data_type == data_type,
-            )
-        ).first()
-
-        if existing_sync:
-            existing_sync.status = SyncStatus.IN_PROGRESS
-            existing_sync.last_sync_timestamp = utcnow()
-            existing_sync.error_message = None
-        else:
-            new_sync = DataSync(
-                user_id=user_id,
-                source=source,
-                data_type=data_type,
-                status=SyncStatus.IN_PROGRESS,
-                last_sync_timestamp=utcnow(),
-            )
-            db.add(new_sync)
-
-    except Exception as e:
-        logger.error("sync_in_progress_error", error=str(e))
 
 
 def update_sync_status(

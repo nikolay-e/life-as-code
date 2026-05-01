@@ -64,9 +64,8 @@ export interface SleepData {
   sleep_score: number | null;
   body_battery_change: number | null;
   skin_temp_celsius: number | null;
+  skin_temp_deviation_c: number | null;
   awake_count: number | null;
-  sleep_quality_score: number | null;
-  sleep_recovery_score: number | null;
   spo2_avg: number | null;
   spo2_min: number | null;
   respiratory_rate: number | null;

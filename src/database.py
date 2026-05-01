@@ -2,7 +2,7 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from typing import Any
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, scoped_session, sessionmaker
 
@@ -21,10 +21,24 @@ engine = create_engine(
     max_overflow=30,  # Increased from 20 for burst capacity
     pool_pre_ping=True,  # Validate connections before use
     pool_recycle=3600,  # Recycle connections every hour to prevent staleness
-    pool_reset_on_return="rollback",  # Ensure clean state when returning to pool
     echo=False,  # Set to True for SQL query logging in development
     hide_parameters=True,  # Hide sensitive parameters in error logs
 )
+
+
+@event.listens_for(engine, "reset")
+def _reset_connection_state(dbapi_connection, _connection_record, _reset_state):
+    # DISCARD ALL releases session-scoped state (advisory locks, prepared
+    # statements, temp tables, SET vars). Required because pgbouncer in
+    # transaction-pooling mode keeps physical connections alive across
+    # logical sessions — without this, any leftover session state from
+    # one logical session bleeds into the next.
+    cursor = dbapi_connection.cursor()
+    try:
+        cursor.execute("DISCARD ALL")
+    finally:
+        cursor.close()
+
 
 # Create read-only engine with AUTOCOMMIT for pandas queries
 # This avoids transaction state issues in multi-threaded environments

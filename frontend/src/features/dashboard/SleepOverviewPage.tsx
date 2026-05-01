@@ -35,7 +35,6 @@ import {
   Activity,
   Wind,
   Droplet,
-  Heart,
   Bed,
 } from "lucide-react";
 import type { SleepData, WhoopSleepData } from "../../types/api";
@@ -636,7 +635,10 @@ export function SleepOverviewPage() {
                 sleep,
                 "body_battery_change",
               );
-              const skinTemp = pickSleepLatestField(sleep, "skin_temp_celsius");
+              const skinTempDeviation = pickSleepLatestField(
+                sleep,
+                "skin_temp_deviation_c",
+              );
               const awakeCount = pickSleepLatestField(sleep, "awake_count");
               const respRate = pickSleepLatestField(sleep, "respiratory_rate");
               const bodyBatteryArrow = bodyBatteryArrowFor(bodyBattery);
@@ -654,9 +656,11 @@ export function SleepOverviewPage() {
                     valueClass={bodyBatteryColor}
                   />
                   <StatCard
-                    title="Skin Temp"
+                    title="Skin Temp Δ"
                     value={
-                      skinTemp === null ? "—" : `${skinTemp.toFixed(1)} °C`
+                      skinTempDeviation === null
+                        ? "—"
+                        : `${skinTempDeviation >= 0 ? "+" : ""}${skinTempDeviation.toFixed(2)} °C`
                     }
                     icon={Thermometer}
                   />
@@ -681,28 +685,20 @@ export function SleepOverviewPage() {
         </CardContent>
       </Card>
 
-      {/* SpO2 & Sleep Quality (Garmin) */}
+      {/* SpO2 (Garmin) */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-lg flex items-center gap-2">
             <Droplet className="h-5 w-5 text-sleep" />
-            SpO2 & Sleep Quality
+            Blood Oxygen
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 grid-cols-2">
             {(() => {
               const sleep = healthData?.sleep ?? [];
               const spo2Avg = pickSleepLatestField(sleep, "spo2_avg");
               const spo2Min = pickSleepLatestField(sleep, "spo2_min");
-              const qualityScore = pickSleepLatestField(
-                sleep,
-                "sleep_quality_score",
-              );
-              const recoveryScore = pickSleepLatestField(
-                sleep,
-                "sleep_recovery_score",
-              );
               return (
                 <>
                   <StatCard
@@ -716,16 +712,6 @@ export function SleepOverviewPage() {
                     value={spo2Min === null ? "—" : `${spo2Min.toFixed(1)} %`}
                     icon={Droplet}
                     valueClass={spo2Color(spo2Min)}
-                  />
-                  <StatCard
-                    title="Sleep Quality"
-                    value={formatScore(qualityScore)}
-                    icon={Sparkles}
-                  />
-                  <StatCard
-                    title="Sleep Recovery"
-                    value={formatScore(recoveryScore)}
-                    icon={Heart}
                   />
                 </>
               );

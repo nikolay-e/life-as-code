@@ -77,8 +77,9 @@ class GarminSleepData(GarminBaseModel):
         None, description="Average skin temperature in Celsius"
     )
     awake_count: int | None = Field(None, description="Number of times awakened")
-    sleep_quality_score: float | None = Field(None, description="Sleep quality score")
-    sleep_recovery_score: float | None = Field(None, description="Sleep recovery score")
+    skin_temp_deviation_c: float | None = Field(
+        None, description="Garmin skin temperature deviation from baseline (Celsius)"
+    )
     spo2_avg: float | None = Field(None, description="Average SpO2 percentage")
     spo2_min: float | None = Field(None, description="Minimum SpO2 percentage")
     respiratory_rate: float | None = Field(None, description="Average respiratory rate")
@@ -140,15 +141,10 @@ class GarminSleepData(GarminBaseModel):
                 "awakenings",
                 "restlessMomentsCount",
             ],
-            "sleep_quality_score": [
-                "sleepQualityScore",
-                "sleep_quality_score",
-                "qualityScore",
-            ],
-            "sleep_recovery_score": [
-                "sleepRecoveryScore",
-                "sleep_recovery_score",
-                "recoveryScore",
+            "skin_temp_deviation_c": [
+                "avgSkinTempDeviationC",
+                "skin_temp_deviation_c",
+                "skinTempDeviationC",
             ],
             "spo2_avg": [
                 "avgSpO2",
@@ -222,9 +218,7 @@ class GarminSleepData(GarminBaseModel):
         except (ValueError, TypeError):
             return None
 
-    @field_validator(
-        "sleep_score", "sleep_quality_score", "sleep_recovery_score", mode="before"
-    )
+    @field_validator("sleep_score", mode="before")
     @classmethod
     def validate_sleep_scores(cls, v):
         """Validate sleep scores are within 0-100 range."""
@@ -236,6 +230,19 @@ class GarminSleepData(GarminBaseModel):
                 return 0.0
             if val > 100:
                 return 100.0
+            return val
+        except (ValueError, TypeError):
+            return None
+
+    @field_validator("skin_temp_deviation_c", mode="before")
+    @classmethod
+    def validate_skin_temp_deviation(cls, v):
+        if v is None:
+            return None
+        try:
+            val = float(v)
+            if val < -10 or val > 10:
+                return None
             return val
         except (ValueError, TypeError):
             return None
