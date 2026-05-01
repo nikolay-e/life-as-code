@@ -416,3 +416,23 @@ Wrapper `opacity-60` from version-info / footer kills child badge contrast — a
 `text-[10px] opacity-70` on a `bg-primary` button (default variant) → 3.23 contrast. Bump opacity-90 still fails (4.31). **Remove opacity entirely** — the 10px font-size carries the visual hierarchy on its own.
 
 Project's `--destructive` HSL token: `0 84.2% 60.2%` ≈ red-500 — too light for AA. Use `0 72% 42%` ≈ red-700.
+
+## Pre-commit ruff-format CI vs Local Drift
+
+- Pre-commit hook on local commit only formats STAGED files. CI runs `pre-commit run --all-files` which also re-formats files outside the diff. After bumping `line-length` in `research/pyproject.toml` (or any ruff config change), run `uv run ruff format --check src research/src` from repo root before push — drift in untouched files (e.g. `research/src/export.py`) will fail CI's `pre-commit run --all-files` even though local file-by-file pre-commit on commit succeeded.
+
+## Garmin Stress — rest_stress / activity_stress Always NULL
+
+- Garmin `get_stress_data` API returns DURATIONS (seconds in low/medium/high/rest/activity stress ranges), not 0-100 LEVELS. The Pydantic mapping `restStressLevel` / `activityStressLevel` finds nothing because those fields don't exist in the response. Fields `rest_stress` and `activity_stress` columns in DB are 100% NULL across all historical syncs.
+- Frontend fix: hide these stress sub-cards conditionally (`{latest.rest_stress !== null && (...)}`) — better than showing perpetual `—`. Avg Stress + Max Stress are the only Garmin-derivable values.
+- Real fix would require either remapping to durations (e.g. `restStressDuration` in seconds → minutes percentage) or accepting that these columns will only populate from Whoop/Apple Watch.
+
+## SonarCloud — Path Traversal S2083 (BLOCKER)
+
+- `Path(args.output)` from CLI argparse triggers `pythonsecurity:S2083` BLOCKER and breaks the `new_security_rating` quality gate (single BLOCKER → rating E).
+- For dev tools where output path defaults to a fixed location (e.g. `Path(__file__).parent.parent / "RESULTS.md"`), simplest fix is to remove the `--output` CLI override entirely. Don't try to validate the path — Sonar's taint tracking won't accept resolve()/is_relative_to() guards inline.
+
+## SonarCloud Cognitive Complexity in Research/Stats Code
+
+- Statistical methods (Box-Jenkins prewhitening, ICC(2,1), Kruskal-Wallis with multi-metric loops, ANOVA factor decomposition) often score S3776=20-50 because they have multiple if-branches and per-factor accumulation. These are inherent algorithmic complexity, not refactor opportunities.
+- Pragma: extract per-branch helpers ONLY if it preserves the math semantics. Otherwise leave as-is — Sonar S3776 in research code is acceptable noise that does NOT block the quality gate (it affects `maintainability_rating`, not `reliability` or `security`).
