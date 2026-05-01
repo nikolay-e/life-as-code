@@ -404,31 +404,63 @@ function buildGarminTrainingEffect(
   return null;
 }
 
+function pickGarminPace(activity: GarminActivityData): string | null {
+  if (
+    !shouldShowPace(activity.avg_speed_mps, activity.distance_meters) ||
+    activity.avg_speed_mps === null
+  ) {
+    return null;
+  }
+  return formatPace(activity.avg_speed_mps);
+}
+
+function pickGarminMaxPace(activity: GarminActivityData): string | null {
+  const isRunning =
+    activity.activity_type?.toLowerCase().includes("run") ?? false;
+  if (
+    !isRunning ||
+    !shouldShowPace(activity.max_speed_mps, activity.distance_meters) ||
+    activity.max_speed_mps === null
+  ) {
+    return null;
+  }
+  return formatPace(activity.max_speed_mps);
+}
+
+function pickElevationGain(activity: GarminActivityData): string | null {
+  if (
+    activity.elevation_gain_meters === null ||
+    activity.elevation_gain_meters <= 0
+  ) {
+    return null;
+  }
+  return `↑${String(Math.round(activity.elevation_gain_meters))}m`;
+}
+
+function pickElevationLoss(activity: GarminActivityData): string | null {
+  if (
+    activity.elevation_loss_meters === null ||
+    activity.elevation_loss_meters <= 0
+  ) {
+    return null;
+  }
+  return `↓${String(Math.round(activity.elevation_loss_meters))}m`;
+}
+
 function buildGarminDetails(activity: GarminActivityData): string[] {
   const distanceKm =
     activity.distance_meters === null
       ? null
       : (activity.distance_meters / 1000).toFixed(2);
-  const pace =
-    shouldShowPace(activity.avg_speed_mps, activity.distance_meters) &&
-    activity.avg_speed_mps !== null
-      ? formatPace(activity.avg_speed_mps)
-      : null;
-  const isRunningActivity =
-    activity.activity_type?.toLowerCase().includes("run") ?? false;
-  const maxPace =
-    isRunningActivity &&
-    shouldShowPace(activity.max_speed_mps, activity.distance_meters) &&
-    activity.max_speed_mps !== null
-      ? formatPace(activity.max_speed_mps)
-      : null;
 
   const details: string[] = [];
   if (activity.duration_seconds !== null) {
     details.push(formatDuration(activity.duration_seconds));
   }
   if (distanceKm !== null) details.push(`${distanceKm} km`);
+  const pace = pickGarminPace(activity);
   if (pace !== null) details.push(pace);
+  const maxPace = pickGarminMaxPace(activity);
   if (maxPace !== null) details.push(`Max Pace: ${maxPace}`);
   if (activity.avg_heart_rate !== null) {
     details.push(`Avg HR ${String(activity.avg_heart_rate)}`);
@@ -436,18 +468,10 @@ function buildGarminDetails(activity: GarminActivityData): string[] {
   if (activity.calories !== null) {
     details.push(`${String(activity.calories)} kcal`);
   }
-  if (
-    activity.elevation_gain_meters !== null &&
-    activity.elevation_gain_meters > 0
-  ) {
-    details.push(`↑${String(Math.round(activity.elevation_gain_meters))}m`);
-  }
-  if (
-    activity.elevation_loss_meters !== null &&
-    activity.elevation_loss_meters > 0
-  ) {
-    details.push(`↓${String(Math.round(activity.elevation_loss_meters))}m`);
-  }
+  const elevGain = pickElevationGain(activity);
+  if (elevGain !== null) details.push(elevGain);
+  const elevLoss = pickElevationLoss(activity);
+  if (elevLoss !== null) details.push(elevLoss);
   const power = buildGarminPower(activity);
   if (power !== null) details.push(power);
   const te = buildGarminTrainingEffect(activity);
