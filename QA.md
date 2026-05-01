@@ -300,13 +300,30 @@ Add this Playwright check to any QA pass that touches `/dashboard`, `/dashboard/
 - Sample: `{"avg_stress": {"value": 20, "z_score": -2.92}, "weight": {"value": 99.6, "z_score": 3.16}}`. When sorting by importance, sort by `Math.abs(factor.z_score)`. When rendering chips, format `factor.z_score`, NOT the wrapper object.
 - The API endpoint `/api/ml/anomalies` and the inline `analytics_response.ml_insights.ml_anomalies` return the SAME shape — patch both consumers if you change the contract.
 
+## pgbouncer + pg_advisory_lock — Lock Leak Pattern
+
+- App uses `pg_try_advisory_lock(id)` inside a `with get_db_session_context() as lock_db:` block. SQLAlchemy returns the connection to the pool when the block exits, but pgbouncer (transaction-pooling mode) keeps the underlying physical connection open. **Session-level advisory locks survive across the pool boundary** — every subsequent sync attempt hits "Sync already in progress" because the lock is held by an idle connection.
+- Symptom: `data_sync` table has NO rows with `status='in_progress'`, yet every sync attempt fails with "Sync already in progress for garmin/hevy". `pg_locks` shows `advisory ExclusiveLock granted=true` on an idle connection (state=idle, last query=ROLLBACK or COMMIT).
+- Recovery: `kubectl exec -n shared-database shared-postgres-2 -- psql -U postgres lifeascode_production -c "SELECT pg_terminate_backend(pid) FROM pg_locks WHERE locktype='advisory';"` — kills the leaking connection, releases the lock. Restart of backend pod alone does NOT clear the lock (pgbouncer outlives the pod).
+- Recovery also requires resetting `data_sync.status='error'` for any rows stuck at `in_progress` — sync_manager won't re-enter while one is `in_progress` even with the advisory lock free.
+- Architectural fix would be either: (a) drop `pg_try_advisory_lock` and use a row-level lock in `data_sync` instead, or (b) configure pgbouncer for SESSION pooling for the app's connections (loses connection efficiency).
+
 ## Garmin Sleep API — Top-Level vs dailySleepDTO
 
 - `garminconnect.get_sleep_data(date)` returns a structure where **most useful fields live at the TOP level**, not inside `dailySleepDTO`. dailySleepDTO contains stages (deep/light/rem/awake_minutes), totals, and sleep_score; everything else (body_battery_change, skin_temp_celsius, awake_count, sleep_quality_score, sleep_recovery_score, avgSpO2, lowestSpO2, averageRespiration) is at the response root.
 - Original parser fed only `sleep_data["dailySleepDTO"]` to the schema — silently dropped 7 fields, leaving DB columns NULL forever.
 - Fix: merge scalar top-level fields with dailySleepDTO before feeding the parser. Skip `dict`/`list` top-level subdocs (sleepLevels, sleepMovement, etc.) — those are time-series and not relevant to the daily summary.
 - Audit signal: `respiratory_rate` populated 54/85 but `body_battery_change`/`skin_temp_celsius`/`awake_count`/`spo2_avg`/`spo2_min`/`sleep_quality_score`/`sleep_recovery_score` all 0/85 across all historical syncs. The fact that respiration worked at all came from one of its aliases happening to also exist in dailySleepDTO.
-- Historical data does NOT backfill — the fix only populates new syncs. Run a full re-sync (`POST /api/sync/garmin?full=true`) to backfill.
+- Historical data does NOT backfill — the fix only populates new syncs. Run a 90-day re-sync (`POST /api/sync/garmin?days=90`) to backfill — `?full=true` is structurally fragile due to the long-held advisory lock (see pgbouncer pattern above).
+- After top-level merge fix, body_battery_change went 0→86/237. After alias fix, awake_count went 0→2/237 (most days lack `awakeCount` in API response) and respiratory_rate 54→149/237.
+
+## Garmin Sleep — Fields NOT Available
+
+These DB columns CANNOT be filled from Garmin's `get_sleep_data` API alone:
+
+- `skin_temp_celsius`: Garmin only returns `avgSkinTempDeviationC` (deviation from baseline, e.g., -0.5/+0.3), NOT absolute temperature. Mapping it to `skin_temp_celsius` is wrong (validator rejects 0-25 range anyway). Either add a new `skin_temp_deviation_c` column or accept this is Eight Sleep / wearable-specific.
+- `sleep_quality_score`, `sleep_recovery_score`: Garmin's `sleepScores` is a dict of per-component qualifiers (`lightPercentage.value`, `deepPercentage.value`, `restlessness.value`, `overall.value`) — no single "quality" or "recovery" aggregate. These columns are populated by Eight Sleep / Whoop syncs, not Garmin.
+- `spo2_avg`, `spo2_min`: NOT in `get_sleep_data` response. Requires separate `g.get_spo2_data(date)` API call. Currently un-wired in `pull_garmin_data.py`. To populate, add a new sync method that fetches SpO2 per day and updates the sleep row.
 
 ## treemapper --diff Caveats
 
