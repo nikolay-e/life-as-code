@@ -2,13 +2,15 @@ import datetime
 
 from dotenv import load_dotenv
 from pydantic import BaseModel
+from sqlalchemy import select
 
+from database import get_db_session_context
 from date_utils import parse_iso_date, utcnow
 from enums import DataSource, DataType
 from errors import CredentialsDecryptionError, CredentialsNotFoundError
 from http_client import HTTPClient
 from logging_config import get_logger
-from models import WorkoutSet
+from models import ExerciseTemplate, WorkoutSet
 from sync_manager import (
     extract_and_parse,
     get_provider_credentials,
@@ -26,6 +28,10 @@ REQUEST_TIMEOUT = 30
 class HevyWorkoutData(BaseModel):
     date: datetime.date
     exercise: str
+    # Stable Hevy exercise template id (same id space as /v1/exercise_templates).
+    # Stored on every set so logged workouts can be reconciled with programmed
+    # exercises by id rather than by title.
+    exercise_template_id: str | None = None
     set_index: int = 0
     weight_kg: float | None = None
     reps: int | None = None
@@ -60,6 +66,10 @@ class HevyWorkoutData(BaseModel):
 
             for exercise in workout_data.get("exercises", []):
                 exercise_name = exercise.get("title", "Unknown Exercise")
+                template_id_raw = exercise.get("exercise_template_id")
+                template_id = (
+                    str(template_id_raw) if template_id_raw is not None else None
+                )
 
                 for set_data in exercise.get("sets", []):
                     try:
@@ -70,6 +80,7 @@ class HevyWorkoutData(BaseModel):
                         workout_set = cls(
                             date=workout_date,
                             exercise=exercise_name,
+                            exercise_template_id=template_id,
                             set_index=set_index,
                             weight_kg=set_data.get("weight_kg"),
                             reps=cls._validate_reps(set_data.get("reps")),
@@ -156,6 +167,46 @@ class HevyAPIClient:
 
         logger.info("hevy_page_retrieved", workouts=len(workouts), page=page)
         return True
+
+    def get_exercise_templates(self) -> list[dict]:
+        """Fetch all exercise templates (Hevy library + user customs).
+
+        Hevy paginates this endpoint similar to /workouts. We follow until an
+        empty page; max_pages bounds runaway loops.
+        """
+        all_templates: list[dict] = []
+        page = 1
+        max_pages = 200
+
+        while page <= max_pages:
+            try:
+                page_data = self._client.get(
+                    "exercise_templates", params={"page": page, "pageSize": 100}
+                )
+            except (ValueError, KeyError) as e:
+                logger.error(
+                    "hevy_exercise_templates_fetch_error", page=page, error=str(e)
+                )
+                break
+
+            if not isinstance(page_data, dict):
+                logger.warning("hevy_exercise_templates_unexpected_response", page=page)
+                break
+
+            templates = page_data.get("exercise_templates", [])
+            if not templates:
+                break
+
+            all_templates.extend(templates)
+            logger.info(
+                "hevy_exercise_templates_page", page=page, count=len(templates)
+            )
+            page += 1
+
+        logger.info(
+            "hevy_exercise_templates_fetch_complete", total=len(all_templates)
+        )
+        return all_templates
 
     def get_workouts(self, start_date: datetime.date | None = None) -> list[dict]:
         all_workouts: list[dict] = []
@@ -244,6 +295,95 @@ def sync_hevy_data_for_user(
     except Exception as e:  # catch-all for sync resilience
         logger.error("hevy_sync_failed", user_id=user_id, error=str(e))
         return {"error": str(e), "user_id": user_id}
+
+
+def sync_hevy_exercise_templates_for_user(user_id: int) -> dict:
+    """Pull the user's Hevy exercise template catalog and upsert into the DB.
+
+    Idempotent: keyed on (user_id, hevy_template_id). Custom user templates
+    flagged via is_custom from Hevy's response.
+    """
+    try:
+        creds = get_provider_credentials(user_id, DataSource.HEVY)
+    except (CredentialsNotFoundError, CredentialsDecryptionError) as e:
+        logger.error(
+            "hevy_exercise_templates_credentials_error",
+            user_id=user_id,
+            error=str(e),
+        )
+        return {"error": str(e), "user_id": user_id}
+
+    if not creds.hevy_api_key:
+        return {"error": "Hevy API key not configured", "user_id": user_id}
+
+    try:
+        api_client = HevyAPIClient(creds.hevy_api_key)
+        templates = api_client.get_exercise_templates()
+    except Exception as e:
+        logger.error(
+            "hevy_exercise_templates_fetch_failed", user_id=user_id, error=str(e)
+        )
+        return {"error": str(e), "user_id": user_id}
+
+    created = 0
+    updated = 0
+
+    with get_db_session_context() as db:
+        for tpl in templates:
+            hevy_id = tpl.get("id")
+            title = tpl.get("title")
+            if not hevy_id or not title:
+                continue
+
+            existing = db.scalars(
+                select(ExerciseTemplate).filter_by(
+                    user_id=user_id, hevy_template_id=str(hevy_id)
+                )
+            ).first()
+
+            secondary = tpl.get("secondary_muscle_groups") or []
+            if isinstance(secondary, str):
+                secondary = [secondary]
+
+            payload = {
+                "title": title,
+                "exercise_type": tpl.get("type") or tpl.get("exercise_type"),
+                "primary_muscle_group": tpl.get("primary_muscle_group"),
+                "secondary_muscle_groups": secondary,
+                "equipment": tpl.get("equipment"),
+                "is_custom": bool(tpl.get("is_custom", False)),
+            }
+
+            if existing is None:
+                db.add(
+                    ExerciseTemplate(
+                        user_id=user_id,
+                        hevy_template_id=str(hevy_id),
+                        **payload,
+                    )
+                )
+                created += 1
+            else:
+                for k, v in payload.items():
+                    setattr(existing, k, v)
+                updated += 1
+
+        db.commit()
+
+    logger.info(
+        "hevy_exercise_templates_sync_completed",
+        user_id=user_id,
+        created=created,
+        updated=updated,
+        total=len(templates),
+    )
+    return {
+        "user_id": user_id,
+        "fetched": len(templates),
+        "created": created,
+        "updated": updated,
+        "synced_at": utcnow().isoformat(),
+    }
 
 
 if __name__ == "__main__":

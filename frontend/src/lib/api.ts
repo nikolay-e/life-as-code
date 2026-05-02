@@ -6,6 +6,7 @@ import type {
   ClinicalAlertEvent,
   CredentialTestResult,
   CredentialsStatus,
+  ExerciseTemplate,
   FunctionalTestData,
   GarminActivityData,
   GarminRacePredictionData,
@@ -19,6 +20,10 @@ import type {
   UserThresholds,
   VersionInfo,
   WorkoutExerciseDetail,
+  WorkoutProgramCreatePayload,
+  WorkoutProgramDetail,
+  WorkoutProgramSummary,
+  WorkoutProgramUpdatePayload,
 } from "../types/api";
 
 const API_BASE = "/api";
@@ -389,6 +394,64 @@ export const api = {
 
     deleteGoal: (id: number): Promise<{ deleted: boolean }> =>
       request(`/longevity/goals/${String(id)}`, { method: "DELETE" }),
+  },
+
+  programs: {
+    list: (): Promise<WorkoutProgramSummary[]> => request("/programs"),
+
+    getActive: (): Promise<WorkoutProgramDetail | null> =>
+      request("/programs/active"),
+
+    get: (id: number): Promise<WorkoutProgramDetail> =>
+      request(`/programs/${String(id)}`),
+
+    create: (data: WorkoutProgramCreatePayload): Promise<WorkoutProgramDetail> =>
+      request("/programs", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+
+    update: (
+      id: number,
+      data: WorkoutProgramUpdatePayload,
+    ): Promise<WorkoutProgramDetail> =>
+      request(`/programs/${String(id)}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+
+    activate: (id: number): Promise<WorkoutProgramDetail> =>
+      request(`/programs/${String(id)}/activate`, { method: "POST" }),
+
+    archive: (id: number): Promise<WorkoutProgramDetail> =>
+      request(`/programs/${String(id)}/archive`, { method: "POST" }),
+
+    delete: (id: number): Promise<{ deleted: boolean }> =>
+      request(`/programs/${String(id)}`, { method: "DELETE" }),
+  },
+
+  exerciseTemplates: {
+    list: (params?: {
+      q?: string;
+      muscle?: string;
+      equipment?: string;
+      limit?: number;
+    }): Promise<ExerciseTemplate[]> => {
+      const qs = new URLSearchParams();
+      if (params?.q) qs.set("q", params.q);
+      if (params?.muscle) qs.set("muscle", params.muscle);
+      if (params?.equipment) qs.set("equipment", params.equipment);
+      if (params?.limit) qs.set("limit", String(params.limit));
+      const q = qs.toString();
+      return request(`/exercise-templates${q ? `?${q}` : ""}`);
+    },
+
+    sync: (): Promise<{
+      fetched: number;
+      created: number;
+      updated: number;
+      synced_at: string;
+    }> => request("/exercise-templates/sync", { method: "POST" }),
   },
 };
 

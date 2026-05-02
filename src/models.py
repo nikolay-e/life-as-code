@@ -136,6 +136,12 @@ class User(Base):
     bot_messages = relationship(
         "BotMessage", back_populates="user", cascade=CASCADE_ALL_DELETE
     )
+    exercise_templates = relationship(
+        "ExerciseTemplate", back_populates="user", cascade=CASCADE_ALL_DELETE
+    )
+    workout_programs = relationship(
+        "WorkoutProgram", back_populates="user", cascade=CASCADE_ALL_DELETE
+    )
 
     def __repr__(self):
         return f"<User(username={self.username})>"
@@ -608,6 +614,10 @@ class WorkoutSet(Base):
     user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
     date = Column(Date, nullable=False, index=True)
     exercise = Column(String(200), nullable=False)
+    # Hevy's stable exercise template id (matches ExerciseTemplate.hevy_template_id).
+    # Captured at sync time so logged sets can be matched to programmed exercises
+    # by id rather than by title — robust against renames and translations.
+    exercise_template_id = Column(String(100), index=True)
     set_index = Column(Integer, nullable=False, default=0)
     weight_kg = Column(Float)
     reps = Column(Integer)
@@ -626,6 +636,9 @@ class WorkoutSet(Base):
             "user_id", "date", "exercise", "set_index", name="_user_workout_set_uc"
         ),
         Index("idx_workout_user_date", "user_id", "date"),
+        Index(
+            "idx_workout_user_template", "user_id", "exercise_template_id"
+        ),
         CheckConstraint("weight_kg >= 0 OR weight_kg IS NULL", name="valid_weight_kg"),
         CheckConstraint("reps >= 0 OR reps IS NULL", name="valid_reps"),
         CheckConstraint(
@@ -1466,4 +1479,212 @@ class BotMessage(Base):
         return (
             f"<BotMessage(user_id={self.user_id}, chat_id={self.chat_id}, "
             f"role={self.role}, source={self.source}, created_at={self.created_at})>"
+        )
+
+
+class ExerciseTemplate(Base):
+    """Cached Hevy exercise template (per user, since Hevy templates are scoped per account)."""
+
+    __tablename__ = "exercise_templates"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
+    hevy_template_id = Column(String(100), nullable=False)
+    title = Column(String(200), nullable=False)
+    exercise_type = Column(String(50))  # weight_reps, reps_only, duration, distance, ...
+    primary_muscle_group = Column(String(80))
+    secondary_muscle_groups = Column(JSONB)  # list of strings
+    equipment = Column(String(80))
+    is_custom = Column(Boolean, default=False, nullable=False)
+    last_synced_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+
+    user = relationship("User", back_populates="exercise_templates")
+    program_exercises = relationship(
+        "ProgramExercise", back_populates="template", passive_deletes=True
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "hevy_template_id", name="_user_hevy_template_uc"
+        ),
+        Index("idx_exercise_template_user_title", "user_id", "title"),
+    )
+
+    def __repr__(self):
+        return (
+            f"<ExerciseTemplate(user_id={self.user_id}, "
+            f"hevy_template_id={self.hevy_template_id}, title={self.title})>"
+        )
+
+
+class WorkoutProgram(Base):
+    """User-defined training program (mesocycle).
+
+    Holds high-level metadata. Detail lives in `program_days` and `program_exercises`.
+    Only one program per user can be `is_active=True` at any time
+    (enforced by partial unique index).
+    """
+
+    __tablename__ = "workout_programs"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
+    name = Column(String(200), nullable=False)
+    description = Column(Text)
+    goal = Column(String(80))  # hypertrophy, strength, peaking, recomp, conditioning
+    start_date = Column(Date, nullable=False)
+    end_date = Column(Date)  # set when archived; null while active
+    is_active = Column(Boolean, default=False, nullable=False)
+    archived_at = Column(DateTime)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+
+    user = relationship("User", back_populates="workout_programs")
+    days = relationship(
+        "ProgramDay",
+        back_populates="program",
+        cascade=CASCADE_ALL_DELETE,
+        order_by="ProgramDay.day_order",
+    )
+
+    __table_args__ = (
+        Index("idx_workout_program_user_active", "user_id", "is_active"),
+        Index("idx_workout_program_user_started", "user_id", "start_date"),
+        CheckConstraint(
+            "end_date IS NULL OR end_date >= start_date",
+            name="valid_program_date_range",
+        ),
+    )
+
+    def __repr__(self):
+        return f"<WorkoutProgram(user_id={self.user_id}, name={self.name}, active={self.is_active})>"
+
+
+class ProgramDay(Base):
+    """A training day within a program (e.g. Push, Pull, Legs)."""
+
+    __tablename__ = "program_days"
+
+    id = Column(Integer, primary_key=True)
+    program_id = Column(
+        Integer,
+        ForeignKey("workout_programs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    day_order = Column(Integer, nullable=False, default=0)
+    name = Column(String(120), nullable=False)
+    focus = Column(String(200))  # e.g. "Upper-body strength", "Lower-body hypertrophy"
+    notes = Column(Text)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+
+    program = relationship("WorkoutProgram", back_populates="days")
+    exercises = relationship(
+        "ProgramExercise",
+        back_populates="day",
+        cascade=CASCADE_ALL_DELETE,
+        order_by="ProgramExercise.exercise_order",
+    )
+
+    __table_args__ = (
+        UniqueConstraint("program_id", "day_order", name="_program_day_order_uc"),
+    )
+
+    def __repr__(self):
+        return f"<ProgramDay(program_id={self.program_id}, order={self.day_order}, name={self.name})>"
+
+
+class ProgramExercise(Base):
+    """A prescribed exercise within a program day.
+
+    Stores target sets/reps/RPE/weight, plus free-text notes for accents
+    (tempo cues, pause reps, "drive through heels", etc.).
+
+    `template_id` links to a cached Hevy exercise template so logged sets
+    (which arrive by exercise title) can be reconciled with the program.
+    `exercise_title` is denormalized so the program stays readable even if
+    a custom template is later renamed or removed.
+    """
+
+    __tablename__ = "program_exercises"
+
+    id = Column(Integer, primary_key=True)
+    day_id = Column(
+        Integer,
+        ForeignKey("program_days.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    template_id = Column(
+        Integer,
+        ForeignKey("exercise_templates.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    exercise_order = Column(Integer, nullable=False, default=0)
+    exercise_title = Column(String(200), nullable=False)
+
+    target_sets = Column(Integer)
+    target_reps_min = Column(Integer)
+    target_reps_max = Column(Integer)
+    target_rpe_min = Column(Float)
+    target_rpe_max = Column(Float)
+    target_weight_kg = Column(Float)
+    rest_seconds = Column(Integer)
+    tempo = Column(String(20))  # e.g. "3-1-1-0"
+    notes = Column(Text)  # accents, cues, technique notes
+
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+
+    day = relationship("ProgramDay", back_populates="exercises")
+    template = relationship("ExerciseTemplate", back_populates="program_exercises")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "day_id", "exercise_order", name="_program_exercise_order_uc"
+        ),
+        CheckConstraint(
+            "target_sets IS NULL OR target_sets >= 0",
+            name="valid_program_target_sets",
+        ),
+        CheckConstraint(
+            "target_reps_min IS NULL OR target_reps_min >= 0",
+            name="valid_program_target_reps_min",
+        ),
+        CheckConstraint(
+            "target_reps_max IS NULL OR target_reps_max >= 0",
+            name="valid_program_target_reps_max",
+        ),
+        CheckConstraint(
+            "target_reps_min IS NULL OR target_reps_max IS NULL "
+            "OR target_reps_max >= target_reps_min",
+            name="valid_program_reps_window",
+        ),
+        CheckConstraint(
+            "(target_rpe_min IS NULL OR (target_rpe_min >= 1 AND target_rpe_min <= 10))",
+            name="valid_program_target_rpe_min",
+        ),
+        CheckConstraint(
+            "(target_rpe_max IS NULL OR (target_rpe_max >= 1 AND target_rpe_max <= 10))",
+            name="valid_program_target_rpe_max",
+        ),
+        CheckConstraint(
+            "target_rpe_min IS NULL OR target_rpe_max IS NULL "
+            "OR target_rpe_max >= target_rpe_min",
+            name="valid_program_rpe_window",
+        ),
+        CheckConstraint(
+            "target_weight_kg IS NULL OR target_weight_kg >= 0",
+            name="valid_program_target_weight",
+        ),
+        CheckConstraint(
+            "rest_seconds IS NULL OR rest_seconds >= 0",
+            name="valid_program_rest_seconds",
+        ),
+    )
+
+    def __repr__(self):
+        return (
+            f"<ProgramExercise(day_id={self.day_id}, order={self.exercise_order}, "
+            f"title={self.exercise_title})>"
         )

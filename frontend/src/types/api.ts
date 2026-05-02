@@ -829,3 +829,85 @@ export interface ClinicalAlertEvent {
   acknowledged_at: string | null;
   resolved_at: string | null;
 }
+
+export type ProgramGoal =
+  | "hypertrophy"
+  | "strength"
+  | "peaking"
+  | "recomp"
+  | "conditioning"
+  | "endurance"
+  | "general";
+
+export interface ExerciseTemplate {
+  id: number;
+  hevy_template_id: string;
+  title: string;
+  exercise_type: string | null;
+  primary_muscle_group: string | null;
+  secondary_muscle_groups: string[] | null;
+  equipment: string | null;
+  is_custom: boolean;
+}
+
+export interface ProgramExerciseData {
+  id?: number;
+  exercise_order: number;
+  exercise_title: string;
+  template_id: number | null;
+  target_sets: number | null;
+  target_reps_min: number | null;
+  target_reps_max: number | null;
+  target_rpe_min: number | null;
+  target_rpe_max: number | null;
+  target_weight_kg: number | null;
+  rest_seconds: number | null;
+  tempo: string | null;
+  notes: string | null;
+}
+
+export interface ProgramDayData {
+  id?: number;
+  day_order: number;
+  name: string;
+  focus: string | null;
+  notes: string | null;
+  exercises: ProgramExerciseData[];
+}
+
+export interface WorkoutProgramSummary {
+  id: number;
+  name: string;
+  description: string | null;
+  goal: ProgramGoal | null;
+  start_date: string;
+  end_date: string | null;
+  is_active: boolean;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+  day_count: number;
+  exercise_count: number;
+}
+
+export interface WorkoutProgramDetail extends WorkoutProgramSummary {
+  days: ProgramDayData[];
+}
+
+export interface WorkoutProgramCreatePayload {
+  name: string;
+  description?: string | null;
+  goal?: ProgramGoal | null;
+  start_date: string;
+  activate?: boolean;
+  days: ProgramDayData[];
+}
+
+export interface WorkoutProgramUpdatePayload {
+  name?: string;
+  description?: string | null;
+  goal?: ProgramGoal | null;
+  start_date?: string;
+  end_date?: string | null;
+  days?: ProgramDayData[];
+}

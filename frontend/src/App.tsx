@@ -80,6 +80,15 @@ export default function App() {
                   element={<TrainingsPage />}
                 />
                 <Route
+                  path="/dashboard/programs"
+                  element={
+                    <Navigate
+                      to="/dashboard/trainings?tab=program"
+                      replace
+                    />
+                  }
+                />
+                <Route
                   path="/dashboard/health-log"
                   element={<HealthLogPage />}
                 />
