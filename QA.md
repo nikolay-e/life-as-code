@@ -436,3 +436,22 @@ Project's `--destructive` HSL token: `0 84.2% 60.2%` ≈ red-500 — too light f
 
 - Statistical methods (Box-Jenkins prewhitening, ICC(2,1), Kruskal-Wallis with multi-metric loops, ANOVA factor decomposition) often score S3776=20-50 because they have multiple if-branches and per-factor accumulation. These are inherent algorithmic complexity, not refactor opportunities.
 - Pragma: extract per-branch helpers ONLY if it preserves the math semantics. Otherwise leave as-is — Sonar S3776 in research code is acceptable noise that does NOT block the quality gate (it affects `maintainability_rating`, not `reliability` or `security`).
+- S3776 in dummy-matrix builders (month/weekday/epoch): extract `_month_dummies`, `_weekday_dummies`, `_epoch_dummies` helper functions with signature `(arr, n) -> ndarray`. Each has one loop with one if → well below 15.
+- S3776 in Kruskal-Wallis multi-metric loops: extract `_kruskal_stats(groups)` (handles 0/1/2+ group branching) and `_kruskal_row_for_metric(raw, m_canon)` so `run_kruskal_wallis` is just list-comprehension + two `_apply_fdr` calls.
+- S3776 in quadrant chi2: extract `_classify_quad(r, h) -> str`, `_chi2_test_result(table, counts_b, counts_other, tert_labels, n_per_tert)` (handles chi2 / fisher-exact / skip branches), and `_strain_cross_tab(df, strain_col, win, snapshot)` — reduces `run_quadrant_chi2` from complexity 53 to ~10.
+- S1871 (identical branches): when two `if`/`elif` branches both do `record[key] = None`, merge them: `if (isinstance(value, float) and not math.isfinite(value)) or value is pd.NaT:`.
+- S3358 (nested ternary): extract the inner ternary to a named variable BEFORE the return — `resolved_start = start if start is not None else (min(...) if ... else None)` — adding parentheses does NOT satisfy Sonar.
+
+## Mobile Navigation — Hidden Pages Pattern
+
+- When adding new top-level pages, check BOTH the desktop sidebar AND the mobile bottom nav (`MobileBottomNav.tsx`). The bottom nav only renders `PRIMARY_ITEMS` (5 fixed slots). Pages exported only in `SECONDARY_ITEMS` become completely unreachable on mobile.
+- Fix pattern: add a Settings icon link in the header (`md:hidden`, always visible) + add a "Data Status" row inside the Settings page (`md:hidden`, acts as mobile-only nav entry). Avoids 6-item bottom nav overflow.
+- After any new page is added, manually verify all routes are reachable from a 375px-wide viewport before merging.
+
+## Timezone-Aware DateTime — NaT Serialization Bug
+
+- Adding `DateTime(timezone=True)` columns to SQLAlchemy models causes a 500 on any API endpoint that passes those rows through `_serialize_generic_df` + `sanitize_for_json` unless both handle NaT.
+- `_serialize_generic_df` must expand its `select_dtypes` to include `"datetimetz"` and use `.apply(lambda x: x.isoformat() if pd.notna(x) else None)` for those columns (`.astype(str)` on a `NaT` produces the string `"NaT"`, not `None`).
+- `sanitize_for_json` must check `value is pd.NaT` (in addition to `math.isfinite` for floats) and set `record[key] = None`.
+- Symptom: `ValueError: NaTType does not support timetuple` in the serialization layer, 500 on `/api/data/range`.
+- Trigger: any migration adding `sleep_start_time` / `sleep_end_time` or similar `timestamp with time zone` columns to a table that goes through the generic serializer.
