@@ -177,6 +177,8 @@ def sanitize_for_json(records: list[dict]) -> list[dict]:
         for key, value in record.items():
             if isinstance(value, float) and not math.isfinite(value):
                 record[key] = None
+            elif value is pd.NaT:
+                record[key] = None
     return records
 
 
@@ -264,7 +266,9 @@ def _serialize_workouts_df(df) -> list[dict]:
 
 def _serialize_generic_df(df) -> list[dict]:
     df["date"] = df["date"].astype(str)
-    for col in df.select_dtypes(include=["datetime64[ns]"]).columns:
+    for col in df.select_dtypes(
+        include=["datetime64[ns]", "datetime64[us]", "datetimetz"]
+    ).columns:
         df[col] = df[col].apply(lambda x: x.isoformat() if pd.notna(x) else None)
     return sanitize_for_json(df.to_dict(orient="records"))
 

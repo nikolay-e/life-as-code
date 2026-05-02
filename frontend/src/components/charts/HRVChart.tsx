@@ -112,7 +112,7 @@ export const HRVChart = memo(
 
     return (
       <div className="space-y-2">
-        {(statusStyle || latestFeedback || latestBaseline) && (
+        {(statusStyle ?? latestFeedback ?? latestBaseline) != null && (
           <div className="flex flex-wrap items-center gap-2">
             {statusStyle && (
               <span

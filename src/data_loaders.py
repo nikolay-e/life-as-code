@@ -1,8 +1,3 @@
-"""
-Data loading utilities for Life-as-Code application.
-Handles database queries and data preprocessing for visualizations.
-"""
-
 import pandas as pd
 from sqlalchemy import select
 
@@ -27,7 +22,6 @@ from models import (
 
 
 def load_data_for_user(start_date, end_date, user_id):
-    """Load data from database for the specified user and date range."""
     from database import read_engine
 
     data = {}

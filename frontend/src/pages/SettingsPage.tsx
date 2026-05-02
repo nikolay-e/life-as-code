@@ -37,7 +37,8 @@ import {
 import { GarminCredentialForm } from "../components/settings/GarminCredentialForm";
 import { HevyCredentialForm } from "../components/settings/HevyCredentialForm";
 import { EightSleepCredentialForm } from "../components/settings/EightSleepCredentialForm";
-import { Settings, User } from "lucide-react";
+import { Settings, User, Database, ChevronRight } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useBackoffStatus } from "../hooks/useHealthData";
 import type { CredentialTestResult } from "../types/api";
 
@@ -529,6 +530,24 @@ export function SettingsPage() {
           />
         </CardContent>
       </Card>
+
+      <Link
+        to="/dashboard/data-status"
+        className="md:hidden flex items-center justify-between p-4 rounded-xl border bg-card hover:bg-muted/50 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <div className="p-1.5 rounded-lg bg-primary/10">
+            <Database className="h-4 w-4 text-primary" />
+          </div>
+          <div>
+            <p className="font-medium text-sm">Data Status</p>
+            <p className="text-xs text-muted-foreground">
+              View sync status and data availability
+            </p>
+          </div>
+        </div>
+        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+      </Link>
     </div>
   );
 }

@@ -165,6 +165,37 @@ class EightSleepSessionData(BaseModel):
             return None
 
     @classmethod
+    def _first_session_timestamp(
+        cls, sess: dict, keys: tuple[str, ...]
+    ) -> datetime.datetime | None:
+        for key in keys:
+            ts = cls._parse_iso_utc(sess.get(key))
+            if ts is not None:
+                return ts
+        return None
+
+    @classmethod
+    def _collect_session_timestamps(
+        cls, sessions: list
+    ) -> tuple[list[datetime.datetime], list[datetime.datetime]]:
+        starts: list[datetime.datetime] = []
+        ends: list[datetime.datetime] = []
+        for sess in sessions:
+            if not isinstance(sess, dict):
+                continue
+            ts = cls._first_session_timestamp(
+                sess, ("presenceStart", "tsStart", "startTime", "start")
+            )
+            if ts is not None:
+                starts.append(ts)
+            te = cls._first_session_timestamp(
+                sess, ("presenceEnd", "tsEnd", "endTime", "end")
+            )
+            if te is not None:
+                ends.append(te)
+        return starts, ends
+
+    @classmethod
     def _extract_sleep_window(
         cls, day: dict, sessions: list
     ) -> tuple[datetime.datetime | None, datetime.datetime | None]:
@@ -175,28 +206,13 @@ class EightSleepSessionData(BaseModel):
         if start is not None and end is not None:
             return start, end
 
-        # Fallback: derive from earliest start / latest end across sessions.
-        session_starts: list[datetime.datetime] = []
-        session_ends: list[datetime.datetime] = []
-        for sess in sessions:
-            if not isinstance(sess, dict):
-                continue
-            for key in ("presenceStart", "tsStart", "startTime", "start"):
-                ts = cls._parse_iso_utc(sess.get(key))
-                if ts is not None:
-                    session_starts.append(ts)
-                    break
-            for key in ("presenceEnd", "tsEnd", "endTime", "end"):
-                ts = cls._parse_iso_utc(sess.get(key))
-                if ts is not None:
-                    session_ends.append(ts)
-                    break
-
-        if start is None and session_starts:
-            start = min(session_starts)
-        if end is None and session_ends:
-            end = max(session_ends)
-        return start, end
+        session_starts, session_ends = cls._collect_session_timestamps(sessions)
+        return (
+            start
+            if start is not None
+            else (min(session_starts) if session_starts else None),
+            end if end is not None else (max(session_ends) if session_ends else None),
+        )
 
     @classmethod
     def from_api_response(cls, day: dict) -> "EightSleepSessionData | None":

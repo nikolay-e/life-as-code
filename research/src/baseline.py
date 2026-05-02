@@ -11,6 +11,8 @@ from statsmodels.tsa.stattools import acf, adfuller, kpss, pacf
 from src.features import EPOCH_BOUNDARY_DATES
 from src.loader import snapshot_path, wide_daily
 
+POWER_R_SMALL_KEY = "power_r_0.10"
+
 CORE_METRICS = [
     "total_sleep_min",
     "deep_sleep_min",
@@ -158,7 +160,7 @@ def analyze_metric(df: pl.DataFrame, metric: str, lags: int = 14) -> dict:
         "ljung_box_p_lag10": lb_p,
         "eta_sq_weekday": anova.get("eta_sq_weekday"),
         "eta_sq_month": anova.get("eta_sq_month"),
-        "power_r_0.10": round(_power_for_r(n_eff, 0.10), 3),
+        POWER_R_SMALL_KEY: round(_power_for_r(n_eff, 0.10), 3),
         "power_r_0.15": round(_power_for_r(n_eff, 0.15), 3),
         "power_r_0.20": round(_power_for_r(n_eff, 0.20), 3),
     }
@@ -178,6 +180,65 @@ METRIC_CONFOUNDS = {
 }
 
 
+def _build_month_dummies(work: pl.DataFrame, n: int) -> np.ndarray:
+    m = work["date"].dt.month().to_numpy()
+    dummies = np.zeros((n, 11))
+    for i, mi in enumerate(m):
+        if mi > 1:
+            dummies[i, mi - 2] = 1
+    return dummies
+
+
+def _build_weekday_dummies(work: pl.DataFrame, n: int) -> np.ndarray:
+    wd = work["date"].dt.weekday().to_numpy()
+    dummies = np.zeros((n, 6))
+    for i, wi in enumerate(wd):
+        if wi > 1:
+            dummies[i, wi - 2] = 1
+    return dummies
+
+
+def _build_epoch_dummies(work: pl.DataFrame, n: int, epoch_dates: list[str]) -> np.ndarray | None:
+    dates = work["date"].to_numpy()
+    epoch_ids = np.zeros(n, dtype=int)
+    for boundary in sorted(np.datetime64(d) for d in epoch_dates):
+        epoch_ids[dates >= boundary] += 1
+    n_epochs = int(epoch_ids.max())
+    if n_epochs == 0:
+        return None
+    dummies = np.zeros((n, n_epochs))
+    for i, e in enumerate(epoch_ids):
+        if e > 0:
+            dummies[i, e - 1] = 1
+    return dummies
+
+
+def _build_confound_matrix(
+    work: pl.DataFrame,
+    n: int,
+    include_month: bool,
+    include_weekday: bool,
+    include_epoch: bool,
+    epoch_dates: list[str] | None,
+) -> tuple[np.ndarray | None, list[str]]:
+    x_parts: list[np.ndarray] = []
+    confounds: list[str] = []
+    if include_month:
+        x_parts.append(_build_month_dummies(work, n))
+        confounds.append("month")
+    if include_weekday:
+        x_parts.append(_build_weekday_dummies(work, n))
+        confounds.append("weekday")
+    if include_epoch and epoch_dates:
+        epoch_dummies = _build_epoch_dummies(work, n, epoch_dates)
+        if epoch_dummies is not None:
+            x_parts.append(epoch_dummies)
+            confounds.append("epoch")
+    if not x_parts:
+        return None, confounds
+    return np.column_stack([np.ones(n)] + x_parts), confounds
+
+
 def compute_residualized_acf(
     df: pl.DataFrame,
     metric_col: str,
@@ -194,65 +255,19 @@ def compute_residualized_acf(
     y = work[metric_col].to_numpy().astype(float)
     n = len(y)
 
-    confounds: list[str] = []
-    x_parts: list[np.ndarray] = []
-
-    if include_month:
-        m = work["date"].dt.month().to_numpy()
-        dummies = np.zeros((n, 11))
-        for i, mi in enumerate(m):
-            if mi > 1:
-                dummies[i, mi - 2] = 1
-        x_parts.append(dummies)
-        confounds.append("month")
-
-    if include_weekday:
-        wd = work["date"].dt.weekday().to_numpy()
-        dummies = np.zeros((n, 6))
-        for i, wi in enumerate(wd):
-            if wi > 1:
-                dummies[i, wi - 2] = 1
-        x_parts.append(dummies)
-        confounds.append("weekday")
-
-    if include_epoch and epoch_dates:
-        dates = work["date"].to_numpy()
-        epoch_ids = np.zeros(n, dtype=int)
-        for boundary in sorted(np.datetime64(d) for d in epoch_dates):
-            epoch_ids[dates >= boundary] += 1
-        n_epochs = int(epoch_ids.max())
-        if n_epochs > 0:
-            dummies = np.zeros((n, n_epochs))
-            for i, e in enumerate(epoch_ids):
-                if e > 0:
-                    dummies[i, e - 1] = 1
-            x_parts.append(dummies)
-            confounds.append("epoch")
-
-    if x_parts:
-        X = np.column_stack([np.ones(n)] + x_parts)
+    X, confounds = _build_confound_matrix(work, n, include_month, include_weekday, include_epoch, epoch_dates)
+    if X is not None:
         beta, *_ = np.linalg.lstsq(X, y, rcond=None)
         residuals = y - X @ beta
     else:
         residuals = y - np.mean(y)
 
     a = acf(residuals, nlags=min(max_lag, n // 4), fft=True)
-
     rho1 = float(a[1]) if len(a) > 1 else 0.0
     rho7 = float(a[7]) if len(a) > 7 else 0.0
     n_eff = _effective_n(n, rho1)
 
-    lb_p = _ljung_box(residuals, lags=10)
-
-    try:
-        _, adf_p, *_ = adfuller(residuals, autolag="AIC")
-    except Exception:
-        adf_p = None
-    try:
-        _, kpss_p, *_ = kpss(residuals, regression="c", nlags="auto")
-    except Exception:
-        kpss_p = None
-
+    stat = _stationarity(residuals)
     return {
         "metric": metric_col,
         "n_raw": n,
@@ -260,10 +275,10 @@ def compute_residualized_acf(
         "rho1": round(rho1, 3),
         "rho7": round(rho7, 3),
         "n_eff": n_eff,
-        "ljung_box_p_lag10": lb_p,
-        "adf_p_residuals": float(adf_p) if adf_p is not None else None,
-        "kpss_p_residuals": float(kpss_p) if kpss_p is not None else None,
-        "power_r_0.10": round(_power_for_r(n_eff, 0.10), 3),
+        "ljung_box_p_lag10": _ljung_box(residuals, lags=10),
+        "adf_p_residuals": stat["adf_p"],
+        "kpss_p_residuals": stat["kpss_p"],
+        POWER_R_SMALL_KEY: round(_power_for_r(n_eff, 0.10), 3),
         "power_r_0.15": round(_power_for_r(n_eff, 0.15), 3),
         "power_r_0.25": round(_power_for_r(n_eff, 0.25), 3),
     }
@@ -309,18 +324,22 @@ def detect_epoch_discontinuities(
                 }
             )
 
-    if len(out) > 1:
-        merged = [out[0]]
-        for d in out[1:]:
-            prev = np.datetime64(merged[-1]["date"])
-            curr = np.datetime64(d["date"])
-            if (curr - prev) < np.timedelta64(2 * step, "D"):
-                if abs(d["diff_sigma"]) > abs(merged[-1]["diff_sigma"]):
-                    merged[-1] = d
-            else:
-                merged.append(d)
-        out = merged
-    return out
+    return _merge_nearby_discontinuities(out, step)
+
+
+def _merge_nearby_discontinuities(out: list[dict], step: int) -> list[dict]:
+    if len(out) <= 1:
+        return out
+    merged = [out[0]]
+    for d in out[1:]:
+        prev = np.datetime64(merged[-1]["date"])
+        curr = np.datetime64(d["date"])
+        if (curr - prev) < np.timedelta64(2 * step, "D"):
+            if abs(d["diff_sigma"]) > abs(merged[-1]["diff_sigma"]):
+                merged[-1] = d
+        else:
+            merged.append(d)
+    return merged
 
 
 def main() -> None:
@@ -370,6 +389,12 @@ def main() -> None:
     print(f"Wrote {out_dir / 'calibration_report.parquet'}")
     print(f"Wrote {out_dir / 'calibration_summary.json'}")
     print()
+    _print_decision_rules(report)
+    if args.extended:
+        _run_extended_analysis(df, available, out_dir)
+
+
+def _print_decision_rules(report: pl.DataFrame) -> None:
     print("== Decision rules per H spec ==")
     for row in report.iter_rows(named=True):
         flags = []
@@ -381,44 +406,48 @@ def main() -> None:
             flags.append("first-difference required")
         if row.get("rho1") is not None and abs(row["rho1"]) > 0.3:
             flags.append(f"prewhitening required (rho1={row['rho1']})")
-        power = row.get("power_r_0.10", 0)
+        power = row.get(POWER_R_SMALL_KEY, 0)
         if power < 0.6:
             flags.append(f"underpowered for r=0.10 (power={power:.2f})")
         if flags:
             print(f"  {row['metric']}: {' | '.join(flags)}")
 
-    if args.extended:
-        print()
-        print("== Residualized ACF (after month/DOW/epoch removal) ==")
-        resid_rows = []
-        for m in available:
-            cf = METRIC_CONFOUNDS.get(m, {"month": True, "weekday": False})
-            r = compute_residualized_acf(
-                df,
-                m,
-                include_month=cf["month"],
-                include_weekday=cf["weekday"],
-                include_epoch=True,
-                epoch_dates=EPOCH_BOUNDARY_DATES,
-            )
-            resid_rows.append(r)
-        resid_df = pl.DataFrame([{k: v for k, v in r.items() if not isinstance(v, list)} for r in resid_rows])
-        resid_df.write_parquet(out_dir / "residualized_acf.parquet", compression="zstd")
-        print(resid_df)
-        print(f"Wrote {out_dir / 'residualized_acf.parquet'}")
 
-        print()
-        print("== Epoch discontinuities (sliding Welch t-test, window=28d, step=7d, threshold 1σ + p<0.01) ==")
-        disc_rows: list[dict] = []
-        for m in available:
-            disc_rows.extend(detect_epoch_discontinuities(df, m))
-        if disc_rows:
-            disc_df = pl.DataFrame(disc_rows).sort(["metric", "date"])
-            disc_df.write_parquet(out_dir / "epoch_discontinuities.parquet", compression="zstd")
-            print(disc_df)
-            print(f"Wrote {out_dir / 'epoch_discontinuities.parquet'}")
-        else:
-            print("No discontinuities detected at threshold.")
+def _run_extended_analysis(df: pl.DataFrame, available: list[str], out_dir: object) -> None:
+    from pathlib import Path
+
+    out_dir = Path(str(out_dir))
+    print()
+    print("== Residualized ACF (after month/DOW/epoch removal) ==")
+    resid_rows = []
+    for m in available:
+        cf = METRIC_CONFOUNDS.get(m, {"month": True, "weekday": False})
+        r = compute_residualized_acf(
+            df,
+            m,
+            include_month=cf["month"],
+            include_weekday=cf["weekday"],
+            include_epoch=True,
+            epoch_dates=EPOCH_BOUNDARY_DATES,
+        )
+        resid_rows.append(r)
+    resid_df = pl.DataFrame([{k: v for k, v in r.items() if not isinstance(v, list)} for r in resid_rows])
+    resid_df.write_parquet(out_dir / "residualized_acf.parquet", compression="zstd")
+    print(resid_df)
+    print(f"Wrote {out_dir / 'residualized_acf.parquet'}")
+
+    print()
+    print("== Epoch discontinuities (sliding Welch t-test, window=28d, step=7d, threshold 1σ + p<0.01) ==")
+    disc_rows: list[dict] = []
+    for m in available:
+        disc_rows.extend(detect_epoch_discontinuities(df, m))
+    if disc_rows:
+        disc_df = pl.DataFrame(disc_rows).sort(["metric", "date"])
+        disc_df.write_parquet(out_dir / "epoch_discontinuities.parquet", compression="zstd")
+        print(disc_df)
+        print(f"Wrote {out_dir / 'epoch_discontinuities.parquet'}")
+    else:
+        print("No discontinuities detected at threshold.")
 
 
 if __name__ == "__main__":

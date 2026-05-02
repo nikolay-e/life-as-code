@@ -9,29 +9,23 @@ logger = get_logger(__name__)
 
 
 class GarminBaseModel(BaseModel):
-    """Base model with dynamic field mapping for Garmin API responses."""
-
     date: datetime.date | None = Field(None, description="Date of the data record")
 
     @classmethod
     def get_field_mappings(cls) -> dict[str, list[str]]:
-        """Override this method to define field mappings for each model."""
         return {"date": ["date", "calendarDate", "measurementDate", "summaryDate"]}
 
     @classmethod
     def from_garmin_response(cls, data: dict[str, Any]) -> Optional["GarminBaseModel"]:
-        """Create instance from Garmin API response with flexible field mapping."""
         if not data:
             return None
 
         try:
-            # Merge base class mappings with subclass mappings
             base_mappings = GarminBaseModel.get_field_mappings()
             subclass_mappings = cls.get_field_mappings()
             field_mappings = {**base_mappings, **subclass_mappings}
             parsed_data = {}
 
-            # Map fields using the defined mappings
             for target_field, possible_source_fields in field_mappings.items():
                 value = None
                 for source_field in possible_source_fields:
@@ -40,7 +34,6 @@ class GarminBaseModel(BaseModel):
                         break
                 parsed_data[target_field] = value
 
-            # Add any additional direct mappings (fields not in mappings)
             for field_name, _field_info in cls.model_fields.items():
                 if field_name not in parsed_data and field_name in data:
                     parsed_data[field_name] = data[field_name]
@@ -53,9 +46,6 @@ class GarminBaseModel(BaseModel):
 
 
 class GarminSleepData(GarminBaseModel):
-    """Pydantic model for Garmin sleep data with robust field handling."""
-
-    # Core sleep metrics (field names match Sleep SQLAlchemy model)
     deep_minutes: float | None = Field(
         None, description="Deep sleep duration in minutes"
     )
@@ -68,8 +58,6 @@ class GarminSleepData(GarminBaseModel):
         None, description="Total sleep time in minutes"
     )
     sleep_score: float | None = Field(None, description="Sleep quality score")
-
-    # Enhanced sleep tracking fields
     body_battery_change: int | None = Field(
         None, description="Body battery charge change"
     )
@@ -191,10 +179,7 @@ class GarminSleepData(GarminBaseModel):
     )
     @classmethod
     def convert_duration_to_minutes(cls, v):
-        """Convert duration from seconds to minutes for database storage.
-
-        Garmin API always returns sleep durations in seconds.
-        """
+        # Garmin returns all sleep durations in seconds
         if v is None:
             return None
         try:
@@ -207,7 +192,6 @@ class GarminSleepData(GarminBaseModel):
     @field_validator("spo2_avg", "spo2_min", mode="before")
     @classmethod
     def validate_spo2(cls, v):
-        """Validate SpO2 values are within valid range (50-100%)."""
         if v is None:
             return None
         try:
@@ -222,7 +206,6 @@ class GarminSleepData(GarminBaseModel):
     @field_validator("respiratory_rate", mode="before")
     @classmethod
     def validate_respiratory_rate(cls, v):
-        """Validate respiratory rate is within valid range (5-40 breaths/min)."""
         if v is None:
             return None
         try:
@@ -234,48 +217,39 @@ class GarminSleepData(GarminBaseModel):
         except (ValueError, TypeError):
             return None
 
+    @classmethod
+    def _epoch_ms_to_utc(cls, v: float) -> datetime.datetime | None:
+        try:
+            return datetime.datetime.fromtimestamp(float(v) / 1000.0, tz=datetime.UTC)
+        except (ValueError, OSError, OverflowError):
+            return None
+
+    @classmethod
+    def _iso_str_to_utc(cls, v: str) -> datetime.datetime | None:
+        try:
+            parsed = datetime.datetime.fromisoformat(v.replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=datetime.UTC)
+            return parsed
+        except ValueError:
+            # Garmin older API sometimes sends epoch ms as string
+            return cls._epoch_ms_to_utc(v)  # type: ignore[arg-type]
+
     @field_validator("sleep_start_time", "sleep_end_time", mode="before")
     @classmethod
     def parse_sleep_timestamp(cls, v):
-        """Parse Garmin sleep timestamp.
-
-        Garmin returns sleepStartTimestampGMT/sleepEndTimestampGMT either as:
-          - ISO 8601 string without timezone marker (UTC implied), e.g.
-            "2019-08-04T20:28:00.0"
-          - epoch milliseconds (older API path), e.g. 1564950480000
-        Both are normalised to a tz-aware UTC datetime.
-        """
+        # Garmin returns epoch ms (older API) or bare ISO string (UTC implied, newer API)
         if v is None or isinstance(v, datetime.datetime):
             return v
         if isinstance(v, (int, float)):
-            try:
-                return datetime.datetime.fromtimestamp(
-                    float(v) / 1000.0, tz=datetime.UTC
-                )
-            except (ValueError, OSError, OverflowError):
-                return None
+            return cls._epoch_ms_to_utc(v)
         if isinstance(v, str):
-            try:
-                if v.endswith("Z"):
-                    parsed = datetime.datetime.fromisoformat(v.replace("Z", "+00:00"))
-                else:
-                    parsed = datetime.datetime.fromisoformat(v)
-                if parsed.tzinfo is None:
-                    parsed = parsed.replace(tzinfo=datetime.UTC)
-                return parsed
-            except ValueError:
-                try:
-                    return datetime.datetime.fromtimestamp(
-                        float(v) / 1000.0, tz=datetime.UTC
-                    )
-                except (ValueError, OSError, OverflowError):
-                    return None
+            return cls._iso_str_to_utc(v)
         return None
 
     @field_validator("sleep_score", mode="before")
     @classmethod
     def validate_sleep_scores(cls, v):
-        """Validate sleep scores are within 0-100 range."""
         if v is None:
             return None
         try:
@@ -304,7 +278,6 @@ class GarminSleepData(GarminBaseModel):
     @field_validator("skin_temp_celsius", mode="before")
     @classmethod
     def validate_skin_temp(cls, v):
-        """Validate skin temperature is within reasonable range."""
         if v is None:
             return None
         try:
@@ -318,7 +291,6 @@ class GarminSleepData(GarminBaseModel):
 
     @model_validator(mode="after")
     def validate_sleep_data(self):
-        """Validate sleep data consistency."""
         # If total_sleep_minutes is missing, try to calculate it
         if self.total_sleep_minutes is None:
             components = [
@@ -332,8 +304,6 @@ class GarminSleepData(GarminBaseModel):
 
 
 class GarminHRVData(GarminBaseModel):
-    """Pydantic model for Garmin HRV data."""
-
     hrv_avg: float | None = Field(None, description="Average HRV in milliseconds")
     hrv_status: str | None = Field(
         None, description="HRV status (BALANCED, UNBALANCED, LOW, etc.)"
@@ -371,7 +341,6 @@ class GarminHRVData(GarminBaseModel):
     @field_validator("hrv_avg", "baseline_low_ms", "baseline_high_ms", mode="before")
     @classmethod
     def validate_hrv_values(cls, v):
-        """Validate HRV values are positive and within reasonable range."""
         if v is None:
             return None
         try:
@@ -388,7 +357,6 @@ class GarminHRVData(GarminBaseModel):
     @field_validator("hrv_status", mode="before")
     @classmethod
     def normalize_hrv_status(cls, v):
-        """Normalize HRV status to uppercase."""
         if v is None:
             return None
         if isinstance(v, str):
@@ -397,8 +365,6 @@ class GarminHRVData(GarminBaseModel):
 
 
 class GarminStressData(GarminBaseModel):
-    """Pydantic model for Garmin stress data."""
-
     avg_stress: float | None = Field(None, description="Average stress level (0-100)")
     max_stress: float | None = Field(None, description="Maximum stress level (0-100)")
     stress_level: str | None = Field(None, description="Stress level category")
@@ -442,7 +408,6 @@ class GarminStressData(GarminBaseModel):
     )
     @classmethod
     def validate_stress_level(cls, v):
-        """Validate stress level is within 0-100 range."""
         if v is None:
             return None
         try:
@@ -459,7 +424,6 @@ class GarminStressData(GarminBaseModel):
     @field_validator("stress_level", mode="before")
     @classmethod
     def normalize_stress_category(cls, v):
-        """Normalize stress level category."""
         if v is None:
             return None
         if isinstance(v, str):
@@ -477,8 +441,6 @@ class GarminStressData(GarminBaseModel):
 
 
 class GarminStepsData(GarminBaseModel):
-    """Pydantic model for Garmin steps data."""
-
     total_steps: int | None = Field(None, description="Total steps for the day")
     total_distance: float | None = Field(None, description="Total distance in meters")
     step_goal: int | None = Field(None, description="Daily step goal")
@@ -516,7 +478,6 @@ class GarminStepsData(GarminBaseModel):
     )
     @classmethod
     def coerce_to_int(cls, v):
-        """Safely convert values to int."""
         if v is None:
             return None
         try:
@@ -527,7 +488,6 @@ class GarminStepsData(GarminBaseModel):
     @field_validator("total_distance", mode="before")
     @classmethod
     def coerce_to_float(cls, v):
-        """Safely convert distance to float."""
         if v is None:
             return None
         try:
@@ -537,8 +497,6 @@ class GarminStepsData(GarminBaseModel):
 
 
 class GarminWeightData(GarminBaseModel):
-    """Pydantic model for Garmin weight and body composition data."""
-
     weight_kg: float | None = Field(None, description="Weight in kilograms")
     bmi: float | None = Field(None, description="Body Mass Index")
     body_fat_pct: float | None = Field(None, description="Body fat percentage")
@@ -572,7 +530,6 @@ class GarminWeightData(GarminBaseModel):
     @field_validator("weight_kg", mode="before")
     @classmethod
     def convert_weight_to_kg(cls, v):
-        """Convert weight to kg. API may return grams (large values) or kg."""
         if v is None:
             return None
         try:
@@ -587,7 +544,6 @@ class GarminWeightData(GarminBaseModel):
     @field_validator("muscle_mass_kg", "bone_mass_kg", mode="before")
     @classmethod
     def convert_mass_to_kg(cls, v):
-        """Convert mass values to kg. API may return grams."""
         if v is None:
             return None
         try:
@@ -602,7 +558,6 @@ class GarminWeightData(GarminBaseModel):
     @field_validator("bmi", "body_fat_pct", "water_pct", mode="before")
     @classmethod
     def coerce_percentage(cls, v):
-        """Safely convert percentage values."""
         if v is None:
             return None
         try:
@@ -618,8 +573,6 @@ class GarminWeightData(GarminBaseModel):
 
 
 class GarminHeartRateData(GarminBaseModel):
-    """Pydantic model for Garmin heart rate data."""
-
     resting_hr: int | None = Field(None, description="Resting heart rate in BPM")
     max_hr: int | None = Field(None, description="Maximum heart rate in BPM")
     avg_hr: int | None = Field(None, description="Average heart rate in BPM")
@@ -703,8 +656,6 @@ class GarminHeartRateData(GarminBaseModel):
 
 
 class GarminTrainingStatusData(GarminBaseModel):
-    """Pydantic model for Garmin training status, VO2Max, and fitness metrics."""
-
     vo2_max: float | None = Field(None, description="VO2 Max value")
     vo2_max_precise: float | None = Field(None, description="Precise VO2 Max value")
     fitness_age: int | None = Field(None, description="Fitness age in years")
@@ -919,8 +870,6 @@ class GarminEnergyData(GarminBaseModel):
 
 
 class GarminActivityData(GarminBaseModel):
-    """Pydantic model for Garmin activity data."""
-
     activity_id: str | None = Field(None, description="Unique activity identifier")
     start_time: datetime.datetime | None = Field(
         None, description="Activity start time"

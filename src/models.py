@@ -26,6 +26,10 @@ Base: Any = declarative_base()
 VALID_RESPIRATORY_RATE_CHECK = (
     "(respiratory_rate >= 5 AND respiratory_rate <= 50) OR respiratory_rate IS NULL"
 )
+VALID_SLEEP_WINDOW_CHECK = (
+    "sleep_end_time IS NULL OR sleep_start_time IS NULL "
+    "OR sleep_end_time > sleep_start_time"
+)
 CASCADE_ALL_DELETE = "all, delete-orphan"
 USERS_ID_FK = "users.id"
 AVG_HR_CHECK = (
@@ -269,8 +273,7 @@ class Sleep(Base):
             name="valid_skin_temp_deviation_range",
         ),
         CheckConstraint(
-            "sleep_end_time IS NULL OR sleep_start_time IS NULL "
-            "OR sleep_end_time > sleep_start_time",
+            VALID_SLEEP_WINDOW_CHECK,
             name="valid_sleep_sleep_window",
         ),
     )
@@ -783,8 +786,7 @@ class WhoopSleep(Base):
             name="valid_whoop_respiratory_rate",
         ),
         CheckConstraint(
-            "sleep_end_time IS NULL OR sleep_start_time IS NULL "
-            "OR sleep_end_time > sleep_start_time",
+            VALID_SLEEP_WINDOW_CHECK,
             name="valid_whoop_sleep_sleep_window",
         ),
     )
@@ -1414,8 +1416,7 @@ class EightSleepSession(Base):
             name="valid_eight_sleep_quality_score",
         ),
         CheckConstraint(
-            "sleep_end_time IS NULL OR sleep_start_time IS NULL "
-            "OR sleep_end_time > sleep_start_time",
+            VALID_SLEEP_WINDOW_CHECK,
             name="valid_eight_sleep_sessions_sleep_window",
         ),
     )

@@ -211,6 +211,21 @@ export function DashboardLayout() {
             <span className="text-sm text-muted-foreground hidden sm:inline font-medium">
               {user?.username}
             </span>
+            <NavLink
+              to="/dashboard/settings"
+              aria-label="Settings"
+              title="Settings"
+              className={({ isActive }) =>
+                cn(
+                  "md:hidden inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors",
+                  isActive
+                    ? "text-primary"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted",
+                )
+              }
+            >
+              <Settings className="h-4 w-4" />
+            </NavLink>
             <Button
               variant="ghost"
               size="icon"

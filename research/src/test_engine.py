@@ -294,8 +294,34 @@ def _get_transformed_df(
     return feats.select(["date", pl.col(derived_col).alias(alias)])
 
 
+def _month_dummies(months: np.ndarray, n: int) -> np.ndarray:
+    d = np.zeros((n, 11))
+    for i, mi in enumerate(months):
+        if mi > 1:
+            d[i, mi - 2] = 1
+    return d
+
+
+def _weekday_dummies(weekdays: np.ndarray, n: int) -> np.ndarray:
+    d = np.zeros((n, 6))
+    for i, wi in enumerate(weekdays):
+        if wi > 1:
+            d[i, wi - 2] = 1
+    return d
+
+
+def _epoch_dummies(epochs: np.ndarray, n: int) -> np.ndarray | None:
+    n_epochs = int(epochs.max())
+    if n_epochs <= 0:
+        return None
+    d = np.zeros((n, n_epochs))
+    for i, ei in enumerate(epochs):
+        if ei > 0:
+            d[i, ei - 1] = 1
+    return d
+
+
 def _residualize(df: pl.DataFrame, spec: ResidualizeSpec) -> pl.DataFrame:
-    """Regress feature and target on month/DOW/epoch dummies; return residuals."""
     if not (spec.month or spec.weekday or spec.epoch):
         return df
 
@@ -311,28 +337,13 @@ def _residualize(df: pl.DataFrame, spec: ResidualizeSpec) -> pl.DataFrame:
     n = work.height
     parts: list[np.ndarray] = []
     if spec.month:
-        m = work["__month"].to_numpy()
-        d = np.zeros((n, 11))
-        for i, mi in enumerate(m):
-            if mi > 1:
-                d[i, mi - 2] = 1
-        parts.append(d)
+        parts.append(_month_dummies(work["__month"].to_numpy(), n))
     if spec.weekday:
-        w = work["__weekday"].to_numpy()
-        d = np.zeros((n, 6))
-        for i, wi in enumerate(w):
-            if wi > 1:
-                d[i, wi - 2] = 1
-        parts.append(d)
+        parts.append(_weekday_dummies(work["__weekday"].to_numpy(), n))
     if spec.epoch:
-        e = work["__epoch"].to_numpy()
-        n_epochs = int(e.max())
-        if n_epochs > 0:
-            d = np.zeros((n, n_epochs))
-            for i, ei in enumerate(e):
-                if ei > 0:
-                    d[i, ei - 1] = 1
-            parts.append(d)
+        ed = _epoch_dummies(work["__epoch"].to_numpy(), n)
+        if ed is not None:
+            parts.append(ed)
 
     if not parts:
         return df
@@ -582,6 +593,93 @@ def run_icc_bland_altman(spec: HypothesisSpec, snapshot: str | None) -> dict:
 # ── Method: quadrant chi-square (H14) ──────────────────────────────────
 
 
+def _classify_quad(r: float, h: float) -> str:
+    if r > 1.0 and h < -1.0:
+        return "B"
+    if r < -1.0 and h > 1.0:
+        return "A"
+    if r < -1.0 and h < -1.0:
+        return "C"
+    if r > 1.0 and h > 1.0:
+        return "D"
+    return "OTHER"
+
+
+def _chi2_test_result(
+    table: np.ndarray,
+    counts_b: np.ndarray,
+    counts_other: np.ndarray,
+    tert_labels: list,
+    n_per_tert: np.ndarray,
+) -> dict:
+    quadrant_b_by_tertile = {str(t): int(b) for t, b in zip(tert_labels, counts_b, strict=True)}
+    n_by_tertile = {str(t): int(n) for t, n in zip(tert_labels, n_per_tert, strict=True)}
+    if table.sum() > 0 and (table >= 5).all():
+        chi2, p, dof, _ = chi2_contingency(table)
+        return {
+            "test": "chi2",
+            "stat": round(float(chi2), 3),
+            "p_value": round(float(p), 5),
+            "dof": int(dof),
+            "quadrant_b_by_tertile": quadrant_b_by_tertile,
+            "n_by_tertile": n_by_tertile,
+        }
+    if table.shape in {(2, 3), (2, 2)}:
+        # Fisher exact for sparse cells; for 2x3 compare high vs low tertile only
+        high_low = (
+            np.array([[counts_b[2], counts_b[0]], [counts_other[2], counts_other[0]]])
+            if table.shape == (2, 3)
+            else table
+        )
+        odds, p = fisher_exact(high_low, alternative="two-sided")
+        return {
+            "test": "fisher_exact_high_vs_low",
+            "stat": round(float(odds), 3),
+            "p_value": round(float(p), 5),
+            "quadrant_b_by_tertile": quadrant_b_by_tertile,
+            "n_by_tertile": n_by_tertile,
+            "note": "expected count <5 in some cell; Fisher exact comparing high vs low strain tertile only",
+        }
+    return {
+        "test": "skipped",
+        "quadrant_b_by_tertile": quadrant_b_by_tertile,
+        "n_by_tertile": n_by_tertile,
+        "note": "table shape unsupported",
+    }
+
+
+def _strain_cross_tab(df: pl.DataFrame, strain_col: str, win: int, snapshot: str | None) -> dict | None:
+    if strain_col not in wide_daily(snapshot).columns:
+        return None
+    feats = wide_daily_features(snapshot)
+    roll_col = f"{strain_col}_roll{win}_mean"
+    if roll_col not in feats.columns:
+        return None
+    roll = feats.select(["date", roll_col]).rename({roll_col: "load"})
+    joined = df.join(roll, on="date", how="left").filter(pl.col("load").is_not_null())
+    if joined.height < 30:
+        return None
+    quad_labels = [
+        _classify_quad(r, h) for r, h in zip(joined["feature"].to_list(), joined["target"].to_list(), strict=True)
+    ]
+    joined = joined.with_columns(pl.Series("quad", quad_labels))
+    load_vals = joined["load"].to_numpy()
+    p33, p67 = float(np.percentile(load_vals, 33)), float(np.percentile(load_vals, 67))
+    tert = ["low" if v <= p33 else "mid" if v <= p67 else "high" for v in load_vals]
+    joined = joined.with_columns(pl.Series("tertile", tert))
+    contingency = (
+        joined.group_by(["tertile", "quad"]).len().pivot(on="quad", index="tertile", values="len").fill_null(0)
+    )
+    if "B" not in contingency.columns:
+        return None
+    counts_b = contingency["B"].to_numpy()
+    n_per_tert = contingency.select(pl.exclude("tertile")).sum_horizontal().to_numpy()
+    counts_other = n_per_tert - counts_b
+    tert_labels = contingency["tertile"].to_list()
+    table = np.array([counts_b, counts_other])
+    return _chi2_test_result(table, counts_b, counts_other, tert_labels, n_per_tert)
+
+
 def run_quadrant_chi2(spec: HypothesisSpec, snapshot: str | None) -> dict:
     df = _load_paired(
         spec.feature,
@@ -596,107 +694,24 @@ def run_quadrant_chi2(spec: HypothesisSpec, snapshot: str | None) -> dict:
         return {"error": f"insufficient data: {df.height}"}
 
     df = _residualize(df, spec.residualize)
-    rhr_z = df["feature"].to_numpy()  # resting_hr z_28 (residualized)
-    hrv_z = df["target"].to_numpy()  # hrv_garmin z_28 (residualized)
+    rhr_z = df["feature"].to_numpy()
+    hrv_z = df["target"].to_numpy()
 
-    # Quadrants per Plews framework on residualized z-scores
     rhr_high = rhr_z > 1.0
     rhr_low = rhr_z < -1.0
     hrv_high = hrv_z > 1.0
     hrv_low = hrv_z < -1.0
 
-    a = int(np.sum(rhr_low & hrv_high))  # adaptation
-    b = int(np.sum(rhr_high & hrv_low))  # acute fatigue / illness
-    c = int(np.sum(rhr_low & hrv_low))  # parasympathetic saturation
-    d = int(np.sum(rhr_high & hrv_high))  # unusual
+    a = int(np.sum(rhr_low & hrv_high))
+    b = int(np.sum(rhr_high & hrv_low))
+    c = int(np.sum(rhr_low & hrv_low))
+    d = int(np.sum(rhr_high & hrv_high))
     other = df.height - (a + b + c + d)
 
-    # Strain tertile cross-tab (using strain_whoop rolling 14d as load proxy)
     strain_col = spec.extra.get("strain_col", "strain_whoop")
     win = spec.extra.get("tertile_window_days", 14)
-    chi2_result = None
-    if strain_col in wide_daily(snapshot).columns:
-        feats = wide_daily_features(snapshot)
-        if f"{strain_col}_roll{win}_mean" in feats.columns:
-            roll = feats.select(["date", f"{strain_col}_roll{win}_mean"]).rename(
-                {f"{strain_col}_roll{win}_mean": "load"}
-            )
-            joined = df.join(roll, on="date", how="left").filter(pl.col("load").is_not_null())
-            if joined.height >= 30:
-                quad_label = []
-                for r, h in zip(joined["feature"].to_list(), joined["target"].to_list(), strict=True):
-                    if r > 1.0 and h < -1.0:
-                        quad_label.append("B")
-                    elif r < -1.0 and h > 1.0:
-                        quad_label.append("A")
-                    elif r < -1.0 and h < -1.0:
-                        quad_label.append("C")
-                    elif r > 1.0 and h > 1.0:
-                        quad_label.append("D")
-                    else:
-                        quad_label.append("OTHER")
-                joined = joined.with_columns(pl.Series("quad", quad_label))
-                # Tertiles
-                load_vals = joined["load"].to_numpy()
-                p33 = float(np.percentile(load_vals, 33))
-                p67 = float(np.percentile(load_vals, 67))
-                tert = ["low" if v <= p33 else "mid" if v <= p67 else "high" for v in load_vals]
-                joined = joined.with_columns(pl.Series("tertile", tert))
-                contingency = (
-                    joined.group_by(["tertile", "quad"])
-                    .len()
-                    .pivot(on="quad", index="tertile", values="len")
-                    .fill_null(0)
-                )
-                # Take only B vs others for clarity
-                if "B" in contingency.columns:
-                    counts_b = contingency["B"].to_numpy()
-                    n_per_tert = contingency.select(pl.exclude("tertile")).sum_horizontal().to_numpy()
-                    counts_other = n_per_tert - counts_b
-                    tert_labels = contingency["tertile"].to_list()
-                    table = np.array([counts_b, counts_other])
-                    quadrant_b_by_tertile = {str(t): int(b) for t, b in zip(tert_labels, counts_b, strict=True)}
-                    n_by_tertile = {str(t): int(n) for t, n in zip(tert_labels, n_per_tert, strict=True)}
-                    if table.sum() > 0 and (table >= 5).all():
-                        chi2, p, dof, _ = chi2_contingency(table)
-                        chi2_result = {
-                            "test": "chi2",
-                            "stat": round(float(chi2), 3),
-                            "p_value": round(float(p), 5),
-                            "dof": int(dof),
-                            "quadrant_b_by_tertile": quadrant_b_by_tertile,
-                            "n_by_tertile": n_by_tertile,
-                        }
-                    elif table.shape == (2, 3) or table.shape == (2, 2):
-                        # Fisher exact for sparse cells. scipy handles 2x2 directly;
-                        # for 2x3 we test pairwise high-vs-low tertile.
-                        if table.shape == (2, 3):
-                            high_low = np.array(
-                                [
-                                    [counts_b[2], counts_b[0]],
-                                    [counts_other[2], counts_other[0]],
-                                ]
-                            )
-                        else:
-                            high_low = table
-                        odds, p = fisher_exact(high_low, alternative="two-sided")
-                        chi2_result = {
-                            "test": "fisher_exact_high_vs_low",
-                            "stat": round(float(odds), 3),
-                            "p_value": round(float(p), 5),
-                            "quadrant_b_by_tertile": quadrant_b_by_tertile,
-                            "n_by_tertile": n_by_tertile,
-                            "note": (
-                                "expected count <5 in some cell; Fisher exact comparing high vs low strain tertile only"
-                            ),
-                        }
-                    else:
-                        chi2_result = {
-                            "test": "skipped",
-                            "quadrant_b_by_tertile": quadrant_b_by_tertile,
-                            "n_by_tertile": n_by_tertile,
-                            "note": "table shape unsupported",
-                        }
+    chi2_result = _strain_cross_tab(df, strain_col, win, snapshot)
+
     return {
         "n_paired": df.height,
         "quadrants": {
@@ -719,73 +734,62 @@ def _eta_squared_kw(h_stat: float, n: int, k: int) -> float:
     return max(0.0, (h_stat - k + 1) / (n - k))
 
 
+def _kruskal_stats(groups: list[np.ndarray]) -> tuple[float, float, float]:
+    if len(groups) < 2:
+        nan = float("nan")
+        return nan, nan, nan
+    h, p = kruskal(*groups)
+    n = sum(len(g) for g in groups)
+    return float(h), float(p), _eta_squared_kw(float(h), n, len(groups))
+
+
+def _kruskal_row_for_metric(raw: pl.DataFrame, m_canon: str) -> dict | None:
+    m = resolve_column(m_canon)
+    if m not in raw.columns:
+        return None
+    df = raw.select(["date", m]).filter(pl.col(m).is_not_null())
+    if df.height < 100:
+        return None
+    df = df.with_columns(
+        pl.col("date").dt.weekday().alias("wd"),
+        pl.col("date").dt.month().alias("mo"),
+    )
+    groups_wd = [g for g in (df.filter(pl.col("wd") == w)[m].to_numpy() for w in range(1, 8)) if len(g) >= 5]
+    groups_mo = [g for g in (df.filter(pl.col("mo") == mo)[m].to_numpy() for mo in range(1, 13)) if len(g) >= 5]
+    h_wd, p_wd, eta_wd = _kruskal_stats(groups_wd)
+    h_mo, p_mo, eta_mo = _kruskal_stats(groups_mo)
+    return {
+        "metric": m_canon,
+        "n": df.height,
+        "kw_h_dow": round(h_wd, 2) if not math.isnan(h_wd) else None,
+        "p_dow": round(p_wd, 5) if not math.isnan(p_wd) else None,
+        "eta2_dow": round(eta_wd, 4) if not math.isnan(eta_wd) else None,
+        "kw_h_month": round(h_mo, 2) if not math.isnan(h_mo) else None,
+        "p_month": round(p_mo, 5) if not math.isnan(p_mo) else None,
+        "eta2_month": round(eta_mo, 4) if not math.isnan(eta_mo) else None,
+        "dow_dummy_required": (eta_wd > 0.02) if not math.isnan(eta_wd) else False,
+        "month_dummy_required": (eta_mo > 0.03) if not math.isnan(eta_mo) else False,
+    }
+
+
+def _apply_fdr(rows: list[dict], p_key: str, fdr_key: str) -> None:
+    pvals = [r[p_key] for r in rows if r.get(p_key) is not None]
+    if not pvals:
+        return
+    _, fdr, _, _ = multipletests(pvals, alpha=0.05, method="fdr_bh")
+    i = 0
+    for r in rows:
+        if r.get(p_key) is not None:
+            r[fdr_key] = round(float(fdr[i]), 5)
+            i += 1
+
+
 def run_kruskal_wallis(spec: HypothesisSpec, snapshot: str | None) -> dict:
     raw = wide_daily(snapshot)
     metrics = spec.extra.get("metrics", CORE_METRICS_FOR_H10)
-    rows = []
-    for m_canon in metrics:
-        m = resolve_column(m_canon)
-        if m not in raw.columns:
-            continue
-        df = raw.select(["date", m]).filter(pl.col(m).is_not_null())
-        if df.height < 100:
-            continue
-        df = df.with_columns(
-            pl.col("date").dt.weekday().alias("wd"),
-            pl.col("date").dt.month().alias("mo"),
-        )
-        groups_wd = [df.filter(pl.col("wd") == w)[m].to_numpy() for w in range(1, 8)]
-        groups_wd = [g for g in groups_wd if len(g) >= 5]
-        groups_mo = [df.filter(pl.col("mo") == mo)[m].to_numpy() for mo in range(1, 13)]
-        groups_mo = [g for g in groups_mo if len(g) >= 5]
-
-        if len(groups_wd) >= 2:
-            h_wd, p_wd = kruskal(*groups_wd)
-            n_wd = sum(len(g) for g in groups_wd)
-            eta_wd = _eta_squared_kw(float(h_wd), n_wd, len(groups_wd))
-        else:
-            h_wd, p_wd, eta_wd = float("nan"), float("nan"), float("nan")
-
-        if len(groups_mo) >= 2:
-            h_mo, p_mo = kruskal(*groups_mo)
-            n_mo = sum(len(g) for g in groups_mo)
-            eta_mo = _eta_squared_kw(float(h_mo), n_mo, len(groups_mo))
-        else:
-            h_mo, p_mo, eta_mo = float("nan"), float("nan"), float("nan")
-
-        rows.append(
-            {
-                "metric": m_canon,
-                "n": df.height,
-                "kw_h_dow": round(float(h_wd), 2) if not math.isnan(h_wd) else None,
-                "p_dow": round(float(p_wd), 5) if not math.isnan(p_wd) else None,
-                "eta2_dow": round(float(eta_wd), 4) if not math.isnan(eta_wd) else None,
-                "kw_h_month": round(float(h_mo), 2) if not math.isnan(h_mo) else None,
-                "p_month": round(float(p_mo), 5) if not math.isnan(p_mo) else None,
-                "eta2_month": round(float(eta_mo), 4) if not math.isnan(eta_mo) else None,
-                "dow_dummy_required": (eta_wd > 0.02) if not math.isnan(eta_wd) else False,
-                "month_dummy_required": (eta_mo > 0.03) if not math.isnan(eta_mo) else False,
-            }
-        )
-
-    # FDR across all p-values
-    pvals_dow = [r["p_dow"] for r in rows if r["p_dow"] is not None]
-    pvals_mo = [r["p_month"] for r in rows if r["p_month"] is not None]
-    if pvals_dow:
-        _, fdr_dow, _, _ = multipletests(pvals_dow, alpha=0.05, method="fdr_bh")
-        i = 0
-        for r in rows:
-            if r["p_dow"] is not None:
-                r["p_dow_fdr"] = round(float(fdr_dow[i]), 5)
-                i += 1
-    if pvals_mo:
-        _, fdr_mo, _, _ = multipletests(pvals_mo, alpha=0.05, method="fdr_bh")
-        i = 0
-        for r in rows:
-            if r["p_month"] is not None:
-                r["p_month_fdr"] = round(float(fdr_mo[i]), 5)
-                i += 1
-
+    rows = [row for m in metrics if (row := _kruskal_row_for_metric(raw, m)) is not None]
+    _apply_fdr(rows, "p_dow", "p_dow_fdr")
+    _apply_fdr(rows, "p_month", "p_month_fdr")
     return {"rows": rows}
 
 
