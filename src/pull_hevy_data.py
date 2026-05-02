@@ -198,14 +198,10 @@ class HevyAPIClient:
                 break
 
             all_templates.extend(templates)
-            logger.info(
-                "hevy_exercise_templates_page", page=page, count=len(templates)
-            )
+            logger.info("hevy_exercise_templates_page", page=page, count=len(templates))
             page += 1
 
-        logger.info(
-            "hevy_exercise_templates_fetch_complete", total=len(all_templates)
-        )
+        logger.info("hevy_exercise_templates_fetch_complete", total=len(all_templates))
         return all_templates
 
     def get_workouts(self, start_date: datetime.date | None = None) -> list[dict]:

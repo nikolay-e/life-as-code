@@ -405,7 +405,9 @@ export const api = {
     get: (id: number): Promise<WorkoutProgramDetail> =>
       request(`/programs/${String(id)}`),
 
-    create: (data: WorkoutProgramCreatePayload): Promise<WorkoutProgramDetail> =>
+    create: (
+      data: WorkoutProgramCreatePayload,
+    ): Promise<WorkoutProgramDetail> =>
       request("/programs", {
         method: "POST",
         body: JSON.stringify(data),

@@ -103,9 +103,7 @@ export function ProgramEditor({
   const [name, setName] = useState(program?.name ?? "");
   const [description, setDescription] = useState(program?.description ?? "");
   const [goal, setGoal] = useState<ProgramGoal | "">(program?.goal ?? "");
-  const [startDate, setStartDate] = useState(
-    program?.start_date ?? todayIso(),
-  );
+  const [startDate, setStartDate] = useState(program?.start_date ?? todayIso());
   const [activate, setActivate] = useState(program ? program.is_active : true);
   const [days, setDays] = useState<ProgramDayData[]>(
     program?.days.length ? program.days : [newDay(0, "Day 1")],
@@ -134,16 +132,12 @@ export function ProgramEditor({
       return;
     }
     setDays((prev) =>
-      prev
-        .filter((_, i) => i !== idx)
-        .map((d, i) => ({ ...d, day_order: i })),
+      prev.filter((_, i) => i !== idx).map((d, i) => ({ ...d, day_order: i })),
     );
   };
 
   const handleDayChange = (idx: number, patch: Partial<ProgramDayData>) => {
-    setDays((prev) =>
-      prev.map((d, i) => (i === idx ? { ...d, ...patch } : d)),
-    );
+    setDays((prev) => prev.map((d, i) => (i === idx ? { ...d, ...patch } : d)));
   };
 
   const handleAddExercise = (dayIdx: number) => {
@@ -193,11 +187,7 @@ export function ProgramEditor({
     );
   };
 
-  const handleMoveExercise = (
-    dayIdx: number,
-    exIdx: number,
-    dir: -1 | 1,
-  ) => {
+  const handleMoveExercise = (dayIdx: number, exIdx: number, dir: -1 | 1) => {
     setDays((prev) =>
       prev.map((d, i) => {
         if (i !== dayIdx) return d;
@@ -256,11 +246,15 @@ export function ProgramEditor({
           ...payload,
           activate,
         });
-        toast.success(activate ? "Program created and activated" : "Program saved");
+        toast.success(
+          activate ? "Program created and activated" : "Program saved",
+        );
         onSaved(created);
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save program");
+      toast.error(
+        err instanceof Error ? err.message : "Failed to save program",
+      );
     }
   };
 
@@ -297,7 +291,9 @@ export function ProgramEditor({
               <Input
                 id="prog-name"
                 value={name}
-                onChange={(e) => { setName(e.target.value); }}
+                onChange={(e) => {
+                  setName(e.target.value);
+                }}
                 placeholder="e.g. 12-Week Hypertrophy Block"
                 required
               />
@@ -308,7 +304,9 @@ export function ProgramEditor({
                 id="prog-goal"
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 value={goal}
-                onChange={(e) => { setGoal(e.target.value as ProgramGoal | ""); }}
+                onChange={(e) => {
+                  setGoal(e.target.value as ProgramGoal | "");
+                }}
               >
                 <option value="">—</option>
                 {GOALS.map((g) => (
@@ -324,7 +322,9 @@ export function ProgramEditor({
                 id="prog-start"
                 type="date"
                 value={startDate}
-                onChange={(e) => { setStartDate(e.target.value); }}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                }}
                 required
               />
             </div>
@@ -335,7 +335,9 @@ export function ProgramEditor({
                   <input
                     type="checkbox"
                     checked={activate}
-                    onChange={(e) => { setActivate(e.target.checked); }}
+                    onChange={(e) => {
+                      setActivate(e.target.checked);
+                    }}
                   />
                   Make this the active program (auto-archives any current one)
                 </label>
@@ -348,7 +350,9 @@ export function ProgramEditor({
               id="prog-desc"
               className="flex min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               value={description}
-              onChange={(e) => { setDescription(e.target.value); }}
+              onChange={(e) => {
+                setDescription(e.target.value);
+              }}
               placeholder="Block focus, deload schedule, cues to keep front-of-mind..."
             />
           </div>
@@ -376,7 +380,9 @@ export function ProgramEditor({
               <button
                 key={i}
                 type="button"
-                onClick={() => { setActiveDayIdx(i); }}
+                onClick={() => {
+                  setActiveDayIdx(i);
+                }}
                 className={cn(
                   "px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
                   i === safeDayIdx
@@ -393,9 +399,15 @@ export function ProgramEditor({
           </div>
           <DayEditor
             day={activeDay}
-            onDayChange={(patch) => { handleDayChange(safeDayIdx, patch); }}
-            onRemoveDay={() => { handleRemoveDay(safeDayIdx); }}
-            onAddExercise={() => { handleAddExercise(safeDayIdx); }}
+            onDayChange={(patch) => {
+              handleDayChange(safeDayIdx, patch);
+            }}
+            onRemoveDay={() => {
+              handleRemoveDay(safeDayIdx);
+            }}
+            onAddExercise={() => {
+              handleAddExercise(safeDayIdx);
+            }}
             onChangeExercise={(exIdx, patch) => {
               handleExerciseChange(safeDayIdx, exIdx, patch);
             }}
@@ -415,7 +427,9 @@ export function ProgramEditor({
       {pickerForExercise && (
         <ExerciseTemplatePicker
           onSelect={handlePickTemplate}
-          onClose={() => { setPickerForExercise(null); }}
+          onClose={() => {
+            setPickerForExercise(null);
+          }}
         />
       )}
     </form>
@@ -454,7 +468,9 @@ function DayEditor({
           <Input
             id={`day-name-${String(day.day_order)}`}
             value={day.name}
-            onChange={(e) => { onDayChange({ name: e.target.value }); }}
+            onChange={(e) => {
+              onDayChange({ name: e.target.value });
+            }}
             placeholder="Push, Pull, Legs, Day A..."
           />
         </div>
@@ -465,7 +481,9 @@ function DayEditor({
           <Input
             id={`day-focus-${String(day.day_order)}`}
             value={day.focus ?? ""}
-            onChange={(e) => { onDayChange({ focus: e.target.value || null }); }}
+            onChange={(e) => {
+              onDayChange({ focus: e.target.value || null });
+            }}
             placeholder="Heavy push, posterior chain hypertrophy..."
           />
         </div>
@@ -476,7 +494,9 @@ function DayEditor({
           id={`day-notes-${String(day.day_order)}`}
           className="flex min-h-16 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
           value={day.notes ?? ""}
-          onChange={(e) => { onDayChange({ notes: e.target.value || null }); }}
+          onChange={(e) => {
+            onDayChange({ notes: e.target.value || null });
+          }}
           placeholder="Warm-up, conditioning finisher..."
         />
       </div>
@@ -519,10 +539,18 @@ function DayEditor({
                 index={exIdx}
                 isFirst={exIdx === 0}
                 isLast={exIdx === day.exercises.length - 1}
-                onChange={(patch) => { onChangeExercise(exIdx, patch); }}
-                onMove={(dir) => { onMoveExercise(exIdx, dir); }}
-                onRemove={() => { onRemoveExercise(exIdx); }}
-                onPickTemplate={() => { onPickTemplate(exIdx); }}
+                onChange={(patch) => {
+                  onChangeExercise(exIdx, patch);
+                }}
+                onMove={(dir) => {
+                  onMoveExercise(exIdx, dir);
+                }}
+                onRemove={() => {
+                  onRemoveExercise(exIdx);
+                }}
+                onPickTemplate={() => {
+                  onPickTemplate(exIdx);
+                }}
               />
             ))}
           </div>
@@ -576,7 +604,9 @@ function ExerciseRow({
           <div className="flex gap-2">
             <Input
               value={exercise.exercise_title}
-              onChange={(e) => { onChange({ exercise_title: e.target.value }); }}
+              onChange={(e) => {
+                onChange({ exercise_title: e.target.value });
+              }}
               placeholder="Exercise name (e.g. Barbell Back Squat)"
               className="flex-1"
             />
@@ -603,7 +633,9 @@ function ExerciseRow({
             size="icon"
             className="h-7 w-7"
             disabled={isFirst}
-            onClick={() => { onMove(-1); }}
+            onClick={() => {
+              onMove(-1);
+            }}
           >
             <ArrowUp className="h-3.5 w-3.5" />
           </Button>
@@ -613,7 +645,9 @@ function ExerciseRow({
             size="icon"
             className="h-7 w-7"
             disabled={isLast}
-            onClick={() => { onMove(1); }}
+            onClick={() => {
+              onMove(1);
+            }}
           >
             <ArrowDown className="h-3.5 w-3.5" />
           </Button>
@@ -690,7 +724,9 @@ function ExerciseRow({
           <Label className="text-xs">Tempo</Label>
           <Input
             value={exercise.tempo ?? ""}
-            onChange={(e) => { onChange({ tempo: e.target.value || null }); }}
+            onChange={(e) => {
+              onChange({ tempo: e.target.value || null });
+            }}
             placeholder="3-1-1-0"
             className="h-8 text-sm"
           />
@@ -702,7 +738,9 @@ function ExerciseRow({
         <textarea
           className="flex min-h-12 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
           value={exercise.notes ?? ""}
-          onChange={(e) => { onChange({ notes: e.target.value || null }); }}
+          onChange={(e) => {
+            onChange({ notes: e.target.value || null });
+          }}
           placeholder="Pause at bottom, drive through heels, control eccentric..."
         />
       </div>
@@ -745,7 +783,11 @@ function ExerciseTemplatePicker({
   const [q, setQ] = useState("");
   const [muscle, setMuscle] = useState("");
   const [equipment, setEquipment] = useState("");
-  const { data, isLoading, isError } = useExerciseTemplates(q, muscle, equipment);
+  const { data, isLoading, isError } = useExerciseTemplates(
+    q,
+    muscle,
+    equipment,
+  );
   const syncMutation = useSyncExerciseTemplates();
 
   const handleSync = async () => {
@@ -833,14 +875,18 @@ function ExerciseTemplatePicker({
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 value={q}
-                onChange={(e) => { setQ(e.target.value); }}
+                onChange={(e) => {
+                  setQ(e.target.value);
+                }}
                 placeholder="Search by name..."
                 className="pl-8"
               />
             </div>
             <select
               value={muscle}
-              onChange={(e) => { setMuscle(e.target.value); }}
+              onChange={(e) => {
+                setMuscle(e.target.value);
+              }}
               className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
             >
               <option value="">All muscles</option>
@@ -852,7 +898,9 @@ function ExerciseTemplatePicker({
             </select>
             <Input
               value={equipment}
-              onChange={(e) => { setEquipment(e.target.value); }}
+              onChange={(e) => {
+                setEquipment(e.target.value);
+              }}
               placeholder="Equipment"
               className="w-32"
             />
@@ -871,7 +919,8 @@ function ExerciseTemplatePicker({
                   No exercises cached yet.
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Click &ldquo;Sync from Hevy&rdquo; to load your exercise library.
+                  Click &ldquo;Sync from Hevy&rdquo; to load your exercise
+                  library.
                 </p>
               </div>
             )}
@@ -885,7 +934,9 @@ function ExerciseTemplatePicker({
                 <li key={tpl.id}>
                   <button
                     type="button"
-                    onClick={() => { onSelect(tpl); }}
+                    onClick={() => {
+                      onSelect(tpl);
+                    }}
                     className="w-full text-left px-2 py-2.5 hover:bg-muted/50 rounded-md transition-colors"
                   >
                     <div className="font-medium text-sm">{tpl.title}</div>

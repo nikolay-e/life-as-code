@@ -32,7 +32,9 @@ export function useCreateWorkoutProgram() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: api.programs.create,
-    onSuccess: () => { invalidatePrograms(queryClient); },
+    onSuccess: () => {
+      invalidatePrograms(queryClient);
+    },
   });
 }
 
@@ -46,7 +48,9 @@ export function useUpdateWorkoutProgram() {
       id: number;
       data: Parameters<typeof api.programs.update>[1];
     }) => api.programs.update(id, data),
-    onSuccess: () => { invalidatePrograms(queryClient); },
+    onSuccess: () => {
+      invalidatePrograms(queryClient);
+    },
   });
 }
 
@@ -54,7 +58,9 @@ export function useActivateWorkoutProgram() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => api.programs.activate(id),
-    onSuccess: () => { invalidatePrograms(queryClient); },
+    onSuccess: () => {
+      invalidatePrograms(queryClient);
+    },
   });
 }
 
@@ -62,7 +68,9 @@ export function useArchiveWorkoutProgram() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => api.programs.archive(id),
-    onSuccess: () => { invalidatePrograms(queryClient); },
+    onSuccess: () => {
+      invalidatePrograms(queryClient);
+    },
   });
 }
 
@@ -70,7 +78,9 @@ export function useDeleteWorkoutProgram() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => api.programs.delete(id),
-    onSuccess: () => { invalidatePrograms(queryClient); },
+    onSuccess: () => {
+      invalidatePrograms(queryClient);
+    },
   });
 }
 

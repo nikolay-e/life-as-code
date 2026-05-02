@@ -113,8 +113,12 @@ export function ProgramsPanel() {
     return (
       <ProgramEditor
         program={mode.kind === "edit" ? mode.program : null}
-        onSaved={() => { setMode({ kind: "view" }); }}
-        onCancel={() => { setMode({ kind: "view" }); }}
+        onSaved={() => {
+          setMode({ kind: "view" });
+        }}
+        onCancel={() => {
+          setMode({ kind: "view" });
+        }}
       />
     );
   }
@@ -143,7 +147,12 @@ export function ProgramsPanel() {
         <p className="text-sm text-muted-foreground">
           Plan a mesocycle, run it, swap to the next one. History is kept.
         </p>
-        <Button onClick={() => { setMode({ kind: "create" }); }} size="sm">
+        <Button
+          onClick={() => {
+            setMode({ kind: "create" });
+          }}
+          size="sm"
+        >
           <Plus className="h-4 w-4 mr-1" />
           New program
         </Button>
@@ -151,12 +160,16 @@ export function ProgramsPanel() {
 
       <ActiveProgramSection
         program={active}
-        onEdit={(p) => { setMode({ kind: "edit", program: p }); }}
+        onEdit={(p) => {
+          setMode({ kind: "edit", program: p });
+        }}
       />
 
       <HistorySection
         history={history}
-        onEdit={(p) => { setMode({ kind: "edit", program: p }); }}
+        onEdit={(p) => {
+          setMode({ kind: "edit", program: p });
+        }}
       />
     </div>
   );
@@ -175,8 +188,9 @@ function ActiveProgramSection({ program, onEdit }: ActiveProgramSectionProps) {
     if (
       // eslint-disable-next-line no-alert
       !confirm("End this program? It will move to history.")
-    )
-      {return;}
+    ) {
+      return;
+    }
     try {
       await archiveMutation.mutateAsync(program.id);
       toast.success("Program archived");
@@ -225,7 +239,9 @@ function ActiveProgramSection({ program, onEdit }: ActiveProgramSectionProps) {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => { onEdit(program); }}
+              onClick={() => {
+                onEdit(program);
+              }}
             >
               <Pencil className="h-4 w-4 mr-1" />
               Edit
@@ -254,11 +270,7 @@ function ActiveProgramSection({ program, onEdit }: ActiveProgramSectionProps) {
             label="Running"
             value={durationLabel(program.start_date, program.end_date)}
           />
-          <Stat
-            icon={Layers}
-            label="Days"
-            value={String(program.day_count)}
-          />
+          <Stat icon={Layers} label="Days" value={String(program.day_count)} />
           <Stat
             icon={Dumbbell}
             label="Exercises"
@@ -335,11 +347,7 @@ function ProgramDaysView({ program }: ProgramDaysViewProps) {
           ) : (
             <ul className="divide-y">
               {day.exercises.map((ex, i) => (
-                <ExerciseRowDisplay
-                  key={ex.id ?? i}
-                  exercise={ex}
-                  index={i}
-                />
+                <ExerciseRowDisplay key={ex.id ?? i} exercise={ex} index={i} />
               ))}
             </ul>
           )}
@@ -357,7 +365,8 @@ interface ExerciseRowDisplayProps {
 function ExerciseRowDisplay({ exercise, index }: ExerciseRowDisplayProps) {
   const reps = repsLabel(exercise);
   const rpe = rpeLabel(exercise);
-  const setsX = exercise.target_sets != null ? `${String(exercise.target_sets)}×` : "";
+  const setsX =
+    exercise.target_sets != null ? `${String(exercise.target_sets)}×` : "";
   const prescription = [
     setsX && reps ? `${setsX}${reps}` : setsX || reps,
     exercise.target_weight_kg != null
@@ -457,8 +466,9 @@ function HistoryRow({ program, onEdit }: HistoryRowProps) {
     if (
       // eslint-disable-next-line no-alert
       !confirm(`Delete "${program.name}"? This cannot be undone.`)
-    )
-      {return;}
+    ) {
+      return;
+    }
     try {
       await deleteMutation.mutateAsync(program.id);
       toast.success("Program deleted");
@@ -479,7 +489,9 @@ function HistoryRow({ program, onEdit }: HistoryRowProps) {
       });
       onEdit(detail);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to load program");
+      toast.error(
+        err instanceof Error ? err.message : "Failed to load program",
+      );
     }
   };
 
@@ -488,7 +500,9 @@ function HistoryRow({ program, onEdit }: HistoryRowProps) {
       <div className="px-3 py-2.5 flex items-center gap-2 flex-wrap">
         <button
           type="button"
-          onClick={() => { setExpanded((v) => !v); }}
+          onClick={() => {
+            setExpanded((v) => !v);
+          }}
           className="flex items-center gap-1.5 flex-1 min-w-0 text-left hover:text-primary transition-colors"
         >
           {expanded ? (
@@ -506,8 +520,8 @@ function HistoryRow({ program, onEdit }: HistoryRowProps) {
               )}
             </div>
             <div className="text-xs text-muted-foreground">
-              {formatDate(program.start_date)} → {formatDate(program.end_date)} ·{" "}
-              {durationLabel(program.start_date, program.end_date)} ·{" "}
+              {formatDate(program.start_date)} → {formatDate(program.end_date)}{" "}
+              · {durationLabel(program.start_date, program.end_date)} ·{" "}
               {program.day_count} days · {program.exercise_count} exercises
             </div>
           </div>

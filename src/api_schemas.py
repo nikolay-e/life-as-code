@@ -209,9 +209,7 @@ class ProgramExerciseInput(BaseModel):
     tempo: str | None = Field(None, max_length=20)
     notes: str | None = Field(None, max_length=2000)
 
-    @field_validator(
-        "target_rpe_min", "target_rpe_max", "target_weight_kg"
-    )
+    @field_validator("target_rpe_min", "target_rpe_max", "target_weight_kg")
     @classmethod
     def validate_finite(cls, v: float | None) -> float | None:
         return _check_finite(v)

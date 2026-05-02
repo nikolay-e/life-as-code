@@ -636,9 +636,7 @@ class WorkoutSet(Base):
             "user_id", "date", "exercise", "set_index", name="_user_workout_set_uc"
         ),
         Index("idx_workout_user_date", "user_id", "date"),
-        Index(
-            "idx_workout_user_template", "user_id", "exercise_template_id"
-        ),
+        Index("idx_workout_user_template", "user_id", "exercise_template_id"),
         CheckConstraint("weight_kg >= 0 OR weight_kg IS NULL", name="valid_weight_kg"),
         CheckConstraint("reps >= 0 OR reps IS NULL", name="valid_reps"),
         CheckConstraint(
@@ -1491,7 +1489,9 @@ class ExerciseTemplate(Base):
     user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
     hevy_template_id = Column(String(100), nullable=False)
     title = Column(String(200), nullable=False)
-    exercise_type = Column(String(50))  # weight_reps, reps_only, duration, distance, ...
+    exercise_type = Column(
+        String(50)
+    )  # weight_reps, reps_only, duration, distance, ...
     primary_muscle_group = Column(String(80))
     secondary_muscle_groups = Column(JSONB)  # list of strings
     equipment = Column(String(80))
@@ -1505,9 +1505,7 @@ class ExerciseTemplate(Base):
     )
 
     __table_args__ = (
-        UniqueConstraint(
-            "user_id", "hevy_template_id", name="_user_hevy_template_uc"
-        ),
+        UniqueConstraint("user_id", "hevy_template_id", name="_user_hevy_template_uc"),
         Index("idx_exercise_template_user_title", "user_id", "title"),
     )
 
@@ -1640,9 +1638,7 @@ class ProgramExercise(Base):
     template = relationship("ExerciseTemplate", back_populates="program_exercises")
 
     __table_args__ = (
-        UniqueConstraint(
-            "day_id", "exercise_order", name="_program_exercise_order_uc"
-        ),
+        UniqueConstraint("day_id", "exercise_order", name="_program_exercise_order_uc"),
         CheckConstraint(
             "target_sets IS NULL OR target_sets >= 0",
             name="valid_program_target_sets",

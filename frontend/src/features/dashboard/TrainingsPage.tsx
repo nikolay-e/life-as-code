@@ -797,13 +797,17 @@ export function TrainingsPage() {
           label="Workouts"
           icon={Dumbbell}
           active={tab === "log"}
-          onClick={() => { setTab("log"); }}
+          onClick={() => {
+            setTab("log");
+          }}
         />
         <TabButton
           label="Program"
           icon={ClipboardList}
           active={tab === "program"}
-          onClick={() => { setTab("program"); }}
+          onClick={() => {
+            setTab("program");
+          }}
         />
       </div>
 
@@ -898,9 +902,8 @@ function WorkoutLogTab() {
                     No workouts found
                   </h2>
                   <p className="text-muted-foreground">
-                    No workout data available for the selected period. Sync
-                    your Hevy, Garmin, or Whoop account to see your training
-                    history.
+                    No workout data available for the selected period. Sync your
+                    Hevy, Garmin, or Whoop account to see your training history.
                   </p>
                 </div>
               </CardContent>

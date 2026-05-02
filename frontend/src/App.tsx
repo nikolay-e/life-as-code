@@ -82,10 +82,7 @@ export default function App() {
                 <Route
                   path="/dashboard/programs"
                   element={
-                    <Navigate
-                      to="/dashboard/trainings?tab=program"
-                      replace
-                    />
+                    <Navigate to="/dashboard/trainings?tab=program" replace />
                   }
                 />
                 <Route
