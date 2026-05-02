@@ -394,21 +394,26 @@ def main() -> None:
         _run_extended_analysis(df, available, out_dir)
 
 
+def _row_flags(row: dict) -> list[str]:
+    flags = []
+    if row.get("eta_sq_weekday") is not None and row["eta_sq_weekday"] > 0.05:
+        flags.append("DOW dummy required (η²>0.05)")
+    if row.get("eta_sq_month") is not None and row["eta_sq_month"] > 0.03:
+        flags.append("month dummy required (η²>0.03)")
+    if row.get("stationarity") == "non_stationary":
+        flags.append("first-difference required")
+    if row.get("rho1") is not None and abs(row["rho1"]) > 0.3:
+        flags.append(f"prewhitening required (rho1={row['rho1']})")
+    power = row.get(POWER_R_SMALL_KEY, 0)
+    if power < 0.6:
+        flags.append(f"underpowered for r=0.10 (power={power:.2f})")
+    return flags
+
+
 def _print_decision_rules(report: pl.DataFrame) -> None:
     print("== Decision rules per H spec ==")
     for row in report.iter_rows(named=True):
-        flags = []
-        if row.get("eta_sq_weekday") is not None and row["eta_sq_weekday"] > 0.05:
-            flags.append("DOW dummy required (η²>0.05)")
-        if row.get("eta_sq_month") is not None and row["eta_sq_month"] > 0.03:
-            flags.append("month dummy required (η²>0.03)")
-        if row.get("stationarity") == "non_stationary":
-            flags.append("first-difference required")
-        if row.get("rho1") is not None and abs(row["rho1"]) > 0.3:
-            flags.append(f"prewhitening required (rho1={row['rho1']})")
-        power = row.get(POWER_R_SMALL_KEY, 0)
-        if power < 0.6:
-            flags.append(f"underpowered for r=0.10 (power={power:.2f})")
+        flags = _row_flags(row)
         if flags:
             print(f"  {row['metric']}: {' | '.join(flags)}")
 

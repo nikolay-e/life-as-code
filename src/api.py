@@ -175,9 +175,9 @@ def api_me():
 def sanitize_for_json(records: list[dict]) -> list[dict]:
     for record in records:
         for key, value in record.items():
-            if isinstance(value, float) and not math.isfinite(value):
-                record[key] = None
-            elif value is pd.NaT:
+            if (
+                isinstance(value, float) and not math.isfinite(value)
+            ) or value is pd.NaT:
                 record[key] = None
     return records
 

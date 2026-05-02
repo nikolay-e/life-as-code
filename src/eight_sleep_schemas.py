@@ -207,12 +207,15 @@ class EightSleepSessionData(BaseModel):
             return start, end
 
         session_starts, session_ends = cls._collect_session_timestamps(sessions)
-        return (
+        resolved_start = (
             start
             if start is not None
-            else (min(session_starts) if session_starts else None),
-            end if end is not None else (max(session_ends) if session_ends else None),
+            else (min(session_starts) if session_starts else None)
         )
+        resolved_end = (
+            end if end is not None else (max(session_ends) if session_ends else None)
+        )
+        return resolved_start, resolved_end
 
     @classmethod
     def from_api_response(cls, day: dict) -> "EightSleepSessionData | None":
