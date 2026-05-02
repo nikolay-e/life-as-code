@@ -1,3 +1,4 @@
+import base64
 from datetime import date
 
 from telegram import Update
@@ -208,3 +209,46 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception:
         logger.exception("handle_message_failed")
         await update.message.reply_text("Ошибка при обработке вопроса. Попробуй позже.")
+
+
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    config: BotConfig = context.bot_data["config"]
+    store: ConversationStore = context.bot_data["conversations"]
+    chat_id = update.effective_chat.id
+
+    if not update.message.photo:
+        return
+
+    await update.message.reply_chat_action("typing")
+    try:
+        photo = update.message.photo[-1]
+        tg_file = await context.bot.get_file(photo.file_id)
+        buf = await tg_file.download_as_bytearray()
+        encoded = base64.standard_b64encode(bytes(buf)).decode("ascii")
+        caption = (update.message.caption or "").strip()
+
+        content: list[dict] = [
+            {
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": "image/jpeg",
+                    "data": encoded,
+                },
+            },
+            {
+                "type": "text",
+                "text": caption
+                or "Что на фото? Если это связано со здоровьем — прокомментируй.",
+            },
+        ]
+
+        agent = _get_agent()
+        conversation = store.get(chat_id, user_id=config.db_user_id)
+        answer = agent.chat(config.db_user_id, content, conversation)
+        await send_markdown_safe(
+            update.message.reply_text, truncate_for_telegram(answer)
+        )
+    except Exception:
+        logger.exception("handle_photo_failed")
+        await update.message.reply_text("Ошибка при обработке фото. Попробуй позже.")

@@ -206,7 +206,12 @@ class HealthAgent:
         ]
         return self._run_tool_loop(user_id, messages, SYSTEM_PROMPT)
 
-    def chat(self, user_id: int, message: str, conversation: Conversation) -> str:
+    def chat(
+        self,
+        user_id: int,
+        message: str | list[dict[str, Any]],
+        conversation: Conversation,
+    ) -> str:
         if conversation.needs_context_refresh():
             context_summary = build_chat_context(user_id)
             conversation.add_user_message(f"[Health context update]\n{context_summary}")
