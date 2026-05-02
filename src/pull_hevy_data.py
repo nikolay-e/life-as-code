@@ -28,6 +28,10 @@ REQUEST_TIMEOUT = 30
 class HevyWorkoutData(BaseModel):
     date: datetime.date
     exercise: str
+    # Stable Hevy exercise template id (same id space as /v1/exercise_templates).
+    # Stored on every set so logged workouts can be reconciled with programmed
+    # exercises by id rather than by title.
+    exercise_template_id: str | None = None
     set_index: int = 0
     weight_kg: float | None = None
     reps: int | None = None
@@ -62,6 +66,10 @@ class HevyWorkoutData(BaseModel):
 
             for exercise in workout_data.get("exercises", []):
                 exercise_name = exercise.get("title", "Unknown Exercise")
+                template_id_raw = exercise.get("exercise_template_id")
+                template_id = (
+                    str(template_id_raw) if template_id_raw is not None else None
+                )
 
                 for set_data in exercise.get("sets", []):
                     try:
@@ -72,6 +80,7 @@ class HevyWorkoutData(BaseModel):
                         workout_set = cls(
                             date=workout_date,
                             exercise=exercise_name,
+                            exercise_template_id=template_id,
                             set_index=set_index,
                             weight_kg=set_data.get("weight_kg"),
                             reps=cls._validate_reps(set_data.get("reps")),

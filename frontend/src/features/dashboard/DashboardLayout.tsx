@@ -17,7 +17,6 @@ import {
   Check,
   Loader2,
   Dumbbell,
-  ClipboardList,
   Moon,
   Pill,
 } from "lucide-react";
@@ -44,12 +43,6 @@ const navItems = [
     to: "/dashboard/trainings",
     icon: Dumbbell,
     label: "Trainings",
-    end: false,
-  },
-  {
-    to: "/dashboard/programs",
-    icon: ClipboardList,
-    label: "Programs",
     end: false,
   },
   {

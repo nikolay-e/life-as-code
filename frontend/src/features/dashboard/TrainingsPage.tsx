@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useDetailedWorkouts } from "../../hooks/useDetailedWorkouts";
 import { useHealthData } from "../../hooks/useHealthData";
 import { useRacePredictions } from "../../hooks/useRacePredictions";
@@ -22,8 +23,11 @@ import {
   Timer,
   ArrowUp,
   ArrowDown,
+  ClipboardList,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
+import { ProgramsPanel } from "./programs/ProgramsPage";
+import { cn } from "../../lib/utils";
 import type {
   WorkoutExerciseDetail,
   WhoopWorkoutData,
@@ -747,7 +751,95 @@ function DailyTrainingCard({ day }: DailyTrainingCardProps) {
   );
 }
 
+type TrainingsTab = "log" | "program";
+
+function isTrainingsTab(v: string | null): v is TrainingsTab {
+  return v === "log" || v === "program";
+}
+
 export function TrainingsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const tab: TrainingsTab = isTrainingsTab(tabParam) ? tabParam : "log";
+
+  const setTab = (next: TrainingsTab) => {
+    setSearchParams(
+      (prev) => {
+        const updated = new URLSearchParams(prev);
+        if (next === "log") {
+          updated.delete("tab");
+        } else {
+          updated.set("tab", next);
+        }
+        return updated;
+      },
+      { replace: true },
+    );
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Trainings</h1>
+        <p className="text-muted-foreground mt-1">
+          {tab === "log"
+            ? "Detailed workout log from Hevy, Garmin, and Whoop"
+            : "Plan that drives your strength logs — references the Hevy exercise library"}
+        </p>
+      </div>
+
+      <div
+        role="tablist"
+        aria-label="Trainings sections"
+        className="inline-flex items-center gap-1 p-1 bg-muted/50 rounded-lg"
+      >
+        <TabButton
+          label="Workouts"
+          icon={Dumbbell}
+          active={tab === "log"}
+          onClick={() => { setTab("log"); }}
+        />
+        <TabButton
+          label="Program"
+          icon={ClipboardList}
+          active={tab === "program"}
+          onClick={() => { setTab("program"); }}
+        />
+      </div>
+
+      {tab === "log" ? <WorkoutLogTab /> : <ProgramsPanel />}
+    </div>
+  );
+}
+
+interface TabButtonProps {
+  readonly label: string;
+  readonly icon: React.ComponentType<{ className?: string }>;
+  readonly active: boolean;
+  readonly onClick: () => void;
+}
+
+function TabButton({ label, icon: Icon, active, onClick }: TabButtonProps) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
+        active
+          ? "bg-background text-foreground shadow-sm"
+          : "text-muted-foreground hover:text-foreground",
+      )}
+    >
+      <Icon className="h-4 w-4" />
+      {label}
+    </button>
+  );
+}
+
+function WorkoutLogTab() {
   const [periodDays, setPeriodDays] = useState<PeriodDays>(30);
 
   const {
@@ -774,65 +866,47 @@ export function TrainingsPage() {
     );
   }
 
-  if (isLoading) {
-    return (
-      <div className="space-y-8">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Trainings</h1>
-            <p className="text-muted-foreground mt-1">
-              Detailed workout log from Hevy, Garmin, and Whoop
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <PeriodSelector period={periodDays} setPeriod={setPeriodDays} />
-          </div>
-        </div>
-        <LoadingState message="Loading workouts..." />
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Trainings</h1>
-          <p className="text-muted-foreground mt-1">
-            Detailed workout log from Hevy, Garmin, and Whoop
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          {(isFetching || healthFetching) && (
-            <Loader2 className="h-4 w-4 animate-spin text-primary" />
-          )}
-          <PeriodSelector period={periodDays} setPeriod={setPeriodDays} />
-        </div>
+    <div className="space-y-6">
+      <div className="flex items-center justify-end gap-3">
+        {(isFetching || healthFetching) && (
+          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+        )}
+        <PeriodSelector period={periodDays} setPeriod={setPeriodDays} />
       </div>
 
-      {racePredictions && racePredictions.length > 0 && (
-        <RacePredictionsSection predictions={racePredictions} />
-      )}
-
-      {dailyTrainings.length > 0 ? (
-        <div className="space-y-4">
-          {dailyTrainings.map((day) => (
-            <DailyTrainingCard key={day.date} day={day} />
-          ))}
-        </div>
+      {isLoading ? (
+        <LoadingState message="Loading workouts..." />
       ) : (
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center py-8">
-              <Dumbbell className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h2 className="text-lg font-medium mb-2">No workouts found</h2>
-              <p className="text-muted-foreground">
-                No workout data available for the selected period. Sync your
-                Hevy, Garmin, or Whoop account to see your training history.
-              </p>
+        <>
+          {racePredictions && racePredictions.length > 0 && (
+            <RacePredictionsSection predictions={racePredictions} />
+          )}
+
+          {dailyTrainings.length > 0 ? (
+            <div className="space-y-4">
+              {dailyTrainings.map((day) => (
+                <DailyTrainingCard key={day.date} day={day} />
+              ))}
             </div>
-          </CardContent>
-        </Card>
+          ) : (
+            <Card>
+              <CardContent className="pt-6">
+                <div className="text-center py-8">
+                  <Dumbbell className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <h2 className="text-lg font-medium mb-2">
+                    No workouts found
+                  </h2>
+                  <p className="text-muted-foreground">
+                    No workout data available for the selected period. Sync
+                    your Hevy, Garmin, or Whoop account to see your training
+                    history.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
       )}
     </div>
   );

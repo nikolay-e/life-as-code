@@ -611,6 +611,10 @@ class WorkoutSet(Base):
     user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
     date = Column(Date, nullable=False, index=True)
     exercise = Column(String(200), nullable=False)
+    # Hevy's stable exercise template id (matches ExerciseTemplate.hevy_template_id).
+    # Captured at sync time so logged sets can be matched to programmed exercises
+    # by id rather than by title — robust against renames and translations.
+    exercise_template_id = Column(String(100), index=True)
     set_index = Column(Integer, nullable=False, default=0)
     weight_kg = Column(Float)
     reps = Column(Integer)
@@ -629,6 +633,9 @@ class WorkoutSet(Base):
             "user_id", "date", "exercise", "set_index", name="_user_workout_set_uc"
         ),
         Index("idx_workout_user_date", "user_id", "date"),
+        Index(
+            "idx_workout_user_template", "user_id", "exercise_template_id"
+        ),
         CheckConstraint("weight_kg >= 0 OR weight_kg IS NULL", name="valid_weight_kg"),
         CheckConstraint("reps >= 0 OR reps IS NULL", name="valid_reps"),
         CheckConstraint(

@@ -99,7 +99,12 @@ function rpeLabel(ex: ProgramExerciseData): string {
   return `RPE ${String(v)}`;
 }
 
-export function ProgramsPage() {
+/**
+ * Programs panel — designed to be embedded as a tab inside TrainingsPage.
+ * Renders no page-level header; lifts a single "New program" CTA into the
+ * panel itself and falls back to the editor view when create/edit is active.
+ */
+export function ProgramsPanel() {
   const [mode, setMode] = useState<Mode>({ kind: "view" });
   const activeQuery = useActiveWorkoutProgram();
   const listQuery = useWorkoutPrograms();
@@ -134,16 +139,11 @@ export function ProgramsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Workout Programs
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Plan a mesocycle, run it, swap to the next one. History is kept.
-          </p>
-        </div>
-        <Button onClick={() => { setMode({ kind: "create" }); }}>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <p className="text-sm text-muted-foreground">
+          Plan a mesocycle, run it, swap to the next one. History is kept.
+        </p>
+        <Button onClick={() => { setMode({ kind: "create" }); }} size="sm">
           <Plus className="h-4 w-4 mr-1" />
           New program
         </Button>

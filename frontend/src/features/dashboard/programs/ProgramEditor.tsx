@@ -1,5 +1,7 @@
 import {
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type ChangeEvent,
   type FormEvent,
@@ -759,8 +761,30 @@ function ExerciseTemplatePicker({
     }
   };
 
+  // Auto-pull the Hevy catalog the first time the picker opens with an empty
+  // cache. Saves a manual "Sync from Hevy" click on first use, so the user
+  // sees Hevy's exercise list immediately when picking.
+  const autoSyncTriggered = useRef(false);
   const isEmpty = !isLoading && !isError && (data?.length ?? 0) === 0;
-  const showSyncHint = isEmpty && !q && !muscle && !equipment;
+  const isUnfiltered = !q && !muscle && !equipment;
+  useEffect(() => {
+    if (
+      !autoSyncTriggered.current &&
+      isEmpty &&
+      isUnfiltered &&
+      !syncMutation.isPending
+    ) {
+      autoSyncTriggered.current = true;
+      syncMutation.mutate(undefined, {
+        onError: () => {
+          // Keep the manual sync button available; user can retry.
+          autoSyncTriggered.current = false;
+        },
+      });
+    }
+  }, [isEmpty, isUnfiltered, syncMutation]);
+
+  const showSyncHint = isEmpty && isUnfiltered && !syncMutation.isPending;
 
   const muscles = useMemo(() => {
     const set = new Set<string>();
