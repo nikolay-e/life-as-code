@@ -273,9 +273,7 @@ def _serialize_workouts_df(df) -> list[dict]:
 
 def _serialize_generic_df(df) -> list[dict]:
     df["date"] = df["date"].astype(str)
-    for col in df.select_dtypes(
-        include=["datetime64[ns]", "datetime64[us]", "datetimetz"]
-    ).columns:
+    for col in df.select_dtypes(include=["datetime64", "datetimetz"]).columns:
         df[col] = df[col].apply(lambda x: x.isoformat() if pd.notna(x) else None)
     return sanitize_for_json(df.to_dict(orient="records"))
 
@@ -1418,12 +1416,8 @@ def _serialize_program(program: WorkoutProgram, *, include_days: bool = True) ->
         "archived_at": (
             program.archived_at.isoformat() if program.archived_at else None
         ),
-        "created_at": (
-            program.created_at.isoformat() if program.created_at else None
-        ),
-        "updated_at": (
-            program.updated_at.isoformat() if program.updated_at else None
-        ),
+        "created_at": (program.created_at.isoformat() if program.created_at else None),
+        "updated_at": (program.updated_at.isoformat() if program.updated_at else None),
         "day_count": len(program.days),
         "exercise_count": total_exercises,
     }
@@ -1432,9 +1426,7 @@ def _serialize_program(program: WorkoutProgram, *, include_days: bool = True) ->
     return base
 
 
-def _validate_template_ids(
-    db, user_id: int, template_ids: set[int]
-) -> set[int]:
+def _validate_template_ids(db, user_id: int, template_ids: set[int]) -> set[int]:
     """Confirm every template_id referenced belongs to the user. Returns the
     set of valid IDs; unknown IDs are silently dropped (FK is nullable, so we
     just null them out to keep the program saveable)."""
@@ -1531,9 +1523,7 @@ def api_list_programs():
 def api_get_active_program():
     with get_db_session_context() as db:
         row = db.scalars(
-            select(WorkoutProgram).filter_by(
-                user_id=current_user.id, is_active=True
-            )
+            select(WorkoutProgram).filter_by(user_id=current_user.id, is_active=True)
         ).first()
         if not row:
             return jsonify(None)
@@ -1545,9 +1535,7 @@ def api_get_active_program():
 def api_get_program(program_id: int):
     with get_db_session_context() as db:
         row = db.scalars(
-            select(WorkoutProgram).filter_by(
-                id=program_id, user_id=current_user.id
-            )
+            select(WorkoutProgram).filter_by(id=program_id, user_id=current_user.id)
         ).first()
         if not row:
             raise NotFoundError("Workout program")
@@ -1577,9 +1565,7 @@ def api_create_program():
             for ex in d.exercises
             if ex.template_id is not None
         }
-        valid_template_ids = _validate_template_ids(
-            db, current_user.id, template_ids
-        )
+        valid_template_ids = _validate_template_ids(db, current_user.id, template_ids)
         _materialize_days(db, program, body.days, valid_template_ids)
 
         if body.activate:
@@ -1599,9 +1585,7 @@ def api_update_program(program_id: int):
 
     with get_db_session_context() as db:
         program = db.scalars(
-            select(WorkoutProgram).filter_by(
-                id=program_id, user_id=current_user.id
-            )
+            select(WorkoutProgram).filter_by(id=program_id, user_id=current_user.id)
         ).first()
         if not program:
             raise NotFoundError("Workout program")
@@ -1637,9 +1621,7 @@ def api_activate_program(program_id: int):
     """Make a program active. Auto-archives any other active program."""
     with get_db_session_context() as db:
         program = db.scalars(
-            select(WorkoutProgram).filter_by(
-                id=program_id, user_id=current_user.id
-            )
+            select(WorkoutProgram).filter_by(id=program_id, user_id=current_user.id)
         ).first()
         if not program:
             raise NotFoundError("Workout program")
@@ -1661,9 +1643,7 @@ def api_archive_program(program_id: int):
     """Mark a program as ended. Sets end_date to today if not already set."""
     with get_db_session_context() as db:
         program = db.scalars(
-            select(WorkoutProgram).filter_by(
-                id=program_id, user_id=current_user.id
-            )
+            select(WorkoutProgram).filter_by(id=program_id, user_id=current_user.id)
         ).first()
         if not program:
             raise NotFoundError("Workout program")
@@ -1683,9 +1663,7 @@ def api_archive_program(program_id: int):
 def api_delete_program(program_id: int):
     with get_db_session_context() as db:
         program = db.scalars(
-            select(WorkoutProgram).filter_by(
-                id=program_id, user_id=current_user.id
-            )
+            select(WorkoutProgram).filter_by(id=program_id, user_id=current_user.id)
         ).first()
         if not program:
             raise NotFoundError("Workout program")
@@ -1733,9 +1711,7 @@ def api_list_exercise_templates():
             query = query.filter(ExerciseTemplate.equipment.ilike(f"%{equipment}%"))
         query = query.order_by(ExerciseTemplate.title.asc()).limit(limit)
         rows = db.scalars(query).all()
-        return jsonify(
-            [_serialize_model(r, EXERCISE_TEMPLATE_FIELDS) for r in rows]
-        )
+        return jsonify([_serialize_model(r, EXERCISE_TEMPLATE_FIELDS) for r in rows])
 
 
 @api.route("/exercise-templates/sync", methods=["POST"])
