@@ -18,6 +18,7 @@ from bot.commands import (
     cmd_status,
     cmd_week,
     handle_message,
+    handle_photo,
 )
 from bot.config import BotConfig
 from bot.scheduler import schedule_push_notifications
@@ -60,6 +61,12 @@ def create_bot(config: BotConfig | None = None) -> Application:
         MessageHandler(
             filters.TEXT & ~filters.COMMAND,
             auth_required(handle_message),
+        )
+    )
+    app.add_handler(
+        MessageHandler(
+            filters.PHOTO,
+            auth_required(handle_photo),
         )
     )
 

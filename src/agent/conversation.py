@@ -26,16 +26,16 @@ class Conversation:
 
     def add_user_message(
         self,
-        text: str,
+        content: Any,
         *,
         source: str = "chat",
         telegram_message_id: int | None = None,
     ) -> None:
-        self.messages.append({"role": "user", "content": text})
+        self.messages.append({"role": "user", "content": content})
         self._trim()
         self._persist(
             "user",
-            text,
+            content,
             source=source,
             telegram_message_id=telegram_message_id,
         )

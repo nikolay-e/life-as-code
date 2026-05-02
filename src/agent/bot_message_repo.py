@@ -31,6 +31,8 @@ def _flatten_dict_block(block: dict[str, Any]) -> str | None:
     if block_type == "text":
         text = block.get("text")
         return text or None
+    if block_type == "image":
+        return "[image]"
     if block_type == "tool_use":
         return f"[tool_use:{block.get('name', '?')}]"
     if block_type == "tool_result":
@@ -120,9 +122,30 @@ def _is_replayable(role: str, content: Any) -> bool:
         return True
     if isinstance(content, list):
         if role == "user":
-            return False
+            return all(
+                isinstance(b, dict) and b.get("type") in ("text", "image")
+                for b in content
+            )
         return all(isinstance(b, dict) and b.get("type") == "text" for b in content)
     return False
+
+
+def _strip_image_blocks(content: Any) -> Any:
+    """Replace image blocks with text placeholders when reloading history.
+
+    Keeps token usage bounded across bot restarts — the visual data only
+    matters for the turn it arrived in; afterwards a marker is enough to
+    keep the conversation coherent.
+    """
+    if not isinstance(content, list):
+        return content
+    sanitized: list[Any] = []
+    for block in content:
+        if isinstance(block, dict) and block.get("type") == "image":
+            sanitized.append({"type": "text", "text": "[прикреплённое фото]"})
+        else:
+            sanitized.append(block)
+    return sanitized
 
 
 def load_recent_messages(
@@ -143,7 +166,7 @@ def load_recent_messages(
         )
     rows = list(reversed(rows))
     replayable = [
-        {"role": role, "content": content}
+        {"role": role, "content": _strip_image_blocks(content)}
         for role, content in rows
         if _is_replayable(role, content)
     ]
