@@ -29,6 +29,8 @@ from api_schemas import (
     LoginRequest,
     ProfileUpdate,
     ThresholdSettings,
+    WorkoutProgramCreate,
+    WorkoutProgramUpdate,
 )
 from data_loaders import (
     get_detailed_workout_data,
@@ -54,14 +56,19 @@ from models import (
     BloodBiomarker,
     ClinicalAlertEvent,
     DataSync,
+    ExerciseTemplate,
     FunctionalTest,
     GarminRacePrediction,
     Intervention,
     LongevityGoal,
+    ProgramDay,
+    ProgramExercise,
     User,
     UserCredentials,
     UserSettings,
+    WorkoutProgram,
 )
+from pull_hevy_data import sync_hevy_exercise_templates_for_user
 from pull_whoop_data import refresh_whoop_token_for_user
 from routes import UserModel
 from security import encrypt_data_for_user, verify_password
@@ -1360,3 +1367,378 @@ def api_update_clinical_alert_status(alert_id: int):
             row.resolved_at = now
         db.commit()
         return jsonify(_serialize_model(row, CLINICAL_ALERT_FIELDS))
+
+
+# ----------------------------- Workout Programs -----------------------------
+
+
+def _serialize_program_exercise(ex: ProgramExercise) -> dict:
+    return {
+        "id": ex.id,
+        "exercise_order": ex.exercise_order,
+        "exercise_title": ex.exercise_title,
+        "template_id": ex.template_id,
+        "target_sets": ex.target_sets,
+        "target_reps_min": ex.target_reps_min,
+        "target_reps_max": ex.target_reps_max,
+        "target_rpe_min": ex.target_rpe_min,
+        "target_rpe_max": ex.target_rpe_max,
+        "target_weight_kg": ex.target_weight_kg,
+        "rest_seconds": ex.rest_seconds,
+        "tempo": ex.tempo,
+        "notes": ex.notes,
+    }
+
+
+def _serialize_program_day(day: ProgramDay) -> dict:
+    return {
+        "id": day.id,
+        "day_order": day.day_order,
+        "name": day.name,
+        "focus": day.focus,
+        "notes": day.notes,
+        "exercises": [_serialize_program_exercise(e) for e in day.exercises],
+    }
+
+
+def _serialize_program(program: WorkoutProgram, *, include_days: bool = True) -> dict:
+    total_exercises = sum(len(d.exercises) for d in program.days)
+    base = {
+        "id": program.id,
+        "name": program.name,
+        "description": program.description,
+        "goal": program.goal,
+        "start_date": program.start_date.isoformat() if program.start_date else None,
+        "end_date": program.end_date.isoformat() if program.end_date else None,
+        "is_active": program.is_active,
+        "archived_at": (
+            program.archived_at.isoformat() if program.archived_at else None
+        ),
+        "created_at": (
+            program.created_at.isoformat() if program.created_at else None
+        ),
+        "updated_at": (
+            program.updated_at.isoformat() if program.updated_at else None
+        ),
+        "day_count": len(program.days),
+        "exercise_count": total_exercises,
+    }
+    if include_days:
+        base["days"] = [_serialize_program_day(d) for d in program.days]
+    return base
+
+
+def _validate_template_ids(
+    db, user_id: int, template_ids: set[int]
+) -> set[int]:
+    """Confirm every template_id referenced belongs to the user. Returns the
+    set of valid IDs; unknown IDs are silently dropped (FK is nullable, so we
+    just null them out to keep the program saveable)."""
+    if not template_ids:
+        return set()
+    rows = db.scalars(
+        select(ExerciseTemplate.id).filter(
+            ExerciseTemplate.user_id == user_id,
+            ExerciseTemplate.id.in_(template_ids),
+        )
+    ).all()
+    return set(rows)
+
+
+def _materialize_days(
+    db,
+    program: WorkoutProgram,
+    days_input: list,
+    valid_template_ids: set[int],
+) -> None:
+    """Create ProgramDay + ProgramExercise rows from validated inputs.
+    The caller is responsible for clearing existing days first when updating.
+    """
+    for day_in in days_input:
+        day = ProgramDay(
+            program_id=program.id,
+            day_order=day_in.day_order,
+            name=day_in.name,
+            focus=day_in.focus,
+            notes=day_in.notes,
+        )
+        db.add(day)
+        db.flush()  # need day.id before adding exercises
+        for ex_in in day_in.exercises:
+            template_id = ex_in.template_id
+            if template_id is not None and template_id not in valid_template_ids:
+                template_id = None
+            db.add(
+                ProgramExercise(
+                    day_id=day.id,
+                    template_id=template_id,
+                    exercise_order=ex_in.exercise_order,
+                    exercise_title=ex_in.exercise_title,
+                    target_sets=ex_in.target_sets,
+                    target_reps_min=ex_in.target_reps_min,
+                    target_reps_max=ex_in.target_reps_max,
+                    target_rpe_min=ex_in.target_rpe_min,
+                    target_rpe_max=ex_in.target_rpe_max,
+                    target_weight_kg=ex_in.target_weight_kg,
+                    rest_seconds=ex_in.rest_seconds,
+                    tempo=ex_in.tempo,
+                    notes=ex_in.notes,
+                )
+            )
+
+
+def _deactivate_other_programs(db, user_id: int, except_id: int | None) -> None:
+    query = select(WorkoutProgram).filter(
+        WorkoutProgram.user_id == user_id,
+        WorkoutProgram.is_active.is_(True),
+    )
+    if except_id is not None:
+        query = query.filter(WorkoutProgram.id != except_id)
+    others = db.scalars(query).all()
+    now = utcnow()
+    for other in others:
+        other.is_active = False
+        if other.archived_at is None:
+            other.archived_at = now
+        if other.end_date is None:
+            other.end_date = now.date()
+
+
+@api.route("/programs", methods=["GET"])
+@login_required
+def api_list_programs():
+    """List all programs for the current user, newest first."""
+    with get_db_session_context() as db:
+        rows = db.scalars(
+            select(WorkoutProgram)
+            .filter_by(user_id=current_user.id)
+            .order_by(
+                WorkoutProgram.is_active.desc(),
+                WorkoutProgram.start_date.desc(),
+                WorkoutProgram.id.desc(),
+            )
+        ).all()
+        # Lightweight summary for the list view; days fetched per-detail.
+        return jsonify([_serialize_program(p, include_days=False) for p in rows])
+
+
+@api.route("/programs/active", methods=["GET"])
+@login_required
+def api_get_active_program():
+    with get_db_session_context() as db:
+        row = db.scalars(
+            select(WorkoutProgram).filter_by(
+                user_id=current_user.id, is_active=True
+            )
+        ).first()
+        if not row:
+            return jsonify(None)
+        return jsonify(_serialize_program(row, include_days=True))
+
+
+@api.route("/programs/<int:program_id>", methods=["GET"])
+@login_required
+def api_get_program(program_id: int):
+    with get_db_session_context() as db:
+        row = db.scalars(
+            select(WorkoutProgram).filter_by(
+                id=program_id, user_id=current_user.id
+            )
+        ).first()
+        if not row:
+            raise NotFoundError("Workout program")
+        return jsonify(_serialize_program(row, include_days=True))
+
+
+@api.route("/programs", methods=["POST"])
+@login_required
+def api_create_program():
+    body = _parse_body(WorkoutProgramCreate)
+
+    with get_db_session_context() as db:
+        program = WorkoutProgram(
+            user_id=current_user.id,
+            name=body.name,
+            description=body.description,
+            goal=body.goal,
+            start_date=body.start_date,
+            is_active=False,  # set after deactivating others
+        )
+        db.add(program)
+        db.flush()
+
+        template_ids = {
+            ex.template_id
+            for d in body.days
+            for ex in d.exercises
+            if ex.template_id is not None
+        }
+        valid_template_ids = _validate_template_ids(
+            db, current_user.id, template_ids
+        )
+        _materialize_days(db, program, body.days, valid_template_ids)
+
+        if body.activate:
+            _deactivate_other_programs(db, current_user.id, except_id=program.id)
+            db.flush()
+            program.is_active = True
+
+        db.commit()
+        db.refresh(program)
+        return jsonify(_serialize_program(program, include_days=True)), 201
+
+
+@api.route("/programs/<int:program_id>", methods=["PUT"])
+@login_required
+def api_update_program(program_id: int):
+    body = _parse_body(WorkoutProgramUpdate)
+
+    with get_db_session_context() as db:
+        program = db.scalars(
+            select(WorkoutProgram).filter_by(
+                id=program_id, user_id=current_user.id
+            )
+        ).first()
+        if not program:
+            raise NotFoundError("Workout program")
+
+        for field in ("name", "description", "goal", "start_date", "end_date"):
+            if field in body.model_fields_set:
+                setattr(program, field, getattr(body, field))
+
+        if body.days is not None:
+            # Replace day/exercise structure wholesale.
+            for d in list(program.days):
+                db.delete(d)
+            db.flush()
+            template_ids = {
+                ex.template_id
+                for d in body.days
+                for ex in d.exercises
+                if ex.template_id is not None
+            }
+            valid_template_ids = _validate_template_ids(
+                db, current_user.id, template_ids
+            )
+            _materialize_days(db, program, body.days, valid_template_ids)
+
+        db.commit()
+        db.refresh(program)
+        return jsonify(_serialize_program(program, include_days=True))
+
+
+@api.route("/programs/<int:program_id>/activate", methods=["POST"])
+@login_required
+def api_activate_program(program_id: int):
+    """Make a program active. Auto-archives any other active program."""
+    with get_db_session_context() as db:
+        program = db.scalars(
+            select(WorkoutProgram).filter_by(
+                id=program_id, user_id=current_user.id
+            )
+        ).first()
+        if not program:
+            raise NotFoundError("Workout program")
+
+        _deactivate_other_programs(db, current_user.id, except_id=program.id)
+        db.flush()
+        program.is_active = True
+        program.archived_at = None
+        # Reopen end_date if it was previously closed
+        program.end_date = None
+        db.commit()
+        db.refresh(program)
+        return jsonify(_serialize_program(program, include_days=True))
+
+
+@api.route("/programs/<int:program_id>/archive", methods=["POST"])
+@login_required
+def api_archive_program(program_id: int):
+    """Mark a program as ended. Sets end_date to today if not already set."""
+    with get_db_session_context() as db:
+        program = db.scalars(
+            select(WorkoutProgram).filter_by(
+                id=program_id, user_id=current_user.id
+            )
+        ).first()
+        if not program:
+            raise NotFoundError("Workout program")
+        program.is_active = False
+        now = utcnow()
+        if program.archived_at is None:
+            program.archived_at = now
+        if program.end_date is None:
+            program.end_date = now.date()
+        db.commit()
+        db.refresh(program)
+        return jsonify(_serialize_program(program, include_days=True))
+
+
+@api.route("/programs/<int:program_id>", methods=["DELETE"])
+@login_required
+def api_delete_program(program_id: int):
+    with get_db_session_context() as db:
+        program = db.scalars(
+            select(WorkoutProgram).filter_by(
+                id=program_id, user_id=current_user.id
+            )
+        ).first()
+        if not program:
+            raise NotFoundError("Workout program")
+        db.delete(program)
+        db.commit()
+        return jsonify({"deleted": True})
+
+
+# ----------------------------- Exercise Catalog -----------------------------
+
+
+EXERCISE_TEMPLATE_FIELDS = [
+    "id",
+    "hevy_template_id",
+    "title",
+    "exercise_type",
+    "primary_muscle_group",
+    "secondary_muscle_groups",
+    "equipment",
+    "is_custom",
+]
+
+
+@api.route("/exercise-templates", methods=["GET"])
+@login_required
+def api_list_exercise_templates():
+    """Search-friendly list of cached Hevy exercise templates."""
+    q = (request.args.get("q") or "").strip()
+    muscle = (request.args.get("muscle") or "").strip()
+    equipment = (request.args.get("equipment") or "").strip()
+    try:
+        limit = max(1, min(int(request.args.get("limit", "200")), 500))
+    except ValueError:
+        limit = 200
+
+    with get_db_session_context() as db:
+        query = select(ExerciseTemplate).filter_by(user_id=current_user.id)
+        if q:
+            query = query.filter(ExerciseTemplate.title.ilike(f"%{q}%"))
+        if muscle:
+            query = query.filter(
+                ExerciseTemplate.primary_muscle_group.ilike(f"%{muscle}%")
+            )
+        if equipment:
+            query = query.filter(ExerciseTemplate.equipment.ilike(f"%{equipment}%"))
+        query = query.order_by(ExerciseTemplate.title.asc()).limit(limit)
+        rows = db.scalars(query).all()
+        return jsonify(
+            [_serialize_model(r, EXERCISE_TEMPLATE_FIELDS) for r in rows]
+        )
+
+
+@api.route("/exercise-templates/sync", methods=["POST"])
+@login_required
+def api_sync_exercise_templates():
+    """Pull the latest Hevy exercise template catalog for this user."""
+    result = sync_hevy_exercise_templates_for_user(current_user.id)
+    if result.get("error"):
+        return jsonify(result), 400
+    return jsonify(result)

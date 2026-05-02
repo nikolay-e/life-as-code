@@ -44,3 +44,12 @@ export const clinicalAlertsKeys = {
   list: (status?: string) =>
     [...clinicalAlertsKeys.all, status ?? "all"] as const,
 };
+
+export const programKeys = {
+  all: ["programs"] as const,
+  list: () => [...programKeys.all, "list"] as const,
+  active: () => [...programKeys.all, "active"] as const,
+  detail: (id: number) => [...programKeys.all, "detail", id] as const,
+  templates: (q: string, muscle: string, equipment: string) =>
+    [...programKeys.all, "templates", q, muscle, equipment] as const,
+};

@@ -184,3 +184,85 @@ class GoalUpdate(BaseModel):
 
 class ClinicalAlertStatusUpdate(BaseModel):
     status: Literal["open", "acknowledged", "resolved"]
+
+
+# ----------------------------- Workout Programs -----------------------------
+
+
+class ProgramExerciseInput(BaseModel):
+    """One exercise prescription inside a program day.
+
+    Either provide a `template_id` (cached Hevy template) or just a free-text
+    `exercise_title`. `template_id` is preferred so logged sets can be matched.
+    """
+
+    exercise_order: int = Field(ge=0, le=200)
+    exercise_title: str = Field(min_length=1, max_length=200)
+    template_id: int | None = None
+    target_sets: int | None = Field(None, ge=0, le=100)
+    target_reps_min: int | None = Field(None, ge=0, le=1000)
+    target_reps_max: int | None = Field(None, ge=0, le=1000)
+    target_rpe_min: float | None = Field(None, ge=1, le=10)
+    target_rpe_max: float | None = Field(None, ge=1, le=10)
+    target_weight_kg: float | None = Field(None, ge=0, le=2000)
+    rest_seconds: int | None = Field(None, ge=0, le=86400)
+    tempo: str | None = Field(None, max_length=20)
+    notes: str | None = Field(None, max_length=2000)
+
+    @field_validator(
+        "target_rpe_min", "target_rpe_max", "target_weight_kg"
+    )
+    @classmethod
+    def validate_finite(cls, v: float | None) -> float | None:
+        return _check_finite(v)
+
+
+class ProgramDayInput(BaseModel):
+    day_order: int = Field(ge=0, le=50)
+    name: str = Field(min_length=1, max_length=120)
+    focus: str | None = Field(None, max_length=200)
+    notes: str | None = Field(None, max_length=2000)
+    exercises: list[ProgramExerciseInput] = Field(default_factory=list)
+
+
+class WorkoutProgramCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    description: str | None = Field(None, max_length=4000)
+    goal: (
+        Literal[
+            "hypertrophy",
+            "strength",
+            "peaking",
+            "recomp",
+            "conditioning",
+            "endurance",
+            "general",
+        ]
+        | None
+    ) = None
+    start_date: date
+    activate: bool = True
+    days: list[ProgramDayInput] = Field(default_factory=list)
+
+
+class WorkoutProgramUpdate(BaseModel):
+    """Replace-style update: when `days` is provided, the existing day/exercise
+    rows are wiped and rewritten. Top-level fields are partial."""
+
+    name: str | None = Field(None, min_length=1, max_length=200)
+    description: str | None = Field(None, max_length=4000)
+    goal: (
+        Literal[
+            "hypertrophy",
+            "strength",
+            "peaking",
+            "recomp",
+            "conditioning",
+            "endurance",
+            "general",
+        ]
+        | None
+    ) = None
+    start_date: date | None = None
+    end_date: date | None = None
+    days: list[ProgramDayInput] | None = None
