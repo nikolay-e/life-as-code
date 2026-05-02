@@ -1,6 +1,6 @@
 """Add exercise_template_id to workout_sets
 
-Revision ID: 029_workout_set_exercise_template
+Revision ID: 029_wset_tmpl_id
 Revises: 028_workout_programs
 Create Date: 2026-05-02
 
@@ -25,7 +25,7 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "029_workout_set_exercise_template"
+revision: str = "029_wset_tmpl_id"
 down_revision: str | None = "028_workout_programs"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
