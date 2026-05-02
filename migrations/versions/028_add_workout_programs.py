@@ -28,6 +28,7 @@ from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects.postgresql import JSONB
 
 revision: str = "028_workout_programs"
 down_revision: str | None = "027_sleep_start_end_times"
@@ -50,7 +51,7 @@ def upgrade() -> None:
         sa.Column("title", sa.String(200), nullable=False),
         sa.Column("exercise_type", sa.String(50)),
         sa.Column("primary_muscle_group", sa.String(80)),
-        sa.Column("secondary_muscle_groups", sa.dialects.postgresql.JSONB()),
+        sa.Column("secondary_muscle_groups", JSONB()),
         sa.Column("equipment", sa.String(80)),
         sa.Column(
             "is_custom",
