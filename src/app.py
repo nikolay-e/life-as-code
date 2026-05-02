@@ -274,7 +274,7 @@ def ratelimit_handler(error):
 register_routes(server, limiter)
 
 # Register API blueprint for React frontend
-server.register_blueprint(api)
+server.register_blueprint(api, url_prefix="/api")
 csrf.exempt(api)
 
 # Export app for gunicorn
