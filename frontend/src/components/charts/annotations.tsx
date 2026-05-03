@@ -1,8 +1,4 @@
-import type {
-  HealthEventData,
-  InterventionData,
-  ProtocolData,
-} from "../../types/api";
+import type { HealthEventData, ProtocolData } from "../../types/api";
 
 export type AnnotationDomain =
   | "substance"
@@ -20,9 +16,7 @@ export type AnnotationDomain =
   | "other"
   | "protocol";
 
-export type AnnotationCategory =
-  | InterventionData["category"]
-  | AnnotationDomain;
+export type AnnotationCategory = AnnotationDomain;
 
 export interface ChartAnnotation {
   readonly id: string | number;
@@ -76,18 +70,5 @@ export function protocolsToAnnotations(
     endDate: p.end_date,
     label: p.name,
     category: p.domain,
-  }));
-}
-
-export function interventionsToAnnotations(
-  interventions: readonly InterventionData[] | undefined,
-): readonly ChartAnnotation[] {
-  if (!interventions?.length) return [];
-  return interventions.map((i) => ({
-    id: i.id,
-    startDate: i.start_date,
-    endDate: i.end_date,
-    label: i.name,
-    category: i.category,
   }));
 }

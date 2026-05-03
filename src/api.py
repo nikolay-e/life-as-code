@@ -2038,13 +2038,6 @@ def api_sync_exercise_templates():
 
 # ----------------------------- Web Chat -----------------------------
 
-from agent.agent import HealthAgent  # noqa: E402
-from agent.bot_message_repo import (  # noqa: E402
-    load_recent_messages,
-    soft_clear_chat,
-)
-from agent.conversation import Conversation  # noqa: E402
-
 
 @api.route("/chat/messages", methods=["GET"])
 @login_required
@@ -2095,6 +2088,10 @@ def api_get_chat_messages():
 @login_required
 @limiter.limit("30 per minute")
 def api_send_chat_message():
+    from agent.agent import HealthAgent
+    from agent.bot_message_repo import load_recent_messages
+    from agent.conversation import Conversation
+
     data = request.get_json()
     if not data:
         raise ValidationError(MSG_BODY_REQUIRED)
@@ -2120,5 +2117,7 @@ def api_send_chat_message():
 @api.route("/chat/clear", methods=["POST"])
 @login_required
 def api_clear_chat():
+    from agent.bot_message_repo import soft_clear_chat
+
     soft_clear_chat(current_user.id, WEB_CHAT_ID)
     return jsonify({"cleared": True})

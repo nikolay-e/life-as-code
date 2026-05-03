@@ -45,13 +45,8 @@ import { toTimeMs } from "../../lib/health";
 import { getLatestSyncDate } from "../../lib/sync-utils";
 import { useAnalytics } from "../../hooks/useAnalytics";
 import { useProfile } from "../../hooks/useProfile";
+import { useHealthEvents, useProtocols } from "../../hooks/useHealthLog";
 import {
-  useInterventions,
-  useHealthEvents,
-  useProtocols,
-} from "../../hooks/useHealthLog";
-import {
-  interventionsToAnnotations,
   healthEventsToAnnotations,
   protocolsToAnnotations,
 } from "../../components/charts/annotations";
@@ -161,16 +156,14 @@ export function DashboardOverview() {
       ? "recent"
       : selectedRange;
   const { data: analyticsData } = useAnalytics(analyticsMode);
-  const { data: interventionsData } = useInterventions();
   const { data: healthEvents = [] } = useHealthEvents(90);
   const { data: protocols = [] } = useProtocols();
   const annotations = useMemo(
     () => [
       ...healthEventsToAnnotations(healthEvents),
       ...protocolsToAnnotations(protocols),
-      ...interventionsToAnnotations(interventionsData),
     ],
-    [healthEvents, protocols, interventionsData],
+    [healthEvents, protocols],
   );
   const hrvBaseline = analyticsData?.metric_baselines.hrv;
   const rhrBaseline = analyticsData?.metric_baselines.rhr;
