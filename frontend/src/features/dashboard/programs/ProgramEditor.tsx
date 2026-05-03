@@ -53,6 +53,29 @@ const GOALS: { value: ProgramGoal; label: string }[] = [
   { value: "general", label: "General" },
 ];
 
+function applyExercisePatch(
+  exercises: ProgramExerciseData[],
+  exIdx: number,
+  patch: Partial<ProgramExerciseData>,
+): ProgramExerciseData[] {
+  return exercises.map((ex, j) => (j === exIdx ? { ...ex, ...patch } : ex));
+}
+
+function withoutExercise(
+  exercises: ProgramExerciseData[],
+  exIdx: number,
+): ProgramExerciseData[] {
+  return exercises
+    .filter((_, j) => j !== exIdx)
+    .map((ex, j) => ({ ...ex, exercise_order: j }));
+}
+
+function reindexExercises(
+  exercises: ProgramExerciseData[],
+): ProgramExerciseData[] {
+  return exercises.map((ex, j) => ({ ...ex, exercise_order: j }));
+}
+
 function newExercise(order: number): ProgramExerciseData {
   return {
     exercise_order: order,
@@ -161,12 +184,7 @@ export function ProgramEditor({
     setDays((prev) =>
       prev.map((d, i) =>
         i === dayIdx
-          ? {
-              ...d,
-              exercises: d.exercises.map((ex, j) =>
-                j === exIdx ? { ...ex, ...patch } : ex,
-              ),
-            }
+          ? { ...d, exercises: applyExercisePatch(d.exercises, exIdx, patch) }
           : d,
       ),
     );
@@ -176,12 +194,7 @@ export function ProgramEditor({
     setDays((prev) =>
       prev.map((d, i) =>
         i === dayIdx
-          ? {
-              ...d,
-              exercises: d.exercises
-                .filter((_, j) => j !== exIdx)
-                .map((ex, j) => ({ ...ex, exercise_order: j })),
-            }
+          ? { ...d, exercises: withoutExercise(d.exercises, exIdx) }
           : d,
       ),
     );
@@ -195,10 +208,7 @@ export function ProgramEditor({
         if (target < 0 || target >= d.exercises.length) return d;
         const next = [...d.exercises];
         [next[exIdx], next[target]] = [next[target], next[exIdx]];
-        return {
-          ...d,
-          exercises: next.map((ex, j) => ({ ...ex, exercise_order: j })),
-        };
+        return { ...d, exercises: reindexExercises(next) };
       }),
     );
   };
@@ -833,7 +843,7 @@ function ExerciseTemplatePicker({
     (data ?? []).forEach((t) => {
       if (t.primary_muscle_group) set.add(t.primary_muscle_group);
     });
-    return Array.from(set).sort();
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [data]);
 
   return (

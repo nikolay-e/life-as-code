@@ -11,6 +11,9 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects.postgresql import JSONB
 
+_USERS_FK = "users.id"
+_JSONB_EMPTY_ARRAY = "'[]'::jsonb"
+
 revision: str = "030_add_health_log_tables"
 down_revision: str | None = "029_wset_tmpl_id"
 branch_labels: Sequence[str] | None = None
@@ -25,7 +28,7 @@ def upgrade() -> None:
         sa.Column(
             "user_id",
             sa.Integer(),
-            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            sa.ForeignKey(_USERS_FK, ondelete="CASCADE"),
             nullable=False,
             index=True,
         ),
@@ -40,7 +43,7 @@ def upgrade() -> None:
             "tags",
             JSONB(),
             nullable=False,
-            server_default=sa.text("'[]'::jsonb"),
+            server_default=sa.text(_JSONB_EMPTY_ARRAY),
         ),
         sa.Column(
             "created_at",
@@ -65,7 +68,7 @@ def upgrade() -> None:
         sa.Column(
             "user_id",
             sa.Integer(),
-            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            sa.ForeignKey(_USERS_FK, ondelete="CASCADE"),
             nullable=False,
             index=True,
         ),
@@ -90,7 +93,7 @@ def upgrade() -> None:
             "tags",
             JSONB(),
             nullable=False,
-            server_default=sa.text("'[]'::jsonb"),
+            server_default=sa.text(_JSONB_EMPTY_ARRAY),
         ),
         sa.Column(
             "protocol_id",
@@ -116,7 +119,7 @@ def upgrade() -> None:
         sa.Column(
             "user_id",
             sa.Integer(),
-            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            sa.ForeignKey(_USERS_FK, ondelete="CASCADE"),
             nullable=False,
             index=True,
         ),
@@ -131,7 +134,7 @@ def upgrade() -> None:
             "tags",
             JSONB(),
             nullable=False,
-            server_default=sa.text("'[]'::jsonb"),
+            server_default=sa.text(_JSONB_EMPTY_ARRAY),
         ),
         sa.Column(
             "created_at",

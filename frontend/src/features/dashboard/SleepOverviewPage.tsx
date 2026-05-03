@@ -319,6 +319,25 @@ export function SleepOverviewPage() {
     [startDate, endDate],
   );
 
+  const eightSleepData = healthData?.eight_sleep_sessions ?? [];
+
+  const latestEightSleepBiometrics = useMemo(() => {
+    let hr: number | null = null;
+    let hrv: number | null = null;
+    let latencyOut: number | null = null;
+    for (let i = eightSleepData.length - 1; i >= 0; i--) {
+      const s = eightSleepData[i];
+      if (hr === null && s.heart_rate !== null) hr = s.heart_rate;
+      if (hrv === null && s.hrv !== null) hrv = s.hrv;
+      if (latencyOut === null && s.latency_out_seconds !== null) {
+        latencyOut = s.latency_out_seconds;
+      }
+      if (hr !== null && hrv !== null && latencyOut !== null) break;
+    }
+    if (hr === null && hrv === null && latencyOut === null) return null;
+    return { hr, hrv, latencyOut };
+  }, [eightSleepData]);
+
   if (analyticsError) {
     return (
       <ErrorCard
@@ -367,8 +386,6 @@ export function SleepOverviewPage() {
   const respCurrent = baselines.respiratory_rate?.current_value ?? null;
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   const respMean = baselines.respiratory_rate?.mean ?? null;
-
-  const eightSleepData = healthData?.eight_sleep_sessions ?? [];
 
   return (
     <div className="space-y-8">
@@ -822,65 +839,45 @@ export function SleepOverviewPage() {
       </Card>
 
       {/* Eight Sleep Biometrics */}
-      {eightSleepData.length > 0 &&
-        (() => {
-          let esHr: number | null = null;
-          let esHrv: number | null = null;
-          let esLatencyOut: number | null = null;
-          for (let i = eightSleepData.length - 1; i >= 0; i--) {
-            const s = eightSleepData[i];
-            if (esHr === null && s.heart_rate !== null) esHr = s.heart_rate;
-            if (esHrv === null && s.hrv !== null) esHrv = s.hrv;
-            if (esLatencyOut === null && s.latency_out_seconds !== null) {
-              esLatencyOut = s.latency_out_seconds;
-            }
-            if (esHr !== null && esHrv !== null && esLatencyOut !== null) {
-              break;
-            }
-          }
-          if (esHr === null && esHrv === null && esLatencyOut === null) {
-            return null;
-          }
-          return (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Heart className="h-5 w-5 text-sleep" />
-                  Eight Sleep Biometrics
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
-                  {esHr !== null && (
-                    <StatCard
-                      title="Sleep HR"
-                      value={`${String(Math.round(esHr))} bpm`}
-                      icon={Heart}
-                    />
-                  )}
-                  {esHrv !== null && (
-                    <StatCard
-                      title="Sleep HRV"
-                      value={`${String(Math.round(esHrv))} ms`}
-                      icon={Activity}
-                    />
-                  )}
-                  {esLatencyOut !== null && (
-                    <StatCard
-                      title="Latency Out"
-                      value={
-                        esLatencyOut < 60
-                          ? `${String(Math.round(esLatencyOut))}s`
-                          : `${String(Math.round(esLatencyOut / 60))}m`
-                      }
-                      icon={Clock}
-                    />
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })()}
+      {latestEightSleepBiometrics !== null && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Heart className="h-5 w-5 text-sleep" />
+              Eight Sleep Biometrics
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
+              {latestEightSleepBiometrics.hr !== null && (
+                <StatCard
+                  title="Sleep HR"
+                  value={`${String(Math.round(latestEightSleepBiometrics.hr))} bpm`}
+                  icon={Heart}
+                />
+              )}
+              {latestEightSleepBiometrics.hrv !== null && (
+                <StatCard
+                  title="Sleep HRV"
+                  value={`${String(Math.round(latestEightSleepBiometrics.hrv))} ms`}
+                  icon={Activity}
+                />
+              )}
+              {latestEightSleepBiometrics.latencyOut !== null && (
+                <StatCard
+                  title="Latency Out"
+                  value={
+                    latestEightSleepBiometrics.latencyOut < 60
+                      ? `${String(Math.round(latestEightSleepBiometrics.latencyOut))}s`
+                      : `${String(Math.round(latestEightSleepBiometrics.latencyOut / 60))}m`
+                  }
+                  icon={Clock}
+                />
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Whoop Sleep Need */}
       {(() => {

@@ -1,4 +1,5 @@
 import datetime
+from typing import Any
 
 from dotenv import load_dotenv
 from pydantic import BaseModel
@@ -293,12 +294,38 @@ def sync_hevy_data_for_user(
         return {"error": str(e), "user_id": user_id}
 
 
-def sync_hevy_exercise_templates_for_user(user_id: int) -> dict:
-    """Pull the user's Hevy exercise template catalog and upsert into the DB.
+def _upsert_exercise_template(db: Any, user_id: int, tpl: dict) -> str | None:
+    hevy_id = tpl.get("id")
+    title = tpl.get("title")
+    if not hevy_id or not title:
+        return None
+    secondary = tpl.get("secondary_muscle_groups") or []
+    if isinstance(secondary, str):
+        secondary = [secondary]
+    payload = {
+        "title": title,
+        "exercise_type": tpl.get("type") or tpl.get("exercise_type"),
+        "primary_muscle_group": tpl.get("primary_muscle_group"),
+        "secondary_muscle_groups": secondary,
+        "equipment": tpl.get("equipment"),
+        "is_custom": bool(tpl.get("is_custom", False)),
+    }
+    existing = db.scalars(
+        select(ExerciseTemplate).filter_by(
+            user_id=user_id, hevy_template_id=str(hevy_id)
+        )
+    ).first()
+    if existing is None:
+        db.add(
+            ExerciseTemplate(user_id=user_id, hevy_template_id=str(hevy_id), **payload)
+        )
+        return "created"
+    for k, v in payload.items():
+        setattr(existing, k, v)
+    return "updated"
 
-    Idempotent: keyed on (user_id, hevy_template_id). Custom user templates
-    flagged via is_custom from Hevy's response.
-    """
+
+def sync_hevy_exercise_templates_for_user(user_id: int) -> dict:
     try:
         creds = get_provider_credentials(user_id, DataSource.HEVY)
     except (CredentialsNotFoundError, CredentialsDecryptionError) as e:
@@ -326,44 +353,11 @@ def sync_hevy_exercise_templates_for_user(user_id: int) -> dict:
 
     with get_db_session_context() as db:
         for tpl in templates:
-            hevy_id = tpl.get("id")
-            title = tpl.get("title")
-            if not hevy_id or not title:
-                continue
-
-            existing = db.scalars(
-                select(ExerciseTemplate).filter_by(
-                    user_id=user_id, hevy_template_id=str(hevy_id)
-                )
-            ).first()
-
-            secondary = tpl.get("secondary_muscle_groups") or []
-            if isinstance(secondary, str):
-                secondary = [secondary]
-
-            payload = {
-                "title": title,
-                "exercise_type": tpl.get("type") or tpl.get("exercise_type"),
-                "primary_muscle_group": tpl.get("primary_muscle_group"),
-                "secondary_muscle_groups": secondary,
-                "equipment": tpl.get("equipment"),
-                "is_custom": bool(tpl.get("is_custom", False)),
-            }
-
-            if existing is None:
-                db.add(
-                    ExerciseTemplate(
-                        user_id=user_id,
-                        hevy_template_id=str(hevy_id),
-                        **payload,
-                    )
-                )
+            result = _upsert_exercise_template(db, user_id, tpl)
+            if result == "created":
                 created += 1
-            else:
-                for k, v in payload.items():
-                    setattr(existing, k, v)
+            elif result == "updated":
                 updated += 1
-
         db.commit()
 
     logger.info(

@@ -32,6 +32,7 @@ VALID_SLEEP_WINDOW_CHECK = (
 )
 CASCADE_ALL_DELETE = "all, delete-orphan"
 USERS_ID_FK = "users.id"
+END_DATE_VALID_CHECK = "end_date IS NULL OR end_date >= start_date"
 AVG_HR_CHECK = (
     "(avg_heart_rate >= 30 AND avg_heart_rate <= 250) OR avg_heart_rate IS NULL"
 )
@@ -1293,7 +1294,7 @@ class Intervention(Base):
             name="valid_intervention_category",
         ),
         CheckConstraint(
-            "end_date IS NULL OR end_date >= start_date",
+            END_DATE_VALID_CHECK,
             name="valid_intervention_dates",
         ),
     )
@@ -1559,7 +1560,7 @@ class WorkoutProgram(Base):
         Index("idx_workout_program_user_active", "user_id", "is_active"),
         Index("idx_workout_program_user_started", "user_id", "start_date"),
         CheckConstraint(
-            "end_date IS NULL OR end_date >= start_date",
+            END_DATE_VALID_CHECK,
             name="valid_program_date_range",
         ),
     )
@@ -1719,7 +1720,7 @@ class Protocol(Base):
             name="valid_protocol_domain",
         ),
         CheckConstraint(
-            "end_date IS NULL OR end_date >= start_date",
+            END_DATE_VALID_CHECK,
             name="valid_protocol_dates",
         ),
         Index("idx_protocol_user_start", "user_id", "start_date"),

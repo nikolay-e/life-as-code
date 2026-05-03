@@ -1685,6 +1685,8 @@ def api_update_clinical_alert_status(alert_id: int):
 
 # ----------------------------- Workout Programs -----------------------------
 
+_WORKOUT_PROGRAM = "Workout program"
+
 
 def _serialize_program_exercise(ex: ProgramExercise) -> dict:
     return {
@@ -1850,7 +1852,7 @@ def api_get_program(program_id: int):
             select(WorkoutProgram).filter_by(id=program_id, user_id=current_user.id)
         ).first()
         if not row:
-            raise NotFoundError("Workout program")
+            raise NotFoundError(_WORKOUT_PROGRAM)
         return jsonify(_serialize_program(row, include_days=True))
 
 
@@ -1900,7 +1902,7 @@ def api_update_program(program_id: int):
             select(WorkoutProgram).filter_by(id=program_id, user_id=current_user.id)
         ).first()
         if not program:
-            raise NotFoundError("Workout program")
+            raise NotFoundError(_WORKOUT_PROGRAM)
 
         for field in ("name", "description", "goal", "start_date", "end_date"):
             if field in body.model_fields_set:
@@ -1936,7 +1938,7 @@ def api_activate_program(program_id: int):
             select(WorkoutProgram).filter_by(id=program_id, user_id=current_user.id)
         ).first()
         if not program:
-            raise NotFoundError("Workout program")
+            raise NotFoundError(_WORKOUT_PROGRAM)
 
         _deactivate_other_programs(db, current_user.id, except_id=program.id)  # type: ignore[arg-type]
         db.flush()
@@ -1958,7 +1960,7 @@ def api_archive_program(program_id: int):
             select(WorkoutProgram).filter_by(id=program_id, user_id=current_user.id)
         ).first()
         if not program:
-            raise NotFoundError("Workout program")
+            raise NotFoundError(_WORKOUT_PROGRAM)
         program.is_active = False  # type: ignore[assignment]
         now = utcnow()
         if program.archived_at is None:
@@ -1978,7 +1980,7 @@ def api_delete_program(program_id: int):
             select(WorkoutProgram).filter_by(id=program_id, user_id=current_user.id)
         ).first()
         if not program:
-            raise NotFoundError("Workout program")
+            raise NotFoundError(_WORKOUT_PROGRAM)
         db.delete(program)
         db.commit()
         return jsonify({"deleted": True})
