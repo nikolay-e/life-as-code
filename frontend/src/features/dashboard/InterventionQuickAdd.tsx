@@ -13,18 +13,18 @@ import {
 import { Card, CardContent } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import {
-  useInterventions,
-  useCreateIntervention,
+  useHealthEvents,
+  useCreateHealthEvent,
 } from "../../hooks/useHealthLog";
 import { useToday } from "../../hooks/useToday";
-import type { InterventionData } from "../../types/api";
+import type { HealthEventData } from "../../types/api";
 import { cn } from "../../lib/utils";
 
-type Category = InterventionData["category"];
+type EventDomain = HealthEventData["domain"];
 
 interface QuickTag {
   readonly name: string;
-  readonly category: Category;
+  readonly domain: EventDomain;
   readonly icon: LucideIcon;
   readonly accent: string;
 }
@@ -32,32 +32,37 @@ interface QuickTag {
 const QUICK_TAGS: readonly QuickTag[] = [
   {
     name: "Alcohol",
-    category: "lifestyle",
+    domain: "substance",
     icon: Wine,
     accent: "text-purple-500",
   },
   {
     name: "Illness",
-    category: "lifestyle",
+    domain: "symptom",
     icon: Thermometer,
     accent: "text-red-500",
   },
   {
     name: "Travel",
-    category: "lifestyle",
+    domain: "environment",
     icon: Plane,
     accent: "text-blue-500",
   },
-  { name: "Fasting", category: "diet", icon: Soup, accent: "text-amber-500" },
+  {
+    name: "Fasting",
+    domain: "nutrition",
+    icon: Soup,
+    accent: "text-amber-500",
+  },
   {
     name: "Sauna",
-    category: "lifestyle",
+    domain: "therapy",
     icon: Flame,
     accent: "text-orange-500",
   },
   {
     name: "Medication",
-    category: "medication",
+    domain: "medication",
     icon: Pill,
     accent: "text-emerald-500",
   },
@@ -66,21 +71,21 @@ const QUICK_TAGS: readonly QuickTag[] = [
 export function InterventionQuickAdd() {
   const today = useToday();
   const todayKey = format(today, "yyyy-MM-dd");
-  const { data: interventions = [] } = useInterventions();
-  const createMutation = useCreateIntervention();
+  const { data: events = [] } = useHealthEvents(7);
+  const createMutation = useCreateHealthEvent();
 
   const tagsLoggedToday = useMemo(() => {
     const set = new Set<string>();
-    for (const i of interventions) {
-      if (i.start_date === todayKey) {
-        set.add(`${i.category}:${i.name.toLowerCase()}`);
+    for (const e of events) {
+      if (e.start_ts.startsWith(todayKey)) {
+        set.add(`${e.domain}:${e.name.toLowerCase()}`);
       }
     }
     return set;
-  }, [interventions, todayKey]);
+  }, [events, todayKey]);
 
   const handleTag = (tag: QuickTag) => {
-    const key = `${tag.category}:${tag.name.toLowerCase()}`;
+    const key = `${tag.domain}:${tag.name.toLowerCase()}`;
     if (tagsLoggedToday.has(key)) {
       toast.info(`${tag.name} already logged today`);
       return;
@@ -88,8 +93,8 @@ export function InterventionQuickAdd() {
     createMutation.mutate(
       {
         name: tag.name,
-        category: tag.category,
-        start_date: todayKey,
+        domain: tag.domain,
+        start_ts: todayKey,
       },
       {
         onSuccess: () => {
@@ -117,7 +122,7 @@ export function InterventionQuickAdd() {
           </div>
           <div className="flex flex-wrap gap-2">
             {QUICK_TAGS.map((tag) => {
-              const key = `${tag.category}:${tag.name.toLowerCase()}`;
+              const key = `${tag.domain}:${tag.name.toLowerCase()}`;
               const logged = tagsLoggedToday.has(key);
               const Icon = tag.icon;
               return (

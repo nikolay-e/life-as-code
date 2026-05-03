@@ -13,10 +13,14 @@ import type {
   GarminActivityData,
   GarminRacePredictionData,
   HealthData,
+  HealthEventData,
+  HealthNoteData,
   InterventionData,
   LongevityGoalData,
   MLForecastMetric,
+  ProtocolData,
   SyncStatus,
+  UnifiedLogData,
   User,
   UserProfile,
   UserThresholds,
@@ -315,6 +319,111 @@ export const api = {
 
     deleteIntervention: (id: number): Promise<{ deleted: boolean }> =>
       request(`/longevity/interventions/${String(id)}`, { method: "DELETE" }),
+
+    getHealthEvents: (days?: number): Promise<HealthEventData[]> => {
+      const query = days ? `?days=${String(days)}` : "";
+      return request(`/longevity/events${query}`);
+    },
+
+    createHealthEvent: (data: {
+      name: string;
+      domain: HealthEventData["domain"];
+      start_ts?: string | null;
+      end_ts?: string | null;
+      dosage?: string | null;
+      notes?: string | null;
+      attributes?: Record<string, unknown>;
+      tags?: string[];
+      protocol_id?: number | null;
+    }): Promise<HealthEventData> =>
+      request("/longevity/events", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+
+    updateHealthEvent: (
+      id: number,
+      data: Partial<{
+        name: string;
+        domain: HealthEventData["domain"];
+        end_ts: string | null;
+        dosage: string | null;
+        notes: string | null;
+        attributes: Record<string, unknown>;
+        tags: string[];
+        protocol_id: number | null;
+      }>,
+    ): Promise<HealthEventData> =>
+      request(`/longevity/events/${String(id)}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+
+    deleteHealthEvent: (id: number): Promise<{ deleted: boolean }> =>
+      request(`/longevity/events/${String(id)}`, { method: "DELETE" }),
+
+    getProtocols: (active?: boolean): Promise<ProtocolData[]> => {
+      const query = active ? "?active=true" : "";
+      return request(`/longevity/protocols${query}`);
+    },
+
+    createProtocol: (data: {
+      name: string;
+      domain: ProtocolData["domain"];
+      start_date: string;
+      end_date?: string | null;
+      dosage?: string | null;
+      frequency?: string | null;
+      notes?: string | null;
+      tags?: string[];
+    }): Promise<ProtocolData> =>
+      request("/longevity/protocols", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+
+    updateProtocol: (
+      id: number,
+      data: Partial<{
+        name: string;
+        domain: ProtocolData["domain"];
+        end_date: string | null;
+        dosage: string | null;
+        frequency: string | null;
+        notes: string | null;
+        tags: string[];
+      }>,
+    ): Promise<ProtocolData> =>
+      request(`/longevity/protocols/${String(id)}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+
+    deleteProtocol: (id: number): Promise<{ deleted: boolean }> =>
+      request(`/longevity/protocols/${String(id)}`, { method: "DELETE" }),
+
+    getHealthNotes: (days?: number): Promise<HealthNoteData[]> => {
+      const query = days ? `?days=${String(days)}` : "";
+      return request(`/longevity/notes${query}`);
+    },
+
+    createHealthNote: (data: {
+      text: string;
+      attributes?: Record<string, unknown>;
+      tags?: string[];
+    }): Promise<HealthNoteData> =>
+      request("/longevity/notes", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+
+    deleteHealthNote: (id: number): Promise<{ deleted: boolean }> =>
+      request(`/longevity/notes/${String(id)}`, { method: "DELETE" }),
+
+    getUnifiedLog: (days?: number): Promise<UnifiedLogData> => {
+      const query = days ? `?days=${String(days)}` : "";
+      return request(`/longevity/log${query}`);
+    },
 
     getBiomarkers: (marker?: string): Promise<BloodBiomarkerData[]> => {
       const query = marker ? `?marker=${encodeURIComponent(marker)}` : "";

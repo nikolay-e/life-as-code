@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -10,16 +10,35 @@ from models import (
     HRV,
     Energy,
     GarminActivity,
+    HealthEvent,
+    HealthNote,
     HeartRate,
-    Intervention,
     Prediction,
+    Protocol,
     Sleep,
     Steps,
     Weight,
     WorkoutSet,
 )
 
-INTERVENTION_CATEGORIES = ["medication", "supplement", "protocol", "lifestyle", "diet"]
+HEALTH_EVENT_DOMAINS = [
+    "substance",
+    "therapy",
+    "nutrition",
+    "sleep",
+    "stress",
+    "environment",
+    "symptom",
+    "medication",
+]
+PROTOCOL_DOMAINS = [
+    "supplement",
+    "medication",
+    "diet",
+    "lifestyle",
+    "training",
+    "other",
+]
 
 TOOLS = [
     {
@@ -91,14 +110,15 @@ TOOLS = [
         },
     },
     {
-        "name": "log_intervention",
+        "name": "log_event",
         "description": (
-            "Log a lifestyle event, medication, supplement, protocol, or diet that the "
-            "user mentions in the conversation. Use this proactively whenever the user "
-            "tells you they took a supplement/medication, drank alcohol, was sick, "
-            "fasted, did a sauna session, started a new diet, etc. The intervention "
-            "becomes a marker on health charts for correlation analysis. "
-            "If start_date is omitted, today is used."
+            "Log a one-time or bounded health event — something that already happened. "
+            "DISCRIMINATOR: past-simple verb ('took', 'had', 'drank', 'did') with no "
+            "frequency word → use this tool (set end_ts=null for point event). "
+            "Duration signal ('for 40 min', 'lasted 3 days', 'from X to Y') → set end_ts. "
+            "DO NOT use for ongoing regimens — use log_protocol instead. "
+            "When ambiguous, default to this tool and echo the classification in your reply "
+            "so the user can correct it."
         ),
         "input_schema": {
             "type": "object",
@@ -106,45 +126,144 @@ TOOLS = [
                 "name": {
                     "type": "string",
                     "description": (
-                        "Short canonical name (e.g. 'Magnesium Glycinate', 'Alcohol', "
-                        "'Sauna', 'Illness — flu', 'Fasting 16h', 'Carnivore diet'). "
-                        "Prefer English even if user wrote in Russian."
+                        "Short English canonical name. Examples: 'Alcohol', 'Sauna', "
+                        "'Ibuprofen', 'Nausea', 'Fasting 16h', 'Cold Plunge'. "
+                        "Use English even if user wrote in Russian."
                     ),
                 },
-                "category": {
+                "domain": {
                     "type": "string",
-                    "enum": INTERVENTION_CATEGORIES,
+                    "enum": HEALTH_EVENT_DOMAINS,
+                    "description": (
+                        "substance=alcohol/caffeine/recreational drugs; "
+                        "therapy=sauna/cold plunge/massage/breathwork; "
+                        "nutrition=meal/fast/diet episode; "
+                        "sleep=nap/sleep restriction; "
+                        "stress=acute stressor/meditation session; "
+                        "environment=travel/altitude/heat; "
+                        "symptom=pain/illness/fatigue; "
+                        "medication=one-off dose"
+                    ),
                 },
-                "start_date": {
+                "start_ts": {
                     "type": "string",
-                    "description": "YYYY-MM-DD, defaults to today",
+                    "description": "ISO datetime or YYYY-MM-DD. Defaults to now if omitted.",
                 },
-                "end_date": {
+                "end_ts": {
                     "type": "string",
-                    "description": "YYYY-MM-DD, optional (for one-day events like alcohol/sauna set same as start_date)",
+                    "description": (
+                        "ISO datetime or YYYY-MM-DD. Leave null for point events "
+                        "(single occurrence with no meaningful duration). "
+                        "Set for bounded durations: sauna sessions, illness episodes, fasting windows."
+                    ),
                 },
                 "dosage": {
                     "type": "string",
-                    "description": "e.g. '500mg', '2 capsules', '1 glass wine'. Optional.",
+                    "description": "e.g. '2 glasses', '400mg', '40 min'. Optional.",
                 },
-                "frequency": {
-                    "type": "string",
-                    "description": "e.g. 'daily', 'twice daily', 'weekly'. Optional.",
-                },
-                "notes": {
-                    "type": "string",
-                    "description": "Brief context from the conversation. Optional.",
+                "notes": {"type": "string", "description": "Brief context. Optional."},
+                "tags": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Free-form tags e.g. ['sleep', 'stress', 'alcohol']",
                 },
             },
-            "required": ["name", "category"],
+            "required": ["name", "domain"],
         },
     },
     {
-        "name": "list_recent_interventions",
+        "name": "log_protocol",
         "description": (
-            "List the user's recent interventions (last N days). Use to check if "
-            "something is already logged before adding it, or to recall what the user "
-            "took recently."
+            "Start an ongoing health regimen — something the user is doing regularly going forward. "
+            "DISCRIMINATOR: ingressive verb ('started', 'began', 'now taking') OR "
+            "explicit frequency ('daily', '3x/week', 'every morning') → use this tool. "
+            "NOT for things that already happened — use log_event instead."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "e.g. 'Magnesium Glycinate', 'Carnivore Diet', 'Creatine', 'SSRIs'",
+                },
+                "domain": {
+                    "type": "string",
+                    "enum": PROTOCOL_DOMAINS,
+                },
+                "start_date": {
+                    "type": "string",
+                    "description": "YYYY-MM-DD. Defaults to today if omitted.",
+                },
+                "dosage": {"type": "string", "description": "e.g. '400mg', '5g daily'"},
+                "frequency": {
+                    "type": "string",
+                    "description": "e.g. 'daily', 'twice daily', 'weekly'",
+                },
+                "notes": {"type": "string"},
+                "tags": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["name", "domain"],
+        },
+    },
+    {
+        "name": "stop_protocol",
+        "description": (
+            "Stop an active protocol by setting its end_date. "
+            "Use when user says they stopped, finished, or are no longer doing something. "
+            "Call list_recent_logs first to get the protocol_id if unsure."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "protocol_id": {
+                    "type": "integer",
+                    "description": "ID from list_recent_logs. Preferred over name lookup.",
+                },
+                "name": {
+                    "type": "string",
+                    "description": "Fuzzy-match active protocol by name if id not known.",
+                },
+                "end_date": {
+                    "type": "string",
+                    "description": "YYYY-MM-DD. Defaults to today if omitted.",
+                },
+            },
+        },
+    },
+    {
+        "name": "log_note",
+        "description": (
+            "Log a free-form note or hypothesis. Use when the user expresses a belief, "
+            "observation, or hypothesis ('I think magnesium is improving my HRV', "
+            "'seems like stress tanks my sleep'). "
+            'For hypotheses set attributes={"type":"hypothesis","cause":"...",'
+            '"effect":"...","confidence":"low|medium|high"}.'
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "text": {
+                    "type": "string",
+                    "description": "The note or hypothesis in the user's words.",
+                },
+                "attributes": {
+                    "type": "object",
+                    "description": (
+                        "Optional structured data. For hypotheses: "
+                        '{"type":"hypothesis","cause":"magnesium",'
+                        '"effect":"hrv","confidence":"medium"}'
+                    ),
+                },
+                "tags": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["text"],
+        },
+    },
+    {
+        "name": "list_recent_logs",
+        "description": (
+            "List recent health events, active protocols, and notes. "
+            "Use to check for duplicates before logging, or to find protocol IDs for stop_protocol."
         ),
         "input_schema": {
             "type": "object",
@@ -153,9 +272,13 @@ TOOLS = [
                     "type": "integer",
                     "description": "Lookback window in days (default 14)",
                 },
-                "active_only": {
-                    "type": "boolean",
-                    "description": "Only return active interventions (default false)",
+                "include": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": ["events", "protocols", "notes"],
+                    },
+                    "description": "Which log types to include (default all three)",
                 },
             },
         },
@@ -177,8 +300,11 @@ def execute_tool(user_id: int, tool_name: str, tool_input: dict) -> dict:
         "query_health_data": _handle_query_health_data,
         "get_predictions": _handle_get_predictions,
         "compare_periods": _handle_compare_periods,
-        "log_intervention": _handle_log_intervention,
-        "list_recent_interventions": _handle_list_recent_interventions,
+        "log_event": _handle_log_event,
+        "log_protocol": _handle_log_protocol,
+        "stop_protocol": _handle_stop_protocol,
+        "log_note": _handle_log_note,
+        "list_recent_logs": _handle_list_recent_logs,
     }
     handler = handlers.get(tool_name)
     if not handler:
@@ -360,13 +486,70 @@ def _handle_compare_periods(user_id: int, params: dict) -> dict:
     }
 
 
-def _handle_log_intervention(user_id: int, params: dict) -> dict:
+def _parse_ts(ts_str: str | None, default: datetime | None = None) -> datetime | None:
+    if not ts_str:
+        return default
+    try:
+        dt = datetime.fromisoformat(ts_str)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+        return dt
+    except ValueError:
+        try:
+            d = parse_iso_date(ts_str)
+            return datetime(d.year, d.month, d.day, tzinfo=UTC)
+        except ValueError:
+            return default
+
+
+def _handle_log_event(user_id: int, params: dict) -> dict:
     name = (params.get("name") or "").strip()
-    category = params.get("category")
+    domain = params.get("domain")
     if not name:
         return {"error": "name is required"}
-    if category not in INTERVENTION_CATEGORIES:
-        return {"error": f"category must be one of {INTERVENTION_CATEGORIES}"}
+    if domain not in HEALTH_EVENT_DOMAINS:
+        return {"error": f"domain must be one of {HEALTH_EVENT_DOMAINS}"}
+
+    now_utc = datetime.now(UTC)
+    start_ts = _parse_ts(params.get("start_ts"), default=now_utc) or now_utc
+    end_ts = _parse_ts(params.get("end_ts"))
+
+    if end_ts is not None and end_ts <= start_ts:
+        return {"error": "end_ts must be after start_ts"}
+
+    with get_db_session_context() as db:
+        event = HealthEvent(
+            user_id=user_id,
+            domain=domain,
+            name=name,
+            start_ts=start_ts,
+            end_ts=end_ts,
+            dosage=params.get("dosage") or None,
+            notes=params.get("notes") or None,
+            attributes=params.get("attributes") or {},
+            tags=params.get("tags") or [],
+            protocol_id=params.get("protocol_id"),
+        )
+        db.add(event)
+        db.flush()
+        return {
+            "status": "logged",
+            "id": event.id,
+            "name": event.name,
+            "domain": event.domain,
+            "start_ts": event.start_ts.isoformat(),
+            "end_ts": event.end_ts.isoformat() if event.end_ts else None,
+            "type": "point" if event.end_ts is None else "duration",
+        }
+
+
+def _handle_log_protocol(user_id: int, params: dict) -> dict:
+    name = (params.get("name") or "").strip()
+    domain = params.get("domain")
+    if not name:
+        return {"error": "name is required"}
+    if domain not in PROTOCOL_DOMAINS:
+        return {"error": f"domain must be one of {PROTOCOL_DOMAINS}"}
 
     start_date_str = params.get("start_date")
     try:
@@ -374,81 +557,186 @@ def _handle_log_intervention(user_id: int, params: dict) -> dict:
     except ValueError:
         return {"error": f"invalid start_date: {start_date_str}"}
 
-    end_date = None
-    end_date_str = params.get("end_date")
-    if end_date_str:
-        try:
-            end_date = parse_iso_date(end_date_str)
-        except ValueError:
-            return {"error": f"invalid end_date: {end_date_str}"}
-
     with get_db_session_context() as db:
         existing = db.scalars(
-            select(Intervention).filter_by(
-                user_id=user_id,
-                name=name,
-                start_date=start_date,
-                category=category,
+            select(Protocol).filter(
+                Protocol.user_id == user_id,
+                Protocol.name == name,
+                Protocol.end_date.is_(None),
             )
         ).first()
         if existing:
             return {
-                "status": "already_logged",
+                "status": "already_active",
                 "id": existing.id,
                 "name": existing.name,
-                "category": existing.category,
+                "domain": existing.domain,
                 "start_date": str(existing.start_date),
             }
 
-        intervention = Intervention(
+        protocol = Protocol(
             user_id=user_id,
             name=name,
-            category=category,
+            domain=domain,
             start_date=start_date,
-            end_date=end_date,
-            dosage=(params.get("dosage") or None),
-            frequency=(params.get("frequency") or None),
-            notes=(params.get("notes") or None),
-            active=True,
+            dosage=params.get("dosage") or None,
+            frequency=params.get("frequency") or None,
+            notes=params.get("notes") or None,
+            tags=params.get("tags") or [],
         )
-        db.add(intervention)
+        db.add(protocol)
         db.flush()
         return {
-            "status": "logged",
-            "id": intervention.id,
-            "name": intervention.name,
-            "category": intervention.category,
-            "start_date": str(intervention.start_date),
-            "end_date": str(intervention.end_date) if intervention.end_date else None,
+            "status": "started",
+            "id": protocol.id,
+            "name": protocol.name,
+            "domain": protocol.domain,
+            "start_date": str(protocol.start_date),
         }
 
 
-def _handle_list_recent_interventions(user_id: int, params: dict) -> dict:
-    days = int(params.get("days", 14))
-    active_only = bool(params.get("active_only", False))
-    cutoff = local_today() - __import__("datetime").timedelta(days=days)
+def _handle_stop_protocol(user_id: int, params: dict) -> dict:
+    protocol_id = params.get("protocol_id")
+    name = (params.get("name") or "").strip()
+    end_date_str = params.get("end_date")
+
+    try:
+        end_date = parse_iso_date(end_date_str) if end_date_str else local_today()
+    except ValueError:
+        return {"error": f"invalid end_date: {end_date_str}"}
 
     with get_db_session_context() as db:
-        query = select(Intervention).filter(
-            Intervention.user_id == user_id,
-            Intervention.start_date >= cutoff,
+        if protocol_id:
+            row = db.scalars(
+                select(Protocol).filter_by(id=protocol_id, user_id=user_id)
+            ).first()
+        elif name:
+            row = db.scalars(
+                select(Protocol).filter(
+                    Protocol.user_id == user_id,
+                    Protocol.name.ilike(f"%{name}%"),
+                    Protocol.end_date.is_(None),
+                )
+            ).first()
+        else:
+            return {"error": "provide protocol_id or name"}
+
+        if not row:
+            return {"error": "active protocol not found"}
+
+        row.end_date = end_date
+        db.flush()
+        return {
+            "status": "stopped",
+            "id": row.id,
+            "name": row.name,
+            "end_date": str(end_date),
+        }
+
+
+def _handle_log_note(user_id: int, params: dict) -> dict:
+    text = (params.get("text") or "").strip()
+    if not text:
+        return {"error": "text is required"}
+
+    with get_db_session_context() as db:
+        note = HealthNote(
+            user_id=user_id,
+            text=text,
+            attributes=params.get("attributes") or {},
+            tags=params.get("tags") or [],
         )
-        if active_only:
-            query = query.filter(Intervention.active.is_(True))
-        rows = db.scalars(query.order_by(Intervention.start_date.desc())).all()
+        db.add(note)
+        db.flush()
+        return {
+            "status": "noted",
+            "id": note.id,
+            "text": note.text[:100],
+        }
 
-        data = [
-            {
-                "id": r.id,
-                "name": r.name,
-                "category": r.category,
-                "start_date": str(r.start_date),
-                "end_date": str(r.end_date) if r.end_date else None,
-                "dosage": r.dosage,
-                "frequency": r.frequency,
-                "active": r.active,
-            }
-            for r in rows
-        ]
 
-    return {"interventions": data, "count": len(data), "lookback_days": days}
+def _handle_list_recent_logs(user_id: int, params: dict) -> dict:
+    days = int(params.get("days", 14))
+    include = set(params.get("include") or ["events", "protocols", "notes"])
+    cutoff = local_today() - timedelta(days=days)
+    cutoff_dt = datetime(cutoff.year, cutoff.month, cutoff.day, tzinfo=UTC)
+
+    result: dict = {}
+
+    with get_db_session_context() as db:
+        if "events" in include:
+            events = db.scalars(
+                select(HealthEvent)
+                .filter(
+                    HealthEvent.user_id == user_id,
+                    HealthEvent.start_ts >= cutoff_dt,
+                )
+                .order_by(HealthEvent.start_ts.desc())
+            ).all()
+            result["events"] = [
+                {
+                    "id": e.id,
+                    "name": e.name,
+                    "domain": e.domain,
+                    "start_ts": e.start_ts.isoformat(),
+                    "end_ts": e.end_ts.isoformat() if e.end_ts else None,
+                    "dosage": e.dosage,
+                    "type": "point" if e.end_ts is None else "duration",
+                    "tags": e.tags,
+                }
+                for e in events
+            ]
+
+        if "protocols" in include:
+            protocols = db.scalars(
+                select(Protocol)
+                .filter(
+                    Protocol.user_id == user_id,
+                    Protocol.start_date >= cutoff,
+                )
+                .order_by(Protocol.start_date.desc())
+            ).all()
+            active_protocols = db.scalars(
+                select(Protocol).filter(
+                    Protocol.user_id == user_id,
+                    Protocol.end_date.is_(None),
+                    Protocol.start_date < cutoff,
+                )
+            ).all()
+            all_protocols = list(protocols) + list(active_protocols)
+            result["protocols"] = [
+                {
+                    "id": p.id,
+                    "name": p.name,
+                    "domain": p.domain,
+                    "start_date": str(p.start_date),
+                    "end_date": str(p.end_date) if p.end_date else None,
+                    "dosage": p.dosage,
+                    "frequency": p.frequency,
+                    "active": p.end_date is None,
+                    "tags": p.tags,
+                }
+                for p in all_protocols
+            ]
+
+        if "notes" in include:
+            notes = db.scalars(
+                select(HealthNote)
+                .filter(
+                    HealthNote.user_id == user_id,
+                    HealthNote.created_at >= cutoff,
+                )
+                .order_by(HealthNote.created_at.desc())
+            ).all()
+            result["notes"] = [
+                {
+                    "id": n.id,
+                    "text": n.text,
+                    "attributes": n.attributes,
+                    "tags": n.tags,
+                    "created_at": n.created_at.isoformat(),
+                }
+                for n in notes
+            ]
+
+    return {"lookback_days": days, **result}

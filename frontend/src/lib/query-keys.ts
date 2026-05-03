@@ -37,6 +37,10 @@ export const longevityKeys = {
   biomarkers: () => [...longevityKeys.all, "biomarkers"] as const,
   functionalTests: () => [...longevityKeys.all, "functional-tests"] as const,
   goals: () => [...longevityKeys.all, "goals"] as const,
+  events: () => [...longevityKeys.all, "events"] as const,
+  protocols: () => [...longevityKeys.all, "protocols"] as const,
+  notes: () => [...longevityKeys.all, "notes"] as const,
+  unifiedLog: (days?: number) => [...longevityKeys.all, "log", days] as const,
 };
 
 export const clinicalAlertsKeys = {

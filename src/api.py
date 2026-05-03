@@ -23,11 +23,16 @@ from api_schemas import (
     GarminCredentialsRequest,
     GoalCreate,
     GoalUpdate,
+    HealthEventCreate,  # type: ignore[attr-defined]
+    HealthEventUpdate,  # type: ignore[attr-defined]
+    HealthNoteCreate,  # type: ignore[attr-defined]
     HevyCredentialsRequest,
     InterventionCreate,
     InterventionUpdate,
     LoginRequest,
     ProfileUpdate,
+    ProtocolCreate,  # type: ignore[attr-defined]
+    ProtocolUpdate,  # type: ignore[attr-defined]
     ThresholdSettings,
     WorkoutProgramCreate,
     WorkoutProgramUpdate,
@@ -54,15 +59,19 @@ from limiter import limiter
 from logging_config import get_logger
 from models import (
     BloodBiomarker,
+    BotMessage,
     ClinicalAlertEvent,
     DataSync,
     ExerciseTemplate,
     FunctionalTest,
     GarminRacePrediction,
+    HealthEvent,  # type: ignore[attr-defined]
+    HealthNote,  # type: ignore[attr-defined]
     Intervention,
     LongevityGoal,
     ProgramDay,
     ProgramExercise,
+    Protocol,  # type: ignore[attr-defined]
     User,
     UserCredentials,
     UserSettings,
@@ -78,6 +87,7 @@ from utils import get_user_credentials
 
 api = Blueprint("api", __name__, url_prefix="/api")
 logger = get_logger(__name__)
+WEB_CHAT_ID = 0  # Reserved chat_id for web interface
 MSG_BODY_REQUIRED = "Request body is required"
 _sync_executor = ThreadPoolExecutor(max_workers=4)
 atexit.register(_sync_executor.shutdown, wait=False)
@@ -134,9 +144,9 @@ def api_login():
         password = body.password
         with get_db_session_context() as db:
             user = db.scalars(select(User).filter_by(username=username)).first()
-            if user and verify_password(password, user.password_hash):
+            if user and verify_password(password, user.password_hash):  # type: ignore[arg-type]
                 session.clear()
-                user_model = UserModel(user.id, user.username)
+                user_model = UserModel(user.id, user.username)  # type: ignore[arg-type]
                 login_user(user_model)
                 logger.info("login_success", username=username, user_id=user.id)
                 return jsonify(
@@ -466,10 +476,10 @@ def _build_credentials_response(user_id: int) -> dict:
         "garmin_configured": bool(
             creds and creds.garmin_email and creds.encrypted_garmin_password
         ),
-        "garmin_email_hint": _mask_email(creds.garmin_email if creds else None),
+        "garmin_email_hint": _mask_email(creds.garmin_email if creds else None),  # type: ignore[arg-type]
         "hevy_configured": bool(creds and creds.encrypted_hevy_api_key),
         "hevy_api_key_hint": _mask_api_key(
-            creds.encrypted_hevy_api_key if creds else None
+            creds.encrypted_hevy_api_key if creds else None  # type: ignore[arg-type]
         ),
         "whoop_configured": whoop_has_token and not whoop_token_expired,
         "whoop_token_expired": whoop_token_expired,
@@ -478,7 +488,7 @@ def _build_credentials_response(user_id: int) -> dict:
             creds and creds.eight_sleep_email and creds.encrypted_eight_sleep_password
         ),
         "eight_sleep_email_hint": _mask_email(
-            creds.eight_sleep_email if creds else None
+            creds.eight_sleep_email if creds else None  # type: ignore[arg-type]
         ),
     }
 
@@ -504,8 +514,8 @@ def api_update_garmin_credentials():
             creds = UserCredentials(user_id=current_user.id)
             db.add(creds)
 
-        creds.garmin_email = body.email
-        creds.encrypted_garmin_password = encrypted_password
+        creds.garmin_email = body.email  # type: ignore[assignment]
+        creds.encrypted_garmin_password = encrypted_password  # type: ignore[assignment]
 
     _invalidate_garmin_token_store(current_user.id)
     logger.info("garmin_credentials_updated", user_id=current_user.id)
@@ -527,7 +537,7 @@ def api_update_hevy_credentials():
             creds = UserCredentials(user_id=current_user.id)
             db.add(creds)
 
-        creds.encrypted_hevy_api_key = encrypted_key
+        creds.encrypted_hevy_api_key = encrypted_key  # type: ignore[assignment]
 
     logger.info("hevy_credentials_updated", user_id=current_user.id)
     return jsonify(_build_credentials_response(current_user.id))
@@ -542,8 +552,8 @@ def api_delete_garmin_credentials():
             select(UserCredentials).filter_by(user_id=current_user.id)
         ).first()
         if creds:
-            creds.garmin_email = None
-            creds.encrypted_garmin_password = None
+            creds.garmin_email = None  # type: ignore[assignment]
+            creds.encrypted_garmin_password = None  # type: ignore[assignment]
 
     _invalidate_garmin_token_store(current_user.id)
     logger.info("garmin_credentials_deleted", user_id=current_user.id)
@@ -559,7 +569,7 @@ def api_delete_hevy_credentials():
             select(UserCredentials).filter_by(user_id=current_user.id)
         ).first()
         if creds:
-            creds.encrypted_hevy_api_key = None
+            creds.encrypted_hevy_api_key = None  # type: ignore[assignment]
 
     logger.info("hevy_credentials_deleted", user_id=current_user.id)
     return jsonify(_build_credentials_response(current_user.id))
@@ -658,11 +668,11 @@ def api_sync_status():
                         "source": s.source,
                         "data_type": s.data_type,
                         "last_sync_date": (
-                            s.last_sync_date.isoformat() if s.last_sync_date else None
+                            s.last_sync_date.isoformat() if s.last_sync_date else None  # type: ignore[union-attr]
                         ),
                         "last_sync_timestamp": (
                             s.last_sync_timestamp.isoformat() + "Z"
-                            if s.last_sync_timestamp
+                            if s.last_sync_timestamp  # type: ignore[truthy-function]
                             else None
                         ),
                         "records_synced": s.records_synced,
@@ -712,11 +722,11 @@ def _update_data_sync(
             error_message = result.get("error") if not success else None
 
             if existing_sync:
-                existing_sync.last_sync_timestamp = now
-                existing_sync.last_sync_date = now.date()
-                existing_sync.records_synced = records_synced
-                existing_sync.status = status
-                existing_sync.error_message = error_message
+                existing_sync.last_sync_timestamp = now  # type: ignore[assignment]
+                existing_sync.last_sync_date = now.date()  # type: ignore[assignment]
+                existing_sync.records_synced = records_synced  # type: ignore[assignment]
+                existing_sync.status = status  # type: ignore[assignment]
+                existing_sync.error_message = error_message  # type: ignore[assignment]
             else:
                 new_sync = DataSync(
                     user_id=user_id,
@@ -926,10 +936,10 @@ def api_update_eight_sleep_credentials():
             creds = UserCredentials(user_id=current_user.id)
             db.add(creds)
 
-        creds.eight_sleep_email = body.email
-        creds.encrypted_eight_sleep_password = encrypted_password
-        creds.encrypted_eight_sleep_access_token = None
-        creds.eight_sleep_token_expires_at = None
+        creds.eight_sleep_email = body.email  # type: ignore[assignment]
+        creds.encrypted_eight_sleep_password = encrypted_password  # type: ignore[assignment]
+        creds.encrypted_eight_sleep_access_token = None  # type: ignore[assignment]
+        creds.eight_sleep_token_expires_at = None  # type: ignore[assignment]
 
     logger.info("eight_sleep_credentials_updated", user_id=current_user.id)
     return jsonify(_build_credentials_response(current_user.id))
@@ -944,10 +954,10 @@ def api_delete_eight_sleep_credentials():
             select(UserCredentials).filter_by(user_id=current_user.id)
         ).first()
         if creds:
-            creds.eight_sleep_email = None
-            creds.encrypted_eight_sleep_password = None
-            creds.encrypted_eight_sleep_access_token = None
-            creds.eight_sleep_token_expires_at = None
+            creds.eight_sleep_email = None  # type: ignore[assignment]
+            creds.encrypted_eight_sleep_password = None  # type: ignore[assignment]
+            creds.encrypted_eight_sleep_access_token = None  # type: ignore[assignment]
+            creds.eight_sleep_token_expires_at = None  # type: ignore[assignment]
 
     logger.info("eight_sleep_credentials_deleted", user_id=current_user.id)
     return jsonify(_build_credentials_response(current_user.id))
@@ -999,7 +1009,7 @@ def api_get_profile():
             {
                 "birth_date": (
                     settings.birth_date.isoformat()
-                    if settings and settings.birth_date
+                    if settings and settings.birth_date  # type: ignore[truthy-function]
                     else None
                 ),
                 "gender": settings.gender if settings else None,
@@ -1021,15 +1031,15 @@ def api_update_profile():
             db.add(settings)
 
         if "birth_date" in body.model_fields_set:
-            settings.birth_date = body.birth_date
+            settings.birth_date = body.birth_date  # type: ignore[assignment]
         if "gender" in body.model_fields_set:
-            settings.gender = body.gender
+            settings.gender = body.gender  # type: ignore[assignment]
 
         db.commit()
         return jsonify(
             {
                 "birth_date": (
-                    settings.birth_date.isoformat() if settings.birth_date else None
+                    settings.birth_date.isoformat() if settings.birth_date else None  # type: ignore[union-attr,truthy-function]
                 ),
                 "gender": settings.gender,
             }
@@ -1178,6 +1188,308 @@ def api_delete_intervention(intervention_id: int):
         db.delete(row)
         db.commit()
         return jsonify({"deleted": True})
+
+
+# ================================ Health Events ================================
+
+HEALTH_EVENT_FIELDS = [
+    "id",
+    "name",
+    "domain",
+    "start_ts",
+    "end_ts",
+    "dosage",
+    "notes",
+    "attributes",
+    "tags",
+    "protocol_id",
+]
+
+
+def _serialize_health_event(event: HealthEvent) -> dict:
+    return {
+        "id": event.id,
+        "name": event.name,
+        "domain": event.domain,
+        "start_ts": event.start_ts.isoformat() if event.start_ts else None,
+        "end_ts": event.end_ts.isoformat() if event.end_ts else None,
+        "dosage": event.dosage,
+        "notes": event.notes,
+        "attributes": event.attributes or {},
+        "tags": event.tags or [],
+        "protocol_id": event.protocol_id,
+        "type": "point" if event.end_ts is None else "duration",
+    }
+
+
+@api.route("/longevity/events", methods=["GET"])
+@login_required
+def api_get_health_events():
+    days = request.args.get("days", type=int)
+    with get_db_session_context() as db:
+        query = select(HealthEvent).filter_by(user_id=current_user.id)
+        if days:
+            cutoff = datetime.now(UTC) - timedelta(days=days)
+            query = query.filter(HealthEvent.start_ts >= cutoff)
+        query = query.order_by(HealthEvent.start_ts.desc())
+        rows = db.scalars(query).all()
+        return jsonify([_serialize_health_event(r) for r in rows])
+
+
+@api.route("/longevity/events", methods=["POST"])
+@login_required
+def api_create_health_event():
+    body = _parse_body(HealthEventCreate)
+
+    start_ts = body.start_ts
+    if start_ts is None:
+        start_ts = datetime.now(UTC)
+    elif not hasattr(start_ts, "hour"):
+        start_ts = datetime(start_ts.year, start_ts.month, start_ts.day, tzinfo=UTC)
+    elif start_ts.tzinfo is None:
+        start_ts = start_ts.replace(tzinfo=UTC)
+
+    end_ts = body.end_ts
+    if end_ts is not None and not hasattr(end_ts, "hour"):
+        end_ts = datetime(end_ts.year, end_ts.month, end_ts.day, 23, 59, 59, tzinfo=UTC)
+    elif end_ts is not None and end_ts.tzinfo is None:
+        end_ts = end_ts.replace(tzinfo=UTC)
+
+    with get_db_session_context() as db:
+        event = HealthEvent(
+            user_id=current_user.id,
+            name=body.name,
+            domain=body.domain,
+            start_ts=start_ts,
+            end_ts=end_ts,
+            dosage=body.dosage,
+            notes=body.notes,
+            attributes=body.attributes,
+            tags=body.tags,
+            protocol_id=body.protocol_id,
+        )
+        db.add(event)
+        db.commit()
+        return jsonify(_serialize_health_event(event)), 201
+
+
+@api.route("/longevity/events/<int:event_id>", methods=["PUT"])
+@login_required
+def api_update_health_event(event_id: int):
+    body = _parse_body(HealthEventUpdate)
+    with get_db_session_context() as db:
+        row = db.scalars(
+            select(HealthEvent).filter_by(id=event_id, user_id=current_user.id)
+        ).first()
+        if not row:
+            raise NotFoundError("HealthEvent")
+        for field in body.model_fields_set:
+            setattr(row, field, getattr(body, field))
+        db.commit()
+        return jsonify(_serialize_health_event(row))
+
+
+@api.route("/longevity/events/<int:event_id>", methods=["DELETE"])
+@login_required
+def api_delete_health_event(event_id: int):
+    with get_db_session_context() as db:
+        row = db.scalars(
+            select(HealthEvent).filter_by(id=event_id, user_id=current_user.id)
+        ).first()
+        if not row:
+            raise NotFoundError("HealthEvent")
+        db.delete(row)
+        db.commit()
+        return jsonify({"deleted": True})
+
+
+# ================================ Protocols ====================================
+
+
+def _serialize_protocol(p: Protocol) -> dict:
+    return {
+        "id": p.id,
+        "name": p.name,
+        "domain": p.domain,
+        "start_date": p.start_date.isoformat() if p.start_date else None,
+        "end_date": p.end_date.isoformat() if p.end_date else None,
+        "dosage": p.dosage,
+        "frequency": p.frequency,
+        "notes": p.notes,
+        "tags": p.tags or [],
+        "active": p.end_date is None,
+    }
+
+
+@api.route("/longevity/protocols", methods=["GET"])
+@login_required
+def api_get_protocols():
+    active_only = request.args.get("active", "").lower() == "true"
+    with get_db_session_context() as db:
+        query = select(Protocol).filter_by(user_id=current_user.id)
+        if active_only:
+            query = query.filter(Protocol.end_date.is_(None))
+        query = query.order_by(Protocol.start_date.desc())
+        rows = db.scalars(query).all()
+        return jsonify([_serialize_protocol(r) for r in rows])
+
+
+@api.route("/longevity/protocols", methods=["POST"])
+@login_required
+def api_create_protocol():
+    body = _parse_body(ProtocolCreate)
+    with get_db_session_context() as db:
+        protocol = Protocol(
+            user_id=current_user.id,
+            name=body.name,
+            domain=body.domain,
+            start_date=body.start_date,
+            end_date=body.end_date,
+            dosage=body.dosage,
+            frequency=body.frequency,
+            notes=body.notes,
+            tags=body.tags,
+        )
+        db.add(protocol)
+        db.commit()
+        return jsonify(_serialize_protocol(protocol)), 201
+
+
+@api.route("/longevity/protocols/<int:protocol_id>", methods=["PUT"])
+@login_required
+def api_update_protocol(protocol_id: int):
+    body = _parse_body(ProtocolUpdate)
+    with get_db_session_context() as db:
+        row = db.scalars(
+            select(Protocol).filter_by(id=protocol_id, user_id=current_user.id)
+        ).first()
+        if not row:
+            raise NotFoundError("Protocol")
+        for field in body.model_fields_set:
+            setattr(row, field, getattr(body, field))
+        db.commit()
+        return jsonify(_serialize_protocol(row))
+
+
+@api.route("/longevity/protocols/<int:protocol_id>", methods=["DELETE"])
+@login_required
+def api_delete_protocol(protocol_id: int):
+    with get_db_session_context() as db:
+        row = db.scalars(
+            select(Protocol).filter_by(id=protocol_id, user_id=current_user.id)
+        ).first()
+        if not row:
+            raise NotFoundError("Protocol")
+        db.delete(row)
+        db.commit()
+        return jsonify({"deleted": True})
+
+
+# ================================ Health Notes =================================
+
+
+def _serialize_health_note(n: HealthNote) -> dict:
+    return {
+        "id": n.id,
+        "text": n.text,
+        "attributes": n.attributes or {},
+        "tags": n.tags or [],
+        "created_at": n.created_at.isoformat() if n.created_at else None,
+    }
+
+
+@api.route("/longevity/notes", methods=["GET"])
+@login_required
+def api_get_health_notes():
+    days = request.args.get("days", type=int, default=30)
+    with get_db_session_context() as db:
+        cutoff = datetime.now(UTC) - timedelta(days=days)
+        rows = db.scalars(
+            select(HealthNote)
+            .filter(
+                HealthNote.user_id == current_user.id, HealthNote.created_at >= cutoff
+            )
+            .order_by(HealthNote.created_at.desc())
+        ).all()
+        return jsonify([_serialize_health_note(r) for r in rows])
+
+
+@api.route("/longevity/notes", methods=["POST"])
+@login_required
+def api_create_health_note():
+    body = _parse_body(HealthNoteCreate)
+    with get_db_session_context() as db:
+        note = HealthNote(
+            user_id=current_user.id,
+            text=body.text,
+            attributes=body.attributes,
+            tags=body.tags,
+        )
+        db.add(note)
+        db.commit()
+        return jsonify(_serialize_health_note(note)), 201
+
+
+@api.route("/longevity/notes/<int:note_id>", methods=["DELETE"])
+@login_required
+def api_delete_health_note(note_id: int):
+    with get_db_session_context() as db:
+        row = db.scalars(
+            select(HealthNote).filter_by(id=note_id, user_id=current_user.id)
+        ).first()
+        if not row:
+            raise NotFoundError("HealthNote")
+        db.delete(row)
+        db.commit()
+        return jsonify({"deleted": True})
+
+
+# ================================ Unified Log ==================================
+
+
+@api.route("/longevity/log", methods=["GET"])
+@login_required
+def api_get_unified_log():
+    days = request.args.get("days", type=int, default=14)
+    cutoff_date = datetime.now(UTC) - timedelta(days=days)
+
+    with get_db_session_context() as db:
+        events = db.scalars(
+            select(HealthEvent)
+            .filter(
+                HealthEvent.user_id == current_user.id,
+                HealthEvent.start_ts >= cutoff_date,
+            )
+            .order_by(HealthEvent.start_ts.desc())
+        ).all()
+
+        protocols = db.scalars(
+            select(Protocol)
+            .filter(Protocol.user_id == current_user.id)
+            .filter(
+                (Protocol.end_date.is_(None))
+                | (Protocol.start_date >= cutoff_date.date())
+            )
+            .order_by(Protocol.start_date.desc())
+        ).all()
+
+        notes = db.scalars(
+            select(HealthNote)
+            .filter(
+                HealthNote.user_id == current_user.id,
+                HealthNote.created_at >= cutoff_date,
+            )
+            .order_by(HealthNote.created_at.desc())
+        ).all()
+
+    return jsonify(
+        {
+            "events": [_serialize_health_event(e) for e in events],
+            "protocols": [_serialize_protocol(p) for p in protocols],
+            "notes": [_serialize_health_note(n) for n in notes],
+            "days": days,
+        }
+    )
 
 
 FUNCTIONAL_TEST_FIELDS = ["id", "date", "test_name", "value", "unit", "notes"]
@@ -1361,12 +1673,12 @@ def api_update_clinical_alert_status(alert_id: int):
         ).first()
         if not row:
             raise NotFoundError("Clinical alert")
-        row.status = body.status
+        row.status = body.status  # type: ignore[assignment]
         now = utcnow()
         if body.status == "acknowledged" and row.acknowledged_at is None:
-            row.acknowledged_at = now
+            row.acknowledged_at = now  # type: ignore[assignment]
         elif body.status == "resolved" and row.resolved_at is None:
-            row.resolved_at = now
+            row.resolved_at = now  # type: ignore[assignment]
         db.commit()
         return jsonify(_serialize_model(row, CLINICAL_ALERT_FIELDS))
 
@@ -1410,14 +1722,14 @@ def _serialize_program(program: WorkoutProgram, *, include_days: bool = True) ->
         "name": program.name,
         "description": program.description,
         "goal": program.goal,
-        "start_date": program.start_date.isoformat() if program.start_date else None,
-        "end_date": program.end_date.isoformat() if program.end_date else None,
+        "start_date": program.start_date.isoformat() if program.start_date else None,  # type: ignore[union-attr,truthy-function]
+        "end_date": program.end_date.isoformat() if program.end_date else None,  # type: ignore[union-attr,truthy-function]
         "is_active": program.is_active,
         "archived_at": (
-            program.archived_at.isoformat() if program.archived_at else None
+            program.archived_at.isoformat() if program.archived_at else None  # type: ignore[union-attr,truthy-function]
         ),
-        "created_at": (program.created_at.isoformat() if program.created_at else None),
-        "updated_at": (program.updated_at.isoformat() if program.updated_at else None),
+        "created_at": (program.created_at.isoformat() if program.created_at else None),  # type: ignore[union-attr,truthy-function]
+        "updated_at": (program.updated_at.isoformat() if program.updated_at else None),  # type: ignore[union-attr,truthy-function]
         "day_count": len(program.days),
         "exercise_count": total_exercises,
     }
@@ -1493,11 +1805,11 @@ def _deactivate_other_programs(db, user_id: int, except_id: int | None) -> None:
     others = db.scalars(query).all()
     now = utcnow()
     for other in others:
-        other.is_active = False
+        other.is_active = False  # type: ignore[assignment]
         if other.archived_at is None:
-            other.archived_at = now
+            other.archived_at = now  # type: ignore[assignment]
         if other.end_date is None:
-            other.end_date = now.date()
+            other.end_date = now.date()  # type: ignore[assignment]
 
 
 @api.route("/programs", methods=["GET"])
@@ -1569,9 +1881,9 @@ def api_create_program():
         _materialize_days(db, program, body.days, valid_template_ids)
 
         if body.activate:
-            _deactivate_other_programs(db, current_user.id, except_id=program.id)
+            _deactivate_other_programs(db, current_user.id, except_id=program.id)  # type: ignore[arg-type]
             db.flush()
-            program.is_active = True
+            program.is_active = True  # type: ignore[assignment]
 
         db.commit()
         db.refresh(program)
@@ -1626,12 +1938,12 @@ def api_activate_program(program_id: int):
         if not program:
             raise NotFoundError("Workout program")
 
-        _deactivate_other_programs(db, current_user.id, except_id=program.id)
+        _deactivate_other_programs(db, current_user.id, except_id=program.id)  # type: ignore[arg-type]
         db.flush()
-        program.is_active = True
-        program.archived_at = None
+        program.is_active = True  # type: ignore[assignment]
+        program.archived_at = None  # type: ignore[assignment]
         # Reopen end_date if it was previously closed
-        program.end_date = None
+        program.end_date = None  # type: ignore[assignment]
         db.commit()
         db.refresh(program)
         return jsonify(_serialize_program(program, include_days=True))
@@ -1647,12 +1959,12 @@ def api_archive_program(program_id: int):
         ).first()
         if not program:
             raise NotFoundError("Workout program")
-        program.is_active = False
+        program.is_active = False  # type: ignore[assignment]
         now = utcnow()
         if program.archived_at is None:
-            program.archived_at = now
+            program.archived_at = now  # type: ignore[assignment]
         if program.end_date is None:
-            program.end_date = now.date()
+            program.end_date = now.date()  # type: ignore[assignment]
         db.commit()
         db.refresh(program)
         return jsonify(_serialize_program(program, include_days=True))
@@ -1722,3 +2034,91 @@ def api_sync_exercise_templates():
     if result.get("error"):
         return jsonify(result), 400
     return jsonify(result)
+
+
+# ----------------------------- Web Chat -----------------------------
+
+from agent.agent import HealthAgent  # noqa: E402
+from agent.bot_message_repo import (  # noqa: E402
+    load_recent_messages,
+    soft_clear_chat,
+)
+from agent.conversation import Conversation  # noqa: E402
+
+
+@api.route("/chat/messages", methods=["GET"])
+@login_required
+def api_get_chat_messages():
+    try:
+        limit = max(1, min(int(request.args.get("limit", "50")), 100))
+    except ValueError:
+        limit = 50
+
+    with get_db_session_context() as db:
+        rows = (
+            db.query(
+                BotMessage.id,
+                BotMessage.role,
+                BotMessage.text_preview,
+                BotMessage.model,
+                BotMessage.created_at,
+            )
+            .filter(
+                BotMessage.user_id == current_user.id,
+                BotMessage.chat_id == WEB_CHAT_ID,
+                BotMessage.cleared_at.is_(None),
+                BotMessage.role.in_(["user", "assistant"]),
+                BotMessage.text_preview.isnot(None),
+                BotMessage.text_preview != "",
+                ~BotMessage.text_preview.like("[Health context update]%"),
+                BotMessage.text_preview != "Обновил данные. Что хочешь узнать?",
+            )
+            .order_by(BotMessage.created_at.asc())
+            .limit(limit)
+            .all()
+        )
+
+    messages = [
+        {
+            "id": row.id,
+            "role": row.role,
+            "text_preview": row.text_preview,
+            "model": row.model,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+        }
+        for row in rows
+    ]
+    return jsonify({"messages": messages, "total": len(messages)})
+
+
+@api.route("/chat/messages", methods=["POST"])
+@login_required
+@limiter.limit("30 per minute")
+def api_send_chat_message():
+    data = request.get_json()
+    if not data:
+        raise ValidationError(MSG_BODY_REQUIRED)
+    message = (data.get("message") or "").strip()
+    if not message:
+        raise ValidationError("Message is required", field="message")
+
+    conversation = Conversation(user_id=current_user.id, chat_id=WEB_CHAT_ID)
+    history = load_recent_messages(current_user.id, WEB_CHAT_ID, limit=40)
+    conversation.messages = history
+    if history:
+        conversation.mark_context_refreshed()
+
+    agent = HealthAgent()
+    try:
+        reply = agent.chat(current_user.id, message, conversation)
+    except Exception:
+        logger.exception("chat_agent_failed user_id=%s", current_user.id)
+        raise ValidationError("Failed to get response from AI assistant") from None
+    return jsonify({"reply": reply})
+
+
+@api.route("/chat/clear", methods=["POST"])
+@login_required
+def api_clear_chat():
+    soft_clear_chat(current_user.id, WEB_CHAT_ID)
+    return jsonify({"cleared": True})

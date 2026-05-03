@@ -45,8 +45,16 @@ import { toTimeMs } from "../../lib/health";
 import { getLatestSyncDate } from "../../lib/sync-utils";
 import { useAnalytics } from "../../hooks/useAnalytics";
 import { useProfile } from "../../hooks/useProfile";
-import { useInterventions } from "../../hooks/useHealthLog";
-import { interventionsToAnnotations } from "../../components/charts/annotations";
+import {
+  useInterventions,
+  useHealthEvents,
+  useProtocols,
+} from "../../hooks/useHealthLog";
+import {
+  interventionsToAnnotations,
+  healthEventsToAnnotations,
+  protocolsToAnnotations,
+} from "../../components/charts/annotations";
 import { useToday } from "../../hooks/useToday";
 import {
   LOESS_BANDWIDTH_SHORT,
@@ -154,9 +162,15 @@ export function DashboardOverview() {
       : selectedRange;
   const { data: analyticsData } = useAnalytics(analyticsMode);
   const { data: interventionsData } = useInterventions();
+  const { data: healthEvents = [] } = useHealthEvents(90);
+  const { data: protocols = [] } = useProtocols();
   const annotations = useMemo(
-    () => interventionsToAnnotations(interventionsData),
-    [interventionsData],
+    () => [
+      ...healthEventsToAnnotations(healthEvents),
+      ...protocolsToAnnotations(protocols),
+      ...interventionsToAnnotations(interventionsData),
+    ],
+    [healthEvents, protocols, interventionsData],
   );
   const hrvBaseline = analyticsData?.metric_baselines.hrv;
   const rhrBaseline = analyticsData?.metric_baselines.rhr;

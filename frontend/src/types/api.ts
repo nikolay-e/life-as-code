@@ -726,6 +726,62 @@ export interface InterventionData {
   active: boolean;
 }
 
+export interface HealthEventData {
+  id: number;
+  name: string;
+  domain:
+    | "substance"
+    | "therapy"
+    | "nutrition"
+    | "sleep"
+    | "stress"
+    | "environment"
+    | "symptom"
+    | "medication";
+  start_ts: string;
+  end_ts: string | null;
+  dosage: string | null;
+  notes: string | null;
+  attributes: Record<string, unknown>;
+  tags: string[];
+  protocol_id: number | null;
+  type: "point" | "duration";
+}
+
+export interface ProtocolData {
+  id: number;
+  name: string;
+  domain:
+    | "supplement"
+    | "medication"
+    | "diet"
+    | "lifestyle"
+    | "training"
+    | "other";
+  start_date: string;
+  end_date: string | null;
+  dosage: string | null;
+  frequency: string | null;
+  notes: string | null;
+  tags: string[];
+  active: boolean;
+}
+
+export interface HealthNoteData {
+  id: number;
+  text: string;
+  attributes: Record<string, unknown>;
+  tags: string[];
+  created_at: string;
+}
+
+export interface UnifiedLogData {
+  events: HealthEventData[];
+  protocols: ProtocolData[];
+  notes: HealthNoteData[];
+  days: number;
+}
+
 export interface FunctionalTestData {
   id: number;
   date: string;

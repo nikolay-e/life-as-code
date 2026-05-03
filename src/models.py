@@ -142,6 +142,15 @@ class User(Base):
     workout_programs = relationship(
         "WorkoutProgram", back_populates="user", cascade=CASCADE_ALL_DELETE
     )
+    health_events = relationship(
+        "HealthEvent", back_populates="user", cascade=CASCADE_ALL_DELETE
+    )
+    protocols = relationship(
+        "Protocol", back_populates="user", cascade=CASCADE_ALL_DELETE
+    )
+    health_notes = relationship(
+        "HealthNote", back_populates="user", cascade=CASCADE_ALL_DELETE
+    )
 
     def __repr__(self):
         return f"<User(username={self.username})>"
@@ -1684,3 +1693,91 @@ class ProgramExercise(Base):
             f"<ProgramExercise(day_id={self.day_id}, order={self.exercise_order}, "
             f"title={self.exercise_title})>"
         )
+
+
+class Protocol(Base):
+    __tablename__ = "protocols"
+
+    id = Column(BigInteger, primary_key=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
+    name = Column(Text, nullable=False)
+    domain = Column(String(50), nullable=False)
+    start_date = Column(Date, nullable=False)
+    end_date = Column(Date)
+    dosage = Column(Text)
+    frequency = Column(Text)
+    notes = Column(Text)
+    tags = Column(JSONB, nullable=False, default=list)
+    created_at = Column(DateTime, default=utcnow)
+
+    user = relationship("User", back_populates="protocols")
+    linked_events = relationship("HealthEvent", back_populates="protocol")
+
+    __table_args__ = (
+        CheckConstraint(
+            "domain IN ('supplement','medication','diet','lifestyle','training','other')",
+            name="valid_protocol_domain",
+        ),
+        CheckConstraint(
+            "end_date IS NULL OR end_date >= start_date",
+            name="valid_protocol_dates",
+        ),
+        Index("idx_protocol_user_start", "user_id", "start_date"),
+    )
+
+    def __repr__(self):
+        return f"<Protocol(name={self.name}, domain={self.domain}, start_date={self.start_date})>"
+
+
+class HealthEvent(Base):
+    __tablename__ = "health_events"
+
+    id = Column(BigInteger, primary_key=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
+    domain = Column(String(50), nullable=False)
+    name = Column(Text, nullable=False)
+    start_ts = Column(DateTime(timezone=True), nullable=False, default=utcnow)
+    end_ts = Column(DateTime(timezone=True))
+    dosage = Column(Text)
+    notes = Column(Text)
+    attributes = Column(JSONB, nullable=False, default=dict)
+    tags = Column(JSONB, nullable=False, default=list)
+    protocol_id = Column(BigInteger, ForeignKey("protocols.id", ondelete="SET NULL"))
+
+    user = relationship("User", back_populates="health_events")
+    protocol = relationship(
+        "Protocol", back_populates="linked_events", foreign_keys=[protocol_id]
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "domain IN ('substance','therapy','nutrition','sleep','stress','environment','symptom','medication')",
+            name="valid_health_event_domain",
+        ),
+        CheckConstraint(
+            "end_ts IS NULL OR end_ts > start_ts",
+            name="valid_health_event_duration",
+        ),
+        Index("idx_health_event_user_start", "user_id", "start_ts"),
+    )
+
+    def __repr__(self):
+        return f"<HealthEvent(name={self.name}, domain={self.domain}, start_ts={self.start_ts})>"
+
+
+class HealthNote(Base):
+    __tablename__ = "health_notes"
+
+    id = Column(BigInteger, primary_key=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
+    text = Column(Text, nullable=False)
+    attributes = Column(JSONB, nullable=False, default=dict)
+    tags = Column(JSONB, nullable=False, default=list)
+    created_at = Column(DateTime, nullable=False, default=utcnow)
+
+    user = relationship("User", back_populates="health_notes")
+
+    __table_args__ = (Index("idx_health_note_user_created", "user_id", "created_at"),)
+
+    def __repr__(self):
+        return f"<HealthNote(id={self.id}, created_at={self.created_at})>"

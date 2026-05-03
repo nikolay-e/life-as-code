@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
@@ -264,3 +264,88 @@ class WorkoutProgramUpdate(BaseModel):
     start_date: date | None = None
     end_date: date | None = None
     days: list[ProgramDayInput] | None = None
+
+
+# ----------------------------- Health Events ---------------------------------
+
+
+class HealthEventCreate(BaseModel):
+    name: str
+    domain: Literal[
+        "substance",
+        "therapy",
+        "nutrition",
+        "sleep",
+        "stress",
+        "environment",
+        "symptom",
+        "medication",
+    ]
+    start_ts: datetime | date | None = None
+    end_ts: datetime | date | None = None
+    dosage: str | None = None
+    notes: str | None = None
+    attributes: dict[str, Any] = Field(default_factory=dict)
+    tags: list[str] = Field(default_factory=list)
+    protocol_id: int | None = None
+
+
+class HealthEventUpdate(BaseModel):
+    name: str | None = None
+    domain: (
+        Literal[
+            "substance",
+            "therapy",
+            "nutrition",
+            "sleep",
+            "stress",
+            "environment",
+            "symptom",
+            "medication",
+        ]
+        | None
+    ) = None
+    end_ts: datetime | date | None = None
+    dosage: str | None = None
+    notes: str | None = None
+    attributes: dict[str, Any] | None = None
+    tags: list[str] | None = None
+    protocol_id: int | None = None
+
+
+# ----------------------------- Protocols -------------------------------------
+
+
+class ProtocolCreate(BaseModel):
+    name: str
+    domain: Literal[
+        "supplement", "medication", "diet", "lifestyle", "training", "other"
+    ]
+    start_date: date
+    end_date: date | None = None
+    dosage: str | None = None
+    frequency: str | None = None
+    notes: str | None = None
+    tags: list[str] = Field(default_factory=list)
+
+
+class ProtocolUpdate(BaseModel):
+    name: str | None = None
+    domain: (
+        Literal["supplement", "medication", "diet", "lifestyle", "training", "other"]
+        | None
+    ) = None
+    end_date: date | None = None
+    dosage: str | None = None
+    frequency: str | None = None
+    notes: str | None = None
+    tags: list[str] | None = None
+
+
+# ----------------------------- Health Notes ----------------------------------
+
+
+class HealthNoteCreate(BaseModel):
+    text: str
+    attributes: dict[str, Any] = Field(default_factory=dict)
+    tags: list[str] = Field(default_factory=list)
