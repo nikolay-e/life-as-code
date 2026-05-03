@@ -361,7 +361,7 @@ jobs:
         run: |
           EXPECTED="main-$(echo ${{ github.sha }} | head -c 7)"
           echo "Waiting for $EXPECTED to be deployed..."
-          for i in $(seq 1 30); do
+          for i in $(seq 1 45); do
             VERSION=$(curl -sf https://life-as-code.com/api/version 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('version',''))" 2>/dev/null || echo "")
             echo "Attempt $i: deployed=$VERSION expected=$EXPECTED"
             if [ "$VERSION" = "$EXPECTED" ]; then

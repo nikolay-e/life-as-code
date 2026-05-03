@@ -163,6 +163,7 @@ export function ChatPage() {
               onClick={() => void handleSend()}
               disabled={!input.trim() || isSending}
               className="h-10 w-10 p-0 flex-shrink-0"
+              aria-label={isSending ? "Sending message" : "Send message"}
             >
               {isSending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />

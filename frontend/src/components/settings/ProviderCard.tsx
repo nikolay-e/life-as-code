@@ -110,7 +110,7 @@ export function ReadOnlyProviderCard({
           className={`w-10 h-10 rounded-full ${colorClass} flex items-center justify-center`}
         >
           <span
-            className={`font-bold ${colorClass.replace("bg-", "text-").replace("-100", "-600").replace("-900", "-300")}`}
+            className={`font-bold ${colorClass.replace("bg-", "text-").replace("-100", "-800").replace("-900", "-300")}`}
           >
             {shortName}
           </span>
@@ -291,7 +291,7 @@ export function ProviderCard({
             className={`w-10 h-10 rounded-full ${colorClass} flex items-center justify-center`}
           >
             <span
-              className={`font-bold ${colorClass.replace("bg-", "text-").replace("-100", "-600").replace("-900", "-300")}`}
+              className={`font-bold ${colorClass.replace("bg-", "text-").replace("-100", "-800").replace("-900", "-300")}`}
             >
               {shortName}
             </span>

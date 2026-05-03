@@ -401,9 +401,7 @@ export function ProgramEditor({
                 )}
               >
                 {d.name || `Day ${String(i + 1)}`}
-                <span className="ml-2 text-xs opacity-70">
-                  ({d.exercises.length})
-                </span>
+                <span className="ml-2 text-xs">({d.exercises.length})</span>
               </button>
             ))}
           </div>
