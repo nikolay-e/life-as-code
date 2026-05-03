@@ -13,19 +13,19 @@ html {
   --color-card-foreground: hsl(222.2 84% 4.9%);
   --color-popover: hsl(0 0% 100%);
   --color-popover-foreground: hsl(222.2 84% 4.9%);
-  --color-primary: hsl(221.2 83.2% 53.3%);
+  --color-primary: hsl(174 58% 36%);
   --color-primary-foreground: hsl(210 40% 98%);
   --color-secondary: hsl(210 40% 96.1%);
   --color-secondary-foreground: hsl(222.2 47.4% 11.2%);
   --color-muted: hsl(210 40% 96.1%);
-  --color-muted-foreground: hsl(215.4 16.3% 46.9%);
+  --color-muted-foreground: hsl(215.4 16.3% 42%);
   --color-accent: hsl(210 40% 96.1%);
   --color-accent-foreground: hsl(222.2 47.4% 11.2%);
   --color-destructive: hsl(0 72% 42%);
   --color-destructive-foreground: hsl(210 40% 98%);
   --color-border: hsl(214.3 31.8% 91.4%);
   --color-input: hsl(214.3 31.8% 91.4%);
-  --color-ring: hsl(221.2 83.2% 53.3%);
+  --color-ring: hsl(174 58% 36%);
 
   /* Health metric semantic colors */
   --color-hrv: hsl(199 89% 48%);
@@ -79,6 +79,13 @@ html {
   --color-warning: hsl(38 92% 50%);
   --color-warning-foreground: hsl(0 0% 100%);
 
+  /* Fonts */
+  --font-sans:
+    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    sans-serif;
+  --font-mono:
+    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
   /* Border radius */
   --radius: 0.625rem;
   --radius-lg: var(--radius);
@@ -106,7 +113,7 @@ html {
   --card-foreground: 222.2 84% 4.9%;
   --popover: 0 0% 100%;
   --popover-foreground: 222.2 84% 4.9%;
-  --primary: 221.2 83.2% 53.3%;
+  --primary: 174 58% 36%;
   --primary-foreground: 210 40% 98%;
   --secondary: 210 40% 96.1%;
   --secondary-foreground: 222.2 47.4% 11.2%;
@@ -118,7 +125,7 @@ html {
   --destructive-foreground: 210 40% 98%;
   --border: 214.3 31.8% 91.4%;
   --input: 214.3 31.8% 91.4%;
-  --ring: 221.2 83.2% 53.3%;
+  --ring: 174 58% 36%;
 
   /* Health metrics */
   --hrv: 199 89% 48%;
@@ -210,8 +217,8 @@ html {
   --card-foreground: 213 31% 91%;
   --popover: 224 71% 6%;
   --popover-foreground: 213 31% 91%;
-  --primary: 217 91% 60%;
-  --primary-foreground: 222.2 47.4% 11.2%;
+  --primary: 174 70% 50%;
+  --primary-foreground: 174 100% 8%;
   --secondary: 222 47% 11%;
   --secondary-foreground: 210 40% 98%;
   --muted: 223 47% 11%;
@@ -222,7 +229,7 @@ html {
   --destructive-foreground: 210 40% 98%;
   --border: 216 34% 17%;
   --input: 216 34% 17%;
-  --ring: 224 76% 48%;
+  --ring: 174 70% 50%;
 
   /* Health metrics - darker shades */
   --hrv: 199 89% 58%;
@@ -312,6 +319,7 @@ html {
 }
 
 body {
+  font-family: var(--font-sans);
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
   font-feature-settings:
@@ -387,4 +395,72 @@ body {
 .chart-gradient-workout {
   --gradient-start: hsl(var(--chart-workout));
   --gradient-end: hsl(var(--chart-workout-light));
+}
+
+/* Semantic type scale from design system */
+.t-display {
+  font-family: var(--font-sans);
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 2rem;
+  letter-spacing: -0.025em;
+}
+
+.t-page-title {
+  font-family: var(--font-sans);
+  font-size: 1.875rem;
+  font-weight: 700;
+  line-height: 2.25rem;
+  letter-spacing: -0.025em;
+}
+
+.t-section {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.025em;
+}
+
+.t-metric {
+  font-family: var(--font-sans);
+  font-size: 1.875rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+}
+
+.t-metric-label {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+}
+
+.t-body {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.t-caption {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: hsl(var(--muted-foreground));
+}
+
+.t-mono {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.t-nav {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 500;
 }
