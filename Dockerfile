@@ -31,8 +31,13 @@ FROM deps AS bot-builder
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install '.[agent,bot]'
 
+# --- Web Builder Stage (agent extra for chat) ---
+FROM deps AS web-builder
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install '.[agent]'
+
 # --- Builder Stage (adds source code — busts only on src/ changes) ---
-FROM deps AS builder
+FROM web-builder AS builder
 
 COPY src/ src/
 RUN --mount=type=cache,target=/root/.cache/uv \
