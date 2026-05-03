@@ -4,6 +4,7 @@
   "project": ["src/**/*.{ts,tsx}"],
   "ignore": [
     "src/hooks/useSettings.ts",
+    "src/hooks/useChat.ts",
     "src/lib/metrics/**",
     "src/lib/error-mapping.ts",
     "src/lib/logger.ts",

@@ -47,6 +47,11 @@ const HealthLogPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import("./pages/SettingsPage").then((m) => ({ default: m.SettingsPage })),
 );
+const ChatPage = lazy(() =>
+  import("./features/dashboard/ChatPage").then((m) => ({
+    default: m.ChatPage,
+  })),
+);
 
 function PageLoader() {
   return (
@@ -94,6 +99,7 @@ export default function App() {
                   element={<DataStatusPage />}
                 />
                 <Route path="/dashboard/settings" element={<SettingsPage />} />
+                <Route path="/dashboard/chat" element={<ChatPage />} />
               </Route>
             </Route>
             <Route path="*" element={<Navigate to="/dashboard" replace />} />

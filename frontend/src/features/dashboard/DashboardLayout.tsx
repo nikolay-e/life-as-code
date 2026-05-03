@@ -9,6 +9,7 @@ import {
   Heart,
   Activity,
   LayoutDashboard,
+  MessageCircle,
   Settings,
   LogOut,
   Database,
@@ -49,6 +50,12 @@ const navItems = [
     to: "/dashboard/health-log",
     icon: Pill,
     label: "Health Log",
+    end: false,
+  },
+  {
+    to: "/dashboard/chat",
+    icon: MessageCircle,
+    label: "AI Chat",
     end: false,
   },
   {

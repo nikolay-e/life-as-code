@@ -18,7 +18,7 @@ import { TemperatureChart } from "../../components/charts/TemperatureChart";
 import { SleepLatencyChart } from "../../components/charts/SleepLatencyChart";
 import { TREND_MODES, MODE_ORDER, type TrendMode } from "../../lib/metrics";
 import { formatSleepMinutes } from "../../lib/metrics/registry";
-import { format, subDays } from "date-fns";
+import { format, parseISO, subDays } from "date-fns";
 import {
   Moon,
   Calendar,
@@ -36,6 +36,9 @@ import {
   Wind,
   Droplet,
   Bed,
+  AlarmClock,
+  Sunset,
+  Heart,
 } from "lucide-react";
 import type { SleepData, WhoopSleepData } from "../../types/api";
 
@@ -282,6 +285,15 @@ function zScoreColor(z: number): string {
   return "";
 }
 
+function formatSleepTime(timeStr: string | null | undefined): string {
+  if (!timeStr) return "—";
+  try {
+    return format(parseISO(timeStr), "h:mm a");
+  } catch {
+    return "—";
+  }
+}
+
 export function SleepOverviewPage() {
   const [mode, setMode] = useState<TrendMode>("recent");
   const {
@@ -406,6 +418,93 @@ export function SleepOverviewPage() {
           icon={Clock}
         />
       </div>
+
+      {/* Sleep Timing */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <AlarmClock className="h-5 w-5 text-sleep" />
+            Sleep Timing
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+            {(() => {
+              const sleepArr = healthData?.sleep ?? [];
+              const whoopSleepArr = healthData?.whoop_sleep ?? [];
+              let bedtime: string | null = null;
+              let wakeTime: string | null = null;
+              for (let i = sleepArr.length - 1; i >= 0; i--) {
+                const s = sleepArr[i];
+                if (s.sleep_start_time) {
+                  bedtime = s.sleep_start_time;
+                  wakeTime = s.sleep_end_time ?? null;
+                  break;
+                }
+              }
+              if (!bedtime) {
+                for (let i = whoopSleepArr.length - 1; i >= 0; i--) {
+                  const s = whoopSleepArr[i];
+                  if (s.sleep_start_time) {
+                    bedtime = s.sleep_start_time;
+                    wakeTime = s.sleep_end_time ?? null;
+                    break;
+                  }
+                }
+              }
+              const parseTimeMinutes = (t: string): number | null => {
+                try {
+                  const d = parseISO(t);
+                  return d.getHours() * 60 + d.getMinutes();
+                } catch {
+                  return null;
+                }
+              };
+              const bedtimes = sleepArr
+                .map((s) =>
+                  s.sleep_start_time
+                    ? parseTimeMinutes(s.sleep_start_time)
+                    : null,
+                )
+                .filter((v): v is number => v !== null);
+              const avgBedtimeMin =
+                bedtimes.length > 0
+                  ? bedtimes.reduce((a, b) => a + b, 0) / bedtimes.length
+                  : null;
+              const avgBedtimeStr =
+                avgBedtimeMin !== null
+                  ? `${String(Math.floor((((avgBedtimeMin % 1440) + 1440) % 1440) / 60) % 12 || 12)}:${String(Math.round(avgBedtimeMin % 60)).padStart(2, "0")} ${avgBedtimeMin % 1440 >= 720 ? "PM" : "AM"}`
+                  : null;
+              return (
+                <>
+                  <StatCard
+                    title="Bedtime"
+                    value={formatSleepTime(bedtime)}
+                    icon={Sunset}
+                  />
+                  <StatCard
+                    title="Wake Time"
+                    value={formatSleepTime(wakeTime)}
+                    icon={AlarmClock}
+                  />
+                  <StatCard
+                    title="Avg Bedtime"
+                    value={avgBedtimeStr ?? "—"}
+                    icon={Clock}
+                  />
+                  <StatCard
+                    title="Nights Tracked"
+                    value={String(
+                      sleepArr.filter((s) => s.sleep_start_time).length,
+                    )}
+                    icon={Calendar}
+                  />
+                </>
+              );
+            })()}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Sleep Duration Chart */}
       <ChartErrorBoundary>
@@ -721,6 +820,67 @@ export function SleepOverviewPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Eight Sleep Biometrics */}
+      {eightSleepData.length > 0 &&
+        (() => {
+          let esHr: number | null = null;
+          let esHrv: number | null = null;
+          let esLatencyOut: number | null = null;
+          for (let i = eightSleepData.length - 1; i >= 0; i--) {
+            const s = eightSleepData[i];
+            if (esHr === null && s.heart_rate !== null) esHr = s.heart_rate;
+            if (esHrv === null && s.hrv !== null) esHrv = s.hrv;
+            if (esLatencyOut === null && s.latency_out_seconds !== null) {
+              esLatencyOut = s.latency_out_seconds;
+            }
+            if (esHr !== null && esHrv !== null && esLatencyOut !== null) {
+              break;
+            }
+          }
+          if (esHr === null && esHrv === null && esLatencyOut === null) {
+            return null;
+          }
+          return (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Heart className="h-5 w-5 text-sleep" />
+                  Eight Sleep Biometrics
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
+                  {esHr !== null && (
+                    <StatCard
+                      title="Sleep HR"
+                      value={`${String(Math.round(esHr))} bpm`}
+                      icon={Heart}
+                    />
+                  )}
+                  {esHrv !== null && (
+                    <StatCard
+                      title="Sleep HRV"
+                      value={`${String(Math.round(esHrv))} ms`}
+                      icon={Activity}
+                    />
+                  )}
+                  {esLatencyOut !== null && (
+                    <StatCard
+                      title="Latency Out"
+                      value={
+                        esLatencyOut < 60
+                          ? `${String(Math.round(esLatencyOut))}s`
+                          : `${String(Math.round(esLatencyOut / 60))}m`
+                      }
+                      icon={Clock}
+                    />
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })()}
 
       {/* Whoop Sleep Need */}
       {(() => {

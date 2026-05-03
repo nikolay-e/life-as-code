@@ -51,6 +51,8 @@ export interface EightSleepSessionData {
   sleep_routine_score: number | null;
   sleep_quality_score: number | null;
   tnt: number | null;
+  sleep_start_time: string | null;
+  sleep_end_time: string | null;
 }
 
 export interface SleepData {
@@ -69,6 +71,8 @@ export interface SleepData {
   spo2_avg: number | null;
   spo2_min: number | null;
   respiratory_rate: number | null;
+  sleep_start_time: string | null;
+  sleep_end_time: string | null;
 }
 
 export interface HRVData {
@@ -118,6 +122,8 @@ export interface StepsData {
   total_steps: number | null;
   total_distance: number | null;
   step_goal: number | null;
+  active_minutes: number | null;
+  floors_climbed: number | null;
 }
 
 export interface EnergyData {
@@ -160,6 +166,8 @@ export interface WhoopSleepData {
   sleep_cycle_count: number | null;
   disturbance_count: number | null;
   no_data_minutes: number | null;
+  sleep_start_time: string | null;
+  sleep_end_time: string | null;
 }
 
 export interface WhoopWorkoutData {
@@ -910,4 +918,21 @@ export interface WorkoutProgramUpdatePayload {
   start_date?: string;
   end_date?: string | null;
   days?: ProgramDayData[];
+}
+
+export interface ChatMessage {
+  id: number;
+  role: "user" | "assistant";
+  text_preview: string | null;
+  model: string | null;
+  created_at: string;
+}
+
+export interface ChatHistoryResponse {
+  messages: ChatMessage[];
+  total: number;
+}
+
+export interface ChatSendResponse {
+  reply: string;
 }

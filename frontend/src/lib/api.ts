@@ -3,6 +3,8 @@ import type {
   AuthResponse,
   BackoffStatus,
   BloodBiomarkerData,
+  ChatHistoryResponse,
+  ChatSendResponse,
   ClinicalAlertEvent,
   CredentialTestResult,
   CredentialsStatus,
@@ -430,6 +432,20 @@ export const api = {
 
     delete: (id: number): Promise<{ deleted: boolean }> =>
       request(`/programs/${String(id)}`, { method: "DELETE" }),
+  },
+
+  chat: {
+    getMessages: (limit = 50): Promise<ChatHistoryResponse> =>
+      request(`/chat/messages?limit=${String(limit)}`),
+
+    sendMessage: (message: string): Promise<ChatSendResponse> =>
+      request("/chat/messages", {
+        method: "POST",
+        body: JSON.stringify({ message }),
+      }),
+
+    clearHistory: (): Promise<{ cleared: boolean }> =>
+      request("/chat/clear", { method: "POST" }),
   },
 
   exerciseTemplates: {

@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
+  MessageCircle,
   Moon,
   TrendingUp,
   Dumbbell,
@@ -27,6 +28,7 @@ const PRIMARY_ITEMS: readonly MobileNavItem[] = [
 ];
 
 const SECONDARY_ITEMS: readonly MobileNavItem[] = [
+  { to: "/dashboard/chat", icon: MessageCircle, label: "Chat", end: false },
   { to: "/dashboard/data-status", icon: Database, label: "Data", end: false },
   { to: "/dashboard/settings", icon: Settings, label: "Settings", end: false },
 ];

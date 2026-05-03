@@ -197,6 +197,9 @@ export function DashboardOverview() {
         list,
         "anaerobic_training_effect",
       ),
+      vo2_max_precise: pickLatestNonNull(list, "vo2_max_precise"),
+      training_load_7_day: pickLatestNonNull(list, "training_load_7_day"),
+      active_kilocalories: pickLatestNonNull(list, "active_kilocalories"),
     };
   }, [data]);
 
@@ -234,6 +237,24 @@ export function DashboardOverview() {
       hrv_rmssd: pickLatestNonNull(recovery, "hrv_rmssd"),
       resting_heart_rate: pickLatestNonNull(recovery, "resting_heart_rate"),
       user_calibrating: calibratingLatest,
+    };
+  }, [data]);
+
+  const whoopCycleInsights = useMemo(() => {
+    const cycles = data?.whoop_cycle ?? [];
+    return {
+      avg_heart_rate: pickLatestNonNull(cycles, "avg_heart_rate"),
+      max_heart_rate: pickLatestNonNull(cycles, "max_heart_rate"),
+    };
+  }, [data]);
+
+  const stepsInsights = useMemo(() => {
+    const steps = data?.steps ?? [];
+    return {
+      total_distance: pickLatestNonNull(steps, "total_distance"),
+      step_goal: pickLatestNonNull(steps, "step_goal"),
+      active_minutes: pickLatestNonNull(steps, "active_minutes"),
+      floors_climbed: pickLatestNonNull(steps, "floors_climbed"),
     };
   }, [data]);
 
@@ -323,7 +344,9 @@ export function DashboardOverview() {
     garminInsights.training_readiness_score !== null ||
     garminInsights.endurance_score !== null ||
     garminInsights.primary_training_effect !== null ||
-    garminInsights.anaerobic_training_effect !== null;
+    garminInsights.anaerobic_training_effect !== null ||
+    garminInsights.vo2_max_precise !== null ||
+    garminInsights.training_load_7_day !== null;
 
   const hasRecoverySensors =
     recoverySensors.sleep_spo2_avg !== null ||
@@ -636,6 +659,53 @@ export function DashboardOverview() {
                 </CardContent>
               </Card>
             )}
+            {garminInsights.vo2_max_precise !== null && (
+              <Card>
+                <CardContent className="p-5 space-y-2">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    VO2 Max (precise)
+                  </p>
+                  <p className="text-3xl font-bold tracking-tight">
+                    {garminInsights.vo2_max_precise.toFixed(1)}
+                    <span className="text-base font-medium text-muted-foreground">
+                      {" "}
+                      ml/kg/min
+                    </span>
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+            {garminInsights.training_load_7_day !== null && (
+              <Card>
+                <CardContent className="p-5 space-y-2">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Training Load (7-day)
+                  </p>
+                  <p className="text-3xl font-bold tracking-tight">
+                    {Math.round(garminInsights.training_load_7_day)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Weekly accumulation
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+            {garminInsights.active_kilocalories !== null && (
+              <Card>
+                <CardContent className="p-5 space-y-2">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Active Calories
+                  </p>
+                  <p className="text-3xl font-bold tracking-tight">
+                    {Math.round(garminInsights.active_kilocalories)}
+                    <span className="text-base font-medium text-muted-foreground">
+                      {" "}
+                      kcal
+                    </span>
+                  </p>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </section>
       )}
@@ -927,6 +997,100 @@ export function DashboardOverview() {
                     </p>
                   </div>
                 )}
+                {whoopCycleInsights.avg_heart_rate !== null && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Daily Avg HR (Cycle)
+                    </p>
+                    <p className="text-2xl font-bold tracking-tight">
+                      {Math.round(whoopCycleInsights.avg_heart_rate)}
+                      <span className="text-sm font-medium text-muted-foreground">
+                        {" "}
+                        bpm
+                      </span>
+                    </p>
+                  </div>
+                )}
+                {whoopCycleInsights.max_heart_rate !== null && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Daily Max HR (Cycle)
+                    </p>
+                    <p className="text-2xl font-bold tracking-tight">
+                      {Math.round(whoopCycleInsights.max_heart_rate)}
+                      <span className="text-sm font-medium text-muted-foreground">
+                        {" "}
+                        bpm
+                      </span>
+                    </p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+      )}
+
+      {(stepsInsights.total_distance !== null ||
+        stepsInsights.active_minutes !== null ||
+        stepsInsights.floors_climbed !== null ||
+        stepsInsights.step_goal !== null) && (
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold tracking-tight">
+            Activity Details
+          </h2>
+          <Card>
+            <CardContent className="p-5">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {stepsInsights.total_distance !== null && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Distance
+                    </p>
+                    <p className="text-2xl font-bold tracking-tight">
+                      {(stepsInsights.total_distance / 1000).toFixed(2)}
+                      <span className="text-sm font-medium text-muted-foreground">
+                        {" "}
+                        km
+                      </span>
+                    </p>
+                  </div>
+                )}
+                {stepsInsights.step_goal !== null && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Step Goal
+                    </p>
+                    <p className="text-2xl font-bold tracking-tight">
+                      {stepsInsights.step_goal.toLocaleString()}
+                    </p>
+                  </div>
+                )}
+                {stepsInsights.active_minutes !== null && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Active Minutes
+                    </p>
+                    <p className="text-2xl font-bold tracking-tight">
+                      {Math.round(stepsInsights.active_minutes)}
+                      <span className="text-sm font-medium text-muted-foreground">
+                        {" "}
+                        min
+                      </span>
+                    </p>
+                  </div>
+                )}
+                {stepsInsights.floors_climbed !== null &&
+                  stepsInsights.floors_climbed > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Floors Climbed
+                      </p>
+                      <p className="text-2xl font-bold tracking-tight">
+                        {Math.round(stepsInsights.floors_climbed)}
+                      </p>
+                    </div>
+                  )}
               </div>
             </CardContent>
           </Card>
