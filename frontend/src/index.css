@@ -28,50 +28,50 @@ html {
   --color-ring: hsl(174 58% 30%);
 
   /* Health metric semantic colors */
-  --color-hrv: hsl(199 89% 48%);
+  --color-hrv: hsl(199 62% 46%);
   --color-hrv-foreground: hsl(0 0% 100%);
-  --color-hrv-muted: hsl(199 89% 94%);
-  --color-sleep: hsl(258 90% 66%);
+  --color-hrv-muted: hsl(199 55% 92%);
+  --color-sleep: hsl(258 55% 62%);
   --color-sleep-foreground: hsl(0 0% 100%);
-  --color-sleep-muted: hsl(258 90% 96%);
-  --color-heart: hsl(0 84% 60%);
+  --color-sleep-muted: hsl(258 55% 94%);
+  --color-heart: hsl(0 60% 55%);
   --color-heart-foreground: hsl(0 0% 100%);
-  --color-heart-muted: hsl(0 84% 95%);
-  --color-steps: hsl(142 71% 45%);
+  --color-heart-muted: hsl(0 55% 93%);
+  --color-steps: hsl(142 48% 42%);
   --color-steps-foreground: hsl(0 0% 100%);
-  --color-steps-muted: hsl(142 71% 94%);
-  --color-stress: hsl(38 92% 50%);
+  --color-steps-muted: hsl(142 45% 91%);
+  --color-stress: hsl(32 65% 48%);
   --color-stress-foreground: hsl(0 0% 100%);
-  --color-stress-muted: hsl(38 92% 95%);
-  --color-weight: hsl(262 83% 58%);
+  --color-stress-muted: hsl(32 65% 92%);
+  --color-weight: hsl(262 50% 56%);
   --color-weight-foreground: hsl(0 0% 100%);
-  --color-weight-muted: hsl(262 83% 96%);
-  --color-workout: hsl(173 80% 40%);
+  --color-weight-muted: hsl(262 50% 94%);
+  --color-workout: hsl(173 55% 38%);
   --color-workout-foreground: hsl(0 0% 100%);
-  --color-workout-muted: hsl(173 80% 94%);
-  --color-whoop: hsl(280 70% 50%);
+  --color-workout-muted: hsl(173 50% 91%);
+  --color-whoop: hsl(280 48% 50%);
   --color-whoop-foreground: hsl(0 0% 100%);
-  --color-whoop-muted: hsl(280 70% 94%);
-  --color-whoop-strain: hsl(15 90% 55%);
+  --color-whoop-muted: hsl(280 48% 93%);
+  --color-whoop-strain: hsl(15 68% 52%);
   --color-whoop-strain-foreground: hsl(0 0% 100%);
-  --color-whoop-strain-muted: hsl(15 90% 94%);
+  --color-whoop-strain-muted: hsl(15 68% 93%);
 
   /* New Garmin metrics */
-  --color-vo2max: hsl(210 100% 50%);
+  --color-vo2max: hsl(210 68% 48%);
   --color-vo2max-foreground: hsl(0 0% 100%);
-  --color-vo2max-muted: hsl(210 100% 94%);
-  --color-training: hsl(45 100% 50%);
+  --color-vo2max-muted: hsl(210 60% 92%);
+  --color-training: hsl(45 72% 50%);
   --color-training-foreground: hsl(0 0% 100%);
-  --color-training-muted: hsl(45 100% 94%);
-  --color-fitness: hsl(320 70% 55%);
+  --color-training-muted: hsl(45 70% 92%);
+  --color-fitness: hsl(320 52% 53%);
   --color-fitness-foreground: hsl(0 0% 100%);
-  --color-fitness-muted: hsl(320 70% 94%);
-  --color-endurance: hsl(185 80% 45%);
+  --color-fitness-muted: hsl(320 50% 93%);
+  --color-endurance: hsl(185 58% 43%);
   --color-endurance-foreground: hsl(0 0% 100%);
-  --color-endurance-muted: hsl(185 80% 94%);
-  --color-calories: hsl(25 95% 53%);
+  --color-endurance-muted: hsl(185 52% 91%);
+  --color-calories: hsl(25 72% 52%);
   --color-calories-foreground: hsl(0 0% 100%);
-  --color-calories-muted: hsl(25 95% 94%);
+  --color-calories-muted: hsl(25 70% 92%);
 
   /* Status colors */
   --color-success: hsl(142 76% 36%);
@@ -128,64 +128,64 @@ html {
   --ring: 174 58% 30%;
 
   /* Health metrics */
-  --hrv: 199 89% 48%;
+  --hrv: 199 62% 46%;
   --hrv-foreground: 0 0% 100%;
-  --hrv-muted: 199 89% 94%;
-  --sleep: 258 90% 66%;
+  --hrv-muted: 199 55% 92%;
+  --sleep: 258 55% 62%;
   --sleep-foreground: 0 0% 100%;
-  --sleep-muted: 258 90% 96%;
-  --heart: 0 84% 60%;
+  --sleep-muted: 258 55% 94%;
+  --heart: 0 60% 55%;
   --heart-foreground: 0 0% 100%;
-  --heart-muted: 0 84% 95%;
-  --steps: 142 71% 45%;
+  --heart-muted: 0 55% 93%;
+  --steps: 142 48% 42%;
   --steps-foreground: 0 0% 100%;
-  --steps-muted: 142 71% 94%;
-  --stress: 38 92% 50%;
+  --steps-muted: 142 45% 91%;
+  --stress: 32 65% 48%;
   --stress-foreground: 0 0% 100%;
-  --stress-muted: 38 92% 95%;
-  --weight: 262 83% 58%;
+  --stress-muted: 32 65% 92%;
+  --weight: 262 50% 56%;
   --weight-foreground: 0 0% 100%;
-  --weight-muted: 262 83% 96%;
-  --workout: 173 80% 40%;
+  --weight-muted: 262 50% 94%;
+  --workout: 173 55% 38%;
   --workout-foreground: 0 0% 100%;
-  --workout-muted: 173 80% 94%;
-  --whoop: 280 70% 50%;
+  --workout-muted: 173 50% 91%;
+  --whoop: 280 48% 50%;
   --whoop-foreground: 0 0% 100%;
-  --whoop-muted: 280 70% 94%;
-  --whoop-strain: 15 90% 55%;
+  --whoop-muted: 280 48% 93%;
+  --whoop-strain: 15 68% 52%;
   --whoop-strain-foreground: 0 0% 100%;
-  --whoop-strain-muted: 15 90% 94%;
-  --garmin: 200 100% 45%;
+  --whoop-strain-muted: 15 68% 93%;
+  --garmin: 200 68% 44%;
   --garmin-foreground: 0 0% 100%;
-  --garmin-muted: 200 100% 94%;
-  --google-fit: 145 65% 42%;
+  --garmin-muted: 200 60% 92%;
+  --google-fit: 145 48% 42%;
   --google-fit-foreground: 0 0% 100%;
-  --google-fit-muted: 145 65% 94%;
-  --apple-health: 340 80% 55%;
+  --google-fit-muted: 145 45% 91%;
+  --apple-health: 340 58% 53%;
   --apple-health-foreground: 0 0% 100%;
-  --apple-health-muted: 340 80% 94%;
+  --apple-health-muted: 340 55% 93%;
 
   /* New Garmin metrics */
-  --vo2max: 210 100% 50%;
+  --vo2max: 210 68% 48%;
   --vo2max-foreground: 0 0% 100%;
-  --vo2max-muted: 210 100% 94%;
-  --training: 45 100% 50%;
+  --vo2max-muted: 210 60% 92%;
+  --training: 45 72% 50%;
   --training-foreground: 0 0% 100%;
-  --training-muted: 45 100% 94%;
-  --training-acute: 200 80% 50%;
-  --training-chronic: 280 60% 50%;
-  --acwr-optimal: 142 76% 36%;
-  --acwr-caution: 45 100% 50%;
-  --acwr-danger: 0 84% 60%;
-  --fitness: 320 70% 55%;
+  --training-muted: 45 70% 92%;
+  --training-acute: 200 68% 48%;
+  --training-chronic: 280 48% 50%;
+  --acwr-optimal: 142 48% 36%;
+  --acwr-caution: 45 72% 50%;
+  --acwr-danger: 0 60% 55%;
+  --fitness: 320 52% 53%;
   --fitness-foreground: 0 0% 100%;
-  --fitness-muted: 320 70% 94%;
-  --endurance: 185 80% 45%;
+  --fitness-muted: 320 50% 93%;
+  --endurance: 185 58% 43%;
   --endurance-foreground: 0 0% 100%;
-  --endurance-muted: 185 80% 94%;
-  --calories: 25 95% 53%;
+  --endurance-muted: 185 52% 91%;
+  --calories: 25 72% 52%;
   --calories-foreground: 0 0% 100%;
-  --calories-muted: 25 95% 94%;
+  --calories-muted: 25 70% 92%;
 
   /* Status */
   --success: 142 76% 36%;
@@ -194,20 +194,27 @@ html {
   --warning-foreground: 0 0% 100%;
 
   /* Chart colors for gradients */
-  --chart-hrv: 199 89% 48%;
-  --chart-hrv-light: 199 89% 68%;
-  --chart-sleep: 258 90% 66%;
-  --chart-sleep-light: 258 90% 82%;
-  --chart-heart: 0 84% 60%;
-  --chart-heart-light: 0 84% 78%;
-  --chart-steps: 142 71% 45%;
-  --chart-steps-light: 142 71% 70%;
-  --chart-stress: 38 92% 50%;
-  --chart-stress-light: 38 92% 72%;
-  --chart-weight: 262 83% 58%;
-  --chart-weight-light: 262 83% 78%;
-  --chart-workout: 173 80% 40%;
-  --chart-workout-light: 173 80% 65%;
+  --chart-hrv: 199 62% 46%;
+  --chart-hrv-light: 199 55% 70%;
+  --chart-sleep: 258 55% 62%;
+  --chart-sleep-light: 258 55% 80%;
+  --chart-heart: 0 60% 55%;
+  --chart-heart-light: 0 55% 76%;
+  --chart-steps: 142 48% 42%;
+  --chart-steps-light: 142 45% 68%;
+  --chart-stress: 32 65% 48%;
+  --chart-stress-light: 32 65% 70%;
+  --chart-weight: 262 50% 56%;
+  --chart-weight-light: 262 50% 76%;
+  --chart-workout: 173 55% 38%;
+  --chart-workout-light: 173 50% 62%;
+
+  /* Utility tokens */
+  --radius-2xl: 1rem;
+  --tracking-tight: -0.025em;
+  --tracking-tighter: -0.04em;
+  --container-padding: 1.5rem;
+  --header-height: 4rem;
 }
 
 .dark {
@@ -232,64 +239,64 @@ html {
   --ring: 174 70% 50%;
 
   /* Health metrics - darker shades */
-  --hrv: 199 89% 58%;
+  --hrv: 199 65% 56%;
   --hrv-foreground: 224 71% 4%;
-  --hrv-muted: 199 50% 15%;
-  --sleep: 258 90% 72%;
+  --hrv-muted: 199 40% 14%;
+  --sleep: 258 60% 70%;
   --sleep-foreground: 224 71% 4%;
-  --sleep-muted: 258 50% 15%;
-  --heart: 0 84% 65%;
+  --sleep-muted: 258 40% 14%;
+  --heart: 0 62% 62%;
   --heart-foreground: 224 71% 4%;
-  --heart-muted: 0 50% 15%;
-  --steps: 142 71% 55%;
+  --heart-muted: 0 40% 14%;
+  --steps: 142 50% 52%;
   --steps-foreground: 224 71% 4%;
-  --steps-muted: 142 50% 15%;
-  --stress: 38 92% 55%;
+  --steps-muted: 142 40% 13%;
+  --stress: 32 70% 54%;
   --stress-foreground: 224 71% 4%;
-  --stress-muted: 38 50% 15%;
-  --weight: 262 83% 68%;
+  --stress-muted: 32 45% 14%;
+  --weight: 262 55% 66%;
   --weight-foreground: 224 71% 4%;
-  --weight-muted: 262 50% 15%;
-  --workout: 173 80% 50%;
+  --weight-muted: 262 40% 14%;
+  --workout: 173 58% 48%;
   --workout-foreground: 224 71% 4%;
-  --workout-muted: 173 50% 15%;
-  --whoop: 280 70% 60%;
+  --workout-muted: 173 40% 13%;
+  --whoop: 280 52% 58%;
   --whoop-foreground: 224 71% 4%;
-  --whoop-muted: 280 50% 15%;
-  --whoop-strain: 15 90% 60%;
+  --whoop-muted: 280 40% 14%;
+  --whoop-strain: 15 68% 58%;
   --whoop-strain-foreground: 224 71% 4%;
-  --whoop-strain-muted: 15 50% 15%;
-  --garmin: 200 100% 55%;
+  --whoop-strain-muted: 15 45% 14%;
+  --garmin: 200 70% 54%;
   --garmin-foreground: 224 71% 4%;
-  --garmin-muted: 200 50% 15%;
-  --google-fit: 145 65% 52%;
+  --garmin-muted: 200 45% 14%;
+  --google-fit: 145 50% 52%;
   --google-fit-foreground: 224 71% 4%;
-  --google-fit-muted: 145 50% 15%;
-  --apple-health: 340 80% 65%;
+  --google-fit-muted: 145 40% 13%;
+  --apple-health: 340 58% 62%;
   --apple-health-foreground: 224 71% 4%;
-  --apple-health-muted: 340 50% 15%;
+  --apple-health-muted: 340 40% 14%;
 
   /* New Garmin metrics - darker shades */
-  --vo2max: 210 100% 60%;
+  --vo2max: 210 68% 58%;
   --vo2max-foreground: 224 71% 4%;
-  --vo2max-muted: 210 50% 15%;
-  --training: 45 100% 55%;
+  --vo2max-muted: 210 45% 14%;
+  --training: 45 72% 55%;
   --training-foreground: 224 71% 4%;
-  --training-muted: 45 50% 15%;
-  --training-acute: 200 80% 60%;
-  --training-chronic: 280 60% 60%;
-  --acwr-optimal: 142 76% 46%;
-  --acwr-caution: 45 100% 55%;
-  --acwr-danger: 0 84% 65%;
-  --fitness: 320 70% 65%;
+  --training-muted: 45 45% 14%;
+  --training-acute: 200 68% 58%;
+  --training-chronic: 280 48% 58%;
+  --acwr-optimal: 142 50% 46%;
+  --acwr-caution: 45 72% 55%;
+  --acwr-danger: 0 62% 62%;
+  --fitness: 320 52% 62%;
   --fitness-foreground: 224 71% 4%;
-  --fitness-muted: 320 50% 15%;
-  --endurance: 185 80% 55%;
+  --fitness-muted: 320 40% 14%;
+  --endurance: 185 58% 52%;
   --endurance-foreground: 224 71% 4%;
-  --endurance-muted: 185 50% 15%;
-  --calories: 25 95% 58%;
+  --endurance-muted: 185 40% 13%;
+  --calories: 25 72% 56%;
   --calories-foreground: 224 71% 4%;
-  --calories-muted: 25 50% 15%;
+  --calories-muted: 25 45% 14%;
 
   /* Status */
   --success: 142 76% 46%;
@@ -298,20 +305,30 @@ html {
   --warning-foreground: 224 71% 4%;
 
   /* Chart colors for gradients */
-  --chart-hrv: 199 89% 58%;
-  --chart-hrv-light: 199 60% 35%;
-  --chart-sleep: 258 90% 72%;
-  --chart-sleep-light: 258 60% 45%;
-  --chart-heart: 0 84% 65%;
-  --chart-heart-light: 0 60% 40%;
-  --chart-steps: 142 71% 55%;
-  --chart-steps-light: 142 50% 35%;
-  --chart-stress: 38 92% 55%;
-  --chart-stress-light: 38 60% 35%;
-  --chart-weight: 262 83% 68%;
-  --chart-weight-light: 262 60% 40%;
-  --chart-workout: 173 80% 50%;
-  --chart-workout-light: 173 50% 30%;
+  --chart-hrv: 199 65% 56%;
+  --chart-hrv-light: 199 40% 30%;
+  --chart-sleep: 258 60% 70%;
+  --chart-sleep-light: 258 40% 40%;
+  --chart-heart: 0 62% 62%;
+  --chart-heart-light: 0 40% 35%;
+  --chart-steps: 142 50% 52%;
+  --chart-steps-light: 142 40% 30%;
+  --chart-stress: 32 70% 54%;
+  --chart-stress-light: 32 45% 30%;
+  --chart-weight: 262 55% 66%;
+  --chart-weight-light: 262 40% 35%;
+  --chart-workout: 173 58% 48%;
+  --chart-workout-light: 173 40% 26%;
+}
+
+/* Helper shorthand vars */
+:root {
+  --c-bg: hsl(var(--background));
+  --c-fg: hsl(var(--foreground));
+  --c-fg-muted: hsl(var(--muted-foreground));
+  --c-card: hsl(var(--card));
+  --c-border: hsl(var(--border));
+  --c-primary: hsl(var(--primary));
 }
 
 * {
