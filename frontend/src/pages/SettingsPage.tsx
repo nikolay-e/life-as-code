@@ -89,9 +89,9 @@ export function SettingsPage() {
   const birthDate = profileEdits.birthDate ?? initialBirthDate;
   const gender = profileEdits.gender ?? initialGender;
   const heightCm =
-    profileEdits.heightCm !== undefined
-      ? profileEdits.heightCm
-      : initialHeightCm;
+    profileEdits.heightCm === undefined
+      ? initialHeightCm
+      : profileEdits.heightCm;
   const setBirthDate = (v: string) => {
     setProfileEdits((p) => ({ ...p, birthDate: v }));
   };

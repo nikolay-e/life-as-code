@@ -61,7 +61,7 @@ export function ChatPage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    void loadHistory();
+    loadHistory().catch(() => {});
   }, [loadHistory]);
 
   useEffect(() => {
@@ -78,9 +78,24 @@ export function ChatPage() {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      void handleSend();
+      handleSend().catch(() => {});
     }
   };
+
+  const chatBodyContent =
+    messages.length === 0 ? (
+      <div className="flex flex-col items-center justify-center h-full text-center space-y-3 text-muted-foreground">
+        <Bot className="h-12 w-12 opacity-30" />
+        <div>
+          <p className="font-medium">Start a conversation</p>
+          <p className="text-sm">
+            Ask about your HRV, sleep, training, or anything health-related
+          </p>
+        </div>
+      </div>
+    ) : (
+      messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)
+    );
 
   return (
     <div className="flex flex-col h-[calc(100vh-10rem)] max-h-[800px]">
@@ -98,7 +113,9 @@ export function ChatPage() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => void clearHistory()}
+            onClick={() => {
+              clearHistory().catch(() => {});
+            }}
             className="text-muted-foreground"
           >
             <Trash2 className="h-4 w-4 mr-2" />
@@ -114,19 +131,8 @@ export function ChatPage() {
         >
           {isLoading ? (
             <LoadingState message="Loading conversation..." />
-          ) : messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center space-y-3 text-muted-foreground">
-              <Bot className="h-12 w-12 opacity-30" />
-              <div>
-                <p className="font-medium">Start a conversation</p>
-                <p className="text-sm">
-                  Ask about your HRV, sleep, training, or anything
-                  health-related
-                </p>
-              </div>
-            </div>
           ) : (
-            messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)
+            chatBodyContent
           )}
           {isSending && (
             <div className="flex gap-3">
@@ -160,7 +166,9 @@ export function ChatPage() {
             />
             <Button
               size="sm"
-              onClick={() => void handleSend()}
+              onClick={() => {
+                handleSend().catch(() => {});
+              }}
               disabled={!input.trim() || isSending}
               className="h-10 w-10 p-0 flex-shrink-0"
               aria-label={isSending ? "Sending message" : "Send message"}

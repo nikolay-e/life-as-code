@@ -1914,7 +1914,7 @@ def api_update_program(program_id: int):
 
         if body.days is not None:
             # Replace day/exercise structure wholesale.
-            for d in list(program.days):
+            for d in program.days:
                 db.delete(d)
             db.flush()
             template_ids = {

@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap");
 @import "tailwindcss";
 
 /* iOS Safe Area Support for PWA */
@@ -215,6 +216,14 @@ html {
   --tracking-tighter: -0.04em;
   --container-padding: 1.5rem;
   --header-height: 4rem;
+
+  /* Helper shorthand vars */
+  --c-bg: hsl(var(--background));
+  --c-fg: hsl(var(--foreground));
+  --c-fg-muted: hsl(var(--muted-foreground));
+  --c-card: hsl(var(--card));
+  --c-border: hsl(var(--border));
+  --c-primary: hsl(var(--primary));
 }
 
 .dark {
@@ -319,16 +328,6 @@ html {
   --chart-weight-light: 262 40% 35%;
   --chart-workout: 173 58% 48%;
   --chart-workout-light: 173 40% 26%;
-}
-
-/* Helper shorthand vars */
-:root {
-  --c-bg: hsl(var(--background));
-  --c-fg: hsl(var(--foreground));
-  --c-fg-muted: hsl(var(--muted-foreground));
-  --c-card: hsl(var(--card));
-  --c-border: hsl(var(--border));
-  --c-primary: hsl(var(--primary));
 }
 
 * {

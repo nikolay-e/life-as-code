@@ -16,14 +16,12 @@ export type AnnotationDomain =
   | "other"
   | "protocol";
 
-export type AnnotationCategory = AnnotationDomain;
-
 export interface ChartAnnotation {
   readonly id: string | number;
   readonly startDate: string;
   readonly endDate: string | null;
   readonly label: string;
-  readonly category: AnnotationCategory;
+  readonly category: AnnotationDomain;
 }
 
 export const CATEGORY_COLOR: Record<string, string> = {

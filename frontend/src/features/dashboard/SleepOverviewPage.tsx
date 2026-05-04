@@ -319,7 +319,10 @@ export function SleepOverviewPage() {
     [startDate, endDate],
   );
 
-  const eightSleepData = healthData?.eight_sleep_sessions ?? [];
+  const eightSleepData = useMemo(
+    () => healthData?.eight_sleep_sessions ?? [],
+    [healthData?.eight_sleep_sessions],
+  );
 
   const latestEightSleepBiometrics = useMemo(() => {
     let hr: number | null = null;
@@ -488,10 +491,14 @@ export function SleepOverviewPage() {
                 bedtimes.length > 0
                   ? bedtimes.reduce((a, b) => a + b, 0) / bedtimes.length
                   : null;
+              const avgBedtimePeriod =
+                avgBedtimeMin != null && avgBedtimeMin % 1440 >= 720
+                  ? "PM"
+                  : "AM";
               const avgBedtimeStr =
-                avgBedtimeMin !== null
-                  ? `${String(Math.floor((((avgBedtimeMin % 1440) + 1440) % 1440) / 60) % 12 || 12)}:${String(Math.round(avgBedtimeMin % 60)).padStart(2, "0")} ${avgBedtimeMin % 1440 >= 720 ? "PM" : "AM"}`
-                  : null;
+                avgBedtimeMin === null
+                  ? null
+                  : `${String(Math.floor((((avgBedtimeMin % 1440) + 1440) % 1440) / 60) % 12 || 12)}:${String(Math.round(avgBedtimeMin % 60)).padStart(2, "0")} ${avgBedtimePeriod}`;
               return (
                 <>
                   <StatCard

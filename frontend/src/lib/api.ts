@@ -570,7 +570,8 @@ export const api = {
       if (params?.equipment) qs.set("equipment", params.equipment);
       if (params?.limit) qs.set("limit", String(params.limit));
       const q = qs.toString();
-      return request(`/exercise-templates${q ? `?${q}` : ""}`);
+      const path = q ? `/exercise-templates?${q}` : "/exercise-templates";
+      return request(path);
     },
 
     sync: (): Promise<{

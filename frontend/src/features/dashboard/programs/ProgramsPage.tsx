@@ -128,12 +128,14 @@ export function ProgramsPanel() {
   }
 
   if (activeQuery.isError || listQuery.isError) {
+    const listErrorMsg =
+      listQuery.error instanceof Error
+        ? listQuery.error.message
+        : "Failed to load programs";
     const message =
       activeQuery.error instanceof Error
         ? activeQuery.error.message
-        : listQuery.error instanceof Error
-          ? listQuery.error.message
-          : "Failed to load programs";
+        : listErrorMsg;
     return <ErrorCard message={message} />;
   }
 
@@ -366,12 +368,12 @@ function ExerciseRowDisplay({ exercise, index }: ExerciseRowDisplayProps) {
   const reps = repsLabel(exercise);
   const rpe = rpeLabel(exercise);
   const setsX =
-    exercise.target_sets != null ? `${String(exercise.target_sets)}×` : "";
+    exercise.target_sets == null ? "" : `${String(exercise.target_sets)}×`;
   const prescription = [
     setsX && reps ? `${setsX}${reps}` : setsX || reps,
-    exercise.target_weight_kg != null
-      ? `${String(exercise.target_weight_kg)} kg`
-      : "",
+    exercise.target_weight_kg == null
+      ? ""
+      : `${String(exercise.target_weight_kg)} kg`,
     rpe,
   ]
     .filter(Boolean)

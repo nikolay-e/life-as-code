@@ -349,7 +349,9 @@ export function ProgramEditor({
                       setActivate(e.target.checked);
                     }}
                   />
-                  Make this the active program (auto-archives any current one)
+                  <span>
+                    Make this the active program (auto-archives any current one)
+                  </span>
                 </label>
               </div>
             )}
@@ -388,7 +390,7 @@ export function ProgramEditor({
           <div className="flex flex-wrap gap-2 border-b pb-2">
             {days.map((d, i) => (
               <button
-                key={i}
+                key={d.day_order}
                 type="button"
                 onClick={() => {
                   setActiveDayIdx(i);
@@ -542,7 +544,7 @@ function DayEditor({
           <div className="space-y-3">
             {day.exercises.map((ex, exIdx) => (
               <ExerciseRow
-                key={exIdx}
+                key={ex.exercise_order}
                 exercise={ex}
                 index={exIdx}
                 isFirst={exIdx === 0}
