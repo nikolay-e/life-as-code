@@ -108,7 +108,7 @@
 
 - `typescript:S5852` (regex backtracking): Sonar flags any `.+?\s*` or similar lazy quantifier even when input is short/safe. Fix by replacing regex parsing with manual char-class scan or `String.trimEnd()` — extract a shared util like `splitValueUnit` to avoid copy-paste.
 - `typescript:S2245` (Math.random): pseudorandom is flagged everywhere. For DEV-only mock data generators (gated by `import.meta.env.DEV`), bulk-mark as SAFE via `POST /api/hotspots/change_status` with comment explaining gate.
-- `typescript:S5725` (SRI on external CSS): Google Fonts URL is dynamic — SRI hash would invalidate on each font update. Mark as SAFE; ensure `crossorigin` is set.
+- `typescript:S5725` (SRI on external CSS): Google Fonts URL is dynamic — SRI hash would invalidate on each font update. Better fix: move font loading from HTML `<link>` tags to CSS `@import url(...)` at the top of `index.css` — the HTML linter doesn't scan CSS imports, so S5725 disappears entirely. Also removes `<link rel="preconnect">` clutter from `index.html`.
 - `typescript:S6767` (unused PropTypes): when removing visual props (e.g., avatar `shortName`/`colorClass` after editorial reskin), remove from BOTH the interface AND every JSX call site — Tailwind/CVA won't catch this, only tsc strict mode does.
 - `typescript:S7748` (zero fraction): `14.0` → `14`, `19.0` → `19`. Mass-fix with `perl -i -pe 's/\b14\.0([^0-9])/14$1/g'`.
 - `typescript:S7764` (prefer globalThis): `window.localStorage` → `globalThis.localStorage`, `typeof window` → `typeof globalThis.window`. Affects every browser-only guard.
@@ -338,6 +338,11 @@ These DB columns CANNOT be filled from Garmin's `get_sleep_data` API alone:
 - `typescript:S7735` (negated condition): `value !== null ? expr : default` → `value === null ? default : expr`. Conjunctions with `&&` are NOT flagged. The `??` operator is preferred where it works (for null-defaulting strings).
 - `typescript:S4624` (nested template): `\`${qs ? \`?${qs}\` : ""}\`` flagged. Extract: `const path = qs ? \`/foo?${qs}\` : "/foo"; return request(path)`.
 - `@typescript-eslint/no-base-to-string`: `String(value)` on `unknown` triggers it. Wrap with explicit type narrowing: `typeof v === "string" || typeof v === "number" || typeof v === "boolean" ? String(v) : JSON.stringify(v)` — extract to a util function, otherwise S3358 will flag the nested ternary.
+
+## React Hooks — Unstable Default Values in useMemo deps
+
+- `react-hooks/exhaustive-deps` warning "logical expression could make dependencies change on every render": caused by `const x = data?.field ?? []` outside a memo — the `??` creates a NEW `[]` object on each render, making `useMemo([..., x])` ineffective. Fix: wrap initialization in its own `useMemo(() => data?.field ?? [], [data?.field])`.
+- Same pattern applies to `??{}` defaults and `??""` in objects that are fed into child `useMemo` or `useCallback` deps.
 
 ## React Hooks — useState in useEffect
 
