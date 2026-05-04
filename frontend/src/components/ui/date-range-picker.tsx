@@ -95,6 +95,13 @@ interface DateInputPickerProps {
   readonly className?: string;
   readonly disabled?: Matcher | Matcher[];
   readonly placeholder?: string;
+  readonly fromYear?: number;
+  readonly toYear?: number;
+  readonly captionLayout?:
+    | "label"
+    | "dropdown"
+    | "dropdown-months"
+    | "dropdown-years";
 }
 
 export function DateInputPicker({
@@ -103,6 +110,9 @@ export function DateInputPicker({
   className,
   disabled,
   placeholder = "Select date",
+  fromYear,
+  toYear,
+  captionLayout,
 }: DateInputPickerProps) {
   const [open, setOpen] = useState(false);
   const selected = toDate(value);
@@ -129,8 +139,11 @@ export function DateInputPicker({
       <Calendar
         mode="single"
         selected={selected}
-        defaultMonth={selected}
+        defaultMonth={selected ?? (toYear ? new Date(toYear, 0) : undefined)}
         disabled={disabled}
+        captionLayout={captionLayout}
+        startMonth={fromYear ? new Date(fromYear, 0) : undefined}
+        endMonth={toYear ? new Date(toYear, 11) : undefined}
         onSelect={(date) => {
           if (!date) return;
           onChange(toIso(date));

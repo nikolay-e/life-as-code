@@ -190,6 +190,7 @@ class UserSettings(Base):
 
     birth_date = Column(Date)
     gender = Column(String(10))
+    height_cm = Column(Float)
 
     hrv_good_threshold = Column(Integer, default=45)
     hrv_moderate_threshold = Column(Integer, default=35)

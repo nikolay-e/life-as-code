@@ -78,28 +78,40 @@ export function SettingsPage() {
 
   const initialBirthDate = profile?.birth_date ?? "";
   const initialGender = (profile?.gender as GenderValue | null) ?? "";
+  const initialHeightCm = profile?.height_cm ?? null;
 
   const [profileEdits, setProfileEdits] = useState<{
     birthDate: string | null;
     gender: GenderValue | null;
-  }>({ birthDate: null, gender: null });
+    heightCm: number | null | undefined;
+  }>({ birthDate: null, gender: null, heightCm: undefined });
 
   const birthDate = profileEdits.birthDate ?? initialBirthDate;
   const gender = profileEdits.gender ?? initialGender;
+  const heightCm =
+    profileEdits.heightCm !== undefined
+      ? profileEdits.heightCm
+      : initialHeightCm;
   const setBirthDate = (v: string) => {
     setProfileEdits((p) => ({ ...p, birthDate: v }));
   };
   const setGender = (v: GenderValue) => {
     setProfileEdits((p) => ({ ...p, gender: v }));
   };
+  const setHeightCm = (v: number | null) => {
+    setProfileEdits((p) => ({ ...p, heightCm: v }));
+  };
   const isProfileDirty =
-    birthDate !== initialBirthDate || gender !== initialGender;
+    birthDate !== initialBirthDate ||
+    gender !== initialGender ||
+    heightCm !== initialHeightCm;
 
   const handleSaveProfile = useCallback(() => {
     updateProfile.mutate(
       {
         birth_date: birthDate === "" ? null : birthDate,
         gender: gender === "" ? null : gender,
+        height_cm: heightCm,
       },
       {
         onSuccess: () => {
@@ -111,7 +123,7 @@ export function SettingsPage() {
           ),
       },
     );
-  }, [birthDate, gender, updateProfile]);
+  }, [birthDate, gender, heightCm, updateProfile]);
 
   const handleSync = useCallback(
     async (
@@ -205,6 +217,9 @@ export function SettingsPage() {
                         setBirthDate(next);
                       }}
                       placeholder="Select birth date"
+                      captionLayout="dropdown"
+                      fromYear={1924}
+                      toYear={new Date().getFullYear() - 10}
                     />
                     {birthDate ? (
                       <Button
@@ -234,6 +249,23 @@ export function SettingsPage() {
                     <option value="male">Male</option>
                     <option value="female">Female</option>
                   </select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="profile-height">Height (cm)</Label>
+                  <input
+                    id="profile-height"
+                    type="number"
+                    min={50}
+                    max={300}
+                    step={1}
+                    value={heightCm ?? ""}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setHeightCm(v === "" ? null : Number(v));
+                    }}
+                    placeholder="e.g. 178"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  />
                 </div>
               </div>
               <div className="flex justify-end">

@@ -804,6 +804,7 @@ export interface LongevityGoalData {
 export interface UserProfile {
   birth_date: string | null;
   gender: string | null;
+  height_cm: number | null;
 }
 
 export interface AnalyticsResponse {

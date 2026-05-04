@@ -1013,6 +1013,7 @@ def api_get_profile():
                     else None
                 ),
                 "gender": settings.gender if settings else None,
+                "height_cm": settings.height_cm if settings else None,
             }
         )
 
@@ -1034,6 +1035,8 @@ def api_update_profile():
             settings.birth_date = body.birth_date  # type: ignore[assignment]
         if "gender" in body.model_fields_set:
             settings.gender = body.gender  # type: ignore[assignment]
+        if "height_cm" in body.model_fields_set:
+            settings.height_cm = body.height_cm  # type: ignore[assignment]
 
         db.commit()
         return jsonify(
@@ -1042,6 +1045,7 @@ def api_update_profile():
                     settings.birth_date.isoformat() if settings.birth_date else None  # type: ignore[union-attr,truthy-function]
                 ),
                 "gender": settings.gender,
+                "height_cm": settings.height_cm,
             }
         )
 

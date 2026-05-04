@@ -83,6 +83,7 @@ class ThresholdSettings(BaseModel):
 class ProfileUpdate(BaseModel):
     birth_date: date | None = None
     gender: Literal["male", "female"] | None = None
+    height_cm: float | None = Field(None, ge=50, le=300)
 
 
 def _check_finite(v: float | None) -> float | None:
