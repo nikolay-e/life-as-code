@@ -2029,13 +2029,13 @@ def _handle_get_calorie_summary(user_id: int, params: dict) -> dict:
             for r in rows
         ]
 
-    avg = None
+    avg: dict | None = None
     if days:
         avg = {
-            "calories": round(sum(d["calories"] for d in days) / len(days), 1),
-            "protein_g": round(sum(d["protein_g"] for d in days) / len(days), 1),
-            "fat_g": round(sum(d["fat_g"] for d in days) / len(days), 1),
-            "carbs_g": round(sum(d["carbs_g"] for d in days) / len(days), 1),
+            "calories": round(sum(float(d["calories"]) for d in days) / len(days), 1),
+            "protein_g": round(sum(float(d["protein_g"]) for d in days) / len(days), 1),
+            "fat_g": round(sum(float(d["fat_g"]) for d in days) / len(days), 1),
+            "carbs_g": round(sum(float(d["carbs_g"]) for d in days) / len(days), 1),
             "logged_days": len(days),
         }
 
