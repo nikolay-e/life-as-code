@@ -17,6 +17,9 @@ else:
     exit(1)
 "
 
+echo "🧬 Applying database migrations..."
+alembic upgrade head
+
 echo "🔐 Bootstrapping default admin user..."
 python src/bootstrap_admin.py
 

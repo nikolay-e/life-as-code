@@ -152,6 +152,12 @@ class User(Base):
     health_notes = relationship(
         "HealthNote", back_populates="user", cascade=CASCADE_ALL_DELETE
     )
+    food_products = relationship(
+        "FoodProduct", back_populates="user", cascade=CASCADE_ALL_DELETE
+    )
+    food_logs = relationship(
+        "FoodLog", back_populates="user", cascade=CASCADE_ALL_DELETE
+    )
 
     def __repr__(self):
         return f"<User(username={self.username})>"
@@ -1783,3 +1789,118 @@ class HealthNote(Base):
 
     def __repr__(self):
         return f"<HealthNote(id={self.id}, created_at={self.created_at})>"
+
+
+class FoodProduct(Base):
+    """Reusable food product. Holds nutrition per 100g/100ml.
+
+    Logged meals can reference a product so the bot can compute totals
+    from a quantity (and so repeat logging is fast).
+    """
+
+    __tablename__ = "food_products"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
+    name = Column(String(200), nullable=False)
+    brand = Column(String(200))
+    calories_per_100g = Column(Float)
+    protein_g_per_100g = Column(Float)
+    fat_g_per_100g = Column(Float)
+    carbs_g_per_100g = Column(Float)
+    fiber_g_per_100g = Column(Float)
+    notes = Column(Text)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+
+    user = relationship("User", back_populates="food_products")
+    logs = relationship("FoodLog", back_populates="product")
+
+    __table_args__ = (
+        Index("idx_food_product_user_name", "user_id", "name"),
+        CheckConstraint(
+            "calories_per_100g IS NULL OR calories_per_100g >= 0",
+            name="valid_food_calories_per_100g",
+        ),
+        CheckConstraint(
+            "protein_g_per_100g IS NULL OR protein_g_per_100g >= 0",
+            name="valid_food_protein_per_100g",
+        ),
+        CheckConstraint(
+            "fat_g_per_100g IS NULL OR fat_g_per_100g >= 0",
+            name="valid_food_fat_per_100g",
+        ),
+        CheckConstraint(
+            "carbs_g_per_100g IS NULL OR carbs_g_per_100g >= 0",
+            name="valid_food_carbs_per_100g",
+        ),
+        CheckConstraint(
+            "fiber_g_per_100g IS NULL OR fiber_g_per_100g >= 0",
+            name="valid_food_fiber_per_100g",
+        ),
+    )
+
+    def __repr__(self):
+        return f"<FoodProduct(user_id={self.user_id}, name={self.name})>"
+
+
+class FoodLog(Base):
+    """Single food intake entry. Logging is opt-in — not required every day."""
+
+    __tablename__ = "food_logs"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
+    consumed_at = Column(DateTime(timezone=True), nullable=False)
+    date = Column(Date, nullable=False, index=True)
+    meal_type = Column(String(50))
+    product_id = Column(
+        Integer, ForeignKey("food_products.id", ondelete="SET NULL")
+    )
+    quantity_g = Column(Float)
+    description = Column(Text)
+    calories = Column(Float)
+    protein_g = Column(Float)
+    fat_g = Column(Float)
+    carbs_g = Column(Float)
+    notes = Column(Text)
+    created_at = Column(DateTime, default=utcnow)
+
+    user = relationship("User", back_populates="food_logs")
+    product = relationship("FoodProduct", back_populates="logs")
+
+    __table_args__ = (
+        Index("idx_food_log_user_date", "user_id", "date"),
+        Index("idx_food_log_user_consumed", "user_id", "consumed_at"),
+        CheckConstraint(
+            "meal_type IS NULL OR meal_type IN "
+            "('breakfast', 'lunch', 'dinner', 'snack', 'other')",
+            name="valid_food_log_meal_type",
+        ),
+        CheckConstraint(
+            "calories IS NULL OR calories >= 0",
+            name="valid_food_log_calories",
+        ),
+        CheckConstraint(
+            "quantity_g IS NULL OR quantity_g >= 0",
+            name="valid_food_log_quantity_g",
+        ),
+        CheckConstraint(
+            "protein_g IS NULL OR protein_g >= 0",
+            name="valid_food_log_protein_g",
+        ),
+        CheckConstraint(
+            "fat_g IS NULL OR fat_g >= 0",
+            name="valid_food_log_fat_g",
+        ),
+        CheckConstraint(
+            "carbs_g IS NULL OR carbs_g >= 0",
+            name="valid_food_log_carbs_g",
+        ),
+    )
+
+    def __repr__(self):
+        return (
+            f"<FoodLog(user_id={self.user_id}, date={self.date}, "
+            f"calories={self.calories})>"
+        )
