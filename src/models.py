@@ -11,6 +11,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    SmallInteger,
     String,
     Text,
     UniqueConstraint,
@@ -157,6 +158,15 @@ class User(Base):
     )
     food_logs = relationship(
         "FoodLog", back_populates="user", cascade=CASCADE_ALL_DELETE
+    )
+    vitals = relationship(
+        "Vital", back_populates="user", cascade=CASCADE_ALL_DELETE
+    )
+    subjective_ratings = relationship(
+        "SubjectiveRating", back_populates="user", cascade=CASCADE_ALL_DELETE
+    )
+    bowel_movements = relationship(
+        "BowelMovement", back_populates="user", cascade=CASCADE_ALL_DELETE
     )
 
     def __repr__(self):
@@ -1751,6 +1761,16 @@ class HealthEvent(Base):
     attributes = Column(JSONB, nullable=False, default=dict)
     tags = Column(JSONB, nullable=False, default=list)
     protocol_id = Column(BigInteger, ForeignKey("protocols.id", ondelete="SET NULL"))
+    intensity = Column(SmallInteger)
+    valence = Column(SmallInteger)
+    body_location = Column(Text)
+    duration_min = Column(Integer)
+    related_event_id = Column(
+        BigInteger, ForeignKey("health_events.id", ondelete="SET NULL")
+    )
+    related_workout_set_id = Column(
+        Integer, ForeignKey("workout_sets.id", ondelete="SET NULL")
+    )
 
     user = relationship("User", back_populates="health_events")
     protocol = relationship(
@@ -1765,6 +1785,18 @@ class HealthEvent(Base):
         CheckConstraint(
             "end_ts IS NULL OR end_ts > start_ts",
             name="valid_health_event_duration",
+        ),
+        CheckConstraint(
+            "intensity IS NULL OR (intensity BETWEEN 0 AND 10)",
+            name="valid_health_event_intensity",
+        ),
+        CheckConstraint(
+            "valence IS NULL OR (valence BETWEEN -5 AND 5)",
+            name="valid_health_event_valence",
+        ),
+        CheckConstraint(
+            "duration_min IS NULL OR duration_min >= 0",
+            name="valid_health_event_duration_min",
         ),
         Index("idx_health_event_user_start", "user_id", "start_ts"),
     )
@@ -1863,6 +1895,9 @@ class FoodLog(Base):
     protein_g = Column(Float)
     fat_g = Column(Float)
     carbs_g = Column(Float)
+    alcohol_g = Column(Float)
+    caffeine_mg = Column(Float)
+    water_ml = Column(Float)
     notes = Column(Text)
     created_at = Column(DateTime, default=utcnow)
 
@@ -1897,10 +1932,132 @@ class FoodLog(Base):
             "carbs_g IS NULL OR carbs_g >= 0",
             name="valid_food_log_carbs_g",
         ),
+        CheckConstraint(
+            "alcohol_g IS NULL OR alcohol_g >= 0",
+            name="valid_food_log_alcohol_g",
+        ),
+        CheckConstraint(
+            "caffeine_mg IS NULL OR caffeine_mg >= 0",
+            name="valid_food_log_caffeine_mg",
+        ),
+        CheckConstraint(
+            "water_ml IS NULL OR water_ml >= 0",
+            name="valid_food_log_water_ml",
+        ),
     )
 
     def __repr__(self):
         return (
             f"<FoodLog(user_id={self.user_id}, date={self.date}, "
             f"calories={self.calories})>"
+        )
+
+
+class Vital(Base):
+    __tablename__ = "vitals"
+
+    id = Column(BigInteger, primary_key=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
+    measured_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
+    kind = Column(String(50), nullable=False)
+    value = Column(Float, nullable=False)
+    unit = Column(String(50))
+    source = Column(String(50))
+    notes = Column(Text)
+    created_at = Column(DateTime, default=utcnow)
+
+    user = relationship("User", back_populates="vitals")
+
+    __table_args__ = (
+        CheckConstraint(
+            "kind IN ('bp_sys','bp_dia','spo2','glucose_mg_dl','glucose_mmol_l',"
+            "'ketones_mmol_l','temp_c','resting_hr_bpm','respiratory_rate',"
+            "'weight_kg','body_fat_pct')",
+            name="valid_vital_kind",
+        ),
+        Index("idx_vitals_user_measured", "user_id", "measured_at"),
+        Index(
+            "idx_vitals_user_kind_measured",
+            "user_id",
+            "kind",
+            "measured_at",
+        ),
+    )
+
+    def __repr__(self):
+        return (
+            f"<Vital(user_id={self.user_id}, kind={self.kind}, value={self.value})>"
+        )
+
+
+class SubjectiveRating(Base):
+    __tablename__ = "subjective_ratings"
+
+    id = Column(BigInteger, primary_key=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
+    measured_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
+    dimension = Column(String(50), nullable=False)
+    score = Column(SmallInteger, nullable=False)
+    notes = Column(Text)
+    created_at = Column(DateTime, default=utcnow)
+
+    user = relationship("User", back_populates="subjective_ratings")
+
+    __table_args__ = (
+        CheckConstraint(
+            "dimension IN ('mood','energy','focus','anxiety','stress',"
+            "'libido','motivation','sleep_quality','soreness','pain')",
+            name="valid_subjective_dimension",
+        ),
+        CheckConstraint("score BETWEEN 1 AND 10", name="valid_subjective_score"),
+        Index(
+            "idx_subjective_user_measured",
+            "user_id",
+            "measured_at",
+        ),
+        Index(
+            "idx_subjective_user_dim_measured",
+            "user_id",
+            "dimension",
+            "measured_at",
+        ),
+    )
+
+    def __repr__(self):
+        return (
+            f"<SubjectiveRating(user_id={self.user_id}, "
+            f"dimension={self.dimension}, score={self.score})>"
+        )
+
+
+class BowelMovement(Base):
+    __tablename__ = "bowel_movements"
+
+    id = Column(BigInteger, primary_key=True)
+    user_id = Column(Integer, ForeignKey(USERS_ID_FK), nullable=False, index=True)
+    occurred_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
+    bristol_scale = Column(SmallInteger)
+    urgency = Column(SmallInteger)
+    blood = Column(Boolean, nullable=False, default=False)
+    notes = Column(Text)
+    created_at = Column(DateTime, default=utcnow)
+
+    user = relationship("User", back_populates="bowel_movements")
+
+    __table_args__ = (
+        CheckConstraint(
+            "bristol_scale IS NULL OR (bristol_scale BETWEEN 1 AND 7)",
+            name="valid_bowel_bristol",
+        ),
+        CheckConstraint(
+            "urgency IS NULL OR (urgency BETWEEN 1 AND 5)",
+            name="valid_bowel_urgency",
+        ),
+        Index("idx_bowel_user_occurred", "user_id", "occurred_at"),
+    )
+
+    def __repr__(self):
+        return (
+            f"<BowelMovement(user_id={self.user_id}, "
+            f"occurred_at={self.occurred_at})>"
         )

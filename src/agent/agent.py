@@ -1,4 +1,5 @@
 import json
+import os
 from collections.abc import Callable
 from datetime import date, datetime
 from typing import Any
@@ -20,6 +21,67 @@ from agent.prompts import (
 from agent.tools import TOOLS, execute_tool
 
 logger = structlog.get_logger()
+
+
+CACHE_CONTROL_1H: dict[str, str] = {"type": "ephemeral", "ttl": "1h"}
+
+
+WEB_SEARCH_ALLOWED_DOMAINS = [
+    "pubmed.ncbi.nlm.nih.gov",
+    "ncbi.nlm.nih.gov",
+    "examine.com",
+    "nih.gov",
+    "nature.com",
+    "thelancet.com",
+    "nejm.org",
+    "cochranelibrary.com",
+    "uptodate.com",
+    "who.int",
+    "fda.gov",
+    "cdc.gov",
+]
+
+
+def _web_search_enabled() -> bool:
+    flag = os.environ.get("BOT_WEB_SEARCH_ENABLED", "true").strip().lower()
+    return flag not in ("0", "false", "no", "off", "")
+
+
+def _web_search_max_uses() -> int:
+    raw = os.environ.get("BOT_WEB_SEARCH_MAX_USES", "3").strip()
+    try:
+        value = int(raw)
+    except ValueError:
+        return 3
+    return max(0, min(10, value))
+
+
+def _build_tools(*, with_web_search: bool) -> list[dict[str, Any]]:
+    tools: list[dict[str, Any]] = list(TOOLS)
+    if with_web_search and _web_search_enabled():
+        tools.append(
+            {
+                "type": "web_search_20250305",
+                "name": "web_search",
+                "max_uses": _web_search_max_uses(),
+                "allowed_domains": WEB_SEARCH_ALLOWED_DOMAINS,
+            }
+        )
+    if tools:
+        last = dict(tools[-1])
+        last["cache_control"] = CACHE_CONTROL_1H
+        tools[-1] = last
+    return tools
+
+
+def _system_blocks(prompt: str) -> list[dict[str, Any]]:
+    return [
+        {
+            "type": "text",
+            "text": prompt,
+            "cache_control": CACHE_CONTROL_1H,
+        }
+    ]
 
 
 def _serialize_context(ctx: dict | list) -> str:
@@ -44,7 +106,7 @@ class HealthAgent:
             self.client,
             model=self.config.model,
             max_tokens=256,
-            system=SYSTEM_PROMPT,
+            system=_system_blocks(SYSTEM_PROMPT),
             messages=[
                 {
                     "role": "user",
@@ -63,7 +125,7 @@ class HealthAgent:
             self.client,
             model=self.config.model,
             max_tokens=384,
-            system=SYSTEM_PROMPT,
+            system=_system_blocks(SYSTEM_PROMPT),
             messages=[
                 {
                     "role": "user",
@@ -82,7 +144,7 @@ class HealthAgent:
             self.client,
             model=self.config.model,
             max_tokens=128,
-            system=SYSTEM_PROMPT,
+            system=_system_blocks(SYSTEM_PROMPT),
             messages=[
                 {
                     "role": "user",
@@ -107,18 +169,21 @@ class HealthAgent:
         max_turns: int = 10,
         *,
         max_tokens: int | None = None,
+        with_web_search: bool = True,
         on_tool_exchange: (
             Callable[[list, list[dict[str, Any]] | None, dict[str, Any]], None] | None
         ) = None,
     ) -> str:
         effective_max_tokens = max_tokens or self.config.max_tokens
-        for _ in range(max_turns):
+        system_blocks = _system_blocks(system_prompt)
+        tools = _build_tools(with_web_search=with_web_search)
+        for turn in range(max_turns):
             response = create_with_retry(
                 self.client,
                 model=self.config.model,
                 max_tokens=effective_max_tokens,
-                system=system_prompt,
-                tools=TOOLS,
+                system=system_blocks,
+                tools=tools,
                 messages=messages,
             )
             meta = self._extract_response_meta(response)
@@ -134,6 +199,15 @@ class HealthAgent:
             tool_results = self._execute_tool_calls(user_id, response.content)
 
             if not tool_results:
+                if response.stop_reason == "tool_use":
+                    logger.info(
+                        "tool_loop_no_local_tool_calls_continuing",
+                        turn=turn,
+                        stop_reason=response.stop_reason,
+                    )
+                    if on_tool_exchange is not None:
+                        on_tool_exchange(assistant_content, None, meta)
+                    continue
                 return self._extract_final_text(
                     response.content, on_tool_exchange, meta
                 )
@@ -142,6 +216,7 @@ class HealthAgent:
             if on_tool_exchange is not None:
                 on_tool_exchange(assistant_content, tool_results, meta)
 
+        logger.warning("tool_loop_exhausted_max_turns", max_turns=max_turns)
         return "Не удалось получить ответ — превышен лимит вызовов инструментов."
 
     @staticmethod

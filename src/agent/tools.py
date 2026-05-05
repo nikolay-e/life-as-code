@@ -9,6 +9,7 @@ from date_utils import parse_iso_date
 from models import (
     HRV,
     BloodBiomarker,
+    BowelMovement,
     EightSleepSession,
     Energy,
     ExerciseTemplate,
@@ -27,7 +28,9 @@ from models import (
     Sleep,
     Steps,
     Stress,
+    SubjectiveRating,
     UserSettings,
+    Vital,
     Weight,
     WhoopCycle,
     WhoopRecovery,
@@ -197,6 +200,54 @@ TOOLS = [
                     "type": "array",
                     "items": {"type": "string"},
                     "description": "Free-form tags e.g. ['sleep', 'stress', 'alcohol']",
+                },
+                "intensity": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10,
+                    "description": (
+                        "0-10 magnitude/severity. Use for symptoms (pain 7), "
+                        "stress events (intensity 8), workouts (RPE-like). Optional."
+                    ),
+                },
+                "valence": {
+                    "type": "integer",
+                    "minimum": -5,
+                    "maximum": 5,
+                    "description": (
+                        "-5 to +5 affective valence: -5=very bad, 0=neutral, +5=very good. "
+                        "Use for therapy/sauna ('felt great'), bad reaction to a substance, etc."
+                    ),
+                },
+                "body_location": {
+                    "type": "string",
+                    "description": (
+                        "Anatomical location for symptoms/pain in English: "
+                        "'left knee', 'lower back', 'right shoulder', 'forehead'. Optional."
+                    ),
+                },
+                "duration_min": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": (
+                        "Duration in minutes. Useful when end_ts is unknown but duration was "
+                        "stated ('40 min sauna', 'meditation 20 min'). Optional."
+                    ),
+                },
+                "related_event_id": {
+                    "type": "integer",
+                    "description": (
+                        "ID of a prior health_event this event relates to. "
+                        "Use for cross-references like 'pain after the workout' (set to the "
+                        "prior workout/training event's id)."
+                    ),
+                },
+                "related_workout_set_id": {
+                    "type": "integer",
+                    "description": (
+                        "ID of a workout_set this event relates to (e.g. 'knee pain after "
+                        "squats set 3'). Use only if the user references a specific set."
+                    ),
                 },
             },
             "required": ["name", "domain"],
@@ -474,6 +525,27 @@ TOOLS = [
                 "protein_g": {"type": "number"},
                 "fat_g": {"type": "number"},
                 "carbs_g": {"type": "number"},
+                "alcohol_g": {
+                    "type": "number",
+                    "description": (
+                        "Pure ethanol grams. Standard glass of wine ~14g, "
+                        "shot of spirit ~14g, 0.5L beer 5% ~20g. Set when user logs alcohol."
+                    ),
+                },
+                "caffeine_mg": {
+                    "type": "number",
+                    "description": (
+                        "Caffeine in mg. Espresso ~63mg, drip coffee 8oz ~96mg, "
+                        "black tea ~47mg, energy drink ~80-160mg. Set when user logs caffeine."
+                    ),
+                },
+                "water_ml": {
+                    "type": "number",
+                    "description": (
+                        "Volume of plain water in ml. Use this for dedicated hydration logs "
+                        "('500ml of water'). Other drinks should be logged with their own product."
+                    ),
+                },
                 "meal_type": {
                     "type": "string",
                     "enum": ["breakfast", "lunch", "dinner", "snack", "other"],
@@ -535,6 +607,341 @@ TOOLS = [
             "required": ["log_id"],
         },
     },
+    {
+        "name": "log_vital",
+        "description": (
+            "Log a single vital measurement (BP, glucose, ketones, SpO2, temperature, "
+            "manual resting HR, manual weight, body fat %). Multi-per-day allowed. "
+            "Use this when the user shares a single numeric reading like '120/80', "
+            "'glucose 5.4', 'утром давление 130/85', 'sat 97'. For BP send TWO calls: "
+            "kind='bp_sys' value=130, kind='bp_dia' value=85."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "kind": {
+                    "type": "string",
+                    "enum": [
+                        "bp_sys",
+                        "bp_dia",
+                        "spo2",
+                        "glucose_mg_dl",
+                        "glucose_mmol_l",
+                        "ketones_mmol_l",
+                        "temp_c",
+                        "resting_hr_bpm",
+                        "respiratory_rate",
+                        "weight_kg",
+                        "body_fat_pct",
+                    ],
+                },
+                "value": {"type": "number"},
+                "unit": {
+                    "type": "string",
+                    "description": "Optional explicit unit string for display. Defaults derived from `kind`.",
+                },
+                "measured_at": {
+                    "type": "string",
+                    "description": "ISO datetime or YYYY-MM-DD. Defaults to now if omitted.",
+                },
+                "source": {
+                    "type": "string",
+                    "description": "e.g. 'manual', 'cuff', 'cgm', 'oura'. Optional.",
+                },
+                "notes": {"type": "string"},
+            },
+            "required": ["kind", "value"],
+        },
+    },
+    {
+        "name": "log_subjective",
+        "description": (
+            "Log a subjective 1-10 self-rating (mood, energy, focus, anxiety, stress, "
+            "libido, motivation, sleep_quality, soreness, pain). Use this for any "
+            "user statement like 'настроение 7', 'энергия низкая', 'libido 3'. "
+            "Map vague qualitative reports to integers (плохо=2, нормально=5, отлично=9)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "dimension": {
+                    "type": "string",
+                    "enum": [
+                        "mood",
+                        "energy",
+                        "focus",
+                        "anxiety",
+                        "stress",
+                        "libido",
+                        "motivation",
+                        "sleep_quality",
+                        "soreness",
+                        "pain",
+                    ],
+                },
+                "score": {"type": "integer", "minimum": 1, "maximum": 10},
+                "measured_at": {
+                    "type": "string",
+                    "description": "ISO datetime or YYYY-MM-DD. Defaults to now if omitted.",
+                },
+                "notes": {"type": "string"},
+            },
+            "required": ["dimension", "score"],
+        },
+    },
+    {
+        "name": "log_bowel_movement",
+        "description": (
+            "Log a bowel movement with Bristol scale (1=hard pellets, 4=normal, 7=watery). "
+            "Use when user mentions stool, defecation, или фразы вроде 'сходил в туалет'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "occurred_at": {
+                    "type": "string",
+                    "description": "ISO datetime. Defaults to now if omitted.",
+                },
+                "bristol_scale": {"type": "integer", "minimum": 1, "maximum": 7},
+                "urgency": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 5,
+                    "description": "1=normal, 5=very urgent.",
+                },
+                "blood": {"type": "boolean"},
+                "notes": {"type": "string"},
+            },
+        },
+    },
+    {
+        "name": "log_blood_biomarker",
+        "description": (
+            "Log a blood/lab biomarker result (LDL, HDL, ApoB, fasting glucose, A1C, hsCRP, "
+            "vitamin D, ferritin, etc.). Use when user shares lab results — "
+            "'ApoB 78', 'A1C 5.2', 'витамин D 32'. UNIQUE on (date, marker_name)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "date": {"type": "string", "description": "YYYY-MM-DD of the blood draw."},
+                "marker_name": {
+                    "type": "string",
+                    "description": (
+                        "Canonical English name: 'LDL-C', 'HDL-C', 'ApoB', 'Triglycerides', "
+                        "'Glucose (fasting)', 'HbA1c', 'hsCRP', 'Vitamin D 25-OH', "
+                        "'Ferritin', 'TSH', 'Free T3', 'Free T4', 'Cortisol AM', 'Testosterone Total'."
+                    ),
+                },
+                "value": {"type": "number"},
+                "unit": {
+                    "type": "string",
+                    "description": "e.g. 'mg/dL', 'mmol/L', 'nmol/L', 'µIU/mL', 'ng/mL'.",
+                },
+                "reference_range_low": {"type": "number"},
+                "reference_range_high": {"type": "number"},
+                "longevity_optimal_low": {"type": "number"},
+                "longevity_optimal_high": {"type": "number"},
+                "lab_name": {"type": "string"},
+                "notes": {"type": "string"},
+            },
+            "required": ["date", "marker_name", "value"],
+        },
+    },
+    {
+        "name": "log_functional_test",
+        "description": (
+            "Log a functional fitness test result (VO2 max test, grip strength, "
+            "DEXA scan derivatives, sit-and-reach, plank time, dead-hang time, etc.)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "date": {"type": "string", "description": "YYYY-MM-DD."},
+                "test_name": {"type": "string"},
+                "value": {"type": "number"},
+                "unit": {"type": "string"},
+                "notes": {"type": "string"},
+            },
+            "required": ["date", "test_name", "value"],
+        },
+    },
+    {
+        "name": "delete_recent_log",
+        "description": (
+            "Delete a recent log row by table + id. Use when the user says "
+            "'удали последнюю запись', 'это была ошибка'. If the user says 'last' "
+            "without an id, first call list_recent_logs / get_food_log / search_logs to "
+            "find the id, confirm with user, then call this."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "kind": {
+                    "type": "string",
+                    "enum": [
+                        "event",
+                        "protocol",
+                        "note",
+                        "food",
+                        "vital",
+                        "subjective",
+                        "bowel",
+                        "biomarker",
+                        "functional_test",
+                    ],
+                },
+                "id": {"type": "integer"},
+            },
+            "required": ["kind", "id"],
+        },
+    },
+    {
+        "name": "update_event",
+        "description": (
+            "Update an existing health_event by id. Use when the user corrects a prior log "
+            "('not 100g but 200g', 'это было вчера а не сегодня'). Only fields you specify are changed; "
+            "omit fields to leave them unchanged."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "event_id": {"type": "integer"},
+                "name": {"type": "string"},
+                "domain": {"type": "string", "enum": HEALTH_EVENT_DOMAINS},
+                "start_ts": {"type": "string"},
+                "end_ts": {"type": "string"},
+                "dosage": {"type": "string"},
+                "notes": {"type": "string"},
+                "intensity": {"type": "integer", "minimum": 0, "maximum": 10},
+                "valence": {"type": "integer", "minimum": -5, "maximum": 5},
+                "body_location": {"type": "string"},
+                "duration_min": {"type": "integer", "minimum": 0},
+            },
+            "required": ["event_id"],
+        },
+    },
+    {
+        "name": "update_food_log",
+        "description": (
+            "Update an existing food_log row by id. Use to correct quantity/macros/meal_type "
+            "after a prior log ('I had 200g not 100g')."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "log_id": {"type": "integer"},
+                "quantity_g": {"type": "number"},
+                "calories": {"type": "number"},
+                "protein_g": {"type": "number"},
+                "fat_g": {"type": "number"},
+                "carbs_g": {"type": "number"},
+                "alcohol_g": {"type": "number"},
+                "caffeine_mg": {"type": "number"},
+                "water_ml": {"type": "number"},
+                "meal_type": {
+                    "type": "string",
+                    "enum": ["breakfast", "lunch", "dinner", "snack", "other"],
+                },
+                "consumed_at": {"type": "string"},
+                "description": {"type": "string"},
+                "notes": {"type": "string"},
+            },
+            "required": ["log_id"],
+        },
+    },
+    {
+        "name": "search_logs",
+        "description": (
+            "Fuzzy full-text search across health_events, health_notes, food_products, "
+            "and protocols using Postgres trigram. Use when user asks 'когда я последний раз "
+            "ел Х', 'найди записи про колено', 'show me sauna entries'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Free-text query, Russian or English.",
+                },
+                "kinds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": ["event", "note", "product", "protocol"],
+                    },
+                    "description": "Restrict scope. Defaults to all.",
+                },
+                "days": {
+                    "type": "integer",
+                    "description": "Lookback window in days (default 365).",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max results across all kinds (default 20).",
+                },
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "nutrition_lookup",
+        "description": (
+            "Look up nutrition info (kcal/protein/fat/carbs/fiber per 100g) for a food "
+            "by name via OpenFoodFacts (multilingual incl. Russian). Use BEFORE log_food "
+            "when the user names a food but no quantity/macros yet, or when you need to "
+            "save_food_product. Always prefer this over web_search for nutrition data. "
+            "If `save_top_match` is true, the best result is upserted to food_products and "
+            "its id is returned for immediate use with log_food."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Free-text food name in Russian or English.",
+                },
+                "barcode": {
+                    "type": "string",
+                    "description": "Optional GTIN/EAN barcode for direct lookup.",
+                },
+                "save_top_match": {
+                    "type": "boolean",
+                    "description": (
+                        "If true, the top match is saved as a FoodProduct (idempotent on "
+                        "name+brand) and its id is returned. Defaults to false."
+                    ),
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max results to return (default 5).",
+                },
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "log_weight_manual",
+        "description": (
+            "Log a manual weight measurement to the weight table (the same one Garmin "
+            "syncs into). Use when the user weighs themselves manually and shares a number "
+            "('сегодня 78.4кг'). One row per (user, date)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "date": {
+                    "type": "string",
+                    "description": "YYYY-MM-DD. Defaults to today if omitted.",
+                },
+                "weight_kg": {"type": "number"},
+                "body_fat_pct": {"type": "number"},
+                "muscle_mass_kg": {"type": "number"},
+                "notes": {"type": "string"},
+            },
+            "required": ["weight_kg"],
+        },
+    },
 ]
 
 METRIC_MODEL_MAP = {
@@ -575,6 +982,17 @@ def execute_tool(user_id: int, tool_name: str, tool_input: dict) -> dict:
         "get_food_log": _handle_get_food_log,
         "get_calorie_summary": _handle_get_calorie_summary,
         "delete_food_log": _handle_delete_food_log,
+        "log_vital": _handle_log_vital,
+        "log_subjective": _handle_log_subjective,
+        "log_bowel_movement": _handle_log_bowel_movement,
+        "log_blood_biomarker": _handle_log_blood_biomarker,
+        "log_functional_test": _handle_log_functional_test,
+        "delete_recent_log": _handle_delete_recent_log,
+        "update_event": _handle_update_event,
+        "update_food_log": _handle_update_food_log,
+        "search_logs": _handle_search_logs,
+        "log_weight_manual": _handle_log_weight_manual,
+        "nutrition_lookup": _handle_nutrition_lookup,
     }
     handler = handlers.get(tool_name)
     if not handler:
@@ -793,6 +1211,16 @@ def _handle_log_event(user_id: int, params: dict) -> dict:
     if end_ts is not None and end_ts <= start_ts:
         return {"error": "end_ts must be after start_ts"}
 
+    intensity = params.get("intensity")
+    if intensity is not None and not 0 <= int(intensity) <= 10:
+        return {"error": "intensity must be 0..10"}
+    valence = params.get("valence")
+    if valence is not None and not -5 <= int(valence) <= 5:
+        return {"error": "valence must be -5..5"}
+    duration_min = params.get("duration_min")
+    if duration_min is not None and int(duration_min) < 0:
+        return {"error": "duration_min must be >= 0"}
+
     with get_db_session_context() as db:
         event = HealthEvent(
             user_id=user_id,
@@ -805,6 +1233,12 @@ def _handle_log_event(user_id: int, params: dict) -> dict:
             attributes=params.get("attributes") or {},
             tags=params.get("tags") or [],
             protocol_id=params.get("protocol_id"),
+            intensity=int(intensity) if intensity is not None else None,
+            valence=int(valence) if valence is not None else None,
+            body_location=params.get("body_location") or None,
+            duration_min=int(duration_min) if duration_min is not None else None,
+            related_event_id=params.get("related_event_id"),
+            related_workout_set_id=params.get("related_workout_set_id"),
         )
         db.add(event)
         db.flush()
@@ -1472,6 +1906,9 @@ def _handle_log_food(user_id: int, params: dict) -> dict:
             protein_g=protein_g,
             fat_g=fat_g,
             carbs_g=carbs_g,
+            alcohol_g=params.get("alcohol_g"),
+            caffeine_mg=params.get("caffeine_mg"),
+            water_ml=params.get("water_ml"),
             notes=params.get("notes"),
         )
         db.add(log)
@@ -1488,6 +1925,9 @@ def _handle_log_food(user_id: int, params: dict) -> dict:
             "protein_g": protein_g,
             "fat_g": fat_g,
             "carbs_g": carbs_g,
+            "alcohol_g": log.alcohol_g,
+            "caffeine_mg": log.caffeine_mg,
+            "water_ml": log.water_ml,
             "description": log.description,
         }
 
@@ -1617,3 +2057,644 @@ def _handle_delete_food_log(user_id: int, params: dict) -> dict:
             return {"error": "food log entry not found"}
         db.delete(row)
         return {"status": "deleted", "id": log_id}
+
+
+VITAL_KIND_DEFAULT_UNITS = {
+    "bp_sys": "mmHg",
+    "bp_dia": "mmHg",
+    "spo2": "%",
+    "glucose_mg_dl": "mg/dL",
+    "glucose_mmol_l": "mmol/L",
+    "ketones_mmol_l": "mmol/L",
+    "temp_c": "°C",
+    "resting_hr_bpm": "bpm",
+    "respiratory_rate": "br/min",
+    "weight_kg": "kg",
+    "body_fat_pct": "%",
+}
+
+VITAL_KINDS = tuple(VITAL_KIND_DEFAULT_UNITS.keys())
+
+SUBJECTIVE_DIMENSIONS = (
+    "mood",
+    "energy",
+    "focus",
+    "anxiety",
+    "stress",
+    "libido",
+    "motivation",
+    "sleep_quality",
+    "soreness",
+    "pain",
+)
+
+DELETE_RECENT_LOG_KIND_TO_MODEL = {
+    "event": HealthEvent,
+    "protocol": Protocol,
+    "note": HealthNote,
+    "food": FoodLog,
+    "vital": Vital,
+    "subjective": SubjectiveRating,
+    "bowel": BowelMovement,
+    "biomarker": BloodBiomarker,
+    "functional_test": FunctionalTest,
+}
+
+
+def _handle_log_vital(user_id: int, params: dict) -> dict:
+    kind = params.get("kind")
+    if kind not in VITAL_KINDS:
+        return {"error": f"kind must be one of {list(VITAL_KINDS)}"}
+    value = params.get("value")
+    if value is None:
+        return {"error": "value is required"}
+    try:
+        value_num = float(value)
+    except (TypeError, ValueError):
+        return {"error": f"invalid numeric value: {value!r}"}
+
+    measured_at = _parse_ts(
+        params.get("measured_at"), default=datetime.now(UTC)
+    ) or datetime.now(UTC)
+
+    with get_db_session_context() as db:
+        vital = Vital(
+            user_id=user_id,
+            measured_at=measured_at,
+            kind=kind,
+            value=value_num,
+            unit=params.get("unit") or VITAL_KIND_DEFAULT_UNITS.get(kind),
+            source=params.get("source") or "manual",
+            notes=params.get("notes") or None,
+        )
+        db.add(vital)
+        db.flush()
+        return {
+            "status": "logged",
+            "id": vital.id,
+            "kind": vital.kind,
+            "value": vital.value,
+            "unit": vital.unit,
+            "measured_at": vital.measured_at.isoformat(),
+        }
+
+
+def _handle_log_subjective(user_id: int, params: dict) -> dict:
+    dimension = params.get("dimension")
+    if dimension not in SUBJECTIVE_DIMENSIONS:
+        return {"error": f"dimension must be one of {list(SUBJECTIVE_DIMENSIONS)}"}
+    score = params.get("score")
+    try:
+        score_int = int(score)
+    except (TypeError, ValueError):
+        return {"error": f"score must be 1..10, got {score!r}"}
+    if not 1 <= score_int <= 10:
+        return {"error": "score must be 1..10"}
+
+    measured_at = _parse_ts(
+        params.get("measured_at"), default=datetime.now(UTC)
+    ) or datetime.now(UTC)
+
+    with get_db_session_context() as db:
+        rating = SubjectiveRating(
+            user_id=user_id,
+            measured_at=measured_at,
+            dimension=dimension,
+            score=score_int,
+            notes=params.get("notes") or None,
+        )
+        db.add(rating)
+        db.flush()
+        return {
+            "status": "logged",
+            "id": rating.id,
+            "dimension": rating.dimension,
+            "score": rating.score,
+            "measured_at": rating.measured_at.isoformat(),
+        }
+
+
+def _handle_log_bowel_movement(user_id: int, params: dict) -> dict:
+    occurred_at = _parse_ts(
+        params.get("occurred_at"), default=datetime.now(UTC)
+    ) or datetime.now(UTC)
+
+    bristol = params.get("bristol_scale")
+    if bristol is not None:
+        try:
+            bristol_int = int(bristol)
+        except (TypeError, ValueError):
+            return {"error": f"invalid bristol_scale: {bristol!r}"}
+        if not 1 <= bristol_int <= 7:
+            return {"error": "bristol_scale must be 1..7"}
+    else:
+        bristol_int = None
+
+    urgency = params.get("urgency")
+    if urgency is not None:
+        try:
+            urgency_int = int(urgency)
+        except (TypeError, ValueError):
+            return {"error": f"invalid urgency: {urgency!r}"}
+        if not 1 <= urgency_int <= 5:
+            return {"error": "urgency must be 1..5"}
+    else:
+        urgency_int = None
+
+    with get_db_session_context() as db:
+        bowel = BowelMovement(
+            user_id=user_id,
+            occurred_at=occurred_at,
+            bristol_scale=bristol_int,
+            urgency=urgency_int,
+            blood=bool(params.get("blood")),
+            notes=params.get("notes") or None,
+        )
+        db.add(bowel)
+        db.flush()
+        return {
+            "status": "logged",
+            "id": bowel.id,
+            "occurred_at": bowel.occurred_at.isoformat(),
+            "bristol_scale": bowel.bristol_scale,
+        }
+
+
+def _handle_log_blood_biomarker(user_id: int, params: dict) -> dict:
+    date_str = params.get("date")
+    marker_name = (params.get("marker_name") or "").strip()
+    value = params.get("value")
+    if not date_str:
+        return {"error": "date is required (YYYY-MM-DD)"}
+    if not marker_name:
+        return {"error": "marker_name is required"}
+    if value is None:
+        return {"error": "value is required"}
+    try:
+        log_date = parse_iso_date(date_str)
+    except ValueError:
+        return {"error": f"invalid date: {date_str}"}
+    try:
+        value_num = float(value)
+    except (TypeError, ValueError):
+        return {"error": f"invalid numeric value: {value!r}"}
+
+    with get_db_session_context() as db:
+        existing = (
+            db.query(BloodBiomarker)
+            .filter_by(user_id=user_id, date=log_date, marker_name=marker_name)
+            .first()
+        )
+        if existing:
+            existing.value = value_num
+            existing.unit = params.get("unit") or existing.unit
+            existing.reference_range_low = params.get(
+                "reference_range_low"
+            ) or existing.reference_range_low
+            existing.reference_range_high = params.get(
+                "reference_range_high"
+            ) or existing.reference_range_high
+            existing.longevity_optimal_low = params.get(
+                "longevity_optimal_low"
+            ) or existing.longevity_optimal_low
+            existing.longevity_optimal_high = params.get(
+                "longevity_optimal_high"
+            ) or existing.longevity_optimal_high
+            existing.lab_name = params.get("lab_name") or existing.lab_name
+            if params.get("notes"):
+                existing.notes = params.get("notes")
+            db.flush()
+            return {
+                "status": "updated",
+                "id": existing.id,
+                "marker_name": marker_name,
+                "value": value_num,
+                "date": str(log_date),
+            }
+
+        row = BloodBiomarker(
+            user_id=user_id,
+            date=log_date,
+            marker_name=marker_name,
+            value=value_num,
+            unit=params.get("unit"),
+            reference_range_low=params.get("reference_range_low"),
+            reference_range_high=params.get("reference_range_high"),
+            longevity_optimal_low=params.get("longevity_optimal_low"),
+            longevity_optimal_high=params.get("longevity_optimal_high"),
+            lab_name=params.get("lab_name"),
+            notes=params.get("notes"),
+        )
+        db.add(row)
+        db.flush()
+        return {
+            "status": "logged",
+            "id": row.id,
+            "marker_name": marker_name,
+            "value": value_num,
+            "date": str(log_date),
+        }
+
+
+def _handle_log_functional_test(user_id: int, params: dict) -> dict:
+    date_str = params.get("date")
+    test_name = (params.get("test_name") or "").strip()
+    value = params.get("value")
+    if not date_str or not test_name or value is None:
+        return {"error": "date, test_name, value are required"}
+    try:
+        log_date = parse_iso_date(date_str)
+    except ValueError:
+        return {"error": f"invalid date: {date_str}"}
+    try:
+        value_num = float(value)
+    except (TypeError, ValueError):
+        return {"error": f"invalid numeric value: {value!r}"}
+
+    with get_db_session_context() as db:
+        row = FunctionalTest(
+            user_id=user_id,
+            date=log_date,
+            test_name=test_name,
+            value=value_num,
+            unit=params.get("unit"),
+            notes=params.get("notes"),
+        )
+        db.add(row)
+        db.flush()
+        return {
+            "status": "logged",
+            "id": row.id,
+            "test_name": test_name,
+            "value": value_num,
+            "date": str(log_date),
+        }
+
+
+def _handle_log_weight_manual(user_id: int, params: dict) -> dict:
+    weight_kg = params.get("weight_kg")
+    if weight_kg is None:
+        return {"error": "weight_kg is required"}
+    try:
+        weight_num = float(weight_kg)
+    except (TypeError, ValueError):
+        return {"error": f"invalid weight_kg: {weight_kg!r}"}
+
+    date_str = params.get("date")
+    try:
+        log_date = parse_iso_date(date_str) if date_str else local_today()
+    except ValueError:
+        return {"error": f"invalid date: {date_str}"}
+
+    with get_db_session_context() as db:
+        existing = (
+            db.query(Weight)
+            .filter_by(user_id=user_id, date=log_date)
+            .first()
+        )
+        if existing:
+            existing.weight_kg = weight_num
+            if params.get("body_fat_pct") is not None:
+                existing.body_fat_pct = float(params.get("body_fat_pct"))
+            if params.get("muscle_mass_kg") is not None:
+                existing.muscle_mass_kg = float(params.get("muscle_mass_kg"))
+            existing.source = "manual"
+            db.flush()
+            return {
+                "status": "updated",
+                "id": existing.id,
+                "weight_kg": weight_num,
+                "date": str(log_date),
+            }
+        row = Weight(
+            user_id=user_id,
+            date=log_date,
+            source="manual",
+            weight_kg=weight_num,
+            body_fat_pct=(
+                float(params.get("body_fat_pct"))
+                if params.get("body_fat_pct") is not None
+                else None
+            ),
+            muscle_mass_kg=(
+                float(params.get("muscle_mass_kg"))
+                if params.get("muscle_mass_kg") is not None
+                else None
+            ),
+        )
+        db.add(row)
+        db.flush()
+        return {
+            "status": "logged",
+            "id": row.id,
+            "weight_kg": weight_num,
+            "date": str(log_date),
+        }
+
+
+def _handle_delete_recent_log(user_id: int, params: dict) -> dict:
+    kind = params.get("kind")
+    log_id = params.get("id")
+    model = DELETE_RECENT_LOG_KIND_TO_MODEL.get(kind or "")
+    if model is None:
+        return {
+            "error": f"kind must be one of {list(DELETE_RECENT_LOG_KIND_TO_MODEL)}"
+        }
+    if not log_id:
+        return {"error": "id is required"}
+
+    with get_db_session_context() as db:
+        row = (
+            db.query(model)
+            .filter(model.id == log_id, model.user_id == user_id)
+            .first()
+        )
+        if not row:
+            return {"error": f"{kind} {log_id} not found"}
+        db.delete(row)
+        return {"status": "deleted", "kind": kind, "id": log_id}
+
+
+def _handle_update_event(user_id: int, params: dict) -> dict:
+    event_id = params.get("event_id")
+    if not event_id:
+        return {"error": "event_id is required"}
+
+    with get_db_session_context() as db:
+        row = (
+            db.query(HealthEvent)
+            .filter(HealthEvent.id == event_id, HealthEvent.user_id == user_id)
+            .first()
+        )
+        if not row:
+            return {"error": f"event {event_id} not found"}
+
+        if params.get("name"):
+            row.name = params["name"].strip()
+        if params.get("domain"):
+            domain = params["domain"]
+            if domain not in HEALTH_EVENT_DOMAINS:
+                return {"error": f"domain must be one of {HEALTH_EVENT_DOMAINS}"}
+            row.domain = domain
+        if params.get("start_ts"):
+            row.start_ts = _parse_ts(params["start_ts"]) or row.start_ts
+        if "end_ts" in params:
+            end_ts_raw = params.get("end_ts")
+            row.end_ts = _parse_ts(end_ts_raw) if end_ts_raw else None
+        if "dosage" in params:
+            row.dosage = params.get("dosage") or None
+        if "notes" in params:
+            row.notes = params.get("notes") or None
+        if "intensity" in params and params["intensity"] is not None:
+            row.intensity = int(params["intensity"])
+        if "valence" in params and params["valence"] is not None:
+            row.valence = int(params["valence"])
+        if "body_location" in params:
+            row.body_location = params.get("body_location") or None
+        if "duration_min" in params and params["duration_min"] is not None:
+            row.duration_min = int(params["duration_min"])
+
+        db.flush()
+        return {
+            "status": "updated",
+            "id": row.id,
+            "name": row.name,
+            "domain": row.domain,
+        }
+
+
+def _handle_update_food_log(user_id: int, params: dict) -> dict:
+    log_id = params.get("log_id")
+    if not log_id:
+        return {"error": "log_id is required"}
+
+    with get_db_session_context() as db:
+        row = (
+            db.query(FoodLog)
+            .filter(FoodLog.id == log_id, FoodLog.user_id == user_id)
+            .first()
+        )
+        if not row:
+            return {"error": f"food log {log_id} not found"}
+
+        for field in (
+            "quantity_g",
+            "calories",
+            "protein_g",
+            "fat_g",
+            "carbs_g",
+            "alcohol_g",
+            "caffeine_mg",
+            "water_ml",
+        ):
+            if field in params and params[field] is not None:
+                setattr(row, field, float(params[field]))
+
+        if params.get("meal_type"):
+            row.meal_type = params["meal_type"]
+        if params.get("description"):
+            row.description = params["description"]
+        if params.get("notes"):
+            row.notes = params["notes"]
+        if params.get("consumed_at"):
+            ts = _parse_ts(params["consumed_at"])
+            if ts is not None:
+                row.consumed_at = ts
+                row.date = ts.date()
+
+        db.flush()
+        return {
+            "status": "updated",
+            "id": row.id,
+            "date": str(row.date),
+            "calories": row.calories,
+        }
+
+
+def _handle_search_logs(user_id: int, params: dict) -> dict:
+    from sqlalchemy import literal, or_, text
+
+    query_str = (params.get("query") or "").strip()
+    if not query_str:
+        return {"error": "query is required"}
+
+    kinds = params.get("kinds") or ["event", "note", "product", "protocol"]
+    days = int(params.get("days") or 365)
+    limit = int(params.get("limit") or 20)
+    cutoff = datetime.now(UTC) - timedelta(days=days)
+
+    results: list[dict] = []
+
+    with get_db_session_context() as db:
+        if "event" in kinds:
+            event_rows = (
+                db.query(HealthEvent)
+                .filter(HealthEvent.user_id == user_id)
+                .filter(HealthEvent.start_ts >= cutoff)
+                .filter(
+                    or_(
+                        HealthEvent.name.ilike(f"%{query_str}%"),
+                        HealthEvent.notes.ilike(f"%{query_str}%"),
+                        HealthEvent.body_location.ilike(f"%{query_str}%"),
+                    )
+                )
+                .order_by(HealthEvent.start_ts.desc())
+                .limit(limit)
+                .all()
+            )
+            for r in event_rows:
+                results.append(
+                    {
+                        "kind": "event",
+                        "id": r.id,
+                        "name": r.name,
+                        "domain": r.domain,
+                        "start_ts": r.start_ts.isoformat() if r.start_ts else None,
+                        "notes": r.notes,
+                        "body_location": r.body_location,
+                        "intensity": r.intensity,
+                    }
+                )
+
+        if "note" in kinds:
+            note_rows = (
+                db.query(HealthNote)
+                .filter(HealthNote.user_id == user_id)
+                .filter(HealthNote.created_at >= cutoff)
+                .filter(HealthNote.text.ilike(f"%{query_str}%"))
+                .order_by(HealthNote.created_at.desc())
+                .limit(limit)
+                .all()
+            )
+            for r in note_rows:
+                results.append(
+                    {
+                        "kind": "note",
+                        "id": r.id,
+                        "text": r.text,
+                        "created_at": (
+                            r.created_at.isoformat() if r.created_at else None
+                        ),
+                    }
+                )
+
+        if "product" in kinds:
+            product_rows = (
+                db.query(FoodProduct)
+                .filter(FoodProduct.user_id == user_id)
+                .filter(FoodProduct.name.ilike(f"%{query_str}%"))
+                .limit(limit)
+                .all()
+            )
+            for r in product_rows:
+                results.append(
+                    {
+                        "kind": "product",
+                        "id": r.id,
+                        "name": r.name,
+                        "brand": r.brand,
+                        "calories_per_100g": r.calories_per_100g,
+                    }
+                )
+
+        if "protocol" in kinds:
+            protocol_rows = (
+                db.query(Protocol)
+                .filter(Protocol.user_id == user_id)
+                .filter(
+                    or_(
+                        Protocol.name.ilike(f"%{query_str}%"),
+                        Protocol.notes.ilike(f"%{query_str}%"),
+                    )
+                )
+                .order_by(Protocol.start_date.desc())
+                .limit(limit)
+                .all()
+            )
+            for r in protocol_rows:
+                results.append(
+                    {
+                        "kind": "protocol",
+                        "id": r.id,
+                        "name": r.name,
+                        "domain": r.domain,
+                        "start_date": str(r.start_date) if r.start_date else None,
+                        "end_date": str(r.end_date) if r.end_date else None,
+                    }
+                )
+
+    _ = literal, text  # keep imports used regardless of branch
+    results = results[:limit]
+    return {"query": query_str, "count": len(results), "results": results}
+
+
+def _handle_nutrition_lookup(user_id: int, params: dict) -> dict:
+    from agent.nutrition import get_off_by_barcode, search_off
+
+    query_str = (params.get("query") or "").strip()
+    barcode = (params.get("barcode") or "").strip()
+    limit = int(params.get("limit") or 5)
+    save_top_match = bool(params.get("save_top_match"))
+
+    if not query_str and not barcode:
+        return {"error": "query or barcode is required"}
+
+    matches: list[dict]
+    if barcode:
+        single = get_off_by_barcode(barcode)
+        matches = [single] if single else []
+    else:
+        matches = search_off(query_str, lc="ru", page_size=limit)
+        if not matches:
+            matches = search_off(query_str, lc="en", page_size=limit)
+
+    if not matches:
+        return {"query": query_str or barcode, "count": 0, "matches": []}
+
+    saved_id = None
+    if save_top_match:
+        top = matches[0]
+        with get_db_session_context() as db:
+            existing = (
+                db.query(FoodProduct)
+                .filter(
+                    FoodProduct.user_id == user_id,
+                    func.lower(FoodProduct.name) == (top.get("name") or "").lower(),
+                )
+                .first()
+            )
+            if existing:
+                if top.get("calories_per_100g") is not None:
+                    existing.calories_per_100g = top["calories_per_100g"]
+                if top.get("protein_g_per_100g") is not None:
+                    existing.protein_g_per_100g = top["protein_g_per_100g"]
+                if top.get("fat_g_per_100g") is not None:
+                    existing.fat_g_per_100g = top["fat_g_per_100g"]
+                if top.get("carbs_g_per_100g") is not None:
+                    existing.carbs_g_per_100g = top["carbs_g_per_100g"]
+                if top.get("fiber_g_per_100g") is not None:
+                    existing.fiber_g_per_100g = top["fiber_g_per_100g"]
+                db.flush()
+                saved_id = existing.id
+            else:
+                product = FoodProduct(
+                    user_id=user_id,
+                    name=top.get("name") or query_str,
+                    brand=top.get("brand"),
+                    calories_per_100g=top.get("calories_per_100g"),
+                    protein_g_per_100g=top.get("protein_g_per_100g"),
+                    fat_g_per_100g=top.get("fat_g_per_100g"),
+                    carbs_g_per_100g=top.get("carbs_g_per_100g"),
+                    fiber_g_per_100g=top.get("fiber_g_per_100g"),
+                    notes=f"openfoodfacts:{top.get('code')}",
+                )
+                db.add(product)
+                db.flush()
+                saved_id = product.id
+
+    return {
+        "query": query_str or barcode,
+        "count": len(matches),
+        "matches": matches[:limit],
+        "saved_product_id": saved_id,
+    }

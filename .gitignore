@@ -179,3 +179,6 @@ dashboard.yml
 labs_*.pdf
 blood_panel_*.pdf
 lab_*.pdf
+
+# Tournament analysis artifacts (local-only, regenerated on demand)
+ANALYSIS_*.md

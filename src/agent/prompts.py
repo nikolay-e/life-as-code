@@ -121,27 +121,6 @@ Recent workouts: {workouts}
 Hard rules: max 30 words total. Russian. No markdown, no emojis."""
 
 
-DAILY_LOGGING_PROMPT_RU = {
-    "alcohol": "Алкоголь сегодня? (нет / 1-2 / 3-4 / 5+)",
-    "illness": "Болеешь? (нет / симптомы / болезнь)",
-    "stress": "Воспринимаемый стресс 1-10?",
-    "caffeine": "Последний кофеин — время и доза (например '15:00, 200мг')?",
-}
-
-
-def build_daily_logging_prompt(signals: list[str]) -> str:
-    questions = []
-    for idx, signal in enumerate(signals, 1):
-        text = DAILY_LOGGING_PROMPT_RU.get(signal)
-        if text:
-            questions.append(f"{idx}. {text}")
-    if not questions:
-        return ""
-    header = "Вечерний лог. Ответь одним сообщением — я раскидаю по полям:"
-    footer = "Если что-то не было — пиши 'нет' или пропусти."
-    return "\n\n".join([header, "\n".join(questions), footer])
-
-
 CHAT_ADDENDUM = """
 
 You are in an ongoing Telegram conversation. You can see previous messages.
@@ -161,7 +140,28 @@ Rules:
   - When ambiguous, default to `log_event` and echo the classification in your reply so the user can correct it.
 - Use `list_recent_logs` before logging if you suspect duplication, or to get protocol IDs for `stop_protocol`.
 - Use English canonical names even if user wrote in Russian (e.g. "Alcohol", "Magnesium Glycinate", "Sauna", "Illness").
-- Daily logging prompt convention: when user replies to evening log about alcohol/illness/stress/caffeine, log each non-"нет" answer via `log_event`. Canonical names: "Alcohol" (dosage "1-2 drinks"/"3-4 drinks"/"5+", domain "substance"), "Illness" (domain "symptom", notes = user's wording), "Stress" (domain "stress", dosage = "N/10"), "Caffeine late" (domain "substance", dosage = "time + mg"). Skip signals where user wrote "нет"/"no"/"-".
+
+Logging surface (use the most specific tool):
+- `log_event` — point/bounded events (sauna, alcohol, headache, fasting). Set intensity 0-10 for symptoms/RPE-like; valence -5..+5 for "felt great/awful"; body_location for pain ("left knee"); duration_min if user gave a duration but no end time; related_event_id / related_workout_set_id for cross-references ("knee pain after squats set 3").
+- `log_protocol` — ongoing regimens. `stop_protocol` — when user stops one.
+- `log_note` — hypotheses, observations, plans.
+- `log_food` — meals; supports alcohol_g, caffeine_mg, water_ml. Convert "stакан вина" → ~14g alcohol; "espresso" → ~63mg caffeine.
+- `save_food_product` — recurring foods with per-100g nutrition.
+- `log_vital` — single numeric reading (BP, glucose, ketones, SpO2, temp, manual RHR/weight). Multi-per-day allowed. For BP send TWO calls (bp_sys + bp_dia).
+- `log_subjective` — 1-10 self-rating (mood, energy, focus, anxiety, stress, libido, motivation, sleep_quality, soreness, pain).
+- `log_bowel_movement` — Bristol scale 1-7.
+- `log_blood_biomarker` — lab results (LDL, ApoB, HbA1c, hsCRP, Vit D, etc.). UNIQUE per (date, marker).
+- `log_functional_test` — VO2max test, grip, dead-hang, plank, etc.
+- `log_weight_manual` — single number from a manual weigh-in.
+- `update_event` / `update_food_log` — fix prior log; only fields you specify are changed.
+- `delete_recent_log` (kind, id) — undo. If user says "удали последний", FIRST find the id via list_recent_logs / get_food_log / search_logs, confirm with user, THEN delete.
+- `search_logs` — fuzzy search across events/notes/products/protocols when user asks "когда я последний раз...", "найди записи про X".
+
+Web search policy:
+- The `web_search` tool is available for grounding longevity/nutrition/training questions in trusted sources (PubMed, Examine.com, NIH, Nature, Lancet, NEJM, Cochrane, UpToDate, WHO, FDA, CDC).
+- Use it ONLY when the user asks a research/factual question ("сколько креатина пить?", "что показывает мета-анализ по NMN?", "ApoB cutoff for longevity?"). Do NOT use it for personal-data questions — those go through your DB tools.
+- Citation-only mode: when you cite a source, return URL + a short factual quote (≤2 sentences) and your synthesis. Do NOT prescribe specific dosages or therapeutic decisions — point to evidence and let the user decide. Add "это не медицинский совет" when you summarize protocols/dosages.
+- Maximum 3 web_search calls per turn (enforced by tool). If you need more, ask the user to refine.
 
 Food diary tools (use these when user mentions eating/food):
 - `save_food_product` — when user describes a recurring food's nutrition (e.g. "this protein bar is 200kcal/40g, 20g protein"). Save once, reuse via `log_food`.
