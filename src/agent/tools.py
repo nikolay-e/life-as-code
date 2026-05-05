@@ -8,16 +8,28 @@ from database import get_db_session_context
 from date_utils import parse_iso_date
 from models import (
     HRV,
+    BloodBiomarker,
+    EightSleepSession,
     Energy,
+    FunctionalTest,
     GarminActivity,
+    GarminRacePrediction,
+    GarminTrainingStatus,
     HealthEvent,
     HealthNote,
     HeartRate,
+    LongevityGoal,
     Prediction,
     Protocol,
     Sleep,
     Steps,
+    Stress,
     Weight,
+    WhoopCycle,
+    WhoopRecovery,
+    WhoopSleep,
+    WhoopWorkout,
+    WorkoutProgram,
     WorkoutSet,
 )
 
@@ -58,6 +70,11 @@ TOOLS = [
                         "energy",
                         "workouts",
                         "strength",
+                        "stress",
+                        "whoop_recovery",
+                        "whoop_sleep",
+                        "whoop_workouts",
+                        "eight_sleep",
                     ],
                 },
                 "start_date": {"type": "string", "description": "YYYY-MM-DD"},
@@ -93,7 +110,16 @@ TOOLS = [
             "properties": {
                 "metric": {
                     "type": "string",
-                    "enum": ["steps", "sleep", "heart_rate", "hrv", "weight"],
+                    "enum": [
+                        "steps",
+                        "sleep",
+                        "heart_rate",
+                        "hrv",
+                        "weight",
+                        "energy",
+                        "stress",
+                        "whoop_recovery",
+                    ],
                 },
                 "period_a_start": {"type": "string"},
                 "period_a_end": {"type": "string"},
@@ -283,6 +309,96 @@ TOOLS = [
             },
         },
     },
+    {
+        "name": "get_training_status",
+        "description": (
+            "Get Garmin training status metrics: VO2 max, fitness age, training load, "
+            "training readiness, endurance score, and training status label."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "days": {
+                    "type": "integer",
+                    "description": "How many recent days to fetch (default 7)",
+                },
+            },
+        },
+    },
+    {
+        "name": "get_race_predictions",
+        "description": "Get Garmin race time predictions (5K, 10K, half marathon, marathon) based on current fitness.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "days": {
+                    "type": "integer",
+                    "description": "Lookback window in days (default 30)",
+                },
+            },
+        },
+    },
+    {
+        "name": "get_blood_biomarkers",
+        "description": (
+            "Query blood biomarker lab results. Returns values with reference ranges "
+            "and longevity-optimal ranges. Use for blood test history."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "marker_name": {
+                    "type": "string",
+                    "description": "Filter by marker name (e.g. 'Testosterone', 'HbA1c'). Optional.",
+                },
+                "days": {
+                    "type": "integer",
+                    "description": "Lookback window in days (default 365)",
+                },
+            },
+        },
+    },
+    {
+        "name": "get_functional_tests",
+        "description": "Query functional fitness test results (e.g. VO2 max test, grip strength, flexibility scores).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "test_name": {
+                    "type": "string",
+                    "description": "Filter by test name. Optional.",
+                },
+                "days": {
+                    "type": "integer",
+                    "description": "Lookback window in days (default 365)",
+                },
+            },
+        },
+    },
+    {
+        "name": "get_longevity_goals",
+        "description": "Get the user's longevity goals — target health metrics and milestones for extending healthy lifespan.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+        },
+    },
+    {
+        "name": "get_training_program",
+        "description": (
+            "Get the user's workout program structure: program days, exercises, "
+            "target sets/reps/RPE. Use to answer questions about the training plan."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "include_inactive": {
+                    "type": "boolean",
+                    "description": "Include archived programs (default false — active only)",
+                },
+            },
+        },
+    },
 ]
 
 METRIC_MODEL_MAP = {
@@ -292,6 +408,10 @@ METRIC_MODEL_MAP = {
     "hrv": (HRV, "hrv_avg"),
     "weight": (Weight, "weight_kg"),
     "energy": (Energy, "active_energy"),
+    "stress": (Stress, "avg_stress"),
+    "whoop_recovery": (WhoopRecovery, "recovery_score"),
+    "whoop_sleep": (WhoopSleep, "sleep_performance_percentage"),
+    "eight_sleep": (EightSleepSession, "score"),
 }
 
 
@@ -305,6 +425,12 @@ def execute_tool(user_id: int, tool_name: str, tool_input: dict) -> dict:
         "stop_protocol": _handle_stop_protocol,
         "log_note": _handle_log_note,
         "list_recent_logs": _handle_list_recent_logs,
+        "get_training_status": _handle_get_training_status,
+        "get_race_predictions": _handle_get_race_predictions,
+        "get_blood_biomarkers": _handle_get_blood_biomarkers,
+        "get_functional_tests": _handle_get_functional_tests,
+        "get_longevity_goals": _handle_get_longevity_goals,
+        "get_training_program": _handle_get_training_program,
     }
     handler = handlers.get(tool_name)
     if not handler:
@@ -322,6 +448,9 @@ def _handle_query_health_data(user_id: int, params: dict) -> dict:
 
     if metric == "strength":
         return _query_strength(user_id, start, end)
+
+    if metric == "whoop_workouts":
+        return _query_whoop_workouts(user_id, start, end)
 
     model_info = METRIC_MODEL_MAP.get(metric)
     if not model_info:
@@ -740,3 +869,231 @@ def _handle_list_recent_logs(user_id: int, params: dict) -> dict:
             ]
 
     return {"lookback_days": days, **result}
+
+
+def _query_whoop_workouts(user_id: int, start: date, end: date) -> dict:
+    with get_db_session_context() as db:
+        rows = (
+            db.query(WhoopWorkout)
+            .filter(
+                WhoopWorkout.user_id == user_id,
+                WhoopWorkout.date >= start,
+                WhoopWorkout.date <= end,
+            )
+            .order_by(WhoopWorkout.date)
+            .all()
+        )
+        data = [
+            {
+                "date": str(r.date),
+                "sport": r.sport_name,
+                "strain": r.strain,
+                "avg_hr": r.avg_heart_rate,
+                "max_hr": r.max_heart_rate,
+                "kilojoules": r.kilojoules,
+            }
+            for r in rows
+        ]
+    return {"metric": "whoop_workouts", "data": data, "count": len(data)}
+
+
+def _handle_get_training_status(user_id: int, params: dict) -> dict:
+    days = int(params.get("days", 7))
+    start = local_today() - timedelta(days=days)
+
+    with get_db_session_context() as db:
+        rows = (
+            db.query(GarminTrainingStatus)
+            .filter(
+                GarminTrainingStatus.user_id == user_id,
+                GarminTrainingStatus.date >= start,
+            )
+            .order_by(GarminTrainingStatus.date.desc())
+            .all()
+        )
+        data = [
+            {
+                "date": str(r.date),
+                "vo2_max": r.vo2_max,
+                "vo2_max_precise": r.vo2_max_precise,
+                "fitness_age": r.fitness_age,
+                "training_status": r.training_status,
+                "training_load_7_day": r.training_load_7_day,
+                "acute_training_load": r.acute_training_load,
+                "training_readiness_score": r.training_readiness_score,
+                "endurance_score": r.endurance_score,
+                "primary_training_effect": r.primary_training_effect,
+                "anaerobic_training_effect": r.anaerobic_training_effect,
+            }
+            for r in rows
+        ]
+    return {"data": data, "count": len(data)}
+
+
+def _handle_get_race_predictions(user_id: int, params: dict) -> dict:
+    days = int(params.get("days", 30))
+    start = local_today() - timedelta(days=days)
+
+    def _fmt_time(seconds: int | None) -> str | None:
+        if seconds is None:
+            return None
+        h, rem = divmod(seconds, 3600)
+        m, s = divmod(rem, 60)
+        return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
+
+    with get_db_session_context() as db:
+        rows = (
+            db.query(GarminRacePrediction)
+            .filter(
+                GarminRacePrediction.user_id == user_id,
+                GarminRacePrediction.date >= start,
+            )
+            .order_by(GarminRacePrediction.date.desc())
+            .all()
+        )
+        data = [
+            {
+                "date": str(r.date),
+                "5k": _fmt_time(r.prediction_5k_seconds),
+                "10k": _fmt_time(r.prediction_10k_seconds),
+                "half_marathon": _fmt_time(r.prediction_half_marathon_seconds),
+                "marathon": _fmt_time(r.prediction_marathon_seconds),
+                "vo2_max": r.vo2_max_value,
+            }
+            for r in rows
+        ]
+    return {"data": data, "count": len(data)}
+
+
+def _handle_get_blood_biomarkers(user_id: int, params: dict) -> dict:
+    days = int(params.get("days", 365))
+    marker_name = params.get("marker_name")
+    start = local_today() - timedelta(days=days)
+
+    with get_db_session_context() as db:
+        query = db.query(BloodBiomarker).filter(
+            BloodBiomarker.user_id == user_id,
+            BloodBiomarker.date >= start,
+        )
+        if marker_name:
+            query = query.filter(BloodBiomarker.marker_name.ilike(f"%{marker_name}%"))
+        rows = query.order_by(BloodBiomarker.date.desc(), BloodBiomarker.marker_name).all()
+        data = [
+            {
+                "date": str(r.date),
+                "marker": r.marker_name,
+                "value": r.value,
+                "unit": r.unit,
+                "ref_low": r.reference_range_low,
+                "ref_high": r.reference_range_high,
+                "optimal_low": r.longevity_optimal_low,
+                "optimal_high": r.longevity_optimal_high,
+                "lab": r.lab_name,
+                "notes": r.notes,
+            }
+            for r in rows
+        ]
+    return {"data": data, "count": len(data)}
+
+
+def _handle_get_functional_tests(user_id: int, params: dict) -> dict:
+    days = int(params.get("days", 365))
+    test_name = params.get("test_name")
+    start = local_today() - timedelta(days=days)
+
+    with get_db_session_context() as db:
+        query = db.query(FunctionalTest).filter(
+            FunctionalTest.user_id == user_id,
+            FunctionalTest.date >= start,
+        )
+        if test_name:
+            query = query.filter(FunctionalTest.test_name.ilike(f"%{test_name}%"))
+        rows = query.order_by(FunctionalTest.date.desc()).all()
+        data = [
+            {
+                "date": str(r.date),
+                "test": r.test_name,
+                "value": r.value,
+                "unit": r.unit,
+                "notes": r.notes,
+            }
+            for r in rows
+        ]
+    return {"data": data, "count": len(data)}
+
+
+def _handle_get_longevity_goals(user_id: int, params: dict) -> dict:
+    with get_db_session_context() as db:
+        rows = (
+            db.query(LongevityGoal)
+            .filter(LongevityGoal.user_id == user_id)
+            .order_by(LongevityGoal.category)
+            .all()
+        )
+        data = [
+            {
+                "category": r.category,
+                "description": r.description,
+                "target_value": r.target_value,
+                "current_value": r.current_value,
+                "unit": r.unit,
+                "target_age": r.target_age,
+            }
+            for r in rows
+        ]
+    return {"goals": data, "count": len(data)}
+
+
+def _handle_get_training_program(user_id: int, params: dict) -> dict:
+    include_inactive = params.get("include_inactive", False)
+
+    with get_db_session_context() as db:
+        query = db.query(WorkoutProgram).filter(WorkoutProgram.user_id == user_id)
+        if not include_inactive:
+            query = query.filter(WorkoutProgram.is_active.is_(True))
+        programs = query.order_by(WorkoutProgram.start_date.desc()).all()
+
+        result = []
+        for prog in programs:
+            days_data = []
+            for day in prog.days:
+                exercises = [
+                    {
+                        "order": ex.exercise_order,
+                        "title": ex.exercise_title,
+                        "sets": ex.target_sets,
+                        "reps": (
+                            f"{ex.target_reps_min}-{ex.target_reps_max}"
+                            if ex.target_reps_min and ex.target_reps_max
+                            else ex.target_reps_min
+                        ),
+                        "rpe": (
+                            f"{ex.target_rpe_min}-{ex.target_rpe_max}"
+                            if ex.target_rpe_min and ex.target_rpe_max
+                            else None
+                        ),
+                        "rest_sec": ex.rest_seconds,
+                        "notes": ex.notes,
+                    }
+                    for ex in day.exercises
+                ]
+                days_data.append(
+                    {
+                        "order": day.day_order,
+                        "name": day.name,
+                        "focus": day.focus,
+                        "exercises": exercises,
+                    }
+                )
+            result.append(
+                {
+                    "id": prog.id,
+                    "name": prog.name,
+                    "goal": prog.goal,
+                    "start_date": str(prog.start_date),
+                    "end_date": str(prog.end_date) if prog.end_date else None,
+                    "is_active": prog.is_active,
+                    "days": days_data,
+                }
+            )
+    return {"programs": result, "count": len(result)}
