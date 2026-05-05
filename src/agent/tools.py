@@ -11,6 +11,9 @@ from models import (
     BloodBiomarker,
     EightSleepSession,
     Energy,
+    ExerciseTemplate,
+    FoodLog,
+    FoodProduct,
     FunctionalTest,
     GarminActivity,
     GarminRacePrediction,
@@ -24,6 +27,7 @@ from models import (
     Sleep,
     Steps,
     Stress,
+    UserSettings,
     Weight,
     WhoopCycle,
     WhoopRecovery,
@@ -74,6 +78,7 @@ TOOLS = [
                         "whoop_recovery",
                         "whoop_sleep",
                         "whoop_workouts",
+                        "whoop_cycle",
                         "eight_sleep",
                     ],
                 },
@@ -399,6 +404,137 @@ TOOLS = [
             },
         },
     },
+    {
+        "name": "get_user_profile",
+        "description": (
+            "Get user profile and personalized thresholds: birth date / age, gender, "
+            "height, HRV/sleep thresholds. Use for any calorie/BMR/TDEE calculation."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "search_exercises",
+        "description": (
+            "Search the user's Hevy exercise template catalog by name or muscle group. "
+            "Use to find exercise definitions, equipment, primary/secondary muscles."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Substring match against exercise title (case-insensitive). Optional.",
+                },
+                "muscle_group": {
+                    "type": "string",
+                    "description": "Filter by primary muscle group. Optional.",
+                },
+                "limit": {"type": "integer", "description": "Max results (default 20)"},
+            },
+        },
+    },
+    {
+        "name": "save_food_product",
+        "description": (
+            "Save or update a reusable food product with nutritional info per 100g/100ml. "
+            "Use when the user tells you about a food they eat (e.g. 'this protein bar has 200kcal/40g'). "
+            "Once saved, log_food can reference it by name for quick repeat logging."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Product name (canonical, e.g. 'Chicken breast')"},
+                "brand": {"type": "string", "description": "Brand if relevant. Optional."},
+                "calories_per_100g": {"type": "number"},
+                "protein_g_per_100g": {"type": "number"},
+                "fat_g_per_100g": {"type": "number"},
+                "carbs_g_per_100g": {"type": "number"},
+                "fiber_g_per_100g": {"type": "number"},
+                "notes": {"type": "string"},
+            },
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "log_food",
+        "description": (
+            "Log a food intake. Two modes: "
+            "(1) by product — set product_name (or product_id) + quantity_g, calories/macros are computed; "
+            "(2) free-text — set description + manual calories/macros. "
+            "Use this whenever the user mentions eating something. Logging is optional — not every day required."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product_name": {"type": "string", "description": "Name of saved product. Fuzzy match."},
+                "product_id": {"type": "integer", "description": "Exact product id (preferred over name)."},
+                "quantity_g": {"type": "number", "description": "Grams/ml consumed (when using a product)."},
+                "description": {"type": "string", "description": "Free-text description if no saved product."},
+                "calories": {"type": "number"},
+                "protein_g": {"type": "number"},
+                "fat_g": {"type": "number"},
+                "carbs_g": {"type": "number"},
+                "meal_type": {
+                    "type": "string",
+                    "enum": ["breakfast", "lunch", "dinner", "snack", "other"],
+                },
+                "consumed_at": {
+                    "type": "string",
+                    "description": "ISO datetime or YYYY-MM-DD. Defaults to now if omitted.",
+                },
+                "notes": {"type": "string"},
+            },
+        },
+    },
+    {
+        "name": "list_food_products",
+        "description": "List saved food products. Optionally filter by name substring.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Substring match against product name."},
+                "limit": {"type": "integer", "description": "Max results (default 50)"},
+            },
+        },
+    },
+    {
+        "name": "get_food_log",
+        "description": "Get food log entries for a date range. Returns each meal with macros.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "start_date": {"type": "string", "description": "YYYY-MM-DD"},
+                "end_date": {"type": "string", "description": "YYYY-MM-DD"},
+            },
+            "required": ["start_date", "end_date"],
+        },
+    },
+    {
+        "name": "get_calorie_summary",
+        "description": (
+            "Aggregate daily calorie and macro totals over a date range. "
+            "Returns per-day totals and the period average."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "start_date": {"type": "string", "description": "YYYY-MM-DD"},
+                "end_date": {"type": "string", "description": "YYYY-MM-DD"},
+            },
+            "required": ["start_date", "end_date"],
+        },
+    },
+    {
+        "name": "delete_food_log",
+        "description": "Delete a food log entry by id. Use when the user wants to undo or correct a logged meal.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "log_id": {"type": "integer"},
+            },
+            "required": ["log_id"],
+        },
+    },
 ]
 
 METRIC_MODEL_MAP = {
@@ -431,6 +567,14 @@ def execute_tool(user_id: int, tool_name: str, tool_input: dict) -> dict:
         "get_functional_tests": _handle_get_functional_tests,
         "get_longevity_goals": _handle_get_longevity_goals,
         "get_training_program": _handle_get_training_program,
+        "get_user_profile": _handle_get_user_profile,
+        "search_exercises": _handle_search_exercises,
+        "save_food_product": _handle_save_food_product,
+        "log_food": _handle_log_food,
+        "list_food_products": _handle_list_food_products,
+        "get_food_log": _handle_get_food_log,
+        "get_calorie_summary": _handle_get_calorie_summary,
+        "delete_food_log": _handle_delete_food_log,
     }
     handler = handlers.get(tool_name)
     if not handler:
@@ -451,6 +595,9 @@ def _handle_query_health_data(user_id: int, params: dict) -> dict:
 
     if metric == "whoop_workouts":
         return _query_whoop_workouts(user_id, start, end)
+
+    if metric == "whoop_cycle":
+        return _query_whoop_cycle(user_id, start, end)
 
     model_info = METRIC_MODEL_MAP.get(metric)
     if not model_info:
@@ -1097,3 +1244,376 @@ def _handle_get_training_program(user_id: int, params: dict) -> dict:
                 }
             )
     return {"programs": result, "count": len(result)}
+
+
+def _query_whoop_cycle(user_id: int, start: date, end: date) -> dict:
+    with get_db_session_context() as db:
+        rows = (
+            db.query(WhoopCycle)
+            .filter(
+                WhoopCycle.user_id == user_id,
+                WhoopCycle.date >= start,
+                WhoopCycle.date <= end,
+            )
+            .order_by(WhoopCycle.date)
+            .all()
+        )
+        data = [
+            {
+                "date": str(r.date),
+                "strain": r.strain,
+                "kilojoules": r.kilojoules,
+                "avg_hr": r.avg_heart_rate,
+                "max_hr": r.max_heart_rate,
+            }
+            for r in rows
+        ]
+    return {"metric": "whoop_cycle", "data": data, "count": len(data)}
+
+
+def _handle_get_user_profile(user_id: int, params: dict) -> dict:
+    with get_db_session_context() as db:
+        row = (
+            db.query(UserSettings)
+            .filter(UserSettings.user_id == user_id)
+            .first()
+        )
+        if not row:
+            return {"profile": None}
+
+        age = None
+        if row.birth_date:
+            today = local_today()
+            age = today.year - row.birth_date.year - (
+                (today.month, today.day) < (row.birth_date.month, row.birth_date.day)
+            )
+
+        return {
+            "profile": {
+                "birth_date": str(row.birth_date) if row.birth_date else None,
+                "age": age,
+                "gender": row.gender,
+                "height_cm": row.height_cm,
+                "thresholds": {
+                    "hrv_good": row.hrv_good_threshold,
+                    "hrv_moderate": row.hrv_moderate_threshold,
+                    "deep_sleep_good_min": row.deep_sleep_good_threshold,
+                    "deep_sleep_moderate_min": row.deep_sleep_moderate_threshold,
+                    "total_sleep_good_h": row.total_sleep_good_threshold,
+                    "total_sleep_moderate_h": row.total_sleep_moderate_threshold,
+                    "training_high_volume_kg": row.training_high_volume_threshold,
+                },
+            }
+        }
+
+
+def _handle_search_exercises(user_id: int, params: dict) -> dict:
+    query_str = (params.get("query") or "").strip()
+    muscle_group = (params.get("muscle_group") or "").strip()
+    limit = int(params.get("limit", 20))
+
+    with get_db_session_context() as db:
+        q = db.query(ExerciseTemplate).filter(ExerciseTemplate.user_id == user_id)
+        if query_str:
+            q = q.filter(ExerciseTemplate.title.ilike(f"%{query_str}%"))
+        if muscle_group:
+            q = q.filter(
+                ExerciseTemplate.primary_muscle_group.ilike(f"%{muscle_group}%")
+            )
+        rows = q.order_by(ExerciseTemplate.title).limit(limit).all()
+        data = [
+            {
+                "id": r.id,
+                "hevy_template_id": r.hevy_template_id,
+                "title": r.title,
+                "type": r.exercise_type,
+                "primary_muscle": r.primary_muscle_group,
+                "secondary_muscles": r.secondary_muscle_groups,
+                "equipment": r.equipment,
+                "is_custom": r.is_custom,
+            }
+            for r in rows
+        ]
+    return {"exercises": data, "count": len(data)}
+
+
+def _handle_save_food_product(user_id: int, params: dict) -> dict:
+    name = (params.get("name") or "").strip()
+    if not name:
+        return {"error": "name is required"}
+    brand = (params.get("brand") or "").strip() or None
+
+    with get_db_session_context() as db:
+        existing = (
+            db.query(FoodProduct)
+            .filter(
+                FoodProduct.user_id == user_id,
+                FoodProduct.name.ilike(name),
+                FoodProduct.brand.is_(None) if brand is None else FoodProduct.brand.ilike(brand),
+            )
+            .first()
+        )
+        if existing:
+            for field in (
+                "calories_per_100g",
+                "protein_g_per_100g",
+                "fat_g_per_100g",
+                "carbs_g_per_100g",
+                "fiber_g_per_100g",
+            ):
+                if params.get(field) is not None:
+                    setattr(existing, field, params[field])
+            if params.get("notes") is not None:
+                existing.notes = params["notes"]
+            db.flush()
+            product = existing
+            status = "updated"
+        else:
+            product = FoodProduct(
+                user_id=user_id,
+                name=name,
+                brand=brand,
+                calories_per_100g=params.get("calories_per_100g"),
+                protein_g_per_100g=params.get("protein_g_per_100g"),
+                fat_g_per_100g=params.get("fat_g_per_100g"),
+                carbs_g_per_100g=params.get("carbs_g_per_100g"),
+                fiber_g_per_100g=params.get("fiber_g_per_100g"),
+                notes=params.get("notes"),
+            )
+            db.add(product)
+            db.flush()
+            status = "created"
+
+        return {
+            "status": status,
+            "id": product.id,
+            "name": product.name,
+            "brand": product.brand,
+            "calories_per_100g": product.calories_per_100g,
+        }
+
+
+def _resolve_food_product(
+    db: Session, user_id: int, product_id: int | None, product_name: str | None
+) -> FoodProduct | None:
+    if product_id:
+        return (
+            db.query(FoodProduct)
+            .filter(FoodProduct.id == product_id, FoodProduct.user_id == user_id)
+            .first()
+        )
+    if product_name:
+        return (
+            db.query(FoodProduct)
+            .filter(
+                FoodProduct.user_id == user_id,
+                FoodProduct.name.ilike(f"%{product_name}%"),
+            )
+            .order_by(FoodProduct.name)
+            .first()
+        )
+    return None
+
+
+def _handle_log_food(user_id: int, params: dict) -> dict:
+    consumed_at = _parse_ts(params.get("consumed_at"), default=datetime.now(UTC))
+    if consumed_at is None:
+        consumed_at = datetime.now(UTC)
+    log_date = consumed_at.date()
+
+    meal_type = params.get("meal_type")
+    if meal_type and meal_type not in {
+        "breakfast",
+        "lunch",
+        "dinner",
+        "snack",
+        "other",
+    }:
+        return {"error": f"invalid meal_type: {meal_type}"}
+
+    quantity_g = params.get("quantity_g")
+    description = (params.get("description") or "").strip() or None
+
+    with get_db_session_context() as db:
+        product = _resolve_food_product(
+            db, user_id, params.get("product_id"), params.get("product_name")
+        )
+
+        calories = params.get("calories")
+        protein_g = params.get("protein_g")
+        fat_g = params.get("fat_g")
+        carbs_g = params.get("carbs_g")
+
+        if product and quantity_g is not None:
+            factor = quantity_g / 100.0
+            if calories is None and product.calories_per_100g is not None:
+                calories = round(product.calories_per_100g * factor, 1)
+            if protein_g is None and product.protein_g_per_100g is not None:
+                protein_g = round(product.protein_g_per_100g * factor, 2)
+            if fat_g is None and product.fat_g_per_100g is not None:
+                fat_g = round(product.fat_g_per_100g * factor, 2)
+            if carbs_g is None and product.carbs_g_per_100g is not None:
+                carbs_g = round(product.carbs_g_per_100g * factor, 2)
+
+        if not product and not description and calories is None:
+            return {
+                "error": "provide product_name/product_id, or description with macros"
+            }
+
+        log = FoodLog(
+            user_id=user_id,
+            consumed_at=consumed_at,
+            date=log_date,
+            meal_type=meal_type,
+            product_id=product.id if product else None,
+            quantity_g=quantity_g,
+            description=description or (product.name if product else None),
+            calories=calories,
+            protein_g=protein_g,
+            fat_g=fat_g,
+            carbs_g=carbs_g,
+            notes=params.get("notes"),
+        )
+        db.add(log)
+        db.flush()
+
+        return {
+            "status": "logged",
+            "id": log.id,
+            "date": str(log.date),
+            "consumed_at": log.consumed_at.isoformat(),
+            "product": product.name if product else None,
+            "quantity_g": quantity_g,
+            "calories": calories,
+            "protein_g": protein_g,
+            "fat_g": fat_g,
+            "carbs_g": carbs_g,
+            "description": log.description,
+        }
+
+
+def _handle_list_food_products(user_id: int, params: dict) -> dict:
+    query_str = (params.get("query") or "").strip()
+    limit = int(params.get("limit", 50))
+
+    with get_db_session_context() as db:
+        q = db.query(FoodProduct).filter(FoodProduct.user_id == user_id)
+        if query_str:
+            q = q.filter(FoodProduct.name.ilike(f"%{query_str}%"))
+        rows = q.order_by(FoodProduct.name).limit(limit).all()
+        data = [
+            {
+                "id": r.id,
+                "name": r.name,
+                "brand": r.brand,
+                "calories_per_100g": r.calories_per_100g,
+                "protein_g_per_100g": r.protein_g_per_100g,
+                "fat_g_per_100g": r.fat_g_per_100g,
+                "carbs_g_per_100g": r.carbs_g_per_100g,
+                "fiber_g_per_100g": r.fiber_g_per_100g,
+                "notes": r.notes,
+            }
+            for r in rows
+        ]
+    return {"products": data, "count": len(data)}
+
+
+def _handle_get_food_log(user_id: int, params: dict) -> dict:
+    start = date.fromisoformat(params["start_date"])
+    end = date.fromisoformat(params["end_date"])
+
+    with get_db_session_context() as db:
+        rows = (
+            db.query(FoodLog)
+            .filter(
+                FoodLog.user_id == user_id,
+                FoodLog.date >= start,
+                FoodLog.date <= end,
+            )
+            .order_by(FoodLog.consumed_at)
+            .all()
+        )
+        data = [
+            {
+                "id": r.id,
+                "date": str(r.date),
+                "consumed_at": r.consumed_at.isoformat(),
+                "meal_type": r.meal_type,
+                "product_id": r.product_id,
+                "quantity_g": r.quantity_g,
+                "description": r.description,
+                "calories": r.calories,
+                "protein_g": r.protein_g,
+                "fat_g": r.fat_g,
+                "carbs_g": r.carbs_g,
+                "notes": r.notes,
+            }
+            for r in rows
+        ]
+    return {"entries": data, "count": len(data)}
+
+
+def _handle_get_calorie_summary(user_id: int, params: dict) -> dict:
+    start = date.fromisoformat(params["start_date"])
+    end = date.fromisoformat(params["end_date"])
+
+    with get_db_session_context() as db:
+        rows = (
+            db.query(
+                FoodLog.date,
+                func.coalesce(func.sum(FoodLog.calories), 0.0).label("calories"),
+                func.coalesce(func.sum(FoodLog.protein_g), 0.0).label("protein_g"),
+                func.coalesce(func.sum(FoodLog.fat_g), 0.0).label("fat_g"),
+                func.coalesce(func.sum(FoodLog.carbs_g), 0.0).label("carbs_g"),
+                func.count(FoodLog.id).label("entries"),
+            )
+            .filter(
+                FoodLog.user_id == user_id,
+                FoodLog.date >= start,
+                FoodLog.date <= end,
+            )
+            .group_by(FoodLog.date)
+            .order_by(FoodLog.date)
+            .all()
+        )
+
+        days = [
+            {
+                "date": str(r.date),
+                "calories": round(float(r.calories), 1),
+                "protein_g": round(float(r.protein_g), 1),
+                "fat_g": round(float(r.fat_g), 1),
+                "carbs_g": round(float(r.carbs_g), 1),
+                "entries": int(r.entries),
+            }
+            for r in rows
+        ]
+
+    avg = None
+    if days:
+        avg = {
+            "calories": round(sum(d["calories"] for d in days) / len(days), 1),
+            "protein_g": round(sum(d["protein_g"] for d in days) / len(days), 1),
+            "fat_g": round(sum(d["fat_g"] for d in days) / len(days), 1),
+            "carbs_g": round(sum(d["carbs_g"] for d in days) / len(days), 1),
+            "logged_days": len(days),
+        }
+
+    return {"days": days, "average": avg}
+
+
+def _handle_delete_food_log(user_id: int, params: dict) -> dict:
+    log_id = params.get("log_id")
+    if not log_id:
+        return {"error": "log_id is required"}
+
+    with get_db_session_context() as db:
+        row = (
+            db.query(FoodLog)
+            .filter(FoodLog.id == log_id, FoodLog.user_id == user_id)
+            .first()
+        )
+        if not row:
+            return {"error": "food log entry not found"}
+        db.delete(row)
+        return {"status": "deleted", "id": log_id}
