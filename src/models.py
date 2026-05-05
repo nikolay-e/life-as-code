@@ -159,9 +159,7 @@ class User(Base):
     food_logs = relationship(
         "FoodLog", back_populates="user", cascade=CASCADE_ALL_DELETE
     )
-    vitals = relationship(
-        "Vital", back_populates="user", cascade=CASCADE_ALL_DELETE
-    )
+    vitals = relationship("Vital", back_populates="user", cascade=CASCADE_ALL_DELETE)
     subjective_ratings = relationship(
         "SubjectiveRating", back_populates="user", cascade=CASCADE_ALL_DELETE
     )
@@ -1886,9 +1884,7 @@ class FoodLog(Base):
     consumed_at = Column(DateTime(timezone=True), nullable=False)
     date = Column(Date, nullable=False, index=True)
     meal_type = Column(String(50))
-    product_id = Column(
-        Integer, ForeignKey("food_products.id", ondelete="SET NULL")
-    )
+    product_id = Column(Integer, ForeignKey("food_products.id", ondelete="SET NULL"))
     quantity_g = Column(Float)
     description = Column(Text)
     calories = Column(Float)
@@ -1985,9 +1981,7 @@ class Vital(Base):
     )
 
     def __repr__(self):
-        return (
-            f"<Vital(user_id={self.user_id}, kind={self.kind}, value={self.value})>"
-        )
+        return f"<Vital(user_id={self.user_id}, kind={self.kind}, value={self.value})>"
 
 
 class SubjectiveRating(Base):
@@ -2058,6 +2052,5 @@ class BowelMovement(Base):
 
     def __repr__(self):
         return (
-            f"<BowelMovement(user_id={self.user_id}, "
-            f"occurred_at={self.occurred_at})>"
+            f"<BowelMovement(user_id={self.user_id}, occurred_at={self.occurred_at})>"
         )
