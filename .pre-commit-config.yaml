@@ -356,7 +356,7 @@ repos:
         name: Spell checking
         args:
           - '--write-changes'
-          - '--ignore-words-list=crate,nd,ser,async,theses,ba,te,tha,ue,ist,hevy,checkin'
+          - '--ignore-words-list=crate,nd,ser,async,theses,ba,te,tha,ue,ist,hevy,checkin,uptodate'
         exclude: ^(frontend/node_modules/|frontend/dist/|frontend/package-lock\.json)$
 
   # ============================================================================

@@ -494,8 +494,14 @@ TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "name": {"type": "string", "description": "Product name (canonical, e.g. 'Chicken breast')"},
-                "brand": {"type": "string", "description": "Brand if relevant. Optional."},
+                "name": {
+                    "type": "string",
+                    "description": "Product name (canonical, e.g. 'Chicken breast')",
+                },
+                "brand": {
+                    "type": "string",
+                    "description": "Brand if relevant. Optional.",
+                },
                 "calories_per_100g": {"type": "number"},
                 "protein_g_per_100g": {"type": "number"},
                 "fat_g_per_100g": {"type": "number"},
@@ -517,10 +523,22 @@ TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "product_name": {"type": "string", "description": "Name of saved product. Fuzzy match."},
-                "product_id": {"type": "integer", "description": "Exact product id (preferred over name)."},
-                "quantity_g": {"type": "number", "description": "Grams/ml consumed (when using a product)."},
-                "description": {"type": "string", "description": "Free-text description if no saved product."},
+                "product_name": {
+                    "type": "string",
+                    "description": "Name of saved product. Fuzzy match.",
+                },
+                "product_id": {
+                    "type": "integer",
+                    "description": "Exact product id (preferred over name).",
+                },
+                "quantity_g": {
+                    "type": "number",
+                    "description": "Grams/ml consumed (when using a product).",
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Free-text description if no saved product.",
+                },
                 "calories": {"type": "number"},
                 "protein_g": {"type": "number"},
                 "fat_g": {"type": "number"},
@@ -564,7 +582,10 @@ TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "query": {"type": "string", "description": "Substring match against product name."},
+                "query": {
+                    "type": "string",
+                    "description": "Substring match against product name.",
+                },
                 "limit": {"type": "integer", "description": "Max results (default 50)"},
             },
         },
@@ -724,7 +745,10 @@ TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "date": {"type": "string", "description": "YYYY-MM-DD of the blood draw."},
+                "date": {
+                    "type": "string",
+                    "description": "YYYY-MM-DD of the blood draw.",
+                },
                 "marker_name": {
                     "type": "string",
                     "description": (
@@ -1558,7 +1582,9 @@ def _handle_get_blood_biomarkers(user_id: int, params: dict) -> dict:
         )
         if marker_name:
             query = query.filter(BloodBiomarker.marker_name.ilike(f"%{marker_name}%"))
-        rows = query.order_by(BloodBiomarker.date.desc(), BloodBiomarker.marker_name).all()
+        rows = query.order_by(
+            BloodBiomarker.date.desc(), BloodBiomarker.marker_name
+        ).all()
         data = [
             {
                 "date": str(r.date),
@@ -1707,19 +1733,20 @@ def _query_whoop_cycle(user_id: int, start: date, end: date) -> dict:
 
 def _handle_get_user_profile(user_id: int, params: dict) -> dict:
     with get_db_session_context() as db:
-        row = (
-            db.query(UserSettings)
-            .filter(UserSettings.user_id == user_id)
-            .first()
-        )
+        row = db.query(UserSettings).filter(UserSettings.user_id == user_id).first()
         if not row:
             return {"profile": None}
 
         age = None
         if row.birth_date:
             today = local_today()
-            age = today.year - row.birth_date.year - (
-                (today.month, today.day) < (row.birth_date.month, row.birth_date.day)
+            age = (
+                today.year
+                - row.birth_date.year
+                - (
+                    (today.month, today.day)
+                    < (row.birth_date.month, row.birth_date.day)
+                )
             )
 
         return {
@@ -1783,7 +1810,9 @@ def _handle_save_food_product(user_id: int, params: dict) -> dict:
             .filter(
                 FoodProduct.user_id == user_id,
                 FoodProduct.name.ilike(name),
-                FoodProduct.brand.is_(None) if brand is None else FoodProduct.brand.ilike(brand),
+                FoodProduct.brand.is_(None)
+                if brand is None
+                else FoodProduct.brand.ilike(brand),
             )
             .first()
         )
@@ -2031,12 +2060,22 @@ def _handle_get_calorie_summary(user_id: int, params: dict) -> dict:
 
     avg: dict | None = None
     if days:
+        n = len(days)
+
+        def _avg(key: str) -> float:
+            total = 0.0
+            for d in days:
+                v = d.get(key)
+                if isinstance(v, (int, float)):
+                    total += float(v)
+            return round(total / n, 1)
+
         avg = {
-            "calories": round(sum(float(d["calories"]) for d in days) / len(days), 1),
-            "protein_g": round(sum(float(d["protein_g"]) for d in days) / len(days), 1),
-            "fat_g": round(sum(float(d["fat_g"]) for d in days) / len(days), 1),
-            "carbs_g": round(sum(float(d["carbs_g"]) for d in days) / len(days), 1),
-            "logged_days": len(days),
+            "calories": _avg("calories"),
+            "protein_g": _avg("protein_g"),
+            "fat_g": _avg("fat_g"),
+            "carbs_g": _avg("carbs_g"),
+            "logged_days": n,
         }
 
     return {"days": days, "average": avg}
@@ -2143,11 +2182,13 @@ def _handle_log_subjective(user_id: int, params: dict) -> dict:
     dimension = params.get("dimension")
     if dimension not in SUBJECTIVE_DIMENSIONS:
         return {"error": f"dimension must be one of {list(SUBJECTIVE_DIMENSIONS)}"}
-    score = params.get("score")
+    score_raw = params.get("score")
+    if score_raw is None:
+        return {"error": "score is required"}
     try:
-        score_int = int(score)
+        score_int = int(score_raw)
     except (TypeError, ValueError):
-        return {"error": f"score must be 1..10, got {score!r}"}
+        return {"error": f"score must be 1..10, got {score_raw!r}"}
     if not 1 <= score_int <= 10:
         return {"error": "score must be 1..10"}
 
@@ -2248,18 +2289,18 @@ def _handle_log_blood_biomarker(user_id: int, params: dict) -> dict:
         if existing:
             existing.value = value_num
             existing.unit = params.get("unit") or existing.unit
-            existing.reference_range_low = params.get(
-                "reference_range_low"
-            ) or existing.reference_range_low
-            existing.reference_range_high = params.get(
-                "reference_range_high"
-            ) or existing.reference_range_high
-            existing.longevity_optimal_low = params.get(
-                "longevity_optimal_low"
-            ) or existing.longevity_optimal_low
-            existing.longevity_optimal_high = params.get(
-                "longevity_optimal_high"
-            ) or existing.longevity_optimal_high
+            existing.reference_range_low = (
+                params.get("reference_range_low") or existing.reference_range_low
+            )
+            existing.reference_range_high = (
+                params.get("reference_range_high") or existing.reference_range_high
+            )
+            existing.longevity_optimal_low = (
+                params.get("longevity_optimal_low") or existing.longevity_optimal_low
+            )
+            existing.longevity_optimal_high = (
+                params.get("longevity_optimal_high") or existing.longevity_optimal_high
+            )
             existing.lab_name = params.get("lab_name") or existing.lab_name
             if params.get("notes"):
                 existing.notes = params.get("notes")
@@ -2347,17 +2388,18 @@ def _handle_log_weight_manual(user_id: int, params: dict) -> dict:
         return {"error": f"invalid date: {date_str}"}
 
     with get_db_session_context() as db:
-        existing = (
-            db.query(Weight)
-            .filter_by(user_id=user_id, date=log_date)
-            .first()
-        )
+        existing = db.query(Weight).filter_by(user_id=user_id, date=log_date).first()
+        body_fat_raw = params.get("body_fat_pct")
+        muscle_raw = params.get("muscle_mass_kg")
+        body_fat_val = float(body_fat_raw) if body_fat_raw is not None else None
+        muscle_val = float(muscle_raw) if muscle_raw is not None else None
+
         if existing:
             existing.weight_kg = weight_num
-            if params.get("body_fat_pct") is not None:
-                existing.body_fat_pct = float(params.get("body_fat_pct"))
-            if params.get("muscle_mass_kg") is not None:
-                existing.muscle_mass_kg = float(params.get("muscle_mass_kg"))
+            if body_fat_val is not None:
+                existing.body_fat_pct = body_fat_val
+            if muscle_val is not None:
+                existing.muscle_mass_kg = muscle_val
             existing.source = "manual"
             db.flush()
             return {
@@ -2371,16 +2413,8 @@ def _handle_log_weight_manual(user_id: int, params: dict) -> dict:
             date=log_date,
             source="manual",
             weight_kg=weight_num,
-            body_fat_pct=(
-                float(params.get("body_fat_pct"))
-                if params.get("body_fat_pct") is not None
-                else None
-            ),
-            muscle_mass_kg=(
-                float(params.get("muscle_mass_kg"))
-                if params.get("muscle_mass_kg") is not None
-                else None
-            ),
+            body_fat_pct=body_fat_val,
+            muscle_mass_kg=muscle_val,
         )
         db.add(row)
         db.flush()
@@ -2397,17 +2431,13 @@ def _handle_delete_recent_log(user_id: int, params: dict) -> dict:
     log_id = params.get("id")
     model = DELETE_RECENT_LOG_KIND_TO_MODEL.get(kind or "")
     if model is None:
-        return {
-            "error": f"kind must be one of {list(DELETE_RECENT_LOG_KIND_TO_MODEL)}"
-        }
+        return {"error": f"kind must be one of {list(DELETE_RECENT_LOG_KIND_TO_MODEL)}"}
     if not log_id:
         return {"error": "id is required"}
 
     with get_db_session_context() as db:
         row = (
-            db.query(model)
-            .filter(model.id == log_id, model.user_id == user_id)
-            .first()
+            db.query(model).filter(model.id == log_id, model.user_id == user_id).first()
         )
         if not row:
             return {"error": f"{kind} {log_id} not found"}

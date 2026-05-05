@@ -57,7 +57,7 @@ def _coerce_float(value: Any) -> float | None:
 def search_off(
     query: str, *, lc: str = "ru", page_size: int = 10
 ) -> list[dict[str, Any]]:
-    params = {
+    params: dict[str, str | int] = {
         "search_terms": query,
         "search_simple": 1,
         "action": "process",
