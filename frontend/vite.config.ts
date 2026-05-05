@@ -35,37 +35,37 @@ export default defineConfig({
         prefer_related_applications: false,
         icons: [
           {
-            src: "/icons/icon-144.png?v=2026-05-04",
+            src: "/icons/icon-144.png?v=2026-05-05",
             sizes: "144x144",
             type: "image/png",
             purpose: "any",
           },
           {
-            src: "/icons/icon-192.png?v=2026-05-04",
+            src: "/icons/icon-192.png?v=2026-05-05",
             sizes: "192x192",
             type: "image/png",
             purpose: "any",
           },
           {
-            src: "/icons/icon-384.png?v=2026-05-04",
+            src: "/icons/icon-384.png?v=2026-05-05",
             sizes: "384x384",
             type: "image/png",
             purpose: "any",
           },
           {
-            src: "/icons/icon-512.png?v=2026-05-04",
+            src: "/icons/icon-512.png?v=2026-05-05",
             sizes: "512x512",
             type: "image/png",
             purpose: "any",
           },
           {
-            src: "/icons/maskable-192.png?v=2026-05-04",
+            src: "/icons/maskable-192.png?v=2026-05-05",
             sizes: "192x192",
             type: "image/png",
             purpose: "maskable",
           },
           {
-            src: "/icons/maskable-512.png?v=2026-05-04",
+            src: "/icons/maskable-512.png?v=2026-05-05",
             sizes: "512x512",
             type: "image/png",
             purpose: "maskable",
@@ -77,7 +77,7 @@ export default defineConfig({
             short_name: "Dashboard",
             url: "/dashboard",
             icons: [
-              { src: "/icons/icon-192.png?v=2026-05-04", sizes: "192x192" },
+              { src: "/icons/icon-192.png?v=2026-05-05", sizes: "192x192" },
             ],
           },
         ],
