@@ -40,6 +40,10 @@ from models import (
     WorkoutSet,
 )
 
+_NAME_REQUIRED_ERROR = "name is required"
+_TS_DESCR_NOW = "ISO datetime or YYYY-MM-DD. Defaults to now if omitted."
+_DATE_DESCR_TODAY = "YYYY-MM-DD. Defaults to today if omitted."
+
 HEALTH_EVENT_DOMAINS = [
     "substance",
     "therapy",
@@ -181,7 +185,7 @@ TOOLS = [
                 },
                 "start_ts": {
                     "type": "string",
-                    "description": "ISO datetime or YYYY-MM-DD. Defaults to now if omitted.",
+                    "description": _TS_DESCR_NOW,
                 },
                 "end_ts": {
                     "type": "string",
@@ -274,7 +278,7 @@ TOOLS = [
                 },
                 "start_date": {
                     "type": "string",
-                    "description": "YYYY-MM-DD. Defaults to today if omitted.",
+                    "description": _DATE_DESCR_TODAY,
                 },
                 "dosage": {"type": "string", "description": "e.g. '400mg', '5g daily'"},
                 "frequency": {
@@ -307,7 +311,7 @@ TOOLS = [
                 },
                 "end_date": {
                     "type": "string",
-                    "description": "YYYY-MM-DD. Defaults to today if omitted.",
+                    "description": _DATE_DESCR_TODAY,
                 },
             },
         },
@@ -570,7 +574,7 @@ TOOLS = [
                 },
                 "consumed_at": {
                     "type": "string",
-                    "description": "ISO datetime or YYYY-MM-DD. Defaults to now if omitted.",
+                    "description": _TS_DESCR_NOW,
                 },
                 "notes": {"type": "string"},
             },
@@ -663,7 +667,7 @@ TOOLS = [
                 },
                 "measured_at": {
                     "type": "string",
-                    "description": "ISO datetime or YYYY-MM-DD. Defaults to now if omitted.",
+                    "description": _TS_DESCR_NOW,
                 },
                 "source": {
                     "type": "string",
@@ -703,7 +707,7 @@ TOOLS = [
                 "score": {"type": "integer", "minimum": 1, "maximum": 10},
                 "measured_at": {
                     "type": "string",
-                    "description": "ISO datetime or YYYY-MM-DD. Defaults to now if omitted.",
+                    "description": _TS_DESCR_NOW,
                 },
                 "notes": {"type": "string"},
             },
@@ -956,7 +960,7 @@ TOOLS = [
             "properties": {
                 "date": {
                     "type": "string",
-                    "description": "YYYY-MM-DD. Defaults to today if omitted.",
+                    "description": _DATE_DESCR_TODAY,
                 },
                 "weight_kg": {"type": "number"},
                 "body_fat_pct": {"type": "number"},
@@ -1224,7 +1228,7 @@ def _handle_log_event(user_id: int, params: dict) -> dict:
     name = (params.get("name") or "").strip()
     domain = params.get("domain")
     if not name:
-        return {"error": "name is required"}
+        return {"error": _NAME_REQUIRED_ERROR}
     if domain not in HEALTH_EVENT_DOMAINS:
         return {"error": f"domain must be one of {HEALTH_EVENT_DOMAINS}"}
 
@@ -1281,7 +1285,7 @@ def _handle_log_protocol(user_id: int, params: dict) -> dict:
     name = (params.get("name") or "").strip()
     domain = params.get("domain")
     if not name:
-        return {"error": "name is required"}
+        return {"error": _NAME_REQUIRED_ERROR}
     if domain not in PROTOCOL_DOMAINS:
         return {"error": f"domain must be one of {PROTOCOL_DOMAINS}"}
 
@@ -1801,7 +1805,7 @@ def _handle_search_exercises(user_id: int, params: dict) -> dict:
 def _handle_save_food_product(user_id: int, params: dict) -> dict:
     name = (params.get("name") or "").strip()
     if not name:
-        return {"error": "name is required"}
+        return {"error": _NAME_REQUIRED_ERROR}
     brand = (params.get("brand") or "").strip() or None
 
     with get_db_session_context() as db:
@@ -2445,6 +2449,37 @@ def _handle_delete_recent_log(user_id: int, params: dict) -> dict:
         return {"status": "deleted", "kind": kind, "id": log_id}
 
 
+def _apply_event_text_updates(row: HealthEvent, params: dict) -> str | None:
+    if params.get("name"):
+        row.name = params["name"].strip()
+    if params.get("domain"):
+        domain = params["domain"]
+        if domain not in HEALTH_EVENT_DOMAINS:
+            return f"domain must be one of {HEALTH_EVENT_DOMAINS}"
+        row.domain = domain
+    if "dosage" in params:
+        row.dosage = params.get("dosage") or None
+    if "notes" in params:
+        row.notes = params.get("notes") or None
+    if "body_location" in params:
+        row.body_location = params.get("body_location") or None
+    return None
+
+
+def _apply_event_time_updates(row: HealthEvent, params: dict) -> None:
+    if params.get("start_ts"):
+        row.start_ts = _parse_ts(params["start_ts"]) or row.start_ts
+    if "end_ts" in params:
+        end_ts_raw = params.get("end_ts")
+        row.end_ts = _parse_ts(end_ts_raw) if end_ts_raw else None
+
+
+def _apply_event_numeric_updates(row: HealthEvent, params: dict) -> None:
+    for field in ("intensity", "valence", "duration_min"):
+        if field in params and params[field] is not None:
+            setattr(row, field, int(params[field]))
+
+
 def _handle_update_event(user_id: int, params: dict) -> dict:
     event_id = params.get("event_id")
     if not event_id:
@@ -2459,30 +2494,11 @@ def _handle_update_event(user_id: int, params: dict) -> dict:
         if not row:
             return {"error": f"event {event_id} not found"}
 
-        if params.get("name"):
-            row.name = params["name"].strip()
-        if params.get("domain"):
-            domain = params["domain"]
-            if domain not in HEALTH_EVENT_DOMAINS:
-                return {"error": f"domain must be one of {HEALTH_EVENT_DOMAINS}"}
-            row.domain = domain
-        if params.get("start_ts"):
-            row.start_ts = _parse_ts(params["start_ts"]) or row.start_ts
-        if "end_ts" in params:
-            end_ts_raw = params.get("end_ts")
-            row.end_ts = _parse_ts(end_ts_raw) if end_ts_raw else None
-        if "dosage" in params:
-            row.dosage = params.get("dosage") or None
-        if "notes" in params:
-            row.notes = params.get("notes") or None
-        if "intensity" in params and params["intensity"] is not None:
-            row.intensity = int(params["intensity"])
-        if "valence" in params and params["valence"] is not None:
-            row.valence = int(params["valence"])
-        if "body_location" in params:
-            row.body_location = params.get("body_location") or None
-        if "duration_min" in params and params["duration_min"] is not None:
-            row.duration_min = int(params["duration_min"])
+        text_error = _apply_event_text_updates(row, params)
+        if text_error:
+            return {"error": text_error}
+        _apply_event_time_updates(row, params)
+        _apply_event_numeric_updates(row, params)
 
         db.flush()
         return {
@@ -2542,7 +2558,7 @@ def _handle_update_food_log(user_id: int, params: dict) -> dict:
 
 
 def _handle_search_logs(user_id: int, params: dict) -> dict:
-    from sqlalchemy import literal, or_, text
+    from sqlalchemy import literal, text
 
     query_str = (params.get("query") or "").strip()
     if not query_str:
@@ -2552,115 +2568,129 @@ def _handle_search_logs(user_id: int, params: dict) -> dict:
     days = int(params.get("days") or 365)
     limit = int(params.get("limit") or 20)
     cutoff = datetime.now(UTC) - timedelta(days=days)
+    pattern = f"%{query_str}%"
 
     results: list[dict] = []
-
     with get_db_session_context() as db:
         if "event" in kinds:
-            event_rows = (
-                db.query(HealthEvent)
-                .filter(HealthEvent.user_id == user_id)
-                .filter(HealthEvent.start_ts >= cutoff)
-                .filter(
-                    or_(
-                        HealthEvent.name.ilike(f"%{query_str}%"),
-                        HealthEvent.notes.ilike(f"%{query_str}%"),
-                        HealthEvent.body_location.ilike(f"%{query_str}%"),
-                    )
-                )
-                .order_by(HealthEvent.start_ts.desc())
-                .limit(limit)
-                .all()
-            )
-            for r in event_rows:
-                results.append(
-                    {
-                        "kind": "event",
-                        "id": r.id,
-                        "name": r.name,
-                        "domain": r.domain,
-                        "start_ts": r.start_ts.isoformat() if r.start_ts else None,
-                        "notes": r.notes,
-                        "body_location": r.body_location,
-                        "intensity": r.intensity,
-                    }
-                )
-
+            results.extend(_search_events(db, user_id, pattern, cutoff, limit))
         if "note" in kinds:
-            note_rows = (
-                db.query(HealthNote)
-                .filter(HealthNote.user_id == user_id)
-                .filter(HealthNote.created_at >= cutoff)
-                .filter(HealthNote.text.ilike(f"%{query_str}%"))
-                .order_by(HealthNote.created_at.desc())
-                .limit(limit)
-                .all()
-            )
-            for r in note_rows:
-                results.append(
-                    {
-                        "kind": "note",
-                        "id": r.id,
-                        "text": r.text,
-                        "created_at": (
-                            r.created_at.isoformat() if r.created_at else None
-                        ),
-                    }
-                )
-
+            results.extend(_search_notes(db, user_id, pattern, cutoff, limit))
         if "product" in kinds:
-            product_rows = (
-                db.query(FoodProduct)
-                .filter(FoodProduct.user_id == user_id)
-                .filter(FoodProduct.name.ilike(f"%{query_str}%"))
-                .limit(limit)
-                .all()
-            )
-            for r in product_rows:
-                results.append(
-                    {
-                        "kind": "product",
-                        "id": r.id,
-                        "name": r.name,
-                        "brand": r.brand,
-                        "calories_per_100g": r.calories_per_100g,
-                    }
-                )
-
+            results.extend(_search_products(db, user_id, pattern, limit))
         if "protocol" in kinds:
-            protocol_rows = (
-                db.query(Protocol)
-                .filter(Protocol.user_id == user_id)
-                .filter(
-                    or_(
-                        Protocol.name.ilike(f"%{query_str}%"),
-                        Protocol.notes.ilike(f"%{query_str}%"),
-                    )
-                )
-                .order_by(Protocol.start_date.desc())
-                .limit(limit)
-                .all()
-            )
-            for r in protocol_rows:
-                results.append(
-                    {
-                        "kind": "protocol",
-                        "id": r.id,
-                        "name": r.name,
-                        "domain": r.domain,
-                        "start_date": str(r.start_date) if r.start_date else None,
-                        "end_date": str(r.end_date) if r.end_date else None,
-                    }
-                )
+            results.extend(_search_protocols(db, user_id, pattern, limit))
 
     _ = literal, text  # keep imports used regardless of branch
     results = results[:limit]
     return {"query": query_str, "count": len(results), "results": results}
 
 
-def _handle_nutrition_lookup(user_id: int, params: dict) -> dict:
-    from agent.nutrition import get_off_by_barcode, search_off
+def _search_events(
+    db: Session, user_id: int, pattern: str, cutoff: datetime, limit: int
+) -> list[dict]:
+    from sqlalchemy import or_
 
+    rows = (
+        db.query(HealthEvent)
+        .filter(HealthEvent.user_id == user_id)
+        .filter(HealthEvent.start_ts >= cutoff)
+        .filter(
+            or_(
+                HealthEvent.name.ilike(pattern),
+                HealthEvent.notes.ilike(pattern),
+                HealthEvent.body_location.ilike(pattern),
+            )
+        )
+        .order_by(HealthEvent.start_ts.desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "kind": "event",
+            "id": r.id,
+            "name": r.name,
+            "domain": r.domain,
+            "start_ts": r.start_ts.isoformat() if r.start_ts else None,
+            "notes": r.notes,
+            "body_location": r.body_location,
+            "intensity": r.intensity,
+        }
+        for r in rows
+    ]
+
+
+def _search_notes(
+    db: Session, user_id: int, pattern: str, cutoff: datetime, limit: int
+) -> list[dict]:
+    rows = (
+        db.query(HealthNote)
+        .filter(HealthNote.user_id == user_id)
+        .filter(HealthNote.created_at >= cutoff)
+        .filter(HealthNote.text.ilike(pattern))
+        .order_by(HealthNote.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "kind": "note",
+            "id": r.id,
+            "text": r.text,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rows
+    ]
+
+
+def _search_products(db: Session, user_id: int, pattern: str, limit: int) -> list[dict]:
+    rows = (
+        db.query(FoodProduct)
+        .filter(FoodProduct.user_id == user_id)
+        .filter(FoodProduct.name.ilike(pattern))
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "kind": "product",
+            "id": r.id,
+            "name": r.name,
+            "brand": r.brand,
+            "calories_per_100g": r.calories_per_100g,
+        }
+        for r in rows
+    ]
+
+
+def _search_protocols(
+    db: Session, user_id: int, pattern: str, limit: int
+) -> list[dict]:
+    from sqlalchemy import or_
+
+    rows = (
+        db.query(Protocol)
+        .filter(Protocol.user_id == user_id)
+        .filter(or_(Protocol.name.ilike(pattern), Protocol.notes.ilike(pattern)))
+        .order_by(Protocol.start_date.desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "kind": "protocol",
+            "id": r.id,
+            "name": r.name,
+            "domain": r.domain,
+            "start_date": str(r.start_date) if r.start_date else None,
+            "end_date": str(r.end_date) if r.end_date else None,
+        }
+        for r in rows
+    ]
+
+
+def _handle_nutrition_lookup(user_id: int, params: dict) -> dict:
     query_str = (params.get("query") or "").strip()
     barcode = (params.get("barcode") or "").strip()
     limit = int(params.get("limit") or 5)
@@ -2669,58 +2699,14 @@ def _handle_nutrition_lookup(user_id: int, params: dict) -> dict:
     if not query_str and not barcode:
         return {"error": "query or barcode is required"}
 
-    matches: list[dict]
-    if barcode:
-        single = get_off_by_barcode(barcode)
-        matches = [single] if single else []
-    else:
-        matches = search_off(query_str, lc="ru", page_size=limit)
-        if not matches:
-            matches = search_off(query_str, lc="en", page_size=limit)
+    matches = _fetch_off_matches(query_str, barcode, limit)
 
     if not matches:
         return {"query": query_str or barcode, "count": 0, "matches": []}
 
-    saved_id = None
-    if save_top_match:
-        top = matches[0]
-        with get_db_session_context() as db:
-            existing = (
-                db.query(FoodProduct)
-                .filter(
-                    FoodProduct.user_id == user_id,
-                    func.lower(FoodProduct.name) == (top.get("name") or "").lower(),
-                )
-                .first()
-            )
-            if existing:
-                if top.get("calories_per_100g") is not None:
-                    existing.calories_per_100g = top["calories_per_100g"]
-                if top.get("protein_g_per_100g") is not None:
-                    existing.protein_g_per_100g = top["protein_g_per_100g"]
-                if top.get("fat_g_per_100g") is not None:
-                    existing.fat_g_per_100g = top["fat_g_per_100g"]
-                if top.get("carbs_g_per_100g") is not None:
-                    existing.carbs_g_per_100g = top["carbs_g_per_100g"]
-                if top.get("fiber_g_per_100g") is not None:
-                    existing.fiber_g_per_100g = top["fiber_g_per_100g"]
-                db.flush()
-                saved_id = existing.id
-            else:
-                product = FoodProduct(
-                    user_id=user_id,
-                    name=top.get("name") or query_str,
-                    brand=top.get("brand"),
-                    calories_per_100g=top.get("calories_per_100g"),
-                    protein_g_per_100g=top.get("protein_g_per_100g"),
-                    fat_g_per_100g=top.get("fat_g_per_100g"),
-                    carbs_g_per_100g=top.get("carbs_g_per_100g"),
-                    fiber_g_per_100g=top.get("fiber_g_per_100g"),
-                    notes=f"openfoodfacts:{top.get('code')}",
-                )
-                db.add(product)
-                db.flush()
-                saved_id = product.id
+    saved_id = (
+        _persist_top_match(user_id, matches[0], query_str) if save_top_match else None
+    )
 
     return {
         "query": query_str or barcode,
@@ -2728,3 +2714,60 @@ def _handle_nutrition_lookup(user_id: int, params: dict) -> dict:
         "matches": matches[:limit],
         "saved_product_id": saved_id,
     }
+
+
+def _fetch_off_matches(query_str: str, barcode: str, limit: int) -> list[dict]:
+    from agent.nutrition import get_off_by_barcode, search_off
+
+    if barcode:
+        single = get_off_by_barcode(barcode)
+        return [single] if single else []
+    matches: list[dict] = search_off(query_str, lc="ru", page_size=limit)
+    if not matches:
+        matches = search_off(query_str, lc="en", page_size=limit)
+    return matches
+
+
+_OFF_NUTRIENT_FIELDS = (
+    "calories_per_100g",
+    "protein_g_per_100g",
+    "fat_g_per_100g",
+    "carbs_g_per_100g",
+    "fiber_g_per_100g",
+)
+
+
+def _update_food_product_nutrients(product: FoodProduct, payload: dict) -> None:
+    for field in _OFF_NUTRIENT_FIELDS:
+        value = payload.get(field)
+        if value is not None:
+            setattr(product, field, value)
+
+
+def _persist_top_match(user_id: int, top: dict, fallback_name: str) -> int | None:
+    name_lower = (top.get("name") or "").lower()
+    if not name_lower:
+        return None
+    with get_db_session_context() as db:
+        existing = (
+            db.query(FoodProduct)
+            .filter(
+                FoodProduct.user_id == user_id,
+                func.lower(FoodProduct.name) == name_lower,
+            )
+            .first()
+        )
+        if existing:
+            _update_food_product_nutrients(existing, top)
+            db.flush()
+            return int(existing.id)
+        product = FoodProduct(
+            user_id=user_id,
+            name=top.get("name") or fallback_name,
+            brand=top.get("brand"),
+            notes=f"openfoodfacts:{top.get('code')}",
+        )
+        _update_food_product_nutrients(product, top)
+        db.add(product)
+        db.flush()
+        return int(product.id)

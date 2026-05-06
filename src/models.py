@@ -33,6 +33,7 @@ VALID_SLEEP_WINDOW_CHECK = (
 )
 CASCADE_ALL_DELETE = "all, delete-orphan"
 USERS_ID_FK = "users.id"
+SET_NULL_ACTION = "SET NULL"
 END_DATE_VALID_CHECK = "end_date IS NULL OR end_date >= start_date"
 AVG_HR_CHECK = (
     "(avg_heart_rate >= 30 AND avg_heart_rate <= 250) OR avg_heart_rate IS NULL"
@@ -1641,7 +1642,7 @@ class ProgramExercise(Base):
     )
     template_id = Column(
         Integer,
-        ForeignKey("exercise_templates.id", ondelete="SET NULL"),
+        ForeignKey("exercise_templates.id", ondelete=SET_NULL_ACTION),
         nullable=True,
     )
     exercise_order = Column(Integer, nullable=False, default=0)
@@ -1758,16 +1759,18 @@ class HealthEvent(Base):
     notes = Column(Text)
     attributes = Column(JSONB, nullable=False, default=dict)
     tags = Column(JSONB, nullable=False, default=list)
-    protocol_id = Column(BigInteger, ForeignKey("protocols.id", ondelete="SET NULL"))
+    protocol_id = Column(
+        BigInteger, ForeignKey("protocols.id", ondelete=SET_NULL_ACTION)
+    )
     intensity = Column(SmallInteger)
     valence = Column(SmallInteger)
     body_location = Column(Text)
     duration_min = Column(Integer)
     related_event_id = Column(
-        BigInteger, ForeignKey("health_events.id", ondelete="SET NULL")
+        BigInteger, ForeignKey("health_events.id", ondelete=SET_NULL_ACTION)
     )
     related_workout_set_id = Column(
-        Integer, ForeignKey("workout_sets.id", ondelete="SET NULL")
+        Integer, ForeignKey("workout_sets.id", ondelete=SET_NULL_ACTION)
     )
 
     user = relationship("User", back_populates="health_events")
@@ -1884,7 +1887,9 @@ class FoodLog(Base):
     consumed_at = Column(DateTime(timezone=True), nullable=False)
     date = Column(Date, nullable=False, index=True)
     meal_type = Column(String(50))
-    product_id = Column(Integer, ForeignKey("food_products.id", ondelete="SET NULL"))
+    product_id = Column(
+        Integer, ForeignKey("food_products.id", ondelete=SET_NULL_ACTION)
+    )
     quantity_g = Column(Float)
     description = Column(Text)
     calories = Column(Float)

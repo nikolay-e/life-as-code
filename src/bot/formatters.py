@@ -20,26 +20,40 @@ def escape_html(text: str) -> str:
     return html.escape(text, quote=False)
 
 
+def _join_with(buf: str, segment: str, sep: str) -> str:
+    return f"{buf}{sep}{segment}" if buf else segment
+
+
+def _flush_oversize_paragraph(
+    chunks: list[str], buf: str, paragraph: str, limit: int
+) -> str:
+    for line in paragraph.splitlines():
+        candidate = _join_with(buf, line, "\n")
+        if len(candidate) > limit and buf:
+            chunks.append(buf)
+            buf = line
+        else:
+            buf = candidate
+    return buf
+
+
 def split_for_telegram(text: str, limit: int = SAFE_TELEGRAM_LENGTH) -> list[str]:
     if len(text) <= limit:
         return [text]
     chunks: list[str] = []
     buf = ""
     for paragraph in text.split("\n\n"):
-        candidate = f"{buf}\n\n{paragraph}" if buf else paragraph
-        if len(candidate) > limit and buf:
-            chunks.append(buf)
-            buf = paragraph
-        elif len(candidate) > limit:
-            for line in paragraph.splitlines():
-                line_candidate = f"{buf}\n{line}" if buf else line
-                if len(line_candidate) > limit and buf:
-                    chunks.append(buf)
-                    buf = line
-                else:
-                    buf = line_candidate
-        else:
+        candidate = _join_with(buf, paragraph, "\n\n")
+        if len(candidate) <= limit:
             buf = candidate
+            continue
+        if buf:
+            chunks.append(buf)
+            buf = ""
+        if len(paragraph) > limit:
+            buf = _flush_oversize_paragraph(chunks, buf, paragraph, limit)
+        else:
+            buf = paragraph
     if buf:
         chunks.append(buf)
     return chunks
