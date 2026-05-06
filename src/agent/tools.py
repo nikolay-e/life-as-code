@@ -1224,6 +1224,26 @@ def _parse_ts(ts_str: str | None, default: datetime | None = None) -> datetime |
             return default
 
 
+def _validate_event_numeric_params(
+    params: dict,
+) -> tuple[int | None, int | None, int | None, str | None]:
+    intensity = params.get("intensity")
+    if intensity is not None and not 0 <= int(intensity) <= 10:
+        return None, None, None, "intensity must be 0..10"
+    valence = params.get("valence")
+    if valence is not None and not -5 <= int(valence) <= 5:
+        return None, None, None, "valence must be -5..5"
+    duration_min = params.get("duration_min")
+    if duration_min is not None and int(duration_min) < 0:
+        return None, None, None, "duration_min must be >= 0"
+    return (
+        int(intensity) if intensity is not None else None,
+        int(valence) if valence is not None else None,
+        int(duration_min) if duration_min is not None else None,
+        None,
+    )
+
+
 def _handle_log_event(user_id: int, params: dict) -> dict:
     name = (params.get("name") or "").strip()
     domain = params.get("domain")
@@ -1239,15 +1259,9 @@ def _handle_log_event(user_id: int, params: dict) -> dict:
     if end_ts is not None and end_ts <= start_ts:
         return {"error": "end_ts must be after start_ts"}
 
-    intensity = params.get("intensity")
-    if intensity is not None and not 0 <= int(intensity) <= 10:
-        return {"error": "intensity must be 0..10"}
-    valence = params.get("valence")
-    if valence is not None and not -5 <= int(valence) <= 5:
-        return {"error": "valence must be -5..5"}
-    duration_min = params.get("duration_min")
-    if duration_min is not None and int(duration_min) < 0:
-        return {"error": "duration_min must be >= 0"}
+    intensity, valence, duration_min, num_error = _validate_event_numeric_params(params)
+    if num_error:
+        return {"error": num_error}
 
     with get_db_session_context() as db:
         event = HealthEvent(
@@ -1261,10 +1275,10 @@ def _handle_log_event(user_id: int, params: dict) -> dict:
             attributes=params.get("attributes") or {},
             tags=params.get("tags") or [],
             protocol_id=params.get("protocol_id"),
-            intensity=int(intensity) if intensity is not None else None,
-            valence=int(valence) if valence is not None else None,
+            intensity=intensity,
+            valence=valence,
             body_location=params.get("body_location") or None,
-            duration_min=int(duration_min) if duration_min is not None else None,
+            duration_min=duration_min,
             related_event_id=params.get("related_event_id"),
             related_workout_set_id=params.get("related_workout_set_id"),
         )
@@ -1882,6 +1896,27 @@ def _resolve_food_product(
     return None
 
 
+def _derive_food_macros(
+    params: dict, product: FoodProduct | None, quantity_g: float | None
+) -> tuple[float | None, float | None, float | None, float | None]:
+    calories = params.get("calories")
+    protein_g = params.get("protein_g")
+    fat_g = params.get("fat_g")
+    carbs_g = params.get("carbs_g")
+    if not (product and quantity_g is not None):
+        return calories, protein_g, fat_g, carbs_g
+    factor = quantity_g / 100.0
+    if calories is None and product.calories_per_100g is not None:
+        calories = round(float(product.calories_per_100g) * factor, 1)
+    if protein_g is None and product.protein_g_per_100g is not None:
+        protein_g = round(float(product.protein_g_per_100g) * factor, 2)
+    if fat_g is None and product.fat_g_per_100g is not None:
+        fat_g = round(float(product.fat_g_per_100g) * factor, 2)
+    if carbs_g is None and product.carbs_g_per_100g is not None:
+        carbs_g = round(float(product.carbs_g_per_100g) * factor, 2)
+    return calories, protein_g, fat_g, carbs_g
+
+
 def _handle_log_food(user_id: int, params: dict) -> dict:
     consumed_at = _parse_ts(params.get("consumed_at"), default=datetime.now(UTC))
     if consumed_at is None:
@@ -1906,21 +1941,9 @@ def _handle_log_food(user_id: int, params: dict) -> dict:
             db, user_id, params.get("product_id"), params.get("product_name")
         )
 
-        calories = params.get("calories")
-        protein_g = params.get("protein_g")
-        fat_g = params.get("fat_g")
-        carbs_g = params.get("carbs_g")
-
-        if product and quantity_g is not None:
-            factor = quantity_g / 100.0
-            if calories is None and product.calories_per_100g is not None:
-                calories = round(product.calories_per_100g * factor, 1)
-            if protein_g is None and product.protein_g_per_100g is not None:
-                protein_g = round(product.protein_g_per_100g * factor, 2)
-            if fat_g is None and product.fat_g_per_100g is not None:
-                fat_g = round(product.fat_g_per_100g * factor, 2)
-            if carbs_g is None and product.carbs_g_per_100g is not None:
-                carbs_g = round(product.carbs_g_per_100g * factor, 2)
+        calories, protein_g, fat_g, carbs_g = _derive_food_macros(
+            params, product, quantity_g
+        )
 
         if not product and not description and calories is None:
             return {
