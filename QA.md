@@ -453,6 +453,51 @@ Project's `--destructive` HSL token: `0 84.2% 60.2%` ≈ red-500 — too light f
 - Fix pattern: add a Settings icon link in the header (`md:hidden`, always visible) + add a "Data Status" row inside the Settings page (`md:hidden`, acts as mobile-only nav entry). Avoids 6-item bottom nav overflow.
 - After any new page is added, manually verify all routes are reachable from a 375px-wide viewport before merging.
 
+## Codespell False Positives on Domain Names
+
+- `codespell` (pre-commit hook) auto-corrects "uptodate" → "up-to-date" (treating it as misspelling of "up to date"). For real domain names like `uptodate.com` (the medical reference site UpToDate), this BREAKS production code silently. Symptom: webhook URL or allowlisted domain becomes invalid after commit. Fix: add the term to `--ignore-words-list` in `.pre-commit-config.yaml` codespell args. Existing list already includes `crate, hevy, checkin, etc` — append `uptodate` (and any other domain/brand names you reference verbatim).
+- General rule: any domain name, brand name, or proper noun used as a string literal needs to be either `# codespell:ignore` annotated or added to ignore-words-list.
+
+## SonarCloud S1192 Quick Pattern (in-file constants)
+
+- Tool input_schema descriptions like "ISO datetime or YYYY-MM-DD. Defaults to now if omitted." used 3+ times across `src/agent/tools.py` flag S1192. Fix in two passes:
+  1. Add module-level `_TS_DESCR_NOW`, `_DATE_DESCR_TODAY`, `_NAME_REQUIRED_ERROR` near the top of the file (after imports).
+  2. `sed -i '' 's|"description": "ISO datetime or YYYY-MM-DD. Defaults to now if omitted."|"description": _TS_DESCR_NOW|g' src/agent/tools.py` (mass-replace).
+- For ondelete="SET NULL" duplications across `models.py` ForeignKey definitions: define `SET_NULL_ACTION = "SET NULL"` at top alongside `CASCADE_ALL_DELETE`, mass-replace.
+
+## SonarCloud S3776 — Handler Refactor Patterns
+
+- Update-style handlers (`_handle_update_event`, `_handle_update_food_log`) accumulate per-field if-blocks → cognitive complexity 23+. Extract per-domain helpers: `_apply_event_text_updates`, `_apply_event_time_updates`, `_apply_event_numeric_updates` each handle one slice (text fields, ts fields, numeric fields with int() casting). Main handler becomes 3 helper calls + flush + return.
+- Multi-table search (`_handle_search_logs`) — 4 sequential table queries with similar shape but different filter cols. Extract `_search_events`, `_search_notes`, `_search_products`, `_search_protocols` each returning `list[dict]`. Main handler is 4 conditional `extend()` calls.
+- Validate-then-construct handlers (`_handle_log_event`) — extract `_validate_event_numeric_params(params) -> tuple[i, v, d, error]`. Main handler unpacks tuple, returns early on error, then constructs row.
+- Macro-derivation in food log: extract `_derive_food_macros(params, product, quantity_g) -> tuple[c, p, f, c]`. Encapsulates the "if product and qty: factor product per-100g" logic.
+
+## OpenFoodFacts Integration — User-Agent Required
+
+- `world.openfoodfacts.org` rate-limits or bans requests without a valid User-Agent. Format: `<AppName>/<Version> (<email>)` — e.g. `life-as-code/1.0 (nikolay.eremeev.business@gmail.com)`. Define once as a module constant in `src/agent/nutrition.py`.
+- Russian search: `?lc=ru` parameter with Cyrillic in `search_terms` works via `cgi/search.pl`. Returns `product_name_ru` for some products (sparse coverage). Always fall back to `product_name`.
+- Rate limit: 10 req/min for `cgi/search.pl`, 15 req/min for `api/v2/product/{code}.json`. Cache results write-through to `food_products` table by canonical name lowercased; OFF `code` (barcode) goes into `notes` field as `openfoodfacts:<code>`.
+
+## Anthropic Web Search Server Tool — Allowlist + Citation-Only
+
+- `web_search_20250305` (or newer `_20260209`) is GA — no `anthropic-beta` header needed. Pricing: $10 per 1k searches plus token cost for fetched snippets.
+- For longevity/medical apps, restrict to grade-A sources via `allowed_domains: list[str]` (no glob support, plain hostnames). Suggested set: PubMed, examine.com, NIH, Nature, Lancet, NEJM, Cochrane, UpToDate, WHO, FDA, CDC.
+- **Citation-only mode**: system prompt must explicitly forbid synthesizing dosages/protocols. Return URL + ≤2-sentence excerpt + "это не медицинский совет". Else the LLM blends sources into a confident-sounding personalized recommendation, which is the medical liability footgun.
+- Constrain via `max_uses: 3` per turn. Errors come back as `web_search_tool_result_error` with `error_code: "max_uses_exceeded"` (HTTP 200, inline).
+
+## Anthropic Prompt Caching — 1h TTL Required for Bursty Workloads
+
+- Default cache TTL on `cache_control` is 5 minutes. For Telegram bot cadence (3 lunch msgs, 6h silence, 2 evening msgs), a 5-minute window misses on every burst → ~40-55% effective savings vs the 80%+ achievable with 1h TTL.
+- Always pass explicit `cache_control: {"type": "ephemeral", "ttl": "1h"}` on system block + last tool entry. Cost multiplier: 5m write 1.25×, 1h write 2.0×, cache read 0.1× (either TTL). Break-even: 1h needs ≥3 reads.
+- `system` parameter: when passed as a plain string, `cache_control` cannot attach. Convert to a list of content blocks: `system=[{"type":"text","text":SYSTEM_PROMPT,"cache_control":{...}}]`.
+- Maximum 4 cache breakpoints per request — top-level `system + tools` cache uses 1 breakpoint each (so 2 of 4 used by the standard "cache system + cache tools" pattern). Adding rolling history breakpoints uses additional slots.
+
+## Migration with pg_trgm + GIN Indexes
+
+- `CREATE EXTENSION IF NOT EXISTS pg_trgm` is trusted in PG 13+; non-superuser with `CREATE` privilege on the database can install it. The `lifeascode_production` role qualifies.
+- GIN trigram index syntax via Alembic raw SQL (cleaner than SQLAlchemy `postgresql_using` for the `_ops` annotation): `op.execute("CREATE INDEX IF NOT EXISTS idx_x_name_trgm ON x USING gin (name gin_trgm_ops)")`. Downgrade: `op.execute("DROP INDEX IF EXISTS idx_x_name_trgm")` — do NOT drop the extension itself, other tables may depend on it.
+- After migration, ILIKE queries on the indexed columns benefit automatically — no query rewrite needed. Postgres planner picks GIN trigram for `LIKE/ILIKE '%pattern%'` patterns.
+
 ## Timezone-Aware DateTime — NaT Serialization Bug
 
 - Adding `DateTime(timezone=True)` columns to SQLAlchemy models causes a 500 on any API endpoint that passes those rows through `_serialize_generic_df` + `sanitize_for_json` unless both handle NaT.
